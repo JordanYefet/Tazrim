@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 25% 97%;
+    --foreground: 214 35% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 214 35% 10%;
+    --primary: 199 72% 38%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 93%;
+    --secondary-foreground: 214 30% 20%;
+    --muted: 210 20% 93%;
+    --muted-foreground: 214 20% 45%;
+    --accent: 210 20% 93%;
+    --accent-foreground: 214 30% 20%;
+    --destructive: 3 72% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 18% 88%;
+    --input: 210 18% 88%;
+    --ring: 199 72% 38%;
+    --radius: 0.625rem;
+
+    /* Semantic color tokens */
+    --income: 158 55% 32%;
+    --income-foreground: 158 55% 32%;
+    --expense: 3 72% 50%;
+    --expense-foreground: 3 72% 50%;
+    --cc: 31 60% 45%;
+    --cc-foreground: 31 60% 45%;
+
+    /* Chart colors (CSS vars for use in JS) */
+    --chart-income: #2e8a5e;
+    --chart-expense: #d94040;
+    --chart-cc: #b8732a;
+    --chart-1: #1e9bbf;
+    --chart-2: #2e8a5e;
+    --chart-3: #b8732a;
+    --chart-4: #d94040;
+    --chart-5: #8b62c9;
+    --chart-6: #2eb8a0;
+    --chart-7: #d96840;
+    --chart-8: #c45c9a;
+    --chart-9: #7aab38;
+    --chart-10: #3090c0;
+  }
+
+  .dark {
+    --background: 220 28% 9%;
+    --foreground: 210 20% 94%;
+    --card: 220 24% 13%;
+    --card-foreground: 210 20% 94%;
+    --primary: 196 65% 48%;
+    --primary-foreground: 215 40% 8%;
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 210 20% 94%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 214 15% 55%;
+    --accent: 220 20% 18%;
+    --accent-foreground: 210 20% 94%;
+    --destructive: 3 60% 42%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 18% 22%;
+    --input: 220 18% 22%;
+    --ring: 196 65% 48%;
+
+    --income: 158 50% 42%;
+    --income-foreground: 158 50% 42%;
+    --expense: 3 65% 55%;
+    --expense-foreground: 3 65% 55%;
+    --cc: 31 60% 55%;
+    --cc-foreground: 31 60% 55%;
+
+    --chart-income: #3aad76;
+    --chart-expense: #e05c52;
+    --chart-cc: #d4955a;
+    --chart-1: #3aaddb;
+    --chart-2: #3aad76;
+    --chart-3: #d4955a;
+    --chart-4: #e05c52;
+    --chart-5: #9b72cf;
+    --chart-6: #3bb8a8;
+    --chart-7: #e07a5f;
+    --chart-8: #d67ab1;
+    --chart-9: #8bc34a;
+    --chart-10: #40b4c4;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+
+  /* Styled native selects */
+  select {
+    @apply bg-muted border border-border text-foreground rounded-lg px-3 py-1.5 text-sm;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 10px center;
+    padding-left: 28px;
+  }
+  [dir="rtl"] select {
+    background-position: right 10px center;
+    padding-left: 10px;
+    padding-right: 28px;
+  }
+  select:focus {
+    @apply outline-none ring-2 ring-ring ring-offset-1 ring-offset-background;
+  }
+}
+
+/* SVG text-anchor flips under dir="rtl", which pushes Recharts axis labels
+   into the plot. Lay chart SVGs out LTR; Hebrew glyphs still render RTL.
+   Kept outside @layer so Tailwind doesn't purge the third-party class. */
+.recharts-wrapper svg {
+  direction: ltr;
+}

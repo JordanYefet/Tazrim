@@ -1,0 +1,23 @@
+node_modules/
+.next/
+
+# Secrets — keep every env file out; commit a sanitized .env.example if one is ever needed
+.env
+.env.*
+!.env.example
+
+# Personal financial data: the database and any bank / card exports
+prisma/*.db
+prisma/*.db-journal
+*.sqlite
+*.xls
+*.xlsx
+*.csv
+
+# Local tooling state
+.worktrees/
+.claude/worktrees/
+.claude/settings.local.json
+.superpowers/
+*.tsbuildinfo
+.DS_Store

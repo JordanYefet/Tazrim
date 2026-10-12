@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./tazrim.db"
+}
+
+model BankTransaction {
+  id                  String   @id @default(uuid())
+  date                DateTime
+  originalDescription String
+  description         String
+  debit               Float    @default(0)
+  credit              Float    @default(0)
+  balance             Float
+  note                String   @default("")
+  ignored             Boolean  @default(false)
+  sourceFile          String
+
+  @@unique([date, originalDescription, debit, credit])
+}
+
+model CreditCardTransaction {
+  id                   String       @id @default(uuid())
+  transactionDate      DateTime
+  billingDate          DateTime
+  originalMerchantName String
+  merchantName         String
+  category             String
+  categoryOverride     String?
+  chargedAmount        Float
+  originalAmount       Float
+  originalCurrency     String
+  cardLastFour         String
+  transactionType      String
+  notes                String       @default("")
+  ignored              Boolean      @default(false)
+  cardProvider         CardProvider
+  contentHash          String       @default("")
+  sourceFile           String       @default("")
+
+  @@index([contentHash, sourceFile])
+}
+
+model TransactionAlias {
+  id               String      @id @default(uuid())
+  source           AliasSource
+  originalName     String
+  displayName      String
+  categoryOverride String?
+
+  @@unique([source, originalName])
+}
+
+model UploadHistory {
+  id          String      @id @default(uuid())
+  fileName    String
+  uploadedAt  DateTime    @default(now())
+  recordCount Int
+  source      AliasSource
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+enum CardProvider {
+  MAX
+  HITECH
+}
+
+enum AliasSource {
+  BANK
+  MAX
+  HITECH
+}
