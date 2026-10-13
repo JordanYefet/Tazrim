@@ -110,16 +110,29 @@ describe('noise control', () => {
     expect(detectUnusualTransactions(all, { recurring: { ids: rent.map(t => t.id) } })).toEqual([])
   })
 
-  it('a recurring merchant key exempts its normal amount but not a price jump', () => {
+  it('a recurring merchant key exempts the category check but not a price jump or a double charge', () => {
     const sub = [
       tx('2025-01-05', 300, 'Fake Streaming'),
       tx('2025-02-05', 300, 'Fake Streaming'),
       tx('2025-03-05', 300, 'Fake Streaming'),
-      tx('2025-03-06', 300, 'Fake Streaming'), // would be a duplicate
+      tx('2025-03-06', 300, 'Fake Streaming'), // double-billed
       tx('2025-04-05', 1500, 'Fake Streaming'),
     ]
     const r = detectUnusualTransactions(sub, { recurring: { merchantKeys: ['fake streaming'] } })
-    expect(r.map(u => [u.amount, u.flags.map(f => f.reason)])).toEqual([[1500, ['merchant_outlier']]])
+    expect(r.map(u => [u.amount, u.date, u.flags.map(f => f.reason)])).toEqual([
+      [1500, '2025-04-05', ['merchant_outlier']],
+      [300, '2025-03-06', ['possible_duplicate']],
+    ])
+  })
+
+  it('still flags a double-billed recurring charge whose ids are exempt', () => {
+    const groceries = Array.from({ length: 5 }, (_, i) =>
+      tx(`2025-01-${String(i * 3 + 1).padStart(2, '0')}`, 220, `Fake Grocer ${'abcde'[i]}`, { category: 'בית' })
+    )
+    const a = tx('2025-01-28', 4000, 'Fake Landlord', { category: 'בית', source: 'bank' })
+    const b = tx('2025-01-29', 4000, 'Fake Landlord', { category: 'בית', source: 'bank' })
+    const r = detectUnusualTransactions([...groceries, a, b], { recurring: { ids: [a.id, b.id] } })
+    expect(r.map(u => [u.id, u.flags.map(f => f.reason)])).toEqual([[b.id, ['possible_duplicate']]])
   })
 
   it('exempts via a predicate', () => {
@@ -220,6 +233,15 @@ describe('possible_duplicate', () => {
     expect(r.map(u => u.date)).toEqual(['2025-01-15'])
   })
 
+  it('skips categories excluded from duplicate checks (e.g. person-to-person transfers)', () => {
+    const rows = [
+      tx('2025-03-10', 200, 'Fake Pay App', { category: 'העברות' }),
+      tx('2025-03-10', 200, 'Fake Pay App', { category: 'העברות' }),
+    ]
+    expect(detectUnusualTransactions(rows)).toHaveLength(1)
+    expect(detectUnusualTransactions(rows, { duplicateExcludedCategories: ['העברות'] })).toEqual([])
+  })
+
   it('points every copy in a cluster at the first one', () => {
     const a = tx('2025-03-10', 500, 'Fake Shop')
     const b = tx('2025-03-10', 500, 'Fake Shop')
@@ -252,6 +274,14 @@ describe('output', () => {
     const big2 = tx('2025-03-01', 900, 'Fake Cafe')
     const r = detectUnusualTransactions([...history, big1, big2], { since: '2025-02-15' })
     expect(r.map(u => u.id)).toEqual([big2.id])
+  })
+
+  it('can limit flagging to a date range with `until`', () => {
+    const history = cafeHistory()
+    const big1 = tx('2025-02-01', 420, 'Fake Cafe')
+    const big2 = tx('2025-03-01', 900, 'Fake Cafe')
+    const r = detectUnusualTransactions([...history, big1, big2], { since: '2025-01-15', until: '2025-02-28' })
+    expect(r.map(u => u.id)).toEqual([big1.id])
   })
 
   it('carries the display fields of the transaction', () => {

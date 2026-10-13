@@ -31,18 +31,22 @@
  *
  * Noise control:
  * - Outlier flags require `amount >= minAmount`.
- * - `recurring` exempts recurring charges (phase 2 plugs in ENG-37 here):
- *   `ids` and `isRecurring` exempt a transaction from every flag;
- *   `merchantKeys` (compared with `normalizeMerchant`) exempt that merchant from
- *   category_outlier and possible_duplicate, but a price jump against its own
- *   history is still a merchant_outlier. Exempt rows still count as history.
+ * - `recurring` exempts recurring charges (ENG-37 plugs in here) from the
+ *   outlier checks only — a double-billed subscription is exactly what
+ *   possible_duplicate should catch. `ids` and `isRecurring` exempt a
+ *   transaction from both outlier flags; `merchantKeys` (compared with
+ *   `normalizeMerchant`) exempt that merchant from category_outlier, but a price
+ *   jump against its own history is still a merchant_outlier. Exempt rows still
+ *   count as history.
+ * - `duplicateExcludedCategories` skips the duplicate check for categories where
+ *   identical repeats are normal (person-to-person transfers).
  * - `isExcluded` removes rows entirely: neither flagged nor used as history. Use
  *   it for the bank's monthly card-payment debit — card charges are already a
  *   breakdown of it, so it is large by construction and would double count, e.g.
  *   `isExcluded: t => t.source === 'bank' && isCardPaymentDescription(t.description)`.
  *   Also a good place for rows the user marked as ignored.
- * - `since` limits which transactions can be flagged; everything earlier still
- *   serves as history.
+ * - `since` / `until` limit which transactions can be flagged; everything else
+ *   still serves as history.
  *
  * Output is deterministic: newest first, then larger amount, then id.
  */
@@ -82,6 +86,10 @@ export interface UnusualOptions {
   isExcluded?: (tx: UnusualInput) => boolean
   /** Only flag transactions on/after this day */
   since?: Date | string
+  /** Only flag transactions on/before this day */
+  until?: Date | string
+  /** Categories never checked for duplicates (e.g. person-to-person transfers) */
+  duplicateExcludedCategories?: Iterable<string>
 }
 
 export type UnusualReason = 'merchant_outlier' | 'category_outlier' | 'possible_duplicate'
@@ -182,6 +190,8 @@ export function detectUnusualTransactions(
   const recurringIds = new Set(o.recurring?.ids ?? [])
   const recurringKeys = new Set(o.recurring?.merchantKeys ?? [])
   const sinceDay = o.since === undefined ? -Infinity : dayNumber(toDateKey(o.since))
+  const untilDay = o.until === undefined ? Infinity : dayNumber(toDateKey(o.until))
+  const duplicateExcluded = new Set(o.duplicateExcludedCategories ?? [])
 
   // Dedupe by id, keep expenses only, drop excluded rows
   const seen = new Set<string>()
@@ -210,15 +220,15 @@ export function detectUnusualTransactions(
   const result: UnusualTransaction[] = []
   for (const r of rows) {
     const { tx } = r
-    if (r.day < sinceDay) continue
-    if (recurringIds.has(tx.id) || o.recurring?.isRecurring?.(tx)) continue
+    if (r.day < sinceDay || r.day > untilDay) continue
+    const recurringTx = recurringIds.has(tx.id) || !!o.recurring?.isRecurring?.(tx)
     const recurringMerchant = recurringKeys.has(r.key)
     const flags: UnusualFlag[] = []
 
     const merchantRows = byMerchant.get(r.key)!
     const priorAtMerchant = merchantRows.filter(p => p.day < r.day).map(p => p.tx.amount)
 
-    if (tx.amount >= o.minAmount) {
+    if (tx.amount >= o.minAmount && !recurringTx) {
       if (priorAtMerchant.length >= o.minMerchantHistory) {
         const baseline = median(priorAtMerchant)
         const maxPrior = Math.max(...priorAtMerchant)
@@ -239,7 +249,7 @@ export function detectUnusualTransactions(
       }
     }
 
-    if (tx.amount >= o.minDuplicateAmount && !recurringMerchant) {
+    if (tx.amount >= o.minDuplicateAmount && !(r.category && duplicateExcluded.has(r.category))) {
       const original = firstOfDuplicateCluster(r, merchantRows, o.duplicateWindowDays)
       if (original) {
         flags.push({ reason: 'possible_duplicate', duplicateOfId: original.tx.id, daysApart: r.day - original.day })
