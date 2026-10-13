@@ -13,6 +13,7 @@ import { RecurringCard } from '@/components/dashboard/recurring-card'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { UnusualCard } from '@/components/dashboard/unusual-card'
 import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
+import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -97,6 +98,8 @@ export default async function DashboardPage({
         <p className="text-sm font-medium text-muted-foreground">{periodLabel}</p>
         <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
       </div>
+
+      <MissingStatementsNotice />
 
       {hasData ? (
         <>

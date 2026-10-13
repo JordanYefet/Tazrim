@@ -172,6 +172,28 @@ export function detectMissingStatements(input: MissingStatementsInput): MissingS
 }
 
 /**
+ * One notice per provider and kind: cards of the same provider list the same
+ * months (payments are attributed to the provider), so they merge into one.
+ */
+export function groupByProvider(items: MissingStatement[]): MissingStatement[] {
+  const groups = new Map<string, MissingStatement>()
+  for (const item of items) {
+    if (!item.months.length) continue
+    const key = `${item.kind}|${item.provider}`
+    const g = groups.get(key)
+    if (!g) groups.set(key, { ...item, months: [...item.months] })
+    else g.months = [...new Set([...g.months, ...item.months])].sort()
+  }
+  return [...groups.values()]
+}
+
+/** "אין פירוט מקס עבור יולי–ספטמבר 2026" / "חסרות תנועות לאומי עבור מרץ 2026" */
+export function missingStatementMessage(kind: MissingStatement['kind'], label: string, months: string[]): string {
+  const ranges = formatMonthRanges(months)
+  return kind === 'CREDIT_CARD' ? `אין פירוט ${label} עבור ${ranges}` : `חסרות תנועות ${label} עבור ${ranges}`
+}
+
+/**
  * "יולי–ספטמבר 2026", "נובמבר 2025–ינואר 2026", "מרץ 2026, יולי 2026":
  * consecutive months collapse into a range, separate ranges are comma-joined.
  */

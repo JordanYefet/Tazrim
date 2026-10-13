@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   detectMissingStatements,
   formatMonthRanges,
+  groupByProvider,
+  missingStatementMessage,
   type DayCount,
   type MissingStatementsInput,
   type MonthCount,
@@ -197,6 +199,36 @@ describe('detectMissingStatements: bank accounts', () => {
     })
     expect(res[oldBank.id]).toBeUndefined()
     expect(res[MAX.id]).toEqual(['2030-03'])
+  })
+})
+
+describe('groupByProvider / missingStatementMessage', () => {
+  const item = (accountId: string, provider: string, kind: 'BANK' | 'CREDIT_CARD', months: string[]) => ({
+    accountId,
+    provider,
+    kind,
+    displayName: accountId,
+    months,
+  })
+
+  it('merges cards of one provider and drops accounts with nothing missing', () => {
+    const groups = groupByProvider([
+      item('a', 'max', 'CREDIT_CARD', ['2030-07']),
+      item('b', 'max', 'CREDIT_CARD', ['2030-07', '2030-08']),
+      item('c', 'cal', 'CREDIT_CARD', []),
+      item('d', 'fakebank', 'BANK', ['2030-03']),
+    ])
+    expect(groups.map(g => [g.provider, g.months])).toEqual([
+      ['max', ['2030-07', '2030-08']],
+      ['fakebank', ['2030-03']],
+    ])
+  })
+
+  it('words card and bank notices', () => {
+    expect(missingStatementMessage('CREDIT_CARD', 'מקס', ['2026-07', '2026-08', '2026-09'])).toBe(
+      'אין פירוט מקס עבור יולי–ספטמבר 2026'
+    )
+    expect(missingStatementMessage('BANK', 'לאומי', ['2026-03'])).toBe('חסרות תנועות לאומי עבור מרץ 2026')
   })
 })
 
