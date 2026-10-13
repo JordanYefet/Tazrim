@@ -1,4 +1,4 @@
-import { parse as parseHtml } from 'node-html-parser'
+import { readHtmlTables } from './file-readers'
 import type { ParsedBankTransaction, ParseResult } from './types'
 
 function parseAmount(val: string): number {
@@ -14,25 +14,23 @@ export function parseBankLeumi(
   buffer: Buffer,
   fileName: string
 ): ParseResult<ParsedBankTransaction> {
-  const root = parseHtml(buffer.toString('utf-8'))
-  const tables = root.querySelectorAll('table')
+  const tables = readHtmlTables(buffer.toString('utf-8'))
 
   for (const table of tables) {
-    const rows = table.querySelectorAll('tr')
+    const rows = table.map(row => row.map(cell => cell.text))
     let headerRowIndex = -1
 
     for (let i = 0; i < rows.length; i++) {
-      const cells = rows[i].querySelectorAll('td, th').map(td => td.text.trim())
+      const cells = rows[i]
       if (cells[0] === 'תאריך') { headerRowIndex = i; break }
     }
 
     if (headerRowIndex === -1) continue
 
     const transactions: ParsedBankTransaction[] = []
-    const dataRows = Array.from(rows).slice(headerRowIndex + 1)
+    const dataRows = rows.slice(headerRowIndex + 1)
 
-    for (const row of dataRows) {
-      const cells = row.querySelectorAll('td, th').map(td => td.text.trim())
+    for (const cells of dataRows) {
       if (!cells[0] || !cells[0].includes('/')) continue
 
       const desc = cells[1]?.trim() ?? ''
