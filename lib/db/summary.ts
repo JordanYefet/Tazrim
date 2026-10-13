@@ -1,17 +1,67 @@
 import { getBankMonthlySummary } from './bank'
-import { getCCMonthlySummary, getMaxCardIds } from './cards'
+import { getCCMonthlySummary } from './cards'
+import { listAccounts, PROVIDERS } from './accounts'
+import {
+  emptyBankMonthly,
+  emptyCardMonthly,
+  type AccountYearSummary,
+  type YearSummary,
+} from '../utils/year-summary'
+
+export type { YearSummary, AccountYearSummary } from '../utils/year-summary'
 
 /**
- * Monthly bank income/expense (every bank account) and MAX charges (every MAX
- * card) for a year — shared by /api/summary and server pages. The card
- * charges are a breakdown of the bank expense, never an extra deduction.
+ * A year of monthly bank income/spending and card charges — shared by
+ * /api/summary and the server pages.
+ *
+ * - `bank`: every active bank account, summed.
+ * - `cards`: every active card, summed. A breakdown of the bank spending
+ *   (which already contains each card's monthly payment), never an extra
+ *   deduction.
+ * - `byAccount`: the same per account, archived accounts included.
+ * - `max`: legacy series for the /cards/max page (every MAX card).
  */
-export async function getYearSummary(year: number) {
-  const [bank, max] = await Promise.all([
-    getBankMonthlySummary(year),
-    getMaxCardIds().then(ids => getCCMonthlySummary(ids, year)),
-  ])
-  return { bank, max }
+export async function getYearSummary(year: number): Promise<YearSummary> {
+  const accounts = await listAccounts({ includeArchived: true })
+
+  const entries = await Promise.all(
+    accounts.map(async (a): Promise<[string, AccountYearSummary]> => {
+      const info = {
+        provider: a.provider,
+        displayName: a.displayName,
+        cardLastFour: a.cardLastFour,
+        archived: a.archived,
+      }
+      return a.kind === 'BANK'
+        ? [a.id, { ...info, kind: 'BANK', monthly: await getBankMonthlySummary(year, a.id) }]
+        : [a.id, { ...info, kind: 'CREDIT_CARD', monthly: await getCCMonthlySummary(a.id, year) }]
+    })
+  )
+  const byAccount = Object.fromEntries(entries)
+
+  const bank = emptyBankMonthly()
+  const cards = emptyCardMonthly()
+  const max = emptyCardMonthly()
+  const active = { bank: [] as string[], cards: [] as string[] }
+
+  for (const a of accounts) {
+    const s = byAccount[a.id]
+    if (s.kind === 'BANK') {
+      if (a.archived) continue
+      active.bank.push(a.id)
+      for (let m = 1; m <= 12; m++) {
+        bank[m].income += s.monthly[m].income
+        bank[m].expense += s.monthly[m].expense
+      }
+    } else {
+      if (a.provider === PROVIDERS.MAX) for (let m = 1; m <= 12; m++) max[m] += s.monthly[m]
+      if (a.archived) continue
+      active.cards.push(a.id)
+      for (let m = 1; m <= 12; m++) cards[m] += s.monthly[m]
+    }
+  }
+
+  return { bank, cards, max, byAccount, accounts: active }
 }
 
 /**
