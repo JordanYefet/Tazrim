@@ -98,6 +98,21 @@ model Category {
   createdAt DateTime @default(now())
 }
 
+/// A transaction the user marked as "not unusual" (ENG-38). It spans both
+/// transaction tables, so there is no foreign key; an orphan (its transaction
+/// was deleted) is harmless and simply never matches.
+model UnusualDismissal {
+  id            String   @id @default(uuid())
+  /// "bank" (BankTransaction) or "card" (CreditCardTransaction)
+  source        String
+  transactionId String
+  /// The flag reason shown when it was dismissed, for reference only
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  @@unique([source, transactionId])
+}
+
 /// TRADING and PENSION are reserved for later; nothing creates them yet.
 enum AccountKind {
   BANK
