@@ -7,7 +7,7 @@ export function SearchEmptyState({ compact }: { compact?: boolean }) {
       <Search className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden />
       <p className="mt-3 text-sm font-medium">חיפוש בכל התנועות</p>
       <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">
-        בכל החשבונות והכרטיסים, בכל השנים: שם בית עסק, תיאור, הערה או סכום (למשל ₪120 או 1,200).
+        בכל החשבונות והכרטיסים, בכל השנים: שם בית עסק, תיאור, הערה או סכום (למשל 120 ₪ או 1,200).
       </p>
     </div>
   )

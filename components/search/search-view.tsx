@@ -148,7 +148,7 @@ export function SearchView({ filters, queryString, page, accounts, categories }:
               <input
                 value={form.amountInput}
                 onChange={e => update({ amountInput: e.target.value }, DEBOUNCE_MS)}
-                placeholder="120 או 100-200"
+                placeholder="120 / 100-200"
                 inputMode="decimal"
                 dir="ltr"
                 aria-invalid={filters.amountInvalid || undefined}
