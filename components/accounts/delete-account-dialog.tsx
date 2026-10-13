@@ -70,7 +70,7 @@ export function DeleteAccountDialog({
         >
           {account && (
             <form onSubmit={confirm} className="space-y-4">
-              <Dialog.Title className="text-lg font-semibold">למחוק את &quot;{account.displayName}&quot;?</Dialog.Title>
+              <Dialog.Title className="text-lg font-semibold">למחוק את <bdi>{account.displayName}</bdi>?</Dialog.Title>
               <Dialog.Description asChild>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   {needsTyping ? (
@@ -90,7 +90,7 @@ export function DeleteAccountDialog({
               {needsTyping && (
                 <div className="space-y-1.5">
                   <label htmlFor="delete-confirm" className="text-sm font-medium">
-                    כדי לאשר, הקלידו את שם החשבון: <span className="font-semibold">{account.displayName}</span>
+                    כדי לאשר, הקלידו את שם החשבון: <bdi className="font-semibold">{account.displayName}</bdi>
                   </label>
                   <input
                     id="delete-confirm"

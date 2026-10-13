@@ -251,13 +251,15 @@ function AccountRow({
               </span>
             )}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {providerLabel(account.provider)}
-            {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
-            {' · '}
-            <span className="tabular-nums">{n(account.transactionCount)}</span> תנועות
-            {' · '}
-            <span className="tabular-nums">{n(account.uploadCount)}</span> העלאות
+          <p className="flex flex-col text-xs text-muted-foreground sm:flex-row sm:gap-x-1.5">
+            <span className="truncate">
+              {providerLabel(account.provider)}
+              {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
+            </span>
+            <span aria-hidden className="hidden sm:inline">·</span>
+            <span className="whitespace-nowrap tabular-nums">
+              {n(account.transactionCount)} תנועות · {n(account.uploadCount)} העלאות
+            </span>
           </p>
         </div>
       )}
