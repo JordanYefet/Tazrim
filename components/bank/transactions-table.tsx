@@ -6,6 +6,8 @@ import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { UnusualBadge } from '@/components/insights/unusual-badge'
+import type { UnusualFlag } from '@/lib/insights/unusual'
 
 interface BankTx {
   id: string
@@ -23,11 +25,14 @@ export function BankTransactionsTable({
   showIgnored,
   hasMore: initialHasMore,
   fetchParams,
+  unusual = {},
 }: {
   transactions: BankTx[]
   showIgnored?: boolean
   hasMore?: boolean
   fetchParams?: string
+  /** Unusual-transaction flags by transaction id */
+  unusual?: Record<string, UnusualFlag[]>
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -154,6 +159,9 @@ export function BankTransactionsTable({
                         {tx.description}
                       </span>
                     )}
+                    {!tx.ignored && unusual[tx.id]?.map(f => (
+                      <UnusualBadge key={f.reason} flag={f} className="ms-1.5 align-middle" />
+                    ))}
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
                     {tx.debit > 0 ? formatCurrency(tx.debit) : ''}

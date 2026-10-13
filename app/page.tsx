@@ -11,6 +11,8 @@ import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { RecurringCard } from '@/components/dashboard/recurring-card'
 import { getRecurringSeries } from '@/lib/db/recurring'
+import { UnusualCard } from '@/components/dashboard/unusual-card'
+import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -23,12 +25,27 @@ export default async function DashboardPage({
   const year = params.year ?? String(new Date().getFullYear())
   const month = params.month ? Number(params.month) : undefined
 
-  const [summary, categoryMonthly, recurring] = await Promise.all([
+  const [summary, categoryMonthly, recurring, latest] = await Promise.all([
     getYearSummary(Number(year)),
     getMaxCardIds().then(ids => getCCCategoryMonthly(ids, Number(year))),
     // as of the latest statements, not the selected period
     getRecurringSeries(),
+    latestTransactionDate(),
   ])
+
+  // Unusual transactions: the selected month, a past year, or the 90 days up to
+  // the latest upload. Bank and card rows from every account; the bank's card
+  // payment is excluded inside (card rows are its breakdown, not extra spend).
+  const today = new Date()
+  const unusualAnchor = latest && latest < today ? latest : today
+  const range = unusualRange({ year: Number(year), month, now: unusualAnchor })
+  // A recurring charge's normal amount is never unusual (duplicates still are)
+  const unusual = asJson(await getUnusualTransactions({ ...range, recurring: { ids: recurring.transactionIds } }))
+  const unusualSubtitle = month
+    ? `תנועות חריגות ב${monthName(month)} ${year}`
+    : Number(year) !== unusualAnchor.getFullYear()
+      ? `תנועות חריגות בשנת ${year}`
+      : 'תנועות חריגות ב־90 הימים האחרונים'
   const { bank, max } = asJson(summary)
 
   // Compare the selected month (or the latest month with card data) to earlier months
@@ -95,7 +112,10 @@ export default async function DashboardPage({
             <CCMonthlyChart data={max} monthCount={monthCount} selectedMonth={month} />
             <CategoryInsights insights={insights} month={insightMonth} year={year} colors={categoryColors} />
           </div>
-          <RecurringCard series={recurring.subscriptions} total={recurring.total} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RecurringCard series={recurring.subscriptions} total={recurring.total} />
+            <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
+          </div>
         </>
       ) : (
         <EmptyState year={year} />

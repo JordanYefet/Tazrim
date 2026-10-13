@@ -6,6 +6,8 @@ import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { UnusualBadge } from '@/components/insights/unusual-badge'
+import type { UnusualFlag } from '@/lib/insights/unusual'
 
 interface CCTx {
   id: string
@@ -30,6 +32,7 @@ export function MaxTransactionsTable({
   showIgnored,
   hasMore: initialHasMore,
   fetchParams,
+  unusual = {},
 }: {
   transactions: CCTx[]
   categories: Category[]
@@ -37,6 +40,8 @@ export function MaxTransactionsTable({
   showIgnored?: boolean
   hasMore?: boolean
   fetchParams?: string
+  /** Unusual-transaction flags by transaction id */
+  unusual?: Record<string, UnusualFlag[]>
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -180,6 +185,9 @@ export function MaxTransactionsTable({
                         {tx.merchantName}
                       </span>
                     )}
+                    {!tx.ignored && unusual[tx.id]?.map(f => (
+                      <UnusualBadge key={f.reason} flag={f} className="ms-1.5 align-middle" />
+                    ))}
                   </td>
                   <td className="py-2.5 px-4 min-w-[140px]">
                     {tx.ignored ? (

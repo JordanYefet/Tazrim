@@ -1,3 +1,4 @@
+import { isCardPaymentDescription } from './card-payment'
 /**
  * Recurring-charge (subscription) detection. Pure: no DB, no Prisma types.
  *
@@ -161,23 +162,7 @@ function displayName(s: string) {
   return cleaned || s.trim()
 }
 
-// Card companies as they appear on the bank statement. Short names need word boundaries
-// (JS \b doesn't work for Hebrew), long ones are matched anywhere.
-const B = `(^|[\\s\\-"'()])`
-const E = `($|[\\s\\-"'()])`
-const CARD_PAYMENT = new RegExp(
-  [
-    'מקס איט', 'כרטיסי אשראי', 'ישראכרט', 'מאסטרקרד', 'לאומי קארד', 'אמריקן אקספרס', 'דיינרס',
-    `${B}(מקס|כאל|ויזה)${E}`,
-    `${B}(max it|isracard|mastercard|visa|amex|diners)${E}`,
-  ].join('|'),
-  'i'
-)
-
-/** True for bank rows that are the monthly payment to a credit-card company */
-export function isCardPaymentDescription(description: string): boolean {
-  return CARD_PAYMENT.test(description.normalize('NFKC'))
-}
+export { isCardPaymentDescription }
 
 // ---------- dates (calendar days, timezone-safe) ----------
 
