@@ -10,11 +10,14 @@ import { useChartAxes } from '@/hooks/use-chart-axes'
 import { OTHER_COLOR } from '@/lib/utils/category-colors'
 import { cn } from '@/lib/utils/cn'
 import type { CategoryMonthly } from '@/lib/insights/category-insights'
+import { accountPath } from '@/lib/accounts/routes'
+import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 
 const TOP_N = 6
 const OTHER = 'אחר'
 
 interface Props {
+  accountId: string
   monthly: CategoryMonthly
   /** Categories ordered by yearly spend */
   ranked: string[]
@@ -46,7 +49,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function CategoryTrendChartInner({ monthly, ranked, colors, monthCount, selectedMonth, selectedCategory }: Props) {
+function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCount, selectedMonth, selectedCategory }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -74,7 +77,7 @@ function CategoryTrendChartInner({ monthly, ranked, colors, monthCount, selected
   function navigate(update: (sp: URLSearchParams) => void) {
     const sp = new URLSearchParams(params.toString())
     update(sp)
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
   }
 
   const selectMonth = (m: number) => navigate(sp => sp.set('month', String(m)))
@@ -86,9 +89,8 @@ function CategoryTrendChartInner({ monthly, ranked, colors, monthCount, selected
     (selectedMonth !== undefined && m !== selectedMonth)
 
   return (
-    <section className="rounded-lg border bg-card p-4 sm:p-5">
-      <h3 className="font-semibold text-base mb-0.5">הוצאות לפי קטגוריה לאורך השנה</h3>
-      <p className="text-xs text-muted-foreground mb-3">לחץ על חודש לסינון, או על קטגוריה למטה</p>
+    <section className={SECTION}>
+      <ChartHeader title="הוצאות לפי קטגוריה לאורך השנה" subtitle="לחיצה על חודש מסננת, או על קטגוריה למטה" />
 
       <div className="h-56 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -159,7 +161,7 @@ function CategoryTrendChartInner({ monthly, ranked, colors, monthCount, selected
 
 export function CategoryTrendChart(props: Props) {
   return (
-    <Suspense fallback={<div className="rounded-lg border bg-card p-5 h-72 animate-pulse" />}>
+    <Suspense fallback={<div className={`${SECTION} h-72 animate-pulse`} />}>
       <CategoryTrendChartInner {...props} />
     </Suspense>
   )

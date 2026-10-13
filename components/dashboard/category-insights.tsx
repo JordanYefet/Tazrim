@@ -11,6 +11,8 @@ interface Props {
   month: number | null
   year: string
   colors: Record<string, string>
+  /** Card page the category links open (the card the insights are about) */
+  cardPath?: string
 }
 
 function baselineLabel(months: number[]) {
@@ -55,7 +57,7 @@ function Badge({ item }: { item: CategoryInsight }) {
   )
 }
 
-export function CategoryInsights({ insights, month, year, colors }: Props) {
+export function CategoryInsights({ insights, month, year, colors, cardPath = '/cards' }: Props) {
   return (
     <section className="flex flex-col rounded-xl border bg-card p-4 sm:p-6">
       <h3 className="font-semibold text-base">שינויים בהוצאות בכרטיס</h3>
@@ -82,7 +84,7 @@ export function CategoryInsights({ insights, month, year, colors }: Props) {
             return (
               <li key={item.category}>
                 <Link
-                  href={`/cards/max?${sp}`}
+                  href={`${cardPath}?${sp}`}
                   className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span

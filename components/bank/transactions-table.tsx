@@ -8,6 +8,7 @@ import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { UnusualBadge } from '@/components/insights/unusual-badge'
 import type { UnusualFlag } from '@/lib/insights/unusual'
+import { accountPath } from '@/lib/accounts/routes'
 
 interface BankTx {
   id: string
@@ -21,12 +22,15 @@ interface BankTx {
 }
 
 export function BankTransactionsTable({
+  accountId,
   transactions: initial,
   showIgnored,
   hasMore: initialHasMore,
   fetchParams,
   unusual = {},
 }: {
+  /** The bank account these rows belong to */
+  accountId: string
   transactions: BankTx[]
   showIgnored?: boolean
   hasMore?: boolean
@@ -41,11 +45,12 @@ export function BankTransactionsTable({
   const [loadingMore, setLoadingMore] = useState(false)
   const [editing, setEditing] = useState<{ id: string; field: 'note'; value: string } | null>(null)
   const activeMerchant = params.get('merchant')
+  const pagePath = accountPath('BANK', accountId)
 
   async function loadMore() {
     if (!fetchParams) return
     setLoadingMore(true)
-    const res = await fetch(`/api/bank/transactions?${fetchParams}&skip=${transactions.length}`)
+    const res = await fetch(`/api/bank/transactions?${fetchParams}&accountId=${encodeURIComponent(accountId)}&skip=${transactions.length}`)
     const more: BankTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
     setHasMore(more.length === 50)
@@ -82,13 +87,13 @@ export function BankTransactionsTable({
   function filterMerchant(description: string) {
     const sp = new URLSearchParams(params.toString())
     sp.set('merchant', description)
-    router.push(`/bank?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   function clearMerchant() {
     const sp = new URLSearchParams(params.toString())
     sp.delete('merchant')
-    router.push(`/bank?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   function toggleShowIgnored() {
@@ -98,7 +103,7 @@ export function BankTransactionsTable({
     } else {
       sp.set('showIgnored', 'true')
     }
-    router.push(`/bank?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   return (
@@ -128,7 +133,7 @@ export function BankTransactionsTable({
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

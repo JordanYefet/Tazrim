@@ -13,6 +13,8 @@ import { RecurringCard } from '@/components/dashboard/recurring-card'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { UnusualCard } from '@/components/dashboard/unusual-card'
 import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
+import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
+import { accountPath } from '@/lib/accounts/routes'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -25,12 +27,14 @@ export default async function DashboardPage({
   const year = params.year ?? String(new Date().getFullYear())
   const month = params.month ? Number(params.month) : undefined
 
-  const [summary, categoryMonthly, recurring, latest] = await Promise.all([
+  const [summary, categoryMonthly, recurring, latest, defaultCard] = await Promise.all([
     getYearSummary(Number(year)),
     getMaxCardIds().then(ids => getCCCategoryMonthly(ids, Number(year))),
     // as of the latest statements, not the selected period
     getRecurringSeries(),
     latestTransactionDate(),
+    // category insights are about MAX charges, so their links open the MAX card's page
+    getDefaultAccount('CREDIT_CARD', PROVIDERS.MAX),
   ])
 
   // Unusual transactions: the selected month, a past year, or the 90 days up to
@@ -110,7 +114,13 @@ export default async function DashboardPage({
           <CombinedChart bankSummary={bank} maxSummary={max} monthCount={monthCount} selectedMonth={month} />
           <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
             <CCMonthlyChart data={max} monthCount={monthCount} selectedMonth={month} />
-            <CategoryInsights insights={insights} month={insightMonth} year={year} colors={categoryColors} />
+            <CategoryInsights
+              insights={insights}
+              month={insightMonth}
+              year={year}
+              colors={categoryColors}
+              cardPath={accountPath('CREDIT_CARD', defaultCard?.id)}
+            />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <RecurringCard series={recurring.subscriptions} total={recurring.total} />

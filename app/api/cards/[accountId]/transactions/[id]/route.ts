@@ -5,13 +5,14 @@ import { prisma } from '@/lib/db/client'
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ accountId: string; id: string }> }
 ) {
-  const { id } = await params
+  const { accountId, id } = await params
   const body = await req.json()
 
   const tx = await prisma.creditCardTransaction.findUnique({ where: { id }, include: { account: true } })
-  if (!tx) return NextResponse.json({ error: 'לא נמצא' }, { status: 404 })
+  // A transaction is only reachable through the card it belongs to
+  if (!tx || tx.accountId !== accountId) return NextResponse.json({ error: 'לא נמצא' }, { status: 404 })
 
   const updated = await updateCCTransaction(id, {
     merchantName: body.merchantName,

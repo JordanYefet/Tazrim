@@ -48,7 +48,7 @@ function CCMonthlyChartInner({ data, monthCount = 12, selectedMonth }: Props) {
   function handleClick(entry: { month: number }) {
     const sp = new URLSearchParams(params.toString())
     sp.set('month', String(entry.month))
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`/cards?${sp.toString()}`)
   }
 
   return (

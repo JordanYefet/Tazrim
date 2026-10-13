@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Building2, CreditCard, Upload, Tag, Repeat } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { isNavActive } from '@/lib/accounts/routes'
 
 const NAV_ITEMS = [
   { href: '/', label: 'לוח בקרה', icon: LayoutDashboard },
-  { href: '/bank', label: 'בנק לאומי', icon: Building2 },
-  { href: '/cards/max', label: 'מקס', icon: CreditCard },
+  { href: '/banks', label: 'בנקים', icon: Building2 },
+  { href: '/cards', label: 'כרטיסי אשראי', icon: CreditCard },
   { href: '/recurring', label: 'חיובים קבועים', icon: Repeat },
   { href: '/upload', label: 'העלאת קבצים', icon: Upload },
   { href: '/categories', label: 'קטגוריות', icon: Tag },
@@ -32,11 +33,12 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 p-3 flex-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
+          const active = isNavActive(pathname, href)
           return (
             <Link
               key={href}
               href={href}
+              aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative',
                 active

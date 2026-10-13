@@ -8,6 +8,7 @@ import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { UnusualBadge } from '@/components/insights/unusual-badge'
 import type { UnusualFlag } from '@/lib/insights/unusual'
+import { accountPath } from '@/lib/accounts/routes'
 
 interface CCTx {
   id: string
@@ -25,7 +26,8 @@ interface CCTx {
 
 interface Category { id: string; name: string }
 
-export function MaxTransactionsTable({
+export function CardTransactionsTable({
+  accountId,
   transactions: initial,
   categories,
   activeCategory,
@@ -34,6 +36,8 @@ export function MaxTransactionsTable({
   fetchParams,
   unusual = {},
 }: {
+  /** The card these rows belong to */
+  accountId: string
   transactions: CCTx[]
   categories: Category[]
   activeCategory?: string
@@ -49,11 +53,13 @@ export function MaxTransactionsTable({
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
   const activeMerchant = params.get('merchant')
+  const pagePath = accountPath('CREDIT_CARD', accountId)
+  const api = `/api/cards/${encodeURIComponent(accountId)}/transactions`
 
   async function loadMore() {
     if (!fetchParams) return
     setLoadingMore(true)
-    const res = await fetch(`/api/cards/max/transactions?${fetchParams}&skip=${transactions.length}`)
+    const res = await fetch(`${api}?${fetchParams}&skip=${transactions.length}`)
     const more: CCTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
     setHasMore(more.length === 50)
@@ -61,7 +67,7 @@ export function MaxTransactionsTable({
   }
 
   async function saveCategory(tx: CCTx, categoryOverride: string) {
-    await fetch(`/api/cards/max/transactions/${tx.id}`, {
+    await fetch(`${api}/${tx.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ categoryOverride }),
@@ -75,7 +81,7 @@ export function MaxTransactionsTable({
 
   async function toggleIgnored(tx: CCTx) {
     const ignored = !tx.ignored
-    await fetch(`/api/cards/max/transactions/${tx.id}`, {
+    await fetch(`${api}/${tx.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ignored }),
@@ -90,19 +96,19 @@ export function MaxTransactionsTable({
   function filterMerchant(name: string) {
     const sp = new URLSearchParams(params.toString())
     sp.set('merchant', name)
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   function clearMerchant() {
     const sp = new URLSearchParams(params.toString())
     sp.delete('merchant')
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   function clearCategory() {
     const sp = new URLSearchParams(params.toString())
     sp.delete('category')
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   function toggleShowIgnored() {
@@ -112,7 +118,7 @@ export function MaxTransactionsTable({
     } else {
       sp.set('showIgnored', 'true')
     }
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`)
   }
 
   const hasFilter = activeMerchant || activeCategory
@@ -154,7 +160,7 @@ export function MaxTransactionsTable({
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
