@@ -10,19 +10,12 @@ interface UploadRecord {
   fileName: string
   uploadedAt: string
   recordCount: number
-  source: string
+  account: { id: string; kind: string; provider: string; displayName: string }
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  BANK: 'בנק לאומי',
-  MAX: 'מקס',
-  HITECH: 'הייטקזון',
-}
-
-const SOURCE_COLORS: Record<string, string> = {
+const KIND_COLORS: Record<string, string> = {
   BANK: 'bg-primary/10 text-primary',
-  MAX: 'bg-[hsl(var(--cc))]/10 text-[hsl(var(--cc))]',
-  HITECH: 'bg-muted text-muted-foreground',
+  CREDIT_CARD: 'bg-[hsl(var(--cc))]/10 text-[hsl(var(--cc))]',
 }
 
 export function UploadHistoryTable({ refresh }: { refresh: number }) {
@@ -64,8 +57,8 @@ export function UploadHistoryTable({ refresh }: { refresh: number }) {
               <tr key={row.id} className="border-b hover:bg-muted/30 transition-colors">
                 <td className="py-2.5 px-4 max-w-[200px] truncate font-medium">{row.fileName}</td>
                 <td className="py-2.5 px-4">
-                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', SOURCE_COLORS[row.source] ?? 'bg-muted text-muted-foreground')}>
-                    {SOURCE_LABELS[row.source] ?? row.source}
+                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', KIND_COLORS[row.account.kind] ?? 'bg-muted text-muted-foreground')}>
+                    {row.account.displayName}
                   </span>
                 </td>
                 <td className="py-2.5 px-4 text-muted-foreground text-xs">{formatDate(row.uploadedAt)}</td>

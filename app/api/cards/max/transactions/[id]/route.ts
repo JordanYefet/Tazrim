@@ -10,7 +10,7 @@ export async function PATCH(
   const { id } = await params
   const body = await req.json()
 
-  const tx = await prisma.creditCardTransaction.findUnique({ where: { id } })
+  const tx = await prisma.creditCardTransaction.findUnique({ where: { id }, include: { account: true } })
   if (!tx) return NextResponse.json({ error: 'לא נמצא' }, { status: 404 })
 
   const updated = await updateCCTransaction(id, {
@@ -19,10 +19,13 @@ export async function PATCH(
     ignored: body.ignored,
   })
 
+  // Rules belong to the card's provider, so they cover every card of that provider
+  const provider = tx.account.provider
+
   if (body.categoryOverride) {
-    await bulkUpdateCCCategory(tx.originalMerchantName, body.categoryOverride)
+    await bulkUpdateCCCategory(tx.originalMerchantName, body.categoryOverride, provider)
     await upsertAlias({
-      source: 'MAX',
+      provider,
       originalName: tx.originalMerchantName,
       displayName: tx.merchantName,
       categoryOverride: body.categoryOverride,
@@ -31,7 +34,7 @@ export async function PATCH(
 
   if (body.merchantName) {
     await upsertAlias({
-      source: 'MAX',
+      provider,
       originalName: tx.originalMerchantName,
       displayName: body.merchantName,
       categoryOverride: body.categoryOverride,

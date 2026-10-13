@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { monthName } from '@/lib/utils/date'
 import { CategoryInsights } from '@/components/dashboard/category-insights'
-import { getCCCategoryMonthly } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getMaxCardIds } from '@/lib/db/cards'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -23,7 +23,7 @@ export default async function DashboardPage({
 
   const [summary, categoryMonthly] = await Promise.all([
     getYearSummary(Number(year)),
-    getCCCategoryMonthly('MAX', Number(year)),
+    getMaxCardIds().then(ids => getCCCategoryMonthly(ids, Number(year))),
   ])
   const { bank, max } = asJson(summary)
 
