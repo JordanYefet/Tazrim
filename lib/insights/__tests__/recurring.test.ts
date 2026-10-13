@@ -303,6 +303,25 @@ describe('detectRecurring', () => {
     const r = detectRecurring(txs)
     expect(only(r, 'Streamly').active).toBe(true)
   })
+
+  it('defaults "today" per account, not just per source', () => {
+    const txs = [
+      ...monthly('Streamly', 40, [1, 2, 3], 5, { source: 'card', accountId: 'card-old' }),
+      ...monthly('GymCo', 150, [1, 2, 3, 4, 5, 6, 7, 8], 8, { source: 'card', accountId: 'card-new' }),
+    ]
+    // The older card's statements stop in March; its series is still current as of its own data
+    const r = detectRecurring(txs)
+    expect(only(r, 'Streamly').active).toBe(true)
+    expect(only(r, 'Streamly').accountId).toBe('card-old')
+  })
+
+  it('labels installment plans instead of treating them as subscriptions', () => {
+    const txs = monthly('SofaCo', 250, [1, 2, 3, 4], 12, { isInstallment: true })
+    const r = detectRecurring(txs, { today: '2026-04-20' })
+    expect(r).toHaveLength(1)
+    expect(r[0].isInstallment).toBe(true)
+    expect(detectRecurring(monthly('Streamly', 40, [1, 2, 3]), { today: '2026-03-20' })[0].isInstallment).toBe(false)
+  })
 })
 
 describe('isCardPaymentDescription', () => {
@@ -330,12 +349,17 @@ describe('recurringMonthlyTotal', () => {
     ...monthly('מקס איט פיננסים', 900, [1, 2, 3, 4], 10, { source: 'bank' }),
     ...monthly('PowerCo', 250, [1, 2, 3, 4], 15, { source: 'bank' }),
     ...['2023-09-01', '2024-09-02', '2025-08-30'].map(d => tx(d, 600, 'Insurely', { source: 'bank' })),
+    ...monthly('SofaCo', 250, [1, 2, 3, 4], 12, { isInstallment: true }),
   ]
   const series = detectRecurring(txs, { today: '2026-04-20' })
 
   it('sums active series of the chosen sources, never the card payment itself', () => {
     // card 40 + 150, bank 250 + 600/12; the 900 card payment and the inactive series are left out
     expect(recurringMonthlyTotal(series, { sources: ['bank', 'card'] })).toBe(490)
+  })
+
+  it('leaves installment plans out unless asked', () => {
+    expect(recurringMonthlyTotal(series, { sources: ['card'], excludeInstallments: false })).toBe(440)
   })
 
   it('can be limited to one source', () => {
@@ -377,5 +401,20 @@ describe('row adapters', () => {
       categoryOverride: 'מנויים',
     })
     expect(t).toMatchObject({ id: 'c1', amount: 40, source: 'card', category: 'מנויים', originalDescription: 'STREAMLY P1A2B3C4D' })
+    expect(t.isInstallment).toBe(false)
+  })
+
+  it('maps an installment card row: flagged, dated by its billing date', () => {
+    const t = fromCardRow({
+      id: 'c2',
+      transactionDate: new Date(2026, 0, 5),
+      billingDate: new Date(2026, 2, 2),
+      merchantName: 'SofaCo',
+      chargedAmount: 250,
+      transactionType: 'תשלומים',
+      accountId: 'acc-card',
+    })
+    // every installment row keeps the purchase date; the billing date is what recurs
+    expect(t).toMatchObject({ isInstallment: true, date: new Date(2026, 2, 2), accountId: 'acc-card' })
   })
 })

@@ -98,6 +98,29 @@ model Category {
   createdAt DateTime @default(now())
 }
 
+/// A user decision about a detected recurring series (lib/insights/recurring.ts).
+/// Series are re-detected on every read; this row is matched to them by `key`,
+/// or by `baseKey` when the merchant has a single series (see applyOverrides).
+/// No FK to Account: the key already encodes the account and the row is harmless
+/// if the account goes away.
+model RecurringSeriesOverride {
+  id          String           @id @default(uuid())
+  key         String           @unique
+  baseKey     String
+  accountId   String?
+  status      RecurringStatus?
+  displayName String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([baseKey])
+}
+
+enum RecurringStatus {
+  CONFIRMED
+  DISMISSED
+}
+
 /// TRADING and PENSION are reserved for later; nothing creates them yet.
 enum AccountKind {
   BANK

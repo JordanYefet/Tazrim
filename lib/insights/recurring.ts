@@ -56,6 +56,8 @@ export interface RecurringTransaction {
   source: RecurringSource
   accountId?: string
   category?: string | null
+  /** card installment plan (תשלומים): recurs, but it's a purchase being paid off, not a subscription */
+  isInstallment?: boolean
 }
 
 export interface PriceIncrease {
@@ -94,11 +96,13 @@ export interface RecurringSeries {
   priceIncrease: PriceIncrease | null
   /** bank series that is the monthly payment to a card company */
   isCardPayment: boolean
+  /** card installment plan; listed apart and left out of the subscriptions total */
+  isInstallment: boolean
   transactionIds: string[]
 }
 
 export interface RecurringOptions {
-  /** Reference date. Defaults to the latest transaction date of each source. */
+  /** Reference date. Defaults to the latest transaction date of each account (source + accountId). */
   today?: Date | string
   minOccurrences?: number
   /** relative amount tolerance, default 0.1 (±10%) */
@@ -225,6 +229,7 @@ interface Row {
   amount: number
   description: string
   category: string | null
+  isInstallment: boolean
 }
 
 interface Chain {
@@ -298,20 +303,23 @@ export function detectRecurring(transactions: RecurringTransaction[], options: R
   const fixedToday = options.today !== undefined ? toDay(options.today) : null
 
   const groups = new Map<string, { source: RecurringSource; accountId?: string; merchant: string; rows: Row[] }>()
-  const dataStart = new Map<RecurringSource, number>()
-  const dataEnd = new Map<RecurringSource, number>()
+  // per account (source + accountId): where its statements start and end
+  const dataStart = new Map<string, number>()
+  const dataEnd = new Map<string, number>()
+  const accountOf = (source: RecurringSource, accountId?: string) => `${source}|${accountId ?? ''}`
 
   for (const t of transactions) {
     const day = toDay(t.date)
-    dataStart.set(t.source, Math.min(dataStart.get(t.source) ?? Infinity, day))
-    dataEnd.set(t.source, Math.max(dataEnd.get(t.source) ?? -Infinity, day))
+    const acct = accountOf(t.source, t.accountId)
+    dataStart.set(acct, Math.min(dataStart.get(acct) ?? Infinity, day))
+    dataEnd.set(acct, Math.max(dataEnd.get(acct) ?? -Infinity, day))
     if (!(t.amount > 0)) continue
     const merchant = normalizeMerchant(t.originalDescription ?? t.description)
     if (!merchant) continue
     const baseKey = [t.source, t.accountId ?? '', merchant].join('|')
     let g = groups.get(baseKey)
     if (!g) groups.set(baseKey, (g = { source: t.source, accountId: t.accountId, merchant, rows: [] }))
-    g.rows.push({ id: t.id, day, amount: t.amount, description: t.description, category: t.category ?? null })
+    g.rows.push({ id: t.id, day, amount: t.amount, description: t.description, category: t.category ?? null, isInstallment: !!t.isInstallment })
   }
 
   const result: RecurringSeries[] = []
@@ -351,7 +359,8 @@ export function detectRecurring(transactions: RecurringTransaction[], options: R
       const rows = chain.rows
       const first = rows[0]
       const last = rows[rows.length - 1]
-      const today = fixedToday ?? dataEnd.get(g.source)!
+      const acct = accountOf(g.source, g.accountId)
+      const today = fixedToday ?? dataEnd.get(acct)!
       const latestAmount = median(rows.slice(chain.levelStarts[chain.levelStarts.length - 1]).map(r => r.amount))
 
       let next = addCycles(last.day, spec, 1)
@@ -379,9 +388,10 @@ export function detectRecurring(transactions: RecurringTransaction[], options: R
         active: today - last.day <= spec.days * spec.maxGapCycles + spec.tol,
         isNew:
           today - first.day <= spec.days * NEW_WITHIN_CYCLES + spec.tol * 2 &&
-          dataStart.get(g.source)! <= first.day - spec.days + spec.tol,
+          dataStart.get(acct)! <= first.day - spec.days + spec.tol,
         priceIncrease: priceIncreaseOf(chain),
         isCardPayment,
+        isInstallment: rows.filter(r => r.isInstallment).length * 2 > rows.length,
         transactionIds: rows.map(r => r.id),
       })
     }
@@ -394,18 +404,26 @@ export function detectRecurring(transactions: RecurringTransaction[], options: R
  * Monthly cost of the active series. `sources` is required on purpose: decide which
  * statements you're totalling. Card-payment bank series are skipped by default (their
  * cost is already the card series); pass `excludeCardPayments: false` when the total
- * covers bank rows only. `excludedKeys` drops series the user dismissed.
+ * covers bank rows only. Installment plans are skipped too unless `excludeInstallments: false`. `excludedKeys` drops series the user dismissed.
  */
 export function recurringMonthlyTotal(
   series: RecurringSeries[],
-  opts: { sources: RecurringSource[]; excludeCardPayments?: boolean; excludedKeys?: Iterable<string>; includeInactive?: boolean }
+  opts: {
+    sources: RecurringSource[]
+    excludeCardPayments?: boolean
+    excludeInstallments?: boolean
+    excludedKeys?: Iterable<string>
+    includeInactive?: boolean
+  }
 ): number {
   const excluded = new Set(opts.excludedKeys ?? [])
   const excludeCardPayments = opts.excludeCardPayments ?? true
+  const excludeInstallments = opts.excludeInstallments ?? true
   const total = series
     .filter(s => opts.sources.includes(s.source))
     .filter(s => opts.includeInactive || s.active)
     .filter(s => !(excludeCardPayments && s.isCardPayment))
+    .filter(s => !(excludeInstallments && s.isInstallment))
     .filter(s => !excluded.has(s.key))
     .reduce((sum, s) => sum + s.monthlyAmount, 0)
   return Math.round(total * 100) / 100
@@ -434,9 +452,22 @@ export function fromBankRow(row: {
   }
 }
 
+const INSTALLMENT_TYPE = /תשלומים|installment/i
+
+/** MAX `transactionType` for an installment plan */
+export function isInstallmentType(transactionType: string | null | undefined): boolean {
+  return !!transactionType && INSTALLMENT_TYPE.test(transactionType)
+}
+
+/**
+ * Card row → detector row. Installment rows all keep the purchase date, so they're
+ * dated by `billingDate` (the month each installment is charged) when it's given.
+ */
 export function fromCardRow(row: {
   id: string
   transactionDate: Date | string
+  billingDate?: Date | string
+  transactionType?: string | null
   merchantName: string
   originalMerchantName?: string
   chargedAmount: number
@@ -444,14 +475,16 @@ export function fromCardRow(row: {
   categoryOverride?: string | null
   accountId?: string | null
 }): RecurringTransaction {
+  const isInstallment = isInstallmentType(row.transactionType)
   return {
     id: row.id,
-    date: row.transactionDate,
+    date: isInstallment && row.billingDate ? row.billingDate : row.transactionDate,
     amount: row.chargedAmount,
     description: row.merchantName,
     ...(row.originalMerchantName !== undefined ? { originalDescription: row.originalMerchantName } : {}),
     source: 'card',
     ...(row.accountId ? { accountId: row.accountId } : {}),
     category: row.categoryOverride ?? row.category ?? null,
+    isInstallment,
   }
 }

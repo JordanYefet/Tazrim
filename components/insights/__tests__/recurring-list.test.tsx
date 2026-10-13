@@ -22,6 +22,7 @@ const base: RecurringSeries = {
   isNew: false,
   priceIncrease: null,
   isCardPayment: false,
+  isInstallment: false,
   transactionIds: ['a', 'b', 'c', 'd'],
 }
 
