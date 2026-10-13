@@ -175,6 +175,39 @@ describe('detectMissingStatements: cards', () => {
   })
 })
 
+describe('detectMissingStatements: cardHistoryStart', () => {
+  const all = months('2030-01', '2030-08')
+  const base = { bankDays: bankDays(all), payments: payments(all) }
+
+  it("defaults to 'firstUpload': no flags before the provider's first billed month", () => {
+    const res = run({ ...base, cardMonths: cardMonths(['2030-04', '2030-05', '2030-07']) })
+    expect(res[MAX.id]).toEqual(['2030-06', '2030-08'])
+  })
+
+  it("'firstPayment' also flags the months before the first upload", () => {
+    const res = run({ ...base, cardMonths: cardMonths(['2030-04', '2030-05', '2030-07']), cardHistoryStart: 'firstPayment' })
+    expect(res[MAX.id]).toEqual(['2030-01', '2030-02', '2030-03', '2030-06', '2030-08'])
+  })
+
+  it("'firstUpload': a provider with no billed rows yet gets no flags", () => {
+    expect(run(base)[MAX.id]).toEqual([])
+  })
+
+  it("'firstPayment': a provider with no billed rows yet gets every paid month", () => {
+    expect(run({ ...base, cardHistoryStart: 'firstPayment' })[MAX.id]).toEqual(all)
+  })
+
+  it("'firstUpload' counts the first billed month of any card of the provider, archived included", () => {
+    const old: StatementAccount = { ...MAX, id: 'card_max_old', archived: true }
+    const res = run({
+      ...base,
+      accounts: [BANK, MAX, old],
+      cardMonths: [...cardMonths(['2030-02'], old.id), ...cardMonths(['2030-05'])],
+    })
+    expect(res[MAX.id]).toEqual(['2030-03', '2030-04', '2030-06', '2030-07', '2030-08'])
+  })
+})
+
 describe('detectMissingStatements: bank accounts', () => {
   it('flags months with no rows inside the covered range, not the edges', () => {
     const res = run({

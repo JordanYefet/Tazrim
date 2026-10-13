@@ -58,6 +58,8 @@ export async function getMissingStatements(now: Date = new Date()): Promise<Miss
       description: `${p.description}\n${p.originalDescription}`,
     })),
     today: ymd(now),
+    // card months before the first upload are not flagged (the default, explicit here)
+    cardHistoryStart: 'firstUpload',
   })
 }
 

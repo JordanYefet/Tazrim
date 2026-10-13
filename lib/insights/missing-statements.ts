@@ -13,6 +13,9 @@
 //   share a provider, a month is missing only if none of them (archived ones
 //   included) has rows billed in it. Every non-archived card of the provider
 //   then lists that month.
+// - By default a provider's card history starts at its first month with
+//   billed rows (cardHistoryStart 'firstUpload'): earlier payments, and
+//   providers with no billed rows at all, are not flagged.
 // - A card month is never flagged while it is not fully billed: the current
 //   month, and the bank's last month when the bank data ends before the
 //   provider's usual payment day.
@@ -59,7 +62,20 @@ export interface MissingStatementsInput {
   payments: PaymentRow[]
   /** "YYYY-MM-DD" */
   today: string
+  /** Where a provider's card history starts; see CardHistoryStart. Default 'firstUpload'. */
+  cardHistoryStart?: CardHistoryStart
 }
+
+/**
+ * - 'firstUpload' (default): only months on or after the provider's first month
+ *   with billed rows (any of its cards, archived included). Older payments are
+ *   from before the user started uploading that card on purpose, so they are
+ *   not flagged; a provider with no billed rows at all gets no flags (a new
+ *   account just shows its empty state).
+ * - 'firstPayment': every month the bank paid the provider, back to the first
+ *   payment, including providers with no billed rows yet.
+ */
+export type CardHistoryStart = 'firstUpload' | 'firstPayment'
 
 export interface MissingStatement {
   accountId: string
@@ -94,6 +110,7 @@ function median(values: number[]): number {
 /** Missing months for every non-archived bank and card account, in input order */
 export function detectMissingStatements(input: MissingStatementsInput): MissingStatement[] {
   const currentMonth = monthOf(input.today)
+  const historyStart: CardHistoryStart = input.cardHistoryStart ?? 'firstUpload'
 
   // Bank months with rows, per account, and the last bank date overall
   const bankMonths = new Map<string, Set<string>>()
@@ -140,8 +157,14 @@ export function detectMissingStatements(input: MissingStatementsInput): MissingS
       : 1
     const lastBankMonth = monthOf(lastBankDate)
     const has = billed.get(provider) ?? new Set<string>()
+    const firstBilled = [...has].sort()[0]
+    if (historyStart === 'firstUpload' && !firstBilled) {
+      cardCache.set(provider, [])
+      return []
+    }
     const out = paymentMonths.filter(m => {
       if (m >= currentMonth || has.has(m)) return false
+      if (historyStart === 'firstUpload' && m < firstBilled) return false
       // the bank data stops before this month's usual payment went out
       if (m === lastBankMonth && dayOf(lastBankDate) < usualDay) return false
       return true

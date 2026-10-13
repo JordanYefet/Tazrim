@@ -85,6 +85,14 @@ describe('getMissingStatements', () => {
     expect(missing.formatMonthRanges(res[1].months)).toBe('מרץ 2030, מאי–יוני 2030')
   })
 
+  it('does not flag months before the first billed month, nor a card with no rows', async () => {
+    await bankHalfYear()
+    expect(await missing.getAccountsMissingStatements(NOW)).toEqual([])
+    await card('2030-04-02')
+    const res = await missing.getAccountsMissingStatements(NOW)
+    expect(res.map(r => [r.accountId, r.months])).toEqual([['acct_max', ['2030-05', '2030-06']]])
+  })
+
   it('stops flagging once the statement is uploaded (ignored rows count)', async () => {
     await bankHalfYear()
     for (const m of ['01', '02', '03', '04', '05']) await card(`2030-${m}-02`)
