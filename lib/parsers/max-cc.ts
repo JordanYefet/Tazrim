@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import { readWorkbookRows } from './file-readers'
 import type { ParsedCCTransaction, ParseResult } from './types'
 
 function parseAmount(val: unknown): number {
@@ -25,8 +25,7 @@ function buildColMap(headerRow: string[]): Record<string, number> {
   }, {} as Record<string, number>)
 }
 
-function parseSheet(sheet: XLSX.WorkSheet): ParsedCCTransaction[] {
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 })
+function parseSheet(rows: unknown[][]): ParsedCCTransaction[] {
   // rows[0-2]: metadata, rows[3]: headers, rows[4+]: data + footer
   const colMap = buildColMap(rows[3] as string[])
 
@@ -51,11 +50,10 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedCCTransaction[] {
 }
 
 export function parseMaxCC(buffer: Buffer): ParseResult<ParsedCCTransaction> {
-  const workbook = XLSX.read(buffer, { type: 'buffer' })
   const transactions: ParsedCCTransaction[] = []
 
-  for (const sheetName of workbook.SheetNames) {
-    transactions.push(...parseSheet(workbook.Sheets[sheetName]))
+  for (const { rows } of readWorkbookRows(buffer)) {
+    transactions.push(...parseSheet(rows))
   }
 
   return { transactions, errors: [] }
