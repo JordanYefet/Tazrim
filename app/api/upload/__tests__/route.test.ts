@@ -1,0 +1,59 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
+import { leumiHtml, OTHER_CSV, TEST_ACCOUNTS_SQL } from '@/lib/upload/__tests__/fixtures'
+
+// All values are made up.
+
+let db: TestDb
+let POST: (req: Request) => Promise<Response>
+
+beforeAll(async () => {
+  db = createTestDb()
+  db.exec(TEST_ACCOUNTS_SQL)
+  usePrismaOn(db)
+  POST = (await import('../route')).POST as unknown as typeof POST
+})
+
+afterAll(async () => {
+  await releasePrisma()
+  db.cleanup()
+})
+
+function req(fields: { file?: File; accountId?: string }): Request {
+  const form = new FormData()
+  if (fields.file) form.append('file', fields.file)
+  if (fields.accountId) form.append('accountId', fields.accountId)
+  return new Request('http://localhost/api/upload', { method: 'POST', body: form })
+}
+
+const leumiFile = () => new File([new Uint8Array(leumiHtml())], 'bank-fake.xls')
+
+describe('POST /api/upload', () => {
+  it('400 without a file or account', async () => {
+    expect((await POST(req({ accountId: 'acct_leumi' }))).status).toBe(400)
+    expect((await POST(req({ file: leumiFile() }))).status).toBe(400)
+  })
+
+  it('404 for an unknown account, 409 for an archived one', async () => {
+    expect((await POST(req({ file: leumiFile(), accountId: 'acct_nope' }))).status).toBe(404)
+    expect((await POST(req({ file: leumiFile(), accountId: 'acct_test_archived' }))).status).toBe(409)
+  })
+
+  it('imports into the chosen account, and a second import adds nothing', async () => {
+    const first = await POST(req({ file: leumiFile(), accountId: 'acct_leumi' }))
+    expect(first.status).toBe(200)
+    expect(await first.json()).toEqual({ created: 2, skipped: 0 })
+
+    const second = await POST(req({ file: leumiFile(), accountId: 'acct_leumi' }))
+    expect(await second.json()).toMatchObject({ created: 0, skipped: 2 })
+    expect(db.query(`SELECT accountId, COUNT(*) AS n FROM "BankTransaction" GROUP BY accountId`)).toEqual([
+      { accountId: 'acct_leumi', n: 2 },
+    ])
+  })
+
+  it('422 UNSUPPORTED_PROVIDER for an account without a parser', async () => {
+    const res = await POST(req({ file: new File([new Uint8Array(OTHER_CSV)], 'o.csv'), accountId: 'acct_test_other' }))
+    expect(res.status).toBe(422)
+    expect((await res.json()).code).toBe('UNSUPPORTED_PROVIDER')
+  })
+})
