@@ -4,7 +4,7 @@ import { MonthlySpendingChart } from '@/components/cards/max/monthly-spending-ch
 import { MaxTransactionsTable } from '@/components/cards/max/max-transactions-table'
 import { CategoryTrendChart } from '@/components/cards/max/category-trend-chart'
 import { CategoryMonthTable } from '@/components/cards/max/category-month-table'
-import { getCCCategoryMonthly, getCCCategoryStats, getCCTransactions } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getCCCategoryStats, getCCTransactions, getMaxCardIds } from '@/lib/db/cards'
 import { getCategories } from '@/lib/db/categories'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
@@ -23,10 +23,11 @@ async function getMaxData(params: SearchParams) {
   const year = params.year ?? String(new Date().getFullYear())
   const month = params.month ? Number(params.month) : undefined
 
-  // Same query as /api/cards/max/transactions (first page of 50 unless a month is selected)
+  // Every MAX card. Same query as /api/cards/max/transactions (first page of 50 unless a month is selected)
+  const accountId = await getMaxCardIds()
   const [txs, yearSummary, categoryRows] = await Promise.all([
     getCCTransactions({
-      provider: 'MAX',
+      accountId,
       year: Number(year),
       month,
       search: params.search,
@@ -44,8 +45,8 @@ async function getMaxData(params: SearchParams) {
   const categories = asJson(categoryRows)
 
   const [stats, categoryMonthly] = await Promise.all([
-    getCCCategoryStats('MAX', Number(year), month),
-    getCCCategoryMonthly('MAX', Number(year)),
+    getCCCategoryStats(accountId, Number(year), month),
+    getCCCategoryMonthly(accountId, Number(year)),
   ])
   const categoryTotals: Record<string, number> = Object.fromEntries(
     Object.entries(stats).map(([k, v]) => [k, v.total])

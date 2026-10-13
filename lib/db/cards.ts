@@ -1,23 +1,33 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from './client'
 import type { ParsedCCTransaction } from '../parsers/types'
-import type { CardProvider } from '@prisma/client'
+import { accountWhere, listAccountIds, PROVIDERS, type AccountFilter } from './accounts'
+import { getAliasMap } from './aliases'
 
+// Every function that takes an AccountFilter reads one card (an id), several
+// cards (a list of ids) or every card (undefined).
+
+/** Ids of every MAX card, archived ones included: what the /cards/max page and the dashboard show. */
+export async function getMaxCardIds(): Promise<string[]> {
+  return listAccountIds({ kind: 'CREDIT_CARD', provider: PROVIDERS.MAX, includeArchived: true })
+}
+
+/** Inserts the rows into one card account, skipping rows that account already has from another file. */
 export async function upsertCCTransactions(
   transactions: ParsedCCTransaction[],
-  fileName: string
+  fileName: string,
+  accountId: string
 ): Promise<{ created: number; skipped: number }> {
   if (!transactions.length) return { created: 0, skipped: 0 }
-  const provider = transactions[0]?.cardProvider ?? 'MAX'
-  const source = provider === 'MAX' ? 'MAX' : 'HITECH'
 
-  const aliases = await prisma.transactionAlias.findMany({ where: { source } })
-  const aliasMap = new Map(aliases.map(a => [a.originalName, a.displayName]))
+  const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
+  const aliasMap = await getAliasMap(account.provider)
 
   let created = 0
   let skipped = 0
 
   for (const tx of transactions) {
+    // Keeps the parser's provider tag ("MAX") so hashes match rows stored before accounts existed
     const contentHash = [
       tx.transactionDate.toISOString().slice(0, 10),
       tx.originalMerchantName,
@@ -26,12 +36,13 @@ export async function upsertCCTransactions(
     ].join('|')
 
     const crossFileDuplicate = await prisma.creditCardTransaction.findFirst({
-      where: { contentHash, sourceFile: { not: fileName } },
+      where: { accountId, contentHash, sourceFile: { not: fileName } },
     })
     if (crossFileDuplicate) { skipped++; continue }
 
     await prisma.creditCardTransaction.create({
       data: {
+        accountId,
         transactionDate: tx.transactionDate,
         billingDate: tx.billingDate,
         originalMerchantName: tx.originalMerchantName,
@@ -43,7 +54,6 @@ export async function upsertCCTransactions(
         cardLastFour: tx.cardLastFour,
         transactionType: tx.transactionType,
         notes: tx.notes,
-        cardProvider: tx.cardProvider as CardProvider,
         contentHash,
         sourceFile: fileName,
       },
@@ -55,7 +65,7 @@ export async function upsertCCTransactions(
 }
 
 export async function getCCTransactions(params: {
-  provider: CardProvider
+  accountId?: AccountFilter
   month?: number
   year?: number
   search?: string
@@ -66,7 +76,7 @@ export async function getCCTransactions(params: {
   skip?: number
 }) {
   const where: Prisma.CreditCardTransactionWhereInput = {
-    cardProvider: params.provider,
+    ...accountWhere(params.accountId),
   }
 
   // undefined and false both mean "exclude ignored rows"
@@ -113,11 +123,11 @@ export async function updateCCTransaction(
   return prisma.creditCardTransaction.update({ where: { id }, data })
 }
 
-export async function getCCCategorySummary(provider: CardProvider, year: number, month?: number) {
+export async function getCCCategorySummary(accountId: AccountFilter, year: number, month?: number) {
   const m = month
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
-      cardProvider: provider,
+      ...accountWhere(accountId),
       ignored: false,
       transactionDate: {
         gte: new Date(year, m ? m - 1 : 0, 1),
@@ -137,21 +147,23 @@ export async function getCCCategorySummary(provider: CardProvider, year: number,
   return byCategory
 }
 
+/** Sets the category of every row with this merchant, on every card of `provider` (or every card). */
 export async function bulkUpdateCCCategory(
   originalMerchantName: string,
-  categoryOverride: string
+  categoryOverride: string,
+  provider?: string
 ) {
   return prisma.creditCardTransaction.updateMany({
-    where: { originalMerchantName },
+    where: { originalMerchantName, ...(provider ? { account: { provider } } : {}) },
     data: { categoryOverride },
   })
 }
 
-export async function getCCCategoryStats(provider: CardProvider, year: number, month?: number) {
+export async function getCCCategoryStats(accountId: AccountFilter, year: number, month?: number) {
   const m = month
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
-      cardProvider: provider,
+      ...accountWhere(accountId),
       ignored: false,
       transactionDate: {
         gte: new Date(year, m ? m - 1 : 0, 1),
@@ -171,10 +183,10 @@ export async function getCCCategoryStats(provider: CardProvider, year: number, m
   return stats
 }
 
-export async function getCCMonthlySummary(provider: CardProvider, year: number) {
+export async function getCCMonthlySummary(accountId: AccountFilter, year: number) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
-      cardProvider: provider,
+      ...accountWhere(accountId),
       ignored: false,
       transactionDate: {
         gte: new Date(year, 0, 1),
@@ -195,10 +207,10 @@ export async function getCCMonthlySummary(provider: CardProvider, year: number) 
 }
 
 /** category -> month (1-12) -> total charged, for one year */
-export async function getCCCategoryMonthly(provider: CardProvider, year: number) {
+export async function getCCCategoryMonthly(accountId: AccountFilter, year: number) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
-      cardProvider: provider,
+      ...accountWhere(accountId),
       ignored: false,
       transactionDate: {
         gte: new Date(year, 0, 1),

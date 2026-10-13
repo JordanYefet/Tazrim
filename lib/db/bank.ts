@@ -1,12 +1,16 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from './client'
 import type { ParsedBankTransaction } from '../parsers/types'
+import { accountWhere, type AccountFilter } from './accounts'
+import { getAliasMap } from './aliases'
 
+/** Inserts the rows into one bank account, skipping rows that account already has. */
 export async function upsertBankTransactions(
-  transactions: ParsedBankTransaction[]
+  transactions: ParsedBankTransaction[],
+  accountId: string
 ): Promise<{ created: number; skipped: number }> {
-  const aliases = await prisma.transactionAlias.findMany({ where: { source: 'BANK' } })
-  const aliasMap = new Map(aliases.map(a => [a.originalName, a.displayName]))
+  const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
+  const aliasMap = await getAliasMap(account.provider)
 
   let created = 0
   let skipped = 0
@@ -14,6 +18,7 @@ export async function upsertBankTransactions(
   for (const tx of transactions) {
     const existing = await prisma.bankTransaction.findFirst({
       where: {
+        accountId,
         date: tx.date,
         originalDescription: tx.originalDescription,
         debit: tx.debit,
@@ -24,6 +29,7 @@ export async function upsertBankTransactions(
 
     await prisma.bankTransaction.create({
       data: {
+        accountId,
         date: tx.date,
         originalDescription: tx.originalDescription,
         description: aliasMap.get(tx.originalDescription) ?? tx.originalDescription,
@@ -40,7 +46,9 @@ export async function upsertBankTransactions(
   return { created, skipped }
 }
 
+/** `accountId` omitted = every bank account. */
 export async function getBankTransactions(params: {
+  accountId?: AccountFilter
   month?: number
   year?: number
   search?: string
@@ -49,7 +57,7 @@ export async function getBankTransactions(params: {
   take?: number
   skip?: number
 }) {
-  const where: Prisma.BankTransactionWhereInput = {}
+  const where: Prisma.BankTransactionWhereInput = { ...accountWhere(params.accountId) }
 
   if (params.year) {
     const m = params.month
@@ -86,9 +94,11 @@ export async function updateBankTransaction(
   return prisma.bankTransaction.update({ where: { id }, data })
 }
 
-export async function getBankMonthlySummary(year: number) {
+/** Monthly income/expense; `accountId` omitted = every bank account. */
+export async function getBankMonthlySummary(year: number, accountId?: AccountFilter) {
   const txs = await prisma.bankTransaction.findMany({
     where: {
+      ...accountWhere(accountId),
       ignored: false,
       date: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) },
     },

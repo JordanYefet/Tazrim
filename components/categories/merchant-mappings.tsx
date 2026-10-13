@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils/cn'
 
 interface Alias {
   id: string
-  source: string
+  provider: string
   originalName: string
   displayName: string
   categoryOverride: string | null
@@ -14,7 +14,7 @@ interface Alias {
 
 interface Category { id: string; name: string }
 
-const SOURCE_LABELS: Record<string, string> = { BANK: 'בנק לאומי', MAX: 'מקס', HITECH: 'הייטקזון' }
+const PROVIDER_LABELS: Record<string, string> = { leumi: 'בנק לאומי', max: 'מקס', hitech: 'הייטקזון' }
 
 export function MerchantMappings({ initial, categories }: { initial: Alias[]; categories: Category[] }) {
   const [aliases, setAliases] = useState(initial)
@@ -26,7 +26,7 @@ export function MerchantMappings({ initial, categories }: { initial: Alias[]; ca
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        source: alias.source,
+        provider: alias.provider,
         originalName: alias.originalName,
         displayName: editDisplay,
         categoryOverride: alias.categoryOverride,
@@ -41,7 +41,7 @@ export function MerchantMappings({ initial, categories }: { initial: Alias[]; ca
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        source: alias.source,
+        provider: alias.provider,
         originalName: alias.originalName,
         displayName: alias.displayName,
         categoryOverride,
@@ -110,7 +110,7 @@ export function MerchantMappings({ initial, categories }: { initial: Alias[]; ca
                     ))}
                   </select>
                 </td>
-                <td className="py-2.5 px-4 text-muted-foreground text-xs">{SOURCE_LABELS[alias.source] ?? alias.source}</td>
+                <td className="py-2.5 px-4 text-muted-foreground text-xs">{PROVIDER_LABELS[alias.provider] ?? alias.provider}</td>
                 <td className="py-2.5 px-4 text-center">
                   <button
                     onClick={() => deleteAliasRow(alias)}

@@ -1,51 +1,68 @@
 import { prisma } from './client'
-import type { AliasSource } from '@prisma/client'
+import { PROVIDERS } from './accounts'
 
-export async function getAliases(source?: AliasSource) {
+/**
+ * Merchant / description rules are keyed by provider ("leumi", "max", ...),
+ * so a rule applies to every account of that provider.
+ */
+export interface AliasInput {
+  provider: string
+  originalName: string
+  displayName: string
+  categoryOverride?: string
+}
+
+const LEGACY_SOURCES: Record<string, string> = {
+  BANK: PROVIDERS.LEUMI,
+  MAX: PROVIDERS.MAX,
+  HITECH: PROVIDERS.HITECH,
+}
+
+/** Provider key for an API value: legacy enum names (BANK/MAX/HITECH) map to their provider, anything else is lower-cased. */
+export function normalizeProvider(value: string): string {
+  const v = value.trim()
+  return LEGACY_SOURCES[v] ?? v.toLowerCase()
+}
+
+export async function getAliases(provider?: string) {
   return prisma.transactionAlias.findMany({
-    where: source ? { source } : undefined,
+    where: provider ? { provider } : undefined,
     orderBy: { originalName: 'asc' },
   })
 }
 
-export async function upsertAlias(params: {
-  source: AliasSource
-  originalName: string
-  displayName: string
-  categoryOverride?: string
-}) {
+/** originalName -> displayName for one provider's rules. */
+export async function getAliasMap(provider: string): Promise<Map<string, string>> {
+  const aliases = await prisma.transactionAlias.findMany({ where: { provider } })
+  return new Map(aliases.map(a => [a.originalName, a.displayName]))
+}
+
+export async function upsertAlias(params: AliasInput) {
   return prisma.transactionAlias.upsert({
-    where: { source_originalName: { source: params.source, originalName: params.originalName } },
+    where: { provider_originalName: { provider: params.provider, originalName: params.originalName } },
     update: { displayName: params.displayName, categoryOverride: params.categoryOverride },
     create: params,
   })
 }
 
-export async function upsertAliasAndBulkUpdate(params: {
-  source: AliasSource
-  originalName: string
-  displayName: string
-  categoryOverride?: string
-}) {
-  const alias = await prisma.transactionAlias.upsert({
-    where: { source_originalName: { source: params.source, originalName: params.originalName } },
-    update: { displayName: params.displayName, categoryOverride: params.categoryOverride },
-    create: params,
-  })
+/** Saves the rule and applies it to the existing rows of every account of the provider. */
+export async function upsertAliasAndBulkUpdate(params: AliasInput) {
+  const alias = await upsertAlias(params)
+  const ofProvider = { account: { provider: params.provider } }
 
-  if (params.categoryOverride && (params.source === 'MAX' || params.source === 'HITECH')) {
+  // Card rows: the rule carries a category. Bank rows: it renames the description.
+  // A provider only has rows in one of the two tables, so at most one of these touches anything.
+  if (params.categoryOverride) {
     await prisma.creditCardTransaction.updateMany({
-      where: { originalMerchantName: params.originalName },
+      where: { originalMerchantName: params.originalName, ...ofProvider },
       data: { categoryOverride: params.categoryOverride },
     })
   }
 
-  if (params.source === 'BANK') {
-    await prisma.bankTransaction.updateMany({
-      where: { originalDescription: params.originalName },
-      data: { description: params.displayName },
-    })
-  }
+  await prisma.bankTransaction.updateMany({
+    where: { originalDescription: params.originalName, ...ofProvider },
+    data: { description: params.displayName },
+  })
 
   return alias
 }

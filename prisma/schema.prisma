@@ -7,8 +7,30 @@ datasource db {
   url      = "file:./tazrim.db"
 }
 
+/// A bank account or a card. Transactions and uploads always belong to one.
+/// The accounts created by the 20261013000000_add_account migration have fixed
+/// ids (acct_leumi, acct_max), so the back-fill is reproducible.
+model Account {
+  id                     String                  @id @default(uuid())
+  kind                   AccountKind
+  /// Lowercase provider key, e.g. "leumi", "max". Merchant rules
+  /// (TransactionAlias) are keyed by it and apply to every account of the provider.
+  provider               String
+  displayName            String
+  cardLastFour           String?
+  archived               Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+  bankTransactions       BankTransaction[]
+  creditCardTransactions CreditCardTransaction[]
+  uploads                UploadHistory[]
+
+  @@index([kind, provider])
+}
+
 model BankTransaction {
   id                  String   @id @default(uuid())
+  accountId           String
+  account             Account  @relation(fields: [accountId], references: [id])
   date                DateTime
   originalDescription String
   description         String
@@ -19,11 +41,14 @@ model BankTransaction {
   ignored             Boolean  @default(false)
   sourceFile          String
 
-  @@unique([date, originalDescription, debit, credit])
+  // date leads (as before accounts existed) so date-ordered reads keep the same plan and row order
+  @@unique([date, originalDescription, debit, credit, accountId])
 }
 
 model CreditCardTransaction {
-  id                   String       @id @default(uuid())
+  id                   String   @id @default(uuid())
+  accountId            String
+  account              Account  @relation(fields: [accountId], references: [id])
   transactionDate      DateTime
   billingDate          DateTime
   originalMerchantName String
@@ -35,31 +60,36 @@ model CreditCardTransaction {
   originalCurrency     String
   cardLastFour         String
   transactionType      String
-  notes                String       @default("")
-  ignored              Boolean      @default(false)
-  cardProvider         CardProvider
-  contentHash          String       @default("")
-  sourceFile           String       @default("")
+  notes                String   @default("")
+  ignored              Boolean  @default(false)
+  contentHash          String   @default("")
+  sourceFile           String   @default("")
 
-  @@index([contentHash, sourceFile])
+  // Same leading columns as before accounts existed, so list reads keep the same plan and row order
+  @@index([contentHash, sourceFile, accountId])
 }
 
+/// A merchant / description rule. Keyed by provider (not by account), so it
+/// applies to every account of that provider.
 model TransactionAlias {
-  id               String      @id @default(uuid())
-  source           AliasSource
+  id               String  @id @default(uuid())
+  provider         String
   originalName     String
   displayName      String
   categoryOverride String?
 
-  @@unique([source, originalName])
+  @@unique([provider, originalName])
 }
 
 model UploadHistory {
-  id          String      @id @default(uuid())
+  id          String   @id @default(uuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id])
   fileName    String
-  uploadedAt  DateTime    @default(now())
+  uploadedAt  DateTime @default(now())
   recordCount Int
-  source      AliasSource
+
+  @@index([accountId, fileName])
 }
 
 model Category {
@@ -68,13 +98,10 @@ model Category {
   createdAt DateTime @default(now())
 }
 
-enum CardProvider {
-  MAX
-  HITECH
-}
-
-enum AliasSource {
+/// TRADING and PENSION are reserved for later; nothing creates them yet.
+enum AccountKind {
   BANK
-  MAX
-  HITECH
+  CREDIT_CARD
+  TRADING
+  PENSION
 }

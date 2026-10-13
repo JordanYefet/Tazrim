@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCCTransactions } from '@/lib/db/cards'
+import { getCCTransactions, getMaxCardIds } from '@/lib/db/cards'
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const take = !month ? 50 : undefined
 
   const transactions = await getCCTransactions({
-    provider: 'MAX',
+    accountId: await getMaxCardIds(),
     year,
     month,
     search,
