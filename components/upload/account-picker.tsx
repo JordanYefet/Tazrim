@@ -2,7 +2,7 @@
 
 import { Building2, CreditCard, FileWarning, LineChart, PiggyBank, Plus, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { formatMonthRanges } from '@/lib/insights/missing-statements'
+import { formatMonthRanges, noBreakAtDash } from '@/lib/insights/missing-statements'
 
 export interface UploadAccount {
   id: string
@@ -84,7 +84,7 @@ export function AccountPicker({
                     {!!account.missingMonths?.length && (
                       <span className="mt-1 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
                         <FileWarning className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-                        <span className="text-pretty">חסר: {formatMonthRanges(account.missingMonths)}</span>
+                        <span className="text-pretty">חסר: {noBreakAtDash(formatMonthRanges(account.missingMonths))}</span>
                       </span>
                     )}
                   </span>

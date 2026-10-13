@@ -193,6 +193,9 @@ export function missingStatementMessage(kind: MissingStatement['kind'], label: s
   return kind === 'CREDIT_CARD' ? `אין פירוט ${label} עבור ${ranges}` : `חסרות תנועות ${label} עבור ${ranges}`
 }
 
+/** For display: keep a range from wrapping at its dash (word joiners around it) */
+export const noBreakAtDash = (text: string) => text.replace(/–/g, '⁠–⁠')
+
 /**
  * "יולי–ספטמבר 2026", "נובמבר 2025–ינואר 2026", "מרץ 2026, יולי 2026":
  * consecutive months collapse into a range, separate ranges are comma-joined.

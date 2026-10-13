@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { FileWarning, X } from 'lucide-react'
 import { providerLabel } from '@/components/upload/account-picker'
-import { missingStatementMessage, type MissingStatement } from '@/lib/insights/missing-statements'
+import { missingStatementMessage, noBreakAtDash, type MissingStatement } from '@/lib/insights/missing-statements'
 
 export type MissingStatementItem = Pick<MissingStatement, 'kind' | 'provider' | 'months'>
 
@@ -47,7 +47,7 @@ export function MissingStatementsBanner({ items }: { items: MissingStatementItem
       <div className="min-w-0 flex-1 space-y-0.5">
         {items.map(i => (
           <p key={`${i.kind}|${i.provider}`} className="text-pretty">
-            {missingStatementMessage(i.kind, providerLabel(i.provider), i.months)}
+            {noBreakAtDash(missingStatementMessage(i.kind, providerLabel(i.provider), i.months))}
           </p>
         ))}
       </div>
