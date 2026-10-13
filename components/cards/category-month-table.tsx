@@ -2,8 +2,10 @@ import Link from 'next/link'
 import { monthName, monthNameShort } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 import type { CategoryMonthly } from '@/lib/insights/category-insights'
+import { accountPath } from '@/lib/accounts/routes'
 
 interface Props {
+  accountId: string
   monthly: CategoryMonthly
   /** Categories ordered by yearly spend */
   ranked: string[]
@@ -17,7 +19,7 @@ interface Props {
 
 const fmt = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 })
 
-export function CategoryMonthTable({ monthly, ranked, colors, lastMonth, year, selectedMonth, selectedCategory }: Props) {
+export function CategoryMonthTable({ accountId, monthly, ranked, colors, lastMonth, year, selectedMonth, selectedCategory }: Props) {
   const months = Array.from({ length: lastMonth }, (_, i) => i + 1)
   const monthTotals = months.map(m => ranked.reduce((s, c) => s + (monthly[c]?.[m] ?? 0), 0))
   // Average over months that have any card data, so a missing upload doesn't drag it down
@@ -32,7 +34,7 @@ export function CategoryMonthTable({ monthly, ranked, colors, lastMonth, year, s
       if (v === undefined) sp.delete(k)
       else sp.set(k, v)
     }
-    return `/cards/max?${sp}`
+    return `${accountPath('CREDIT_CARD', accountId)}?${sp}`
   }
 
   const cell = 'px-3 py-2 text-end tabular-nums whitespace-nowrap'
@@ -40,10 +42,10 @@ export function CategoryMonthTable({ monthly, ranked, colors, lastMonth, year, s
   const monthCol = (m: number) => selectedMonth === m && 'bg-primary/[0.07]'
 
   return (
-    <section className="rounded-lg border bg-card">
-      <div className="p-4 sm:p-5 pb-3">
-        <h3 className="font-semibold text-base mb-0.5">פירוט לפי קטגוריה וחודש</h3>
-        <p className="text-xs text-muted-foreground">
+    <section className="rounded-xl border bg-card">
+      <div className="p-4 sm:p-6 pb-3 sm:pb-4">
+        <h3 className="font-semibold text-base">פירוט לפי קטגוריה וחודש</h3>
+        <p className="text-sm text-muted-foreground">
           סכומים בש״ח · ממוצע מחושב על {activeMonths} חודשים עם חיובים · לחץ על קטגוריה או חודש לסינון
         </p>
       </div>

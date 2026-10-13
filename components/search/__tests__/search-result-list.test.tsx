@@ -36,8 +36,8 @@ describe('SearchResultList', () => {
   const html = renderToStaticMarkup(<SearchResultList results={rows} terms={['fake']} />)
 
   it('links every row through transactionHref', () => {
-    expect(html).toContain('href="/cards/max?year=2030&amp;month=4&amp;search=Fake+Cafe"')
-    expect(html).toContain('href="/bank?year=2030&amp;month=4&amp;search=Fake+Payroll&amp;showIgnored=true"')
+    expect(html).toContain('href="/cards/acct_test?year=2030&amp;month=4&amp;search=Fake+Cafe"')
+    expect(html).toContain('href="/banks/acct_bank?year=2030&amp;month=4&amp;search=Fake+Payroll&amp;showIgnored=true"')
   })
 
   it('highlights the matched text in the name, the original and the note', () => {

@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
+import { accountPath } from '@/lib/accounts/routes'
+import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 
 // CSS vars (defined per theme in globals.css) so SSR and client markup match
 const COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
@@ -21,11 +23,13 @@ function CustomTooltip({ active, payload }: any) {
 }
 
 function CategoryDonutInner({
+  accountId,
   data,
   stats,
   selectedCategory,
   colors,
 }: {
+  accountId: string
   data: Record<string, number>
   stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
@@ -47,13 +51,15 @@ function CategoryDonutInner({
     } else {
       sp.set('category', entry.name)
     }
-    router.push(`/cards/max?${sp.toString()}`)
+    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
   }
 
   return (
-    <div className="rounded-lg border bg-card p-5">
-      <h3 className="font-semibold text-base mb-0.5">הוצאות לפי קטגוריה</h3>
-      <p className="text-xs text-muted-foreground mb-4">לחץ על קטגוריה לסינון</p>
+    <section className={SECTION}>
+      <ChartHeader title="הוצאות לפי קטגוריה" subtitle="לחיצה על קטגוריה מסננת" />
+      {chartData.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">אין חיובים לתקופה זו</p>
+      ) : (
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="h-52 w-52 flex-shrink-0">
           <ResponsiveContainer width="100%" height="100%">
@@ -103,24 +109,27 @@ function CategoryDonutInner({
           ))}
         </div>
       </div>
-    </div>
+      )}
+    </section>
   )
 }
 
 export function CategoryDonut({
+  accountId,
   data,
   stats,
   selectedCategory,
   colors,
 }: {
+  accountId: string
   data: Record<string, number>
   stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
   colors?: Record<string, string>
 }) {
   return (
-    <Suspense fallback={<div className="rounded-lg border bg-card p-5 h-64" />}>
-      <CategoryDonutInner data={data} stats={stats} selectedCategory={selectedCategory} colors={colors} />
+    <Suspense fallback={<div className={`${SECTION} h-64`} />}>
+      <CategoryDonutInner accountId={accountId} data={data} stats={stats} selectedCategory={selectedCategory} colors={colors} />
     </Suspense>
   )
 }

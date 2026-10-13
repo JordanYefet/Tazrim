@@ -6,6 +6,7 @@
  * client components.
  */
 import type { Prisma } from '@prisma/client'
+import { accountHref } from '@/lib/accounts/routes'
 
 /** An exact amount matches anything within ±this (half an agora). */
 export const AMOUNT_EPSILON = 0.005
@@ -444,5 +445,5 @@ export function transactionHref(r: Pick<SearchResult, 'source' | 'accountId' | '
   const [year, month] = r.date.split('-').map(Number)
   const sp = new URLSearchParams({ year: String(year), month: String(month), search: r.description })
   if (r.ignored) sp.set('showIgnored', 'true')
-  return `${r.source === 'bank' ? '/bank' : '/cards/max'}?${sp.toString()}`
+  return accountHref(r.source === 'bank' ? 'BANK' : 'CREDIT_CARD', r.accountId, sp)
 }

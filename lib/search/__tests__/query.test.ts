@@ -303,12 +303,12 @@ describe('highlightParts', () => {
 })
 
 describe('transactionHref', () => {
-  it('bank rows link to the bank table, card rows to the cards table', () => {
-    expect(transactionHref(result({ description: 'Fake Shop & Co' }))).toBe(
-      '/bank?year=2030&month=3&search=Fake+Shop+%26+Co'
+  it("links to the row's own account page, filtered to its month and description", () => {
+    expect(transactionHref(result({ accountId: 'acct_fake_bank', description: 'Fake Shop & Co' }))).toBe(
+      '/banks/acct_fake_bank?year=2030&month=3&search=Fake+Shop+%26+Co'
     )
-    expect(transactionHref(result({ source: 'card', description: 'קפה' }))).toBe(
-      `/cards/max?year=2030&month=3&search=${encodeURIComponent('קפה')}`
+    expect(transactionHref(result({ source: 'card', accountId: 'acct_fake_card', description: 'קפה' }))).toBe(
+      `/cards/acct_fake_card?year=2030&month=3&search=${encodeURIComponent('קפה')}`
     )
   })
 

@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Building2, CreditCard, Upload, Tag, Repeat } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { isNavActive } from '@/lib/accounts/routes'
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
   { href: '/', label: 'לוח בקרה', icon: LayoutDashboard },
-  { href: '/bank', label: 'בנק', icon: Building2 },
-  { href: '/cards/max', label: 'מקס', icon: CreditCard },
+  { href: '/banks', label: 'בנקים', icon: Building2 },
+  { href: '/cards', label: 'כרטיסים', title: 'כרטיסי אשראי', icon: CreditCard },
   { href: '/recurring', label: 'קבועים', icon: Repeat },
   { href: '/upload', label: 'העלאה', icon: Upload },
   { href: '/categories', label: 'קטגוריות', icon: Tag },
@@ -19,14 +20,16 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t bg-card flex px-2 pb-[env(safe-area-inset-bottom)]">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href
+      {NAV_ITEMS.map(({ href, label, title, icon: Icon }) => {
+        const active = isNavActive(pathname, href)
         return (
           <Link
             key={href}
             href={href}
+            aria-label={title}
+            aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex flex-col items-center gap-1 flex-1 py-2 text-xs transition-colors relative',
+              'flex min-w-0 flex-col items-center gap-1 flex-1 py-2 text-xs whitespace-nowrap transition-colors relative',
               active
                 ? 'text-primary font-medium'
                 : 'text-muted-foreground hover:text-foreground'

@@ -19,6 +19,8 @@ interface Props {
   selectedCard?: string
   /** Current year/month query string, for the filter links */
   query?: string
+  /** Card page the category links open (the card the insights are about) */
+  cardPath?: string
 }
 
 function baselineLabel(months: number[]) {
@@ -102,6 +104,7 @@ export function CategoryInsights({
   cardOptions = [],
   selectedCard,
   query = '',
+  cardPath = '/cards',
 }: Props) {
   return (
     <section className="flex flex-col rounded-xl border bg-card p-4 sm:p-6">
@@ -130,7 +133,7 @@ export function CategoryInsights({
             return (
               <li key={item.category}>
                 <Link
-                  href={`/cards/max?${sp}`}
+                  href={`${cardPath}?${sp}`}
                   className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span

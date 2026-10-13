@@ -21,6 +21,11 @@ export function monthNameShort(month: number): string {
   return MONTHS_HE_SHORT[month - 1] ?? ''
 }
 
+/** The selected period as the dashboard heading shows it. */
+export function periodLabel(year: string | number, month?: number): string {
+  return month ? `${monthName(month)} ${year}` : `כל החודשים · ${year}`
+}
+
 export function monthsArray(): { value: number; label: string }[] {
   return MONTHS_HE.map((label, i) => ({ value: i + 1, label }))
 }

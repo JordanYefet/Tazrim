@@ -1,19 +1,21 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
-import { RollingNumber } from '@/components/ui/rolling-number'
+import { RollingNumber, type RollingFormat } from '@/components/ui/rolling-number'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 
-type Tone = 'income' | 'expense' | 'cc' | 'neutral'
+export type Tone = 'income' | 'expense' | 'cc' | 'neutral'
 
-interface StatDef {
+export interface StatDef {
   label: string
   value: number
   tone: Tone
-  href: string
+  /** Drill-down link; without one the tile is static */
+  href?: string
   hint?: string
   /** Per-account split under the value (only passed with 2+ accounts) */
   split?: { label: string; value: number }[]
+  format?: RollingFormat
 }
 
 interface Props {
@@ -31,36 +33,35 @@ interface Props {
   cardSplit?: { label: string; value: number }[]
 }
 
-const DOT: Record<Tone, string> = {
+export const DOT: Record<Tone, string> = {
   income: 'bg-[hsl(var(--income))]',
   expense: 'bg-[hsl(var(--expense))]',
   cc: 'bg-[hsl(var(--cc))]',
   neutral: 'bg-muted-foreground',
 }
 
-function StatTile({ label, value, tone, href, hint, split, wide }: StatDef & { wide?: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'group relative flex flex-col justify-between gap-3 rounded-xl border bg-card p-4',
-        'transition-[background-color,border-color,transform] duration-200',
-        'hover:border-primary/30 hover:bg-primary/[0.03] active:scale-[0.99]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        wide && 'col-span-2'
-      )}
-    >
+export function StatTile({ label, value, tone, href, hint, format, split, wide }: StatDef & { wide?: boolean }) {
+  const body = (
+    <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className={cn('h-2 w-2 rounded-full shrink-0', DOT[tone])} aria-hidden />
         <span className="font-medium">{label}</span>
-        <ChevronLeft
-          className="ms-auto h-4 w-4 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-x-0.5"
-          aria-hidden
-        />
+        {href && (
+          <ChevronLeft
+            className="ms-auto h-4 w-4 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-x-0.5"
+            aria-hidden
+          />
+        )}
       </div>
       <div>
-        <p className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-          <RollingNumber value={value} />
+        <p
+          className={cn(
+            'font-semibold tracking-tight tabular-nums text-foreground',
+            // agorot make the figure longer; keep it on one line in half-width phone tiles
+            format === 'currencyExact' ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
+          )}
+        >
+          <RollingNumber value={value} format={format} />
         </p>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         {split && split.length > 1 && (
@@ -74,7 +75,36 @@ function StatTile({ label, value, tone, href, hint, split, wide }: StatDef & { w
           </ul>
         )}
       </div>
+    </>
+  )
+  const base = cn(
+    'group relative flex flex-col justify-between gap-3 rounded-xl border bg-card p-4',
+    wide && 'col-span-2'
+  )
+  if (!href) return <div className={base}>{body}</div>
+  return (
+    <Link
+      href={href}
+      className={cn(
+        base,
+        'transition-[background-color,border-color,transform] duration-200',
+        'hover:border-primary/30 hover:bg-primary/[0.03] active:scale-[0.99]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+      )}
+    >
+      {body}
     </Link>
+  )
+}
+
+/** Two-column tile grid; an odd last tile spans both columns. */
+export function StatGrid({ stats }: { stats: StatDef[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {stats.map((s, i) => (
+        <StatTile key={s.label} {...s} wide={stats.length % 2 === 1 && i === stats.length - 1} />
+      ))}
+    </div>
   )
 }
 
@@ -83,7 +113,11 @@ function percent(part: number, whole: number) {
 }
 
 // Bank expenses already include the monthly card payment, so the net is bank-only
-function NetBalance({ bankIncome, bankExpense }: Pick<Props, 'bankIncome' | 'bankExpense'>) {
+export function NetBalance({
+  bankIncome,
+  bankExpense,
+  format,
+}: Pick<Props, 'bankIncome' | 'bankExpense'> & { format?: RollingFormat }) {
   const outflow = bankExpense
   const net = bankIncome - outflow
   const scale = Math.max(bankIncome, outflow)
@@ -103,7 +137,7 @@ function NetBalance({ bankIncome, bankExpense }: Pick<Props, 'bankIncome' | 'ban
             positive ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'
           )}
         >
-          <RollingNumber value={net} duration={800} />
+          <RollingNumber value={net} duration={800} format={format} />
         </p>
         {bankIncome > 0 && (
           <p className="mt-2 text-sm text-muted-foreground">
@@ -163,29 +197,25 @@ export function DashboardSummaryCards({
   const qs = query ? `?${query}` : ''
 
   const stats: StatDef[] = [
-    { label: 'הכנסות', value: bankIncome, tone: 'income', href: `/bank${qs}`, hint: bankHint },
-    { label: 'הוצאות', value: bankExpense, tone: 'expense', href: `/bank${qs}`, hint: bankHint },
+    { label: 'הכנסות', value: bankIncome, tone: 'income', href: `/banks${qs}`, hint: bankHint },
+    { label: 'הוצאות', value: bankExpense, tone: 'expense', href: `/banks${qs}`, hint: bankHint },
     {
       label: 'חיובי כרטיס',
       value: ccTotal,
       tone: 'cc',
-      href: `/cards/max${qs}`,
+      href: `/cards${qs}`,
       hint: `${cardHint} · כלול בהוצאות`,
       split: cardSplit,
     },
     ...(averageExpense !== undefined
-      ? [{ label: 'ממוצע חודשי', value: averageExpense, tone: 'neutral' as const, href: `/bank${qs}`, hint: 'הוצאות בנק' }]
+      ? [{ label: 'ממוצע חודשי', value: averageExpense, tone: 'neutral' as const, href: `/banks${qs}`, hint: 'הוצאות בנק' }]
       : []),
   ]
 
   return (
     <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <NetBalance bankIncome={bankIncome} bankExpense={bankExpense} />
-      <div className="grid grid-cols-2 gap-3">
-        {stats.map((s, i) => (
-          <StatTile key={s.label} {...s} wide={stats.length % 2 === 1 && i === stats.length - 1} />
-        ))}
-      </div>
+      <StatGrid stats={stats} />
     </div>
   )
 }

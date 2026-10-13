@@ -15,6 +15,8 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { UnusualCard } from '@/components/dashboard/unusual-card'
 import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
+import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
+import { accountPath } from '@/lib/accounts/routes'
 
 interface SearchParams { year?: string; month?: string; card?: string }
 
@@ -34,13 +36,15 @@ export default async function DashboardPage({
   const cardFilter = resolveCardParam(params.card, activeCards)
   const activeIds = [...summary.accounts.bank, ...activeCards]
 
-  const [categoryMonthly, allCardsCategoryMonthly, recurring, latest] = await Promise.all([
+  const [categoryMonthly, allCardsCategoryMonthly, recurring, latest, defaultCard] = await Promise.all([
     getCCCategoryMonthly(cardFilter ?? activeCards, Number(year)),
     // Colors follow the all-cards ranking, so they don't shift when filtering
     cardFilter ? getCCCategoryMonthly(activeCards, Number(year)) : null,
     // as of the latest statements, not the selected period
     getRecurringSeries({ accountId: activeIds }),
     latestTransactionDate(),
+    // fallback card page for the category-insight links
+    getDefaultAccount('CREDIT_CARD', PROVIDERS.MAX),
   ])
 
   // Unusual transactions: the selected month, a past year, or the 90 days up to
@@ -111,6 +115,9 @@ export default async function DashboardPage({
   const query = new URLSearchParams({ year, ...(month ? { month: String(month) } : {}) }).toString()
   const periodLabel = month ? `${monthName(month)} ${year}` : `כל החודשים · ${year}`
 
+  // Category-insight links open the filtered card, the only card, or the default MAX card
+  const insightsCardId = cardFilter ?? (activeCards.length === 1 ? activeCards[0] : defaultCard?.id)
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
@@ -150,6 +157,7 @@ export default async function DashboardPage({
               cardOptions={cardOptions}
               selectedCard={cardFilter}
               query={query}
+              cardPath={accountPath('CREDIT_CARD', insightsCardId)}
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">

@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCCTransactions, getMaxCardIds } from '@/lib/db/cards'
+import { getCCTransactions } from '@/lib/db/cards'
+import { getAccount } from '@/lib/db/accounts'
 
-export async function GET(req: NextRequest) {
+/** One card's transactions; same paging as the /cards/[accountId] page (50 at a time unless a month is selected). */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ accountId: string }> }
+) {
+  const { accountId } = await params
+  const account = await getAccount(accountId)
+  if (!account || account.kind !== 'CREDIT_CARD') {
+    return NextResponse.json({ error: 'לא נמצא' }, { status: 404 })
+  }
+
   const sp = req.nextUrl.searchParams
   const year = sp.get('year') ? Number(sp.get('year')) : undefined
   const month = sp.get('month') ? Number(sp.get('month')) : undefined
@@ -13,7 +24,7 @@ export async function GET(req: NextRequest) {
   const take = !month ? 50 : undefined
 
   const transactions = await getCCTransactions({
-    accountId: await getMaxCardIds(),
+    accountId,
     year,
     month,
     search,
