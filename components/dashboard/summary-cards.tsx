@@ -45,7 +45,13 @@ export function StatTile({ label, value, tone, href, hint, format, wide }: StatD
         )}
       </div>
       <div>
-        <p className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+        <p
+          className={cn(
+            'font-semibold tracking-tight tabular-nums text-foreground',
+            // agorot make the figure longer; keep it on one line in half-width phone tiles
+            format === 'currencyExact' ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
+          )}
+        >
           <RollingNumber value={value} format={format} />
         </p>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
