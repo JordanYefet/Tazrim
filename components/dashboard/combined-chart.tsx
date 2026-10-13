@@ -10,7 +10,10 @@ import { Suspense } from 'react'
 
 interface Props {
   bankSummary: Record<number, { income: number; expense: number }>
+  /** Card charges, all active cards summed (a breakdown of the bank spending) */
   maxSummary: Record<number, number>
+  /** Card name for the legend: the card's name, or a generic one with several cards */
+  cardsName?: string
   /** Number of months (from January) to plot */
   monthCount?: number
   selectedMonth?: number
@@ -26,11 +29,13 @@ function chartColors(isDark: boolean) {
   }
 }
 
-const SERIES = [
-  { key: 'הכנסות בנק', color: 'income' },
-  { key: 'הוצאות בנק', color: 'expense' },
-  { key: 'חיובי מקס', color: 'cc' },
-] as const
+function seriesFor(cardsName: string) {
+  return [
+    { key: 'הכנסות בנק', color: 'income' },
+    { key: 'הוצאות בנק', color: 'expense' },
+    { key: `חיובי ${cardsName}`, color: 'cc' },
+  ] as const
+}
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -48,7 +53,9 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function CombinedChartInner({ bankSummary, maxSummary, monthCount = 12, selectedMonth }: Props) {
+function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', monthCount = 12, selectedMonth }: Props) {
+  const SERIES = seriesFor(cardsName)
+  const ccKey = SERIES[2].key
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -64,7 +71,7 @@ function CombinedChartInner({ bankSummary, maxSummary, monthCount = 12, selected
       name: monthName(m),
       'הכנסות בנק': bank.income,
       'הוצאות בנק': bank.expense,
-      'חיובי מקס': maxSummary[m] ?? 0,
+      [ccKey]: maxSummary[m] ?? 0,
     }
   })
 
@@ -79,7 +86,7 @@ function CombinedChartInner({ bankSummary, maxSummary, monthCount = 12, selected
       <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
           <h3 className="font-semibold text-base">סיכום חודשי</h3>
-          <p className="text-sm text-muted-foreground">חיובי מקס כלולים בהוצאות הבנק · לחיצה על חודש מסננת</p>
+          <p className="text-sm text-muted-foreground">{`${ccKey} כלולים בהוצאות הבנק · לחיצה על חודש מסננת`}</p>
         </div>
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {SERIES.map(s => (

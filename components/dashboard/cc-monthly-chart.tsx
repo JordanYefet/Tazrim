@@ -8,26 +8,46 @@ import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 
+interface CardSeries {
+  label: string
+  monthly: Record<number, number>
+}
+
 interface Props {
+  /** Charges per month, every active card summed */
   data: Record<number, number>
+  /** Per-card series for the tooltip split; only passed with 2+ cards */
+  series?: CardSeries[]
   /** Number of months (from January) to plot */
   monthCount?: number
   selectedMonth?: number
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label, series }: any) {
   if (!active || !payload?.length) return null
+  const month: number = payload[0].payload.month
+  const split = (series as CardSeries[] | undefined)?.filter(s => s.monthly[month])
   return (
     <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       <p className="text-[hsl(var(--cc))] font-medium tabular-nums">
         {payload[0].value == null ? 'אין נתונים' : formatCurrency(payload[0].value)}
       </p>
+      {payload[0].value != null && split && split.length > 0 && (
+        <ul className="mt-1 space-y-0.5 border-t pt-1 text-xs">
+          {split.map(s => (
+            <li key={s.label} className="flex justify-between gap-3">
+              <span className="text-muted-foreground">{s.label}</span>
+              <span className="font-medium tabular-nums text-foreground">{formatCurrency(s.monthly[month])}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
 
-function CCMonthlyChartInner({ data, monthCount = 12, selectedMonth }: Props) {
+function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -71,7 +91,7 @@ function CCMonthlyChartInner({ data, monthCount = 12, selectedMonth }: Props) {
               interval={axes.monthInterval(chartData.length)}
             />
             <YAxis {...axes.yAxis} />
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />
+            <Tooltip content={<CustomTooltip series={series} />} cursor={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />
             <Line
               type="monotone"
               dataKey="חיובי מקס"
