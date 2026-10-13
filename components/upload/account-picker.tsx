@@ -1,6 +1,7 @@
 'use client'
 
 import { Building2, CreditCard, FileWarning, LineChart, PiggyBank, Plus, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
 import { formatMonthRanges, noBreakAtDash } from '@/lib/insights/missing-statements'
 
@@ -20,6 +21,11 @@ const KIND_GROUPS: { kind: UploadAccount['kind']; label: string; icon: LucideIco
   { kind: 'TRADING', label: 'מסחר', icon: LineChart },
   { kind: 'PENSION', label: 'פנסיה וחיסכון', icon: PiggyBank },
 ]
+
+const NEW_ACCOUNT_LINKS = [
+  { kind: 'BANK', label: 'חשבון בנק חדש' },
+  { kind: 'CREDIT_CARD', label: 'כרטיס אשראי חדש' },
+] as const
 
 const PROVIDER_LABELS: Record<string, string> = { leumi: 'לאומי', max: 'מקס', hitech: 'הייטקזון' }
 
@@ -101,16 +107,21 @@ export function AccountPicker({
           </div>
         </div>
       ))}
-      <button
-        type="button"
-        disabled
-        title="יצירת חשבונות תתווסף בקרוב"
-        className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed px-3 py-2 opacity-60 cursor-not-allowed"
-      >
-        <Plus className="h-4 w-4" />
-        חשבון חדש
-        <span className="text-xs rounded bg-muted px-1.5 py-0.5">בקרוב</span>
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        {NEW_ACCOUNT_LINKS.map(link => (
+          <Link
+            key={link.kind}
+            href={`/accounts?new=${link.kind}`}
+            className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed px-3 py-2 transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            {link.label}
+          </Link>
+        ))}
+        <Link href="/accounts" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+          ניהול חשבונות
+        </Link>
+      </div>
     </div>
   )
 }
