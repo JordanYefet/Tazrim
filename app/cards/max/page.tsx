@@ -7,6 +7,7 @@ import { CategoryMonthTable } from '@/components/cards/max/category-month-table'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCTransactions, getMaxCardIds } from '@/lib/db/cards'
 import { getCategories } from '@/lib/db/categories'
 import { asJson, getYearSummary } from '@/lib/db/summary'
+import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 
@@ -25,7 +26,7 @@ async function getMaxData(params: SearchParams) {
 
   // Every MAX card. Same query as /api/cards/max/transactions (first page of 50 unless a month is selected)
   const accountId = await getMaxCardIds()
-  const [txs, yearSummary, categoryRows] = await Promise.all([
+  const [txs, yearSummary, categoryRows, unusual] = await Promise.all([
     getCCTransactions({
       accountId,
       year: Number(year),
@@ -38,6 +39,8 @@ async function getMaxData(params: SearchParams) {
     }),
     getYearSummary(Number(year)),
     getCategories(),
+    // Flags for the whole year (every account's history as baseline), so "load more" rows get badges too
+    getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31` }),
   ])
 
   const transactions = asJson(txs)
@@ -52,7 +55,7 @@ async function getMaxData(params: SearchParams) {
     Object.entries(stats).map(([k, v]) => [k, v.total])
   )
 
-  return { transactions, maxSummary: summary.max, categoryTotals, categoryStats: stats, categories, categoryMonthly }
+  return { transactions, maxSummary: summary.max, categoryTotals, categoryStats: stats, categories, categoryMonthly, unusual: unusual.card }
 }
 
 export default async function MaxPage({
@@ -62,7 +65,7 @@ export default async function MaxPage({
 }) {
   const params = await searchParams
   const year = params.year ?? String(new Date().getFullYear())
-  const { transactions, maxSummary, categoryTotals, categoryStats, categories, categoryMonthly } = await getMaxData(params)
+  const { transactions, maxSummary, categoryTotals, categoryStats, categories, categoryMonthly, unusual } = await getMaxData(params)
   const month = params.month ? Number(params.month) : undefined
 
   const total = params.category
@@ -137,6 +140,7 @@ export default async function MaxPage({
         showIgnored={params.showIgnored === 'true'}
         hasMore={hasMore}
         fetchParams={hasMore ? fetchSp.toString() : undefined}
+        unusual={unusual}
       />
     </div>
   )

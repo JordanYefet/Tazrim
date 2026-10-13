@@ -9,6 +9,8 @@ import { getCCCategoryMonthly, getMaxCardIds } from '@/lib/db/cards'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
+import { UnusualCard } from '@/components/dashboard/unusual-card'
+import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -21,10 +23,24 @@ export default async function DashboardPage({
   const year = params.year ?? String(new Date().getFullYear())
   const month = params.month ? Number(params.month) : undefined
 
-  const [summary, categoryMonthly] = await Promise.all([
+  const [summary, categoryMonthly, latest] = await Promise.all([
     getYearSummary(Number(year)),
     getMaxCardIds().then(ids => getCCCategoryMonthly(ids, Number(year))),
+    latestTransactionDate(),
   ])
+
+  // Unusual transactions: the selected month, a past year, or the 90 days up to
+  // the latest upload. Bank and card rows from every account; the bank's card
+  // payment is excluded inside (card rows are its breakdown, not extra spend).
+  const today = new Date()
+  const unusualAnchor = latest && latest < today ? latest : today
+  const range = unusualRange({ year: Number(year), month, now: unusualAnchor })
+  const unusual = asJson(await getUnusualTransactions(range))
+  const unusualSubtitle = month
+    ? `תנועות חריגות ב${monthName(month)} ${year}`
+    : Number(year) !== unusualAnchor.getFullYear()
+      ? `תנועות חריגות בשנת ${year}`
+      : 'תנועות חריגות ב־90 הימים האחרונים'
   const { bank, max } = asJson(summary)
 
   // Compare the selected month (or the latest month with card data) to earlier months
@@ -91,6 +107,7 @@ export default async function DashboardPage({
             <CCMonthlyChart data={max} monthCount={monthCount} selectedMonth={month} />
             <CategoryInsights insights={insights} month={insightMonth} year={year} colors={categoryColors} />
           </div>
+          <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
         </>
       ) : (
         <EmptyState year={year} />
