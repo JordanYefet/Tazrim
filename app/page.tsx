@@ -9,6 +9,8 @@ import { getCCCategoryMonthly, getMaxCardIds } from '@/lib/db/cards'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
+import { RecurringCard } from '@/components/dashboard/recurring-card'
+import { getRecurringSeries } from '@/lib/db/recurring'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -21,9 +23,11 @@ export default async function DashboardPage({
   const year = params.year ?? String(new Date().getFullYear())
   const month = params.month ? Number(params.month) : undefined
 
-  const [summary, categoryMonthly] = await Promise.all([
+  const [summary, categoryMonthly, recurring] = await Promise.all([
     getYearSummary(Number(year)),
     getMaxCardIds().then(ids => getCCCategoryMonthly(ids, Number(year))),
+    // as of the latest statements, not the selected period
+    getRecurringSeries(),
   ])
   const { bank, max } = asJson(summary)
 
@@ -91,6 +95,7 @@ export default async function DashboardPage({
             <CCMonthlyChart data={max} monthCount={monthCount} selectedMonth={month} />
             <CategoryInsights insights={insights} month={insightMonth} year={year} colors={categoryColors} />
           </div>
+          <RecurringCard series={recurring.subscriptions} total={recurring.total} />
         </>
       ) : (
         <EmptyState year={year} />

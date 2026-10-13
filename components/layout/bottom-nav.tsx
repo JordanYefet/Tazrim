@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, CreditCard, Upload, Tag } from 'lucide-react'
+import { LayoutDashboard, Building2, CreditCard, Upload, Tag, Repeat } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const NAV_ITEMS = [
   { href: '/', label: 'לוח בקרה', icon: LayoutDashboard },
   { href: '/bank', label: 'בנק', icon: Building2 },
   { href: '/cards/max', label: 'מקס', icon: CreditCard },
+  { href: '/recurring', label: 'קבועים', icon: Repeat },
   { href: '/upload', label: 'העלאה', icon: Upload },
   { href: '/categories', label: 'קטגוריות', icon: Tag },
 ]

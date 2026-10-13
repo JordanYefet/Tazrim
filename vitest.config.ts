@@ -6,6 +6,8 @@ export default defineConfig({
     environment: 'node',
     globals: true,
   },
+  // tsconfig keeps jsx: preserve for Next; tests render components, so let oxc compile JSX
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: { '@': path.resolve(__dirname, '.') },
   },
