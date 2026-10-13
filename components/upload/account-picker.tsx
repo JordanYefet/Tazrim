@@ -1,7 +1,8 @@
 'use client'
 
-import { Building2, CreditCard, LineChart, PiggyBank, Plus, type LucideIcon } from 'lucide-react'
+import { Building2, CreditCard, FileWarning, LineChart, PiggyBank, Plus, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { formatMonthRanges, noBreakAtDash } from '@/lib/insights/missing-statements'
 
 export interface UploadAccount {
   id: string
@@ -9,6 +10,8 @@ export interface UploadAccount {
   provider: string
   displayName: string
   cardLastFour: string | null
+  /** "YYYY-MM" months with no uploaded statement (ENG-10); omitted or empty when none */
+  missingMonths?: string[]
 }
 
 const KIND_GROUPS: { kind: UploadAccount['kind']; label: string; icon: LucideIcon }[] = [
@@ -78,6 +81,12 @@ export function AccountPicker({
                       {providerLabel(account.provider)}
                       {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
                     </span>
+                    {!!account.missingMonths?.length && (
+                      <span className="mt-1 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+                        <FileWarning className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span className="text-pretty">חסר: {noBreakAtDash(formatMonthRanges(account.missingMonths))}</span>
+                      </span>
+                    )}
                   </span>
                   <span
                     aria-hidden
