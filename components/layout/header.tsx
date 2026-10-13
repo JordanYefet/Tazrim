@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { ThemeSelector } from './theme-selector'
+import { SearchButton } from '@/components/search/search-button'
+import { CommandSearch } from '@/components/search/command-search'
 
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר']
 
@@ -48,7 +50,11 @@ export function Header() {
         </select>
       </div>
 
-      <ThemeSelector />
+      <div className="flex items-center gap-2">
+        <SearchButton />
+        <ThemeSelector />
+      </div>
+      <CommandSearch />
     </header>
   )
 }
