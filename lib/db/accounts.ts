@@ -48,6 +48,14 @@ export async function listAccountIds(query: AccountQuery = {}): Promise<string[]
   return rows.map(r => r.id)
 }
 
+/**
+ * Ids of the non-archived accounts of a kind, oldest first: what the
+ * dashboard totals cover. Archived accounts keep their data but drop out.
+ */
+export async function activeAccountIds(kind: AccountKind): Promise<string[]> {
+  return listAccountIds({ kind })
+}
+
 export async function getAccount(id: string): Promise<Account | null> {
   return prisma.account.findUnique({ where: { id } })
 }

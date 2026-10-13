@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { cn } from '@/lib/utils/cn'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 
 type Tone = 'income' | 'expense' | 'cc' | 'neutral'
 
@@ -11,6 +12,8 @@ interface StatDef {
   tone: Tone
   href: string
   hint?: string
+  /** Per-account split under the value (only passed with 2+ accounts) */
+  split?: { label: string; value: number }[]
 }
 
 interface Props {
@@ -20,6 +23,12 @@ interface Props {
   averageExpense?: number
   /** Current year/month query string, carried over to drill-down links */
   query: string
+  /** Bank account name, or a count when there are several */
+  bankHint: string
+  /** Card name, or a count when there are several */
+  cardHint: string
+  /** Card total per card, when there is more than one card */
+  cardSplit?: { label: string; value: number }[]
 }
 
 const DOT: Record<Tone, string> = {
@@ -29,7 +38,7 @@ const DOT: Record<Tone, string> = {
   neutral: 'bg-muted-foreground',
 }
 
-function StatTile({ label, value, tone, href, hint, wide }: StatDef & { wide?: boolean }) {
+function StatTile({ label, value, tone, href, hint, split, wide }: StatDef & { wide?: boolean }) {
   return (
     <Link
       href={href}
@@ -54,6 +63,16 @@ function StatTile({ label, value, tone, href, hint, wide }: StatDef & { wide?: b
           <RollingNumber value={value} />
         </p>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+        {split && split.length > 1 && (
+          <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
+            {split.map(s => (
+              <li key={s.label} className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate">{s.label}</span>
+                <span className="shrink-0 font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.value)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </Link>
   )
@@ -131,13 +150,29 @@ function NetBalance({ bankIncome, bankExpense }: Pick<Props, 'bankIncome' | 'ban
   )
 }
 
-export function DashboardSummaryCards({ bankIncome, bankExpense, ccTotal, averageExpense, query }: Props) {
+export function DashboardSummaryCards({
+  bankIncome,
+  bankExpense,
+  ccTotal,
+  averageExpense,
+  query,
+  bankHint,
+  cardHint,
+  cardSplit,
+}: Props) {
   const qs = query ? `?${query}` : ''
 
   const stats: StatDef[] = [
-    { label: 'הכנסות', value: bankIncome, tone: 'income', href: `/bank${qs}`, hint: 'בנק לאומי' },
-    { label: 'הוצאות', value: bankExpense, tone: 'expense', href: `/bank${qs}`, hint: 'בנק לאומי' },
-    { label: 'חיובי כרטיס', value: ccTotal, tone: 'cc', href: `/cards/max${qs}`, hint: 'מקס · כלול בהוצאות' },
+    { label: 'הכנסות', value: bankIncome, tone: 'income', href: `/bank${qs}`, hint: bankHint },
+    { label: 'הוצאות', value: bankExpense, tone: 'expense', href: `/bank${qs}`, hint: bankHint },
+    {
+      label: 'חיובי כרטיס',
+      value: ccTotal,
+      tone: 'cc',
+      href: `/cards/max${qs}`,
+      hint: `${cardHint} · כלול בהוצאות`,
+      split: cardSplit,
+    },
     ...(averageExpense !== undefined
       ? [{ label: 'ממוצע חודשי', value: averageExpense, tone: 'neutral' as const, href: `/bank${qs}`, hint: 'הוצאות בנק' }]
       : []),

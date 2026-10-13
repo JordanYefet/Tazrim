@@ -11,6 +11,14 @@ interface Props {
   month: number | null
   year: string
   colors: Record<string, string>
+  /** Name used in the empty states: the card's name, or a generic one with several cards */
+  cardsName?: string
+  /** Active cards; the filter is shown only when there are 2 or more */
+  cardOptions?: { id: string; label: string }[]
+  /** The `?card=` filter in effect (undefined = all cards) */
+  selectedCard?: string
+  /** Current year/month query string, for the filter links */
+  query?: string
 }
 
 function baselineLabel(months: number[]) {
@@ -55,7 +63,46 @@ function Badge({ item }: { item: CategoryInsight }) {
   )
 }
 
-export function CategoryInsights({ insights, month, year, colors }: Props) {
+function CardFilter({ options, selected, query }: { options: { id: string; label: string }[]; selected?: string; query: string }) {
+  const items = [{ id: undefined as string | undefined, label: 'כל הכרטיסים' }, ...options]
+  return (
+    <nav aria-label="סינון לפי כרטיס" className="mb-4 flex flex-wrap gap-1.5">
+      {items.map(o => {
+        const sp = new URLSearchParams(query)
+        if (o.id) sp.set('card', o.id)
+        const active = o.id === selected
+        return (
+          <Link
+            key={o.id ?? 'all'}
+            href={`/?${sp}`}
+            scroll={false}
+            aria-current={active ? 'true' : undefined}
+            className={cn(
+              'max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              active
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+            )}
+          >
+            {o.label}
+          </Link>
+        )
+      })}
+    </nav>
+  )
+}
+
+export function CategoryInsights({
+  insights,
+  month,
+  year,
+  colors,
+  cardsName = 'מקס',
+  cardOptions = [],
+  selectedCard,
+  query = '',
+}: Props) {
   return (
     <section className="flex flex-col rounded-xl border bg-card p-4 sm:p-6">
       <h3 className="font-semibold text-base">שינויים בהוצאות בכרטיס</h3>
@@ -64,12 +111,13 @@ export function CategoryInsights({ insights, month, year, colors }: Props) {
           ? `${monthName(insights.month)} מול הממוצע של ${baselineLabel(insights.baselineMonths)}`
           : 'השוואה של החודש לחודשים הקודמים'}
       </p>
+      {cardOptions.length > 1 && <CardFilter options={cardOptions} selected={selectedCard} query={query} />}
 
       {!insights ? (
         <p className="my-auto py-6 text-center text-sm text-muted-foreground text-pretty">
           {month
-            ? `אין מספיק נתונים להשוואה של ${monthName(month)}. צריך חיובי מקס גם לפחות לשני חודשים קודמים.`
-            : 'עדיין אין חיובי מקס לשנה זו.'}
+            ? `אין מספיק נתונים להשוואה של ${monthName(month)}. צריך חיובי ${cardsName} גם לפחות לשני חודשים קודמים.`
+            : `עדיין אין חיובי ${cardsName} לשנה זו.`}
         </p>
       ) : insights.items.length === 0 ? (
         <p className="my-auto py-6 text-center text-sm text-muted-foreground">
