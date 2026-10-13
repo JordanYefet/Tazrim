@@ -72,6 +72,7 @@ describe('splitTerms / textAsAmount', () => {
   it('splits on whitespace, drops duplicates and blanks', () => {
     expect(splitTerms('  Fake  Cafe fake ')).toEqual(['Fake', 'Cafe'])
     expect(splitTerms('')).toEqual([])
+    expect(splitTerms('100% a_b _')).toEqual(['100', 'a', 'b'])
   })
 
   it('treats a lone amount-like query as an amount too', () => {

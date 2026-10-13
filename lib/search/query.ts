@@ -127,11 +127,15 @@ export function parseAmountRange(input: string): AmountRange | null {
   return { min: n - AMOUNT_EPSILON, max: n + AMOUNT_EPSILON }
 }
 
-/** Whitespace-separated terms, de-duplicated case-insensitively, at most 8. */
+/**
+ * Whitespace-separated terms, de-duplicated case-insensitively, at most 8.
+ * `%` and `_` also split terms: Prisma's SQLite `contains` does not escape
+ * LIKE wildcards, so "100%" searches for "100" rather than for anything.
+ */
 export function splitTerms(text: string | undefined): string[] {
   const seen = new Set<string>()
   const out: string[] = []
-  for (const t of (text ?? '').split(/\s+/)) {
+  for (const t of (text ?? '').split(/[\s%_]+/)) {
     const key = t.toLowerCase()
     if (!t || seen.has(key)) continue
     seen.add(key)
