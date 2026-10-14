@@ -57,7 +57,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
           text="הוסף חשבון בנק או העלה קובץ תנועות כדי לראות כאן את ההכנסות וההוצאות."
           actions={[
             { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
-            { href: '/accounts', label: 'ניהול חשבונות' },
+            { href: '/settings#accounts', label: 'ניהול חשבונות' },
           ]}
         />
       ) : (

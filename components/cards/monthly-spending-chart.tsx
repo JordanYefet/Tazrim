@@ -87,7 +87,7 @@ function MonthlySpendingChartInner({
   function handleClick(entry: { month: number }) {
     const sp = new URLSearchParams(params.toString())
     sp.set('month', String(entry.month))
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
+    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`, { scroll: false })
   }
 
   return (

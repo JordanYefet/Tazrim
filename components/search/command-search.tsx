@@ -105,7 +105,7 @@ export function CommandSearch() {
         <Dialog.Content
           dir="rtl"
           aria-describedby={undefined}
-          className="fixed inset-x-3 top-[12vh] z-50 mx-auto flex max-h-[70vh] max-w-xl flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-2xl focus:outline-none"
+          className="fixed inset-x-3 top-[12vh] z-50 mx-auto flex max-h-[70vh] max-w-xl flex-col md:max-w-[720px] overflow-hidden rounded-xl border bg-card text-card-foreground shadow-2xl focus:outline-none"
         >
           <Dialog.Title className="sr-only">חיפוש תנועות</Dialog.Title>
           <div className="flex items-center gap-2 border-b px-3">

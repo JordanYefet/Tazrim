@@ -78,7 +78,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   function handleClick(entry: { month: number }) {
     const sp = new URLSearchParams(params.toString())
     sp.set('month', String(entry.month))
-    router.push(`/?${sp.toString()}`)
+    router.push(`/?${sp.toString()}`, { scroll: false })
   }
 
   return (

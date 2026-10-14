@@ -96,19 +96,19 @@ export function CardTransactionsTable({
   function filterMerchant(name: string) {
     const sp = new URLSearchParams(params.toString())
     sp.set('merchant', name)
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   function clearMerchant() {
     const sp = new URLSearchParams(params.toString())
     sp.delete('merchant')
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   function clearCategory() {
     const sp = new URLSearchParams(params.toString())
     sp.delete('category')
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   function toggleShowIgnored() {
@@ -118,7 +118,7 @@ export function CardTransactionsTable({
     } else {
       sp.set('showIgnored', 'true')
     }
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   const hasFilter = activeMerchant || activeCategory

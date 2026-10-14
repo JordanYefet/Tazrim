@@ -68,7 +68,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
   function handleClick(entry: { month: number }) {
     const sp = new URLSearchParams(params.toString())
     sp.set('month', String(entry.month))
-    router.push(`${accountPath('BANK', accountId)}?${sp.toString()}`)
+    router.push(`${accountPath('BANK', accountId)}?${sp.toString()}`, { scroll: false })
   }
 
   return (

@@ -87,13 +87,13 @@ export function BankTransactionsTable({
   function filterMerchant(description: string) {
     const sp = new URLSearchParams(params.toString())
     sp.set('merchant', description)
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   function clearMerchant() {
     const sp = new URLSearchParams(params.toString())
     sp.delete('merchant')
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   function toggleShowIgnored() {
@@ -103,7 +103,7 @@ export function BankTransactionsTable({
     } else {
       sp.set('showIgnored', 'true')
     }
-    router.push(`${pagePath}?${sp.toString()}`)
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   return (

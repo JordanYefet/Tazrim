@@ -76,7 +76,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           text="הוסף כרטיס או העלה פירוט חיובים כדי לראות כאן את החיובים לפי כרטיס."
           actions={[
             { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
-            { href: '/accounts', label: 'ניהול חשבונות' },
+            { href: '/settings#accounts', label: 'ניהול חשבונות' },
           ]}
         />
       ) : (

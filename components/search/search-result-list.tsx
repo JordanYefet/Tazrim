@@ -70,13 +70,19 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
-                  <Highlight text={r.description} terms={terms} />
+                {/* Wide screens: the account joins the first line, next to the amount */}
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    <Highlight text={r.description} terms={terms} />
+                  </span>
+                  <span className="hidden max-w-[40%] shrink-0 truncate text-xs text-muted-foreground sm:inline">
+                    {r.accountName}
+                  </span>
                 </span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
                   <span className="tabular-nums">{displayDate(r.date)}</span>
-                  <span aria-hidden>·</span>
-                  <span className="truncate">{r.accountName}</span>
+                  <span aria-hidden className="sm:hidden">·</span>
+                  <span className="truncate sm:hidden">{r.accountName}</span>
                   {r.category && (
                     <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
                       {r.category}
