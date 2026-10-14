@@ -146,6 +146,22 @@ describe('getUnusualTransactions', () => {
     expect(r.map(u => u.id)).toEqual([feb])
   })
 
+  it('puts a card row in the period of its billing date; history and duplicates use the purchase date', async () => {
+    await cafeHistory()
+    // Bought in June, billed in September
+    const big = await card('2030-06-10', 420, 'Fake Cafe', { billingDate: new Date('2030-09-02T10:00:00') })
+    expect(await unusual.getUnusualTransactions({ since: '2030-06-01', until: '2030-06-30' })).toEqual([])
+    const sept = await unusual.getUnusualTransactions({ since: '2030-09-01', until: '2030-09-30' })
+    expect(sept.map(u => [u.id, u.date, u.flags[0].reason])).toEqual([[big, '2030-06-10', 'merchant_outlier']])
+  })
+
+  it('finds a duplicate by purchase date even when the copies are billed in different months', async () => {
+    const a = await card('2030-06-29', 300, 'Fake Bike Shop', { billingDate: new Date('2030-07-02T10:00:00') })
+    const b = await card('2030-06-30', 300, 'Fake Bike Shop', { billingDate: new Date('2030-08-02T10:00:00') })
+    const r = await unusual.getUnusualTransactions({ since: '2030-08-01', until: '2030-08-31' })
+    expect(r.map(u => [u.id, u.flags[0]])).toEqual([[b, { reason: 'possible_duplicate', duplicateOfId: a, daysApart: 1 }]])
+  })
+
   it('scopes to the given accounts', async () => {
     await cafeHistory()
     await card('2030-02-01', 420, 'Fake Cafe')
@@ -195,6 +211,12 @@ describe('latestTransactionDate', () => {
     await card('2030-03-05', 70, 'Fake Shop')
     await card('2030-04-01', 70, 'Fake Shop', { ignored: true })
     expect(unusual.unusualRange({ year: 2030, now: (await unusual.latestTransactionDate())! }).until).toBe('2030-03-05')
+  })
+
+  it('uses the billing date of card rows', async () => {
+    await bank('2030-02-10', 70, 'Fake Shop')
+    await card('2030-01-20', 70, 'Fake Shop', { billingDate: new Date('2030-03-02T10:00:00') })
+    expect(unusual.unusualRange({ year: 2030, now: (await unusual.latestTransactionDate())! }).until).toBe('2030-03-02')
   })
 })
 
