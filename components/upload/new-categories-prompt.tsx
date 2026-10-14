@@ -3,7 +3,16 @@
 import { useState } from 'react'
 
 /** After a card import: offer to add the file's unknown categories to the category list. */
-export function NewCategoriesPrompt({ categories, onDone }: { categories: string[]; onDone: () => void }) {
+export function NewCategoriesPrompt({
+  categories,
+  severalFiles = false,
+  onDone,
+}: {
+  categories: string[]
+  /** the categories were merged from several files' imports */
+  severalFiles?: boolean
+  onDone: () => void
+}) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(categories))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +48,7 @@ export function NewCategoriesPrompt({ categories, onDone }: { categories: string
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 text-sm">
       <div>
-        <p className="font-semibold">נמצאו קטגוריות חדשות בקובץ</p>
+        <p className="font-semibold">{severalFiles ? 'נמצאו קטגוריות חדשות בקבצים' : 'נמצאו קטגוריות חדשות בקובץ'}</p>
         <p className="text-muted-foreground text-xs mt-0.5">בחר אילו קטגוריות להוסיף לרשימה שלך:</p>
       </div>
       <div className="flex flex-col gap-2">
