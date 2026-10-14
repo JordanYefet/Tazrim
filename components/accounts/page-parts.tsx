@@ -1,8 +1,14 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Settings2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { settingsAccountsHref } from '@/lib/accounts/routes'
+import { AccountSwitcher } from './account-switcher'
 
-/** Period label above the title, like the dashboard ("מרץ 2026" / "כל החודשים · 2026"). */
+/**
+ * Period label above the title, like the dashboard ("מרץ 2026" / "כל החודשים · 2026").
+ * On /banks* and /cards* phones also get account pills under it.
+ */
 export function PageHeading({
   period,
   title,
@@ -19,35 +25,40 @@ export function PageHeading({
   children?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0">
-        {back && (
-          <Link
-            href={back.href}
-            className="mb-1 inline-flex items-center gap-0.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden />
-            {back.label}
-          </Link>
-        )}
-        <p className="text-sm font-medium text-muted-foreground">{period}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {badge && (
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{badge}</span>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          {back && (
+            <Link
+              href={back.href}
+              className="mb-1 inline-flex items-center gap-0.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden />
+              {back.label}
+            </Link>
           )}
+          <p className="text-sm font-medium text-muted-foreground">{period}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            {badge && (
+              <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{badge}</span>
+            )}
+          </div>
         </div>
+        {children && <div className="flex items-center gap-2">{children}</div>}
       </div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      <Suspense fallback={null}>
+        <AccountSwitcher />
+      </Suspense>
     </div>
   )
 }
 
-/** Small "ניהול חשבונות" link to /accounts (built in ENG-21). */
+/** Small "ניהול חשבונות" link to the accounts section of /settings. */
 export function ManageAccountsLink() {
   return (
     <Link
-      href="/accounts"
+      href={settingsAccountsHref({})}
       className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Settings2 className="h-4 w-4" aria-hidden />

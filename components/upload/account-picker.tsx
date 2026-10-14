@@ -3,6 +3,7 @@
 import { Building2, CreditCard, FileWarning, LineChart, PiggyBank, Plus, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
+import { settingsAccountsHref } from '@/lib/accounts/routes'
 import { formatMonthRanges, noBreakAtDash } from '@/lib/insights/missing-statements'
 
 export interface UploadAccount {
@@ -111,14 +112,14 @@ export function AccountPicker({
         {NEW_ACCOUNT_LINKS.map(link => (
           <Link
             key={link.kind}
-            href={`/accounts?new=${link.kind}`}
+            href={settingsAccountsHref({ new: link.kind })}
             className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border border-dashed px-3 py-2 transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus className="h-4 w-4" aria-hidden />
             {link.label}
           </Link>
         ))}
-        <Link href="/accounts" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        <Link href={settingsAccountsHref({})} className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           ניהול חשבונות
         </Link>
       </div>

@@ -53,15 +53,15 @@ export function AccountsManager({
     setAdding(null)
     setNotice({ kind: 'created', account })
     // Drop ?new= so a refresh does not reopen the form
-    router.replace('/accounts', { scroll: false })
+    router.replace('/settings#accounts', { scroll: false })
     refresh()
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 min-w-0">
+    <div className="space-y-6 min-w-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold mb-1">ניהול חשבונות</h1>
+          <h2 className="text-lg font-semibold mb-1">ניהול חשבונות</h2>
           <p className="text-sm text-muted-foreground">חשבונות הבנק וכרטיסי האשראי שאליהם מעלים קבצים</p>
         </div>
         {!adding && (
