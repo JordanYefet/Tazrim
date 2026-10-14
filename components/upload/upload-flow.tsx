@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { RollingNumber } from '@/components/ui/rolling-number'
@@ -91,6 +91,8 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const pickRef = useRef<HTMLButtonElement>(null)
+  // set by remove(): the file whose X takes focus after the row is gone ('' = the picker button)
+  const focusAfterRemove = useRef<string | null>(null)
   // bumped on reset so previews or imports of a cleared list are dropped
   const generation = useRef(0)
 
@@ -150,12 +152,18 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
     setFiles(next)
     if (forceError?.id === id) setForceError(null)
     // keep keyboard focus in the list: the next row's X, else the previous, else the picker button
-    const neighbour = next[i] ?? next[i - 1]
-    requestAnimationFrame(() => {
-      const target = neighbour && document.querySelector<HTMLButtonElement>(`[data-remove-id="${CSS.escape(neighbour.id)}"]`)
-      ;(target ?? pickRef.current)?.focus()
-    })
+    focusAfterRemove.current = (next[i] ?? next[i - 1])?.id ?? ''
   }
+
+  useEffect(() => {
+    const id = focusAfterRemove.current
+    if (id === null) return
+    focusAfterRemove.current = null
+    const target = id
+      ? [...document.querySelectorAll<HTMLButtonElement>('[data-remove-id]')].find(b => b.dataset.removeId === id)
+      : undefined
+    ;(target ?? pickRef.current)?.focus()
+  }, [files])
 
   async function importAll() {
     if (!account || busy) return
