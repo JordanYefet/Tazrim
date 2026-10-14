@@ -4,10 +4,13 @@ import { mappingKindOf } from '@/lib/import/mapping'
 import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
 import { parseNewKind } from '@/components/accounts/account-kinds'
 import { ThemeSelector } from '@/components/layout/theme-selector'
+import { ImportProfilesManager } from '@/components/settings/import-profiles-manager'
+import { listImportProfiles } from '@/lib/db/import-profiles'
+import { toProfileView } from '@/lib/import/profile-view'
 
 export const dynamic = 'force-dynamic'
 
-/** Appearance and account management (the old /accounts page lives here now, at #accounts). */
+/** Appearance, account management (the old /accounts page, at #accounts) and saved import mappings (#import-profiles). */
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   const { new: newParam } = await searchParams
   const accounts: ManagedAccount[] = (await listAccountsWithCounts()).map(a => ({
@@ -21,6 +24,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     uploadCount: a.counts.uploads,
     importSupported: isImportSupported(a) || mappingKindOf(a.kind) !== null,
   }))
+  const profiles = (await listImportProfiles()).map(toProfileView)
 
   return (
     <div className="mx-auto max-w-3xl min-w-0 space-y-10">
@@ -39,6 +43,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <section id="accounts" aria-label="ניהול חשבונות">
         <AccountsManager accounts={accounts} initialNewKind={parseNewKind(newParam)} />
+      </section>
+
+      <section id="import-profiles" aria-labelledby="import-profiles-title">
+        <ImportProfilesManager profiles={profiles} />
       </section>
     </div>
   )
