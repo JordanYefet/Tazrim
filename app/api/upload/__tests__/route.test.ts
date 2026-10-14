@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
 import { leumiHtml, maxXlsx, OTHER_CSV, TEST_ACCOUNTS_SQL } from '@/lib/upload/__tests__/fixtures'
+import { bankSignedCsv, sheetOf } from '@/lib/import/__tests__/fixtures'
+import { suggestMapping } from '@/lib/import/mapping'
 
 // All values are made up.
 
@@ -19,8 +21,10 @@ afterAll(async () => {
   db.cleanup()
 })
 
-function req(fields: { file?: File; accountId?: string; force?: string }): Request {
+function req(fields: { file?: File; accountId?: string; force?: string; mapping?: string; profileId?: string }): Request {
   const form = new FormData()
+  if (fields.mapping !== undefined) form.append('mapping', fields.mapping)
+  if (fields.profileId !== undefined) form.append('profileId', fields.profileId)
   if (fields.file) form.append('file', fields.file)
   if (fields.accountId) form.append('accountId', fields.accountId)
   if (fields.force !== undefined) form.append('force', fields.force)
@@ -74,5 +78,21 @@ describe('POST /api/upload', () => {
     const res = await POST(req({ file: new File([new Uint8Array(OTHER_CSV)], 'o.csv'), accountId: 'acct_test_other' }))
     expect(res.status).toBe(422)
     expect((await res.json()).code).toBe('UNSUPPORTED_PROVIDER')
+  })
+
+  it('imports through a mapping sent as JSON, and 400s for bad JSON', async () => {
+    const file = () => new File([new Uint8Array(bankSignedCsv())], 'bank-mapped.csv')
+    const mapping = JSON.stringify(suggestMapping(sheetOf(bankSignedCsv(), 'b.csv'), 'bank'))
+    const res = await POST(req({ file: file(), accountId: 'acct_test_other', mapping }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ created: 2, skipped: 0 })
+
+    const bad = await POST(req({ file: file(), accountId: 'acct_test_other', mapping: '{nope' }))
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).code).toBe('INVALID_MAPPING')
+    const invalid = await POST(req({ file: file(), accountId: 'acct_test_other', mapping: '{"headerRow":1}' }))
+    expect(invalid.status).toBe(400)
+    const noProfile = await POST(req({ file: file(), accountId: 'acct_test_other', profileId: 'nope' }))
+    expect(noProfile.status).toBe(404)
   })
 })

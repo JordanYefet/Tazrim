@@ -23,6 +23,7 @@ model Account {
   bankTransactions       BankTransaction[]
   creditCardTransactions CreditCardTransaction[]
   uploads                UploadHistory[]
+  importProfiles         ImportProfile[]
 
   @@index([kind, provider])
 }
@@ -144,4 +145,26 @@ enum AccountKind {
   CREDIT_CARD
   TRADING
   PENSION
+}
+
+/// A saved column mapping for a provider without a built-in parser (ENG-24).
+/// Matched to an upload by account kind + provider (or its linked account) and
+/// the file's header signature. `mapping` is ImportMapping JSON
+/// (lib/import/mapping.ts) and is validated again every time it is used.
+model ImportProfile {
+  id              String      @id @default(uuid())
+  name            String
+  accountKind     AccountKind
+  provider        String
+  mapping         String
+  /// headerSignature() of the file the mapping was made on
+  headerSignature String
+  /// The account this profile is the default for; cleared if the account goes away
+  accountId       String?
+  account         Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([accountKind, provider])
+  @@index([accountId])
 }

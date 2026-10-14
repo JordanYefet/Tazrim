@@ -42,10 +42,23 @@ describe('POST /api/upload/preview', () => {
     expect(body.sheets[0].omittedRowCount).toBe(6)
   })
 
-  it('flags accounts whose provider cannot be imported yet', async () => {
-    const res = await POST(req(new File(['a,b\n1,2'], 'x.csv'), 'acct_test_other'))
+  it('adds a suggested mapping for a provider without a built-in parser', async () => {
+    const csv = 'דוח בדוי\nתאריך,תיאור,סכום,יתרה\n2030-01-02,ספק בדוי,-9.73,90.27\n'
+    const res = await POST(req(new File([csv], 'x.csv'), 'acct_test_other'))
     expect(res.status).toBe(200)
-    expect((await res.json()).importSupported).toBe(false)
+    const body = await res.json()
+    expect(body.importSupported).toBe(true)
+    expect(body.mapper).toMatchObject({
+      kind: 'bank',
+      profile: null,
+      signature: 'תאריך|תיאור|סכום|יתרה',
+      suggestion: { headerRow: 1, columns: { date: 0, description: 1, amount: 2, balance: 3 }, amountMode: 'signed' },
+    })
+  })
+
+  it('sends no mapper for a built-in provider', async () => {
+    const res = await POST(req(new File(['a,b\n1,2'], 'x.csv'), 'acct_leumi'))
+    expect((await res.json()).mapper).toBeNull()
   })
 
   it('400 when no file or no account is sent', async () => {

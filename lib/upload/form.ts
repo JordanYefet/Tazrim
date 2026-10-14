@@ -15,13 +15,35 @@ function parseForce(value: FormDataEntryValue | null): number[] | null {
   }
 }
 
+/** Longest `mapping` JSON accepted (a real mapping is well under 2KB). */
+export const MAX_MAPPING_CHARS = 20_000
+
+/** `mapping`: JSON text, parsed but not validated here (lib/upload/import validates it). */
+function parseMapping(value: FormDataEntryValue | null): { value?: unknown } | null {
+  if (value === null) return {}
+  if (typeof value !== 'string' || value.length > MAX_MAPPING_CHARS) return null
+  try {
+    return { value: JSON.parse(value) }
+  } catch {
+    return null
+  }
+}
+
+export interface UploadForm {
+  file: File
+  account: Account
+  force: number[]
+  mapping?: unknown
+  profileId?: string
+}
+
 /**
- * Reads `file` + `accountId` (+ optional `force`) from an upload form and
+ * Reads `file` + `accountId` (+ optional `force`, `mapping`, `profileId`) from an upload form and
  * resolves the account. Returns either the inputs or the error response to send.
  */
 export async function readUploadForm(
   req: Request
-): Promise<{ file: File; account: Account; force: number[] } | { response: NextResponse }> {
+): Promise<UploadForm | { response: NextResponse }> {
   let form: FormData
   try {
     form = await req.formData()
@@ -40,6 +62,14 @@ export async function readUploadForm(
   if (!force) {
     return { response: NextResponse.json({ error: 'רשימת שורות לא תקינה' }, { status: 400 }) }
   }
+  const mapping = parseMapping(form.get('mapping'))
+  if (!mapping) {
+    return { response: NextResponse.json({ error: 'מיפוי לא תקין', code: 'INVALID_MAPPING' }, { status: 400 }) }
+  }
+  const profileId = form.get('profileId')
+  if (profileId !== null && (typeof profileId !== 'string' || !profileId || profileId.length > 100)) {
+    return { response: NextResponse.json({ error: 'מיפוי שמור לא תקין', code: 'INVALID_MAPPING' }, { status: 400 }) }
+  }
   if (file.size > MAX_FILE_BYTES) {
     return {
       response: NextResponse.json(
@@ -52,5 +82,11 @@ export async function readUploadForm(
   if (!account) {
     return { response: NextResponse.json({ error: 'החשבון לא נמצא', code: 'ACCOUNT_NOT_FOUND' }, { status: 404 }) }
   }
-  return { file, account, force }
+  return {
+    file,
+    account,
+    force,
+    ...('value' in mapping ? { mapping: mapping.value } : {}),
+    ...(profileId !== null ? { profileId } : {}),
+  }
 }
