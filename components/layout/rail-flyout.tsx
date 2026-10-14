@@ -73,8 +73,12 @@ export function RailFlyout({
       e.stopPropagation()
       window.clearTimeout(closeTimer.current)
       setPos(null)
-      skipFocusOpen.current = true
-      wrapRef.current?.querySelector<HTMLElement>('a')?.focus()
+      const trigger = wrapRef.current?.querySelector<HTMLElement>('a')
+      // Moving focus back fires a focus event that must not reopen the panel
+      if (trigger && document.activeElement !== trigger) {
+        skipFocusOpen.current = true
+        trigger.focus()
+      }
     } else if (e.key === 'ArrowDown' && open) {
       e.preventDefault()
       const links = Array.from(wrapRef.current?.querySelectorAll<HTMLElement>(`#${panelId} a`) ?? [])

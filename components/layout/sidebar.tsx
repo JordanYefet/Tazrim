@@ -240,7 +240,7 @@ export function Sidebar({
   )
 
   return (
-    <Tooltip.Provider delayDuration={250} skipDelayDuration={400}>
+    <Tooltip.Provider delayDuration={250} skipDelayDuration={400} disableHoverableContent>
       <aside
         data-collapsed={collapsed || undefined}
         className={cn(
