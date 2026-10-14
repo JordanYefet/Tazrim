@@ -230,8 +230,7 @@ export function Sidebar({
         aria-expanded={!collapsed}
         title={collapsed ? undefined : toggleLabel}
         className={cn(
-          'flex shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          collapsed ? 'h-10 w-10' : 'h-8 w-8'
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
         )}
       >
         <ToggleIcon className="h-4 w-4" aria-hidden />
@@ -249,26 +248,25 @@ export function Sidebar({
           collapsed ? 'w-16' : 'w-56'
         )}
       >
-        {/* Logo; the logo square is centered on the rail's 32px axis */}
-        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b ps-[18px] pe-3">
+        {/* The toggle stays in one spot in both widths: first in the top row, centred
+            on the rail's 32px axis. The logo follows it and fades out when collapsed. */}
+        <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
+          {toggleButton}
           <Link
             href="/"
             aria-label="תזרים · לוח בקרה"
-            className="flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            tabIndex={collapsed ? -1 : undefined}
+            aria-hidden={collapsed || undefined}
+            className={cn(
+              'flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              collapsed && 'pointer-events-none opacity-0'
+            )}
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary">
               <span className="text-sm font-bold text-primary-foreground">ת</span>
             </span>
-            <span
-              className={cn(
-                'whitespace-nowrap text-lg font-bold tracking-tight transition-opacity duration-150 motion-reduce:transition-none',
-                collapsed && 'opacity-0'
-              )}
-            >
-              תזרים
-            </span>
+            <span className="whitespace-nowrap text-lg font-bold tracking-tight">תזרים</span>
           </Link>
-          {!collapsed && toggleButton}
         </div>
 
         <nav aria-label="ניווט ראשי" className={cn('flex flex-1 flex-col gap-0.5 p-3', collapsed ? 'overflow-visible' : 'overflow-y-auto')}>
@@ -290,7 +288,6 @@ export function Sidebar({
 
         <div className="flex shrink-0 flex-col gap-0.5 border-t p-3">
           <PlainItem item={SETTINGS_NAV} pathname={pathname} collapsed={collapsed} />
-          {collapsed && <div className="flex justify-center pt-1">{toggleButton}</div>}
         </div>
       </aside>
     </Tooltip.Provider>

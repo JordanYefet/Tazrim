@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { RollingNumber, type RollingFormat } from '@/components/ui/rolling-number'
 import { cn } from '@/lib/utils/cn'
-import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { averageDelta } from '@/lib/insights/account-overview'
 
 export type Tone = 'income' | 'expense' | 'cc' | 'neutral'
@@ -17,8 +17,13 @@ export interface StatDef {
   /** Per-account split under the value (only passed with 2+ accounts) */
   split?: { label: string; value: number }[]
   format?: RollingFormat
-  /** A selected month compared with this (average) value, e.g. "יוני ₪X · 12%+" */
+  /** A selected month compared with this (average) value, shown as a "+12%" chip */
   compare?: MonthCompare
+  /**
+   * The tile can carry a comparison chip beside its value. Its figure is sized to
+   * leave room for the chip in both states, so the tile never changes size.
+   */
+  hasCompareSlot?: boolean
 }
 
 export interface MonthCompare {
@@ -29,9 +34,9 @@ export interface MonthCompare {
   delta: number | null
 }
 
-/** The yearly average tile; with a month selected it also shows that month against the average. */
+/** The yearly average tile; with a month selected a chip shows that month against the average. */
 export function averageStat(
-  def: Omit<StatDef, 'value' | 'compare'>,
+  def: Omit<StatDef, 'value' | 'compare' | 'hasCompareSlot'>,
   average: number,
   month?: { label: string; value: number }
 ): StatDef {
@@ -39,34 +44,36 @@ export function averageStat(
     ...def,
     value: average,
     compare: month && { ...month, delta: averageDelta(month.value, average) },
+    hasCompareSlot: true,
   }
 }
 
 const pct = new Intl.NumberFormat('he-IL', { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' })
 
-/** "יוני ₪X" and a small delta chip: up is more spending than usual, down is less. */
-function CompareLine({ label, value, delta, exact }: MonthCompare & { exact: boolean }) {
-  const up = delta !== null && Math.round(delta * 100) > 0
-  const down = delta !== null && Math.round(delta * 100) < 0
+/**
+ * The selected month against the average, as a small chip beside the average
+ * itself: up is more spending than usual, down is less. The month's own value
+ * already has its tile, so only the percentage is shown, and the tile keeps
+ * its size whether or not a month is selected.
+ */
+function DeltaChip({ label, delta }: MonthCompare) {
+  if (delta === null) return null
+  const up = Math.round(delta * 100) > 0
+  const down = Math.round(delta * 100) < 0
+  const relation = up ? 'מעל הממוצע' : down ? 'מתחת לממוצע' : 'כמו הממוצע'
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-      <span className="whitespace-nowrap">
-        {label} <span className="font-medium tabular-nums text-foreground">{exact ? formatCurrency(value) : formatCurrencyWhole(value)}</span>
-      </span>
-      {delta !== null && (
-        <span
-          className={cn(
-            'whitespace-nowrap rounded px-1 py-px text-[11px] font-medium tabular-nums',
-            up && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
-            down && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
-            !up && !down && 'bg-muted'
-          )}
-          title={up ? 'מעל הממוצע' : down ? 'מתחת לממוצע' : 'כמו הממוצע'}
-        >
-          <span dir="ltr">{pct.format(delta)}</span>
-        </span>
+    <span
+      className={cn(
+        'shrink-0 self-center rounded px-1.5 py-0.5 text-xs font-medium tabular-nums',
+        up && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
+        down && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
+        !up && !down && 'bg-muted text-muted-foreground'
       )}
-    </p>
+      title={`${label} ${relation}`}
+      aria-label={`${label}: ${pct.format(delta)} ${relation}`}
+    >
+      <span dir="ltr">{pct.format(delta)}</span>
+    </span>
   )
 }
 
@@ -95,7 +102,7 @@ export const DOT: Record<Tone, string> = {
   neutral: 'bg-muted-foreground',
 }
 
-export function StatTile({ label, value, tone, href, hint, format, split, compare, wide }: StatDef & { wide?: boolean }) {
+export function StatTile({ label, value, tone, href, hint, format, split, compare, hasCompareSlot, wide }: StatDef & { wide?: boolean }) {
   const body = (
     <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -109,17 +116,20 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
         )}
       </div>
       <div>
-        <p
-          className={cn(
-            'font-semibold tracking-tight tabular-nums text-foreground',
-            // agorot make the figure longer; keep it on one line in half-width phone tiles
-            format === 'currencyExact' ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
-          )}
-        >
-          <RollingNumber value={value} format={format} />
-        </p>
+        <div className="flex items-center gap-2">
+          <p
+            className={cn(
+              'min-w-0 font-semibold tracking-tight tabular-nums text-foreground',
+              // agorot, or a comparison chip beside the figure, make the line longer:
+              // keep it on one line in half-width phone tiles
+              format === 'currencyExact' || hasCompareSlot ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
+            )}
+          >
+            <RollingNumber value={value} format={format} />
+          </p>
+          {compare && <DeltaChip {...compare} />}
+        </div>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
-        {compare && <CompareLine {...compare} exact={format === 'currencyExact'} />}
         {split && split.length > 1 && (
           <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
             {split.map(s => (

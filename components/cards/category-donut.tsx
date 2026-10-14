@@ -112,12 +112,11 @@ function CategoryDonutInner({
                   />
                   <span className="truncate text-foreground">{entry.name}</span>
                 </span>
-                <span className="whitespace-nowrap text-center text-xs tabular-nums text-muted-foreground">
-                  {count !== undefined && (
-                    <>
-                      <RollingNumber value={count} format="integer" /> {count === 1 ? 'עסקה' : 'עסקאות'}
-                    </>
-                  )}
+                <span
+                  className="whitespace-nowrap text-center text-xs tabular-nums text-muted-foreground"
+                  title={count !== undefined ? 'מספר עסקאות' : undefined}
+                >
+                  {count !== undefined && <RollingNumber value={count} format="integer" />}
                 </span>
                 <RollingNumber
                   value={entry.value}
