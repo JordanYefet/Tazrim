@@ -35,7 +35,7 @@ export function RecurringCard({ series, total, limit = 4 }: Props) {
       {top.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted-foreground text-pretty">עדיין לא זוהו חיובים קבועים.</p>
       ) : (
-        <ul className="-mx-2 flex flex-col sm:grid sm:grid-cols-2 sm:gap-x-6">
+        <ul className="-mx-2 flex flex-col sm:grid sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-1 2xl:grid-cols-2">
           {top.map(s => (
             <li key={s.key} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm">
               <span className="min-w-0 flex-1 truncate">{s.name}</span>

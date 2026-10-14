@@ -4,8 +4,6 @@ import { CardSummaryCards } from '@/components/cards/card-summary-cards'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
-import { CategoryTrendChart } from '@/components/cards/category-trend-chart'
-import { CategoryMonthTable } from '@/components/cards/category-month-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
@@ -13,11 +11,12 @@ import { getCategories } from '@/lib/db/categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
-import { latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
-import { cardPeriodTotals, lastMonthWithData, plottedMonthCount } from '@/lib/insights/account-overview'
+import { rankCategories } from '@/lib/insights/category-insights'
+import { lastMonthWithData, monthlyAverage, plottedMonthCount } from '@/lib/insights/account-overview'
 import { accountHref } from '@/lib/accounts/routes'
+import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
-import { periodLabel } from '@/lib/utils/date'
+import { monthName, periodLabel } from '@/lib/utils/date'
 
 interface SearchParams {
   year?: string
@@ -94,16 +93,16 @@ export default async function CardAccountPage({
     ? (categoryStats[params.category]?.count ?? 0)
     : Object.values(categoryStats).reduce((s, v) => s + v.count, 0)
 
-  // Yearly average over months with charges (same months the chart shows)
-  const averageMonthly = !params.month && !params.category
-    ? total / Math.max(Object.values(monthly).filter(v => v > 0).length, 1)
-    : undefined
+  // Yearly average over months with charges (same months the chart shows); with a
+  // category filter, that category's yearly total over the same months (as the
+  // category page's table averages it). Always shown, so a month can be compared.
+  const averageMonthly = monthlyAverage(
+    params.category ? (categoryMonthly[params.category] ?? {}) : monthly,
+    monthly
+  )
 
   // Same category colors on every chart, ranked by yearly spend
-  const rankedCategories = rankCategories(categoryMonthly)
-  const categoryColors = categoryColorMap(rankedCategories)
-  const lastCategoryMonth = latestMonthWithData(categoryMonthly)
-  const trendMonths = plottedMonthCount(Number(year), lastCategoryMonth ?? 1)
+  const categoryColors = categoryColorMap(rankCategories(categoryMonthly))
   const monthCount = plottedMonthCount(Number(year), lastMonthWithData(monthly))
 
   const fetchSp = new URLSearchParams({ year })
@@ -132,11 +131,13 @@ export default async function CardAccountPage({
             total={total}
             count={count}
             average={averageMonthly}
+            monthLabel={month ? monthName(month) : undefined}
             label={params.category ? `חיובים · ${params.category}` : undefined}
           />
 
           {/* Monthly bar chart + category donut side by side on large screens */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Same 5/7 split as the summary row above, so the edges line up */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <MonthlySpendingChart
               accountId={account.id}
               series={[{ key: account.id, label: account.displayName, color: 'var(--chart-cc)', data: monthly }]}
@@ -149,31 +150,9 @@ export default async function CardAccountPage({
               stats={categoryStats}
               selectedCategory={params.category}
               colors={categoryColors}
+              analysisHref={categoryAnalysisHref(account.id, period)}
             />
           </div>
-
-          <CategoryTrendChart
-            accountId={account.id}
-            monthly={categoryMonthly}
-            ranked={rankedCategories}
-            colors={categoryColors}
-            monthCount={trendMonths}
-            selectedMonth={month}
-            selectedCategory={params.category}
-          />
-
-          {lastCategoryMonth && (
-            <CategoryMonthTable
-              accountId={account.id}
-              monthly={categoryMonthly}
-              ranked={rankedCategories}
-              colors={categoryColors}
-              lastMonth={lastCategoryMonth}
-              year={year}
-              selectedMonth={month}
-              selectedCategory={params.category}
-            />
-          )}
         </>
       ) : (
         <EmptyState

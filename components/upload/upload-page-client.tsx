@@ -17,16 +17,16 @@ export function UploadPageClient({ accounts }: { accounts: UploadAccount[] }) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 min-w-0">
+    <div className="mx-auto max-w-5xl min-w-0 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold mb-1">העלאת קבצים</h1>
+        <h1 className="mb-1 text-2xl font-semibold tracking-tight">העלאת קבצים</h1>
         <p className="text-muted-foreground text-sm">בחר חשבון, העלה קובץ ייצוא ובדוק אותו לפני הייבוא</p>
       </div>
 
       <UploadFlow accounts={accounts} onImported={imported} />
 
-      <div className="rounded-lg border bg-card p-4 md:p-6">
-        <h2 className="font-semibold mb-4">היסטוריית העלאות</h2>
+      <div className="rounded-xl border bg-card p-4 sm:p-6">
+        <h2 className="mb-4 text-base font-semibold">היסטוריית העלאות</h2>
         <UploadHistoryTable refresh={refresh} />
       </div>
     </div>

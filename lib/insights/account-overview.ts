@@ -45,18 +45,33 @@ export function sumCardMonthly(list: CardMonthly[]): CardMonthly {
 }
 
 /**
- * Income, expense and net for the selected month (or the whole year). The
- * yearly average expense counts only months that have any expense, so a
- * missing upload doesn't drag it down.
+ * The yearly monthly average: the year's total over the months that have any
+ * value, so a missing upload doesn't drag it down. `activeIn` counts the
+ * months from another series instead (a category's average over the months
+ * with any card charges, as in the category × month table).
+ */
+export function monthlyAverage(monthly: CardMonthly, activeIn: CardMonthly = monthly): number {
+  const total = MONTHS.reduce((s, m) => s + (at(monthly, m) ?? 0), 0)
+  const active = MONTHS.filter(m => (at(activeIn, m) ?? 0) > 0).length
+  return total / Math.max(active, 1)
+}
+
+/** How far a month is above (+) or below (-) the average, as a fraction; null without an average. */
+export function averageDelta(value: number, average: number): number | null {
+  return average > 0 ? (value - average) / average : null
+}
+
+/**
+ * Income, expense and net for the selected month (or the whole year), and the
+ * yearly average expense (always the whole year, so a month can be compared
+ * with it). Bank-only: card charges are already inside these expenses.
  */
 export function bankPeriodTotals(monthly: BankMonthly, month?: number) {
   const values = MONTHS.map(m => at(monthly, m) ?? { income: 0, expense: 0 })
   const picked = month ? [values[month - 1] ?? { income: 0, expense: 0 }] : values
   const income = picked.reduce((s, v) => s + v.income, 0)
   const expense = picked.reduce((s, v) => s + v.expense, 0)
-  const averageExpense = month
-    ? undefined
-    : expense / Math.max(values.filter(v => v.expense > 0).length, 1)
+  const averageExpense = monthlyAverage(Object.fromEntries(MONTHS.map(m => [m, values[m - 1].expense])))
   return { income, expense, net: income - expense, averageExpense }
 }
 
@@ -64,8 +79,7 @@ export function bankPeriodTotals(monthly: BankMonthly, month?: number) {
 export function cardPeriodTotals(monthly: CardMonthly, month?: number) {
   const values = MONTHS.map(m => at(monthly, m) ?? 0)
   const total = month ? (values[month - 1] ?? 0) : values.reduce((s, v) => s + v, 0)
-  const average = month ? undefined : total / Math.max(values.filter(v => v > 0).length, 1)
-  return { total, average }
+  return { total, average: monthlyAverage(monthly) }
 }
 
 /** part / whole as a 0-1 fraction; 0 when the whole is 0. */

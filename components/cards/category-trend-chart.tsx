@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { useTheme } from 'next-themes'
@@ -10,21 +11,22 @@ import { useChartAxes } from '@/hooks/use-chart-axes'
 import { OTHER_COLOR } from '@/lib/utils/category-colors'
 import { cn } from '@/lib/utils/cn'
 import type { CategoryMonthly } from '@/lib/insights/category-insights'
-import { accountPath } from '@/lib/accounts/routes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 
 const TOP_N = 6
 const OTHER = 'אחר'
 
 interface Props {
-  accountId: string
+  /** Page a month click filters (the category page itself) */
+  basePath: string
+  /** Where each category chip goes: the card's transactions filtered to it */
+  categoryHrefs: Record<string, string>
   monthly: CategoryMonthly
   /** Categories ordered by yearly spend */
   ranked: string[]
   colors: Record<string, string>
   monthCount: number
   selectedMonth?: number
-  selectedCategory?: string
 }
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -49,7 +51,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCount, selectedMonth, selectedCategory }: Props) {
+function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, colors, monthCount, selectedMonth }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -58,11 +60,8 @@ function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCoun
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
 
-  // Top categories get their own series; a filtered category outside the top stays visible too
+  // Top categories get their own series, the rest are grouped as "אחר"
   const series = ranked.slice(0, TOP_N)
-  if (selectedCategory && monthly[selectedCategory] && !series.includes(selectedCategory)) {
-    series.push(selectedCategory)
-  }
   const rest = ranked.filter(c => !series.includes(c))
   const keys = rest.length ? [...series, OTHER] : series
 
@@ -74,23 +73,20 @@ function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCoun
     return row
   })
 
-  function navigate(update: (sp: URLSearchParams) => void) {
+  // A month click stays on this page and toggles the month
+  function selectMonth(m: number) {
     const sp = new URLSearchParams(params.toString())
-    update(sp)
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
+    if (selectedMonth === m) sp.delete('month')
+    else sp.set('month', String(m))
+    const qs = sp.toString()
+    router.push(qs ? `${basePath}?${qs}` : basePath, { scroll: false })
   }
 
-  const selectMonth = (m: number) => navigate(sp => sp.set('month', String(m)))
-  const toggleCategory = (c: string) =>
-    navigate(sp => (selectedCategory === c ? sp.delete('category') : sp.set('category', c)))
-
-  const dimmed = (key: string, m: number) =>
-    (selectedCategory !== undefined && key !== selectedCategory) ||
-    (selectedMonth !== undefined && m !== selectedMonth)
+  const dimmed = (m: number) => selectedMonth !== undefined && m !== selectedMonth
 
   return (
     <section className={SECTION}>
-      <ChartHeader title="הוצאות לפי קטגוריה לאורך השנה" subtitle="לחיצה על חודש מסננת, או על קטגוריה למטה" />
+      <ChartHeader title="הוצאות לפי קטגוריה לאורך השנה" subtitle="לחיצה על חודש מסננת · קטגוריה פותחת את העסקאות שלה" />
 
       <div className="h-56 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -119,7 +115,7 @@ function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCoun
                 radius={i === keys.length - 1 ? [3, 3, 0, 0] : undefined}
               >
                 {chartData.map(d => (
-                  <Cell key={d.month as number} fillOpacity={dimmed(key, d.month as number) ? 0.25 : 1} />
+                  <Cell key={d.month as number} fillOpacity={dimmed(d.month as number) ? 0.25 : 1} />
                 ))}
               </Bar>
             ))}
@@ -129,28 +125,31 @@ function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCoun
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
         {keys.map(key => {
-          const clickable = key !== OTHER
-          const active = selectedCategory === key
+          const href = key === OTHER ? undefined : categoryHrefs[key]
+          const chip = cn(
+            'flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-xs text-muted-foreground',
+            href && 'transition-colors hover:bg-muted hover:text-foreground'
+          )
+          const dot = (
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: key === OTHER ? OTHER_COLOR : colors[key] }}
+              aria-hidden
+            />
+          )
           return (
             <li key={key}>
-              <button
-                type="button"
-                disabled={!clickable}
-                onClick={() => clickable && toggleCategory(key)}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors',
-                  clickable && 'hover:bg-muted',
-                  active ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-transparent text-muted-foreground',
-                  selectedCategory && !active && 'opacity-60'
-                )}
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: key === OTHER ? OTHER_COLOR : colors[key] }}
-                  aria-hidden
-                />
-                {key}
-              </button>
+              {href ? (
+                <Link href={href} className={chip}>
+                  {dot}
+                  {key}
+                </Link>
+              ) : (
+                <span className={chip}>
+                  {dot}
+                  {key}
+                </span>
+              )}
             </li>
           )
         })}

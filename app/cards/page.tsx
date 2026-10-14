@@ -6,6 +6,8 @@ import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accoun
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
 import { accountHref } from '@/lib/accounts/routes'
+import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import {
   cardPeriodTotals,
   lastMonthWithData,
@@ -15,7 +17,7 @@ import {
 } from '@/lib/insights/account-overview'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
-import { periodLabel } from '@/lib/utils/date'
+import { monthName, periodLabel } from '@/lib/utils/date'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -63,6 +65,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
+        {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
         <ManageAccountsLink />
       </PageHeading>
 
@@ -84,6 +87,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
                 total={total}
                 count={count}
                 average={average}
+                monthLabel={month ? monthName(month) : undefined}
                 label={several ? 'סה״כ חיובים בכל הכרטיסים' : undefined}
                 extra={several ? [{ label: 'כרטיסים', value: accounts.length, tone: 'neutral', format: 'integer' }] : []}
               />
@@ -107,7 +111,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             <h2 id="card-accounts" className="text-base font-semibold">
               {several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {perCard.map(c => (
                 <CardAccountCard
                   key={c.account.id}

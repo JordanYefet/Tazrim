@@ -30,8 +30,8 @@ const FORMAT_LABEL: Record<RawFormat, string> = {
 
 function Step({ n, title, disabled, children }: { n: number; title: string; disabled?: boolean; children: React.ReactNode }) {
   return (
-    <section className={cn('rounded-lg border bg-card p-4 md:p-6 space-y-4 min-w-0', disabled && 'opacity-60')}>
-      <h2 className="font-semibold flex items-center gap-2">
+    <section className={cn('min-w-0 space-y-4 rounded-xl border bg-card p-4 sm:p-6', disabled && 'opacity-60')}>
+      <h2 className="flex items-center gap-2 text-base font-semibold">
         <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center tabular-nums">{n}</span>
         {title}
       </h2>

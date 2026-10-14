@@ -13,7 +13,7 @@ import {
   shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
-import { periodLabel } from '@/lib/utils/date'
+import { monthName, periodLabel } from '@/lib/utils/date'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -64,7 +64,12 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         <>
           {hasData ? (
             <>
-              <BankSummaryCards income={totals.income} expense={totals.expense} averageExpense={totals.averageExpense} />
+              <BankSummaryCards
+                income={totals.income}
+                expense={totals.expense}
+                averageExpense={totals.averageExpense}
+                monthLabel={month ? monthName(month) : undefined}
+              />
               <IncomeExpenseChart
                 data={chartData}
                 selectedMonth={month}
@@ -85,7 +90,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             <h2 id="bank-accounts" className="text-base font-semibold">
               {several ? `החשבונות (${accounts.length})` : 'החשבון'}
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {perAccount.map(({ account, latest, totals: t }) => (
                 <BankAccountCard
                   key={account.id}

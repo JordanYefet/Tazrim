@@ -17,6 +17,7 @@ import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/l
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
 import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
+import { monthlyAverage } from '@/lib/insights/account-overview'
 
 interface SearchParams { year?: string; month?: string; card?: string }
 
@@ -92,9 +93,8 @@ export default async function DashboardPage({
 
   // Bank expenses already include the monthly card payment, so card charges
   // are a breakdown of that money — never add them on top.
-  const averageExpense = !month
-    ? bankExpense / Math.max(Object.values(bank).filter(m => m.expense > 0).length, 1)
-    : undefined
+  // Always the yearly average, so a selected month can be compared with it
+  const averageExpense = monthlyAverage(Object.fromEntries(Object.entries(bank).map(([m, v]) => [m, v.expense])))
 
   const hasData =
     Object.values(bank).some(m => m.income > 0 || m.expense > 0) ||
@@ -134,6 +134,7 @@ export default async function DashboardPage({
             bankExpense={bankExpense}
             ccTotal={ccTotal}
             averageExpense={averageExpense}
+            monthLabel={month ? monthName(month) : undefined}
             query={query}
             bankHint={bankHint}
             cardHint={cardHint}
@@ -146,7 +147,8 @@ export default async function DashboardPage({
             monthCount={monthCount}
             selectedMonth={month}
           />
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          {/* Every row shares the summary's 5/7 split, so the edges line up */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <CCMonthlyChart data={cards} series={cardSeries} monthCount={monthCount} selectedMonth={month} />
             <CategoryInsights
               insights={insights}
@@ -160,7 +162,7 @@ export default async function DashboardPage({
               cardPath={accountPath('CREDIT_CARD', insightsCardId)}
             />
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <RecurringCard series={recurring.subscriptions} total={recurring.total} />
             <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
           </div>

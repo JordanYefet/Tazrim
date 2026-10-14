@@ -61,7 +61,7 @@ export function AccountsManager({
     <div className="mx-auto max-w-3xl space-y-6 min-w-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold mb-1">ניהול חשבונות</h1>
+          <h1 className="mb-1 text-2xl font-semibold tracking-tight">ניהול חשבונות</h1>
           <p className="text-sm text-muted-foreground">חשבונות הבנק וכרטיסי האשראי שאליהם מעלים קבצים</p>
         </div>
         {!adding && (
