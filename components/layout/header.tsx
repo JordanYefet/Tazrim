@@ -5,8 +5,9 @@ import { SearchButton } from '@/components/search/search-button'
 import { CommandSearch } from '@/components/search/command-search'
 import { useHeaderHidden } from '@/hooks/use-header-hidden'
 import { cn } from '@/lib/utils/cn'
+import { monthsArray } from '@/lib/utils/date'
 
-const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר']
+const MONTHS = monthsArray()
 
 /**
  * Sticky, translucent header with the period selects and search. It slides
@@ -56,8 +57,8 @@ export function Header() {
             onChange={e => update('month', e.target.value)}
           >
             <option value="">כל החודשים</option>
-            {MONTHS.map((m, i) => (
-              <option key={i + 1} value={i + 1}>{m}</option>
+            {MONTHS.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>
           <select

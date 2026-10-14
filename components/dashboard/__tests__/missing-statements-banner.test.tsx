@@ -15,7 +15,7 @@ describe('MissingStatementsBanner', () => {
         ]}
       />
     ))
-    expect(html).toContain('אין פירוט מקס עבור יולי–ספטמבר 2030')
+    expect(html).toContain('אין פירוט מקס עבור יולי–ספט׳ 2030')
     expect(html).toContain('חסרות תנועות לאומי עבור מרץ 2030')
     expect(html).toContain('href="/upload"')
   })
@@ -43,7 +43,7 @@ describe('AccountPicker missing months', () => {
         onChange={() => {}}
       />
     ))
-    expect(html).toContain('חסר: דצמבר 2030–ינואר 2031')
+    expect(html).toContain('חסר: דצמ׳ 2030–ינו׳ 2031')
     expect(html.match(/חסר:/g)).toHaveLength(1)
   })
 })

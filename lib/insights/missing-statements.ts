@@ -210,7 +210,7 @@ export function groupByProvider(items: MissingStatement[]): MissingStatement[] {
   return [...groups.values()]
 }
 
-/** "אין פירוט מקס עבור יולי–ספטמבר 2026" / "חסרות תנועות לאומי עבור מרץ 2026" */
+/** "אין פירוט מקס עבור יולי–ספט׳ 2026" / "חסרות תנועות לאומי עבור מרץ 2026" */
 export function missingStatementMessage(kind: MissingStatement['kind'], label: string, months: string[]): string {
   const ranges = formatMonthRanges(months)
   return kind === 'CREDIT_CARD' ? `אין פירוט ${label} עבור ${ranges}` : `חסרות תנועות ${label} עבור ${ranges}`
@@ -220,7 +220,7 @@ export function missingStatementMessage(kind: MissingStatement['kind'], label: s
 export const noBreakAtDash = (text: string) => text.replace(/–/g, '⁠–⁠')
 
 /**
- * "יולי–ספטמבר 2026", "נובמבר 2025–ינואר 2026", "מרץ 2026, יולי 2026":
+ * "יולי–ספט׳ 2026", "נוב׳ 2025–ינו׳ 2026", "מרץ 2026, יולי 2026":
  * consecutive months collapse into a range, separate ranges are comma-joined.
  */
 export function formatMonthRanges(months: string[]): string {

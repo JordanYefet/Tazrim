@@ -36,10 +36,6 @@ function writeCookie(name: string, value: string) {
   document.cookie = cookieAssignment(name, value)
 }
 
-function ActiveBar() {
-  return <span aria-hidden className="absolute end-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-full" />
-}
-
 function Label({ collapsed, children }: { collapsed: boolean; children: React.ReactNode }) {
   return (
     <span
@@ -83,7 +79,6 @@ function PlainItem({ item, pathname, collapsed }: { item: NavLinkItem; pathname:
         aria-current={active ? 'page' : undefined}
         className={cn(ITEM, active ? ACTIVE : IDLE)}
       >
-        {active && <ActiveBar />}
         <Icon className="h-4 w-4 shrink-0" aria-hidden />
         <Label collapsed={collapsed}>{item.label}</Label>
       </Link>
@@ -118,7 +113,6 @@ function SectionItem({
       aria-current={pathname === item.href ? 'page' : undefined}
       className={cn(ITEM, active ? ACTIVE : IDLE, accounts.length > 0 && !collapsed && 'pe-10')}
     >
-      {active && <ActiveBar />}
       <Icon className="h-4 w-4 shrink-0" aria-hidden />
       <Label collapsed={collapsed}>{item.label}</Label>
     </Link>

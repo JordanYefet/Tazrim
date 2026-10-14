@@ -1,6 +1,8 @@
+// Month names are at most 4 characters across the app: long names are cut to three
+// letters plus a geresh (אוקטובר -> אוק׳); short ones (מרץ, מאי, יוני, יולי) stay whole.
 const MONTHS_HE = [
-  'ינואר','פברואר','מרץ','אפריל','מאי','יוני',
-  'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר',
+  'ינו׳','פבר׳','מרץ','אפר׳','מאי','יוני',
+  'יולי','אוג׳','ספט׳','אוק׳','נוב׳','דצמ׳',
 ]
 
 export function formatDate(date: Date | string): string {
@@ -12,13 +14,9 @@ export function monthName(month: number): string {
   return MONTHS_HE[month - 1] ?? ''
 }
 
-const MONTHS_HE_SHORT = [
-  'ינו׳','פבר׳','מרץ','אפר׳','מאי','יוני',
-  'יולי','אוג׳','ספט׳','אוק׳','נוב׳','דצמ׳',
-]
-
+/** Same as monthName: every month name is already short. */
 export function monthNameShort(month: number): string {
-  return MONTHS_HE_SHORT[month - 1] ?? ''
+  return monthName(month)
 }
 
 /** The selected period as the dashboard heading shows it. */

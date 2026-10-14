@@ -259,7 +259,7 @@ describe('groupByProvider / missingStatementMessage', () => {
 
   it('words card and bank notices', () => {
     expect(missingStatementMessage('CREDIT_CARD', 'מקס', ['2026-07', '2026-08', '2026-09'])).toBe(
-      'אין פירוט מקס עבור יולי–ספטמבר 2026'
+      'אין פירוט מקס עבור יולי–ספט׳ 2026'
     )
     expect(missingStatementMessage('BANK', 'לאומי', ['2026-03'])).toBe('חסרות תנועות לאומי עבור מרץ 2026')
   })
@@ -271,15 +271,15 @@ describe('formatMonthRanges', () => {
   })
 
   it('collapses consecutive months in one year', () => {
-    expect(formatMonthRanges(['2026-09', '2026-07', '2026-08'])).toBe('יולי–ספטמבר 2026')
+    expect(formatMonthRanges(['2026-09', '2026-07', '2026-08'])).toBe('יולי–ספט׳ 2026')
   })
 
   it('handles a range over a year boundary', () => {
-    expect(formatMonthRanges(['2025-11', '2025-12', '2026-01'])).toBe('נובמבר 2025–ינואר 2026')
+    expect(formatMonthRanges(['2025-11', '2025-12', '2026-01'])).toBe('נוב׳ 2025–ינו׳ 2026')
   })
 
   it('lists separate ranges', () => {
-    expect(formatMonthRanges(['2026-03', '2026-07', '2026-08', '2026-08'])).toBe('מרץ 2026, יולי–אוגוסט 2026')
+    expect(formatMonthRanges(['2026-03', '2026-07', '2026-08', '2026-08'])).toBe('מרץ 2026, יולי–אוג׳ 2026')
   })
 
   it('is empty for no months', () => {
