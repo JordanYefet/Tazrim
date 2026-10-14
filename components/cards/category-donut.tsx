@@ -4,8 +4,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-import Link from 'next/link'
-import { ChartColumnStacked } from 'lucide-react'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { accountPath } from '@/lib/accounts/routes'
@@ -62,15 +61,7 @@ function CategoryDonutInner({
     <section className={SECTION}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <ChartHeader title="הוצאות לפי קטגוריה" subtitle="לחיצה על קטגוריה מסננת" className="mb-0" />
-        {analysisHref && (
-          <Link
-            href={analysisHref}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ChartColumnStacked className="h-4 w-4 text-muted-foreground" aria-hidden />
-            ניתוח לפי קטגוריה
-          </Link>
-        )}
+        {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
       </div>
       {chartData.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">אין חיובים לתקופה זו</p>

@@ -6,6 +6,8 @@ import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accoun
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
 import { accountHref } from '@/lib/accounts/routes'
+import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import {
   cardPeriodTotals,
   lastMonthWithData,
@@ -63,6 +65,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
+        {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
         <ManageAccountsLink />
       </PageHeading>
 
