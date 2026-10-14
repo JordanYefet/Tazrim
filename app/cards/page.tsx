@@ -111,7 +111,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             <h2 id="card-accounts" className="text-base font-semibold">
               {several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {perCard.map(c => (
                 <CardAccountCard
                   key={c.account.id}

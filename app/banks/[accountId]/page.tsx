@@ -108,7 +108,8 @@ export default async function BankAccountPage({
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
           />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Same 5/7 split as the summary row above, so the edges line up */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} monthCount={monthCount} />
             <BalanceChart data={balancePoints} />
           </div>

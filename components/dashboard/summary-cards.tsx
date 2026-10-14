@@ -133,8 +133,10 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
       </div>
     </>
   )
+  // Values sit right under the label (not pushed to the bottom), so they line up
+  // across a row even when one tile has an extra hint or comparison line
   const base = cn(
-    'group relative flex flex-col justify-between gap-3 rounded-xl border bg-card p-4',
+    'group relative flex flex-col gap-3 rounded-xl border bg-card p-4',
     wide && 'col-span-2'
   )
   if (!href) return <div className={base}>{body}</div>
@@ -156,7 +158,7 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
 /** Two-column tile grid; an odd last tile spans both columns. */
 export function StatGrid({ stats }: { stats: StatDef[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-4">
       {stats.map((s, i) => (
         <StatTile key={s.label} {...s} wide={stats.length % 2 === 1 && i === stats.length - 1} />
       ))}
@@ -183,7 +185,7 @@ export function NetBalance({
   return (
     <section
       aria-label="מאזן נטו"
-      className="flex flex-col justify-between gap-6 rounded-xl border bg-card p-5 sm:p-6"
+      className="flex flex-col justify-between gap-6 rounded-xl border bg-card p-4 sm:p-6"
     >
       <div>
         <p className="text-sm font-medium text-muted-foreground">מאזן נטו</p>
@@ -272,7 +274,7 @@ export function DashboardSummaryCards({
   ]
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <NetBalance bankIncome={bankIncome} bankExpense={bankExpense} />
       <StatGrid stats={stats} />
     </div>

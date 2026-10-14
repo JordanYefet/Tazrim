@@ -101,7 +101,7 @@ function CategoryDonutInner({
               <button
                 key={entry.name}
                 onClick={() => handleClick(entry)}
-                className="grid w-full grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] items-center gap-x-2 rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted"
+                className="grid w-full grid-cols-[minmax(0,1fr)_4.5rem_5.5rem] items-center gap-x-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted"
                 style={{ opacity: selectedCategory && selectedCategory !== entry.name ? 0.4 : 1 }}
               >
                 <span className="flex min-w-0 items-center gap-2">

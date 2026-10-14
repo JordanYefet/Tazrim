@@ -13,16 +13,16 @@ export default async function CategoriesPage() {
   const { categories, aliases } = await getData()
 
   return (
-    <div className="max-w-3xl mx-auto space-y-10">
-      <h1 className="text-2xl font-bold">קטגוריות ומיפויי עסקים</h1>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <h1 className="text-2xl font-semibold tracking-tight">קטגוריות ומיפויי עסקים</h1>
 
-      <section className="rounded-lg border bg-card p-6 space-y-4">
-        <h2 className="font-semibold text-lg">ניהול קטגוריות</h2>
+      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+        <h2 className="text-base font-semibold">ניהול קטגוריות</h2>
         <CategoryList initial={categories} />
       </section>
 
-      <section className="rounded-lg border bg-card p-6 space-y-4">
-        <h2 className="font-semibold text-lg">מיפויי עסקים</h2>
+      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+        <h2 className="text-base font-semibold">מיפויי עסקים</h2>
         <MerchantMappings initial={aliases} categories={categories} />
       </section>
     </div>
