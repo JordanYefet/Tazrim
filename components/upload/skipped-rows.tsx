@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -18,13 +18,17 @@ export function SkippedRows({
   canForce,
   busy,
   onForce,
+  defaultOpen = true,
 }: {
   rows: SkippedRow[]
   canForce: boolean
   busy: boolean
   onForce: (indexes: number[]) => void
+  /** Several files' lists on one page start closed */
+  defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(true)
+  const titleId = useId()
+  const [open, setOpen] = useState(defaultOpen)
   const [picked, setPicked] = useState<Set<number>>(new Set())
   if (!rows.length) return null
 
@@ -38,14 +42,14 @@ export function SkippedRows({
   const allPicked = picked.size === rows.length
 
   return (
-    <section aria-labelledby="skipped-rows-title" className="rounded-lg border">
+    <section aria-labelledby={titleId} className="rounded-lg border">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
       >
-        <span id="skipped-rows-title" className="font-medium">
+        <span id={titleId} className="font-medium">
           {rows.length === 1 ? 'שורה אחת דולגה' : `${rows.length} שורות דולגו`} כי הן כבר קיימות בחשבון
         </span>
         <ChevronDown className={cn('ms-auto h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden />
