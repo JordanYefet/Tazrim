@@ -14,7 +14,7 @@ interface Alias {
 
 interface Category { id: string; name: string }
 
-const PROVIDER_LABELS: Record<string, string> = { leumi: 'בנק לאומי', max: 'מקס', hitech: 'הייטקזון' }
+const PROVIDER_LABELS: Record<string, string> = { leumi: 'בנק לאומי', max: 'מקס', hitech: 'הייטקזון', cal: 'כאל', isracard: 'ישראכרט' }
 
 export function MerchantMappings({ initial, categories }: { initial: Alias[]; categories: Category[] }) {
   const [aliases, setAliases] = useState(initial)

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { FileSpreadsheet, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BookmarkCheck, FileSpreadsheet, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { RawGridPreview } from './raw-grid-preview'
@@ -9,7 +9,12 @@ import { AccountPicker, providerLabel, type UploadAccount } from './account-pick
 import { NewCategoriesPrompt } from './new-categories-prompt'
 import { SkippedRows } from './skipped-rows'
 import { FileList, FORMAT_LABEL, resultCounts, UnsupportedNote } from './file-list'
+import { ColumnMapper, MappedPreview } from './column-mapper'
+import { SaveProfile, SavedProfileNote, type SavedProfile } from './save-profile'
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
+import { headerSignature, type ImportMapping } from '@/lib/import/mapping'
+import type { MapperInfo } from '@/lib/upload/mapper-preview'
+import { checkMapping, defaultProfileName, type MappingCheck } from '@/lib/upload/mapping-state'
 import {
   addFiles,
   applyForceToFile,
@@ -33,9 +38,34 @@ type PreviewResponse = RawWorkbookPreview & {
   fileName: string
   account: Pick<UploadAccount, 'id' | 'kind' | 'provider' | 'displayName'>
   importSupported: boolean
+  /** Set for providers without a built-in parser: the files are imported through a column mapping */
+  mapper: MapperInfo | null
 }
 
 type Entry = BatchFile<File, PreviewResponse>
+
+/**
+ * One mapping shared by every file with the same header signature (ENG-23).
+ * `profile`: a saved profile applied as is (imported by id); editing drops it
+ * and keeps it as `basedOn`, so the edit can update that profile.
+ */
+interface MapGroup {
+  mapping: ImportMapping
+  profile: SavedProfile | null
+  basedOn: SavedProfile | null
+  editing: boolean
+  saved?: SavedProfile
+  dismissed?: boolean
+}
+
+function newGroup(mapper: MapperInfo): MapGroup {
+  return mapper.profile
+    ? { mapping: mapper.profile.mapping, profile: { id: mapper.profile.id, name: mapper.profile.name }, basedOn: null, editing: false }
+    : { mapping: mapper.suggestion, profile: null, basedOn: null, editing: true }
+}
+
+/** What a mapped file was imported with, so a force re-post uses the same. */
+type ImportedWith = { mapping: ImportMapping } | { profileId: string }
 
 /** Previews are read-only, so a couple may run at once; imports never overlap. */
 const PREVIEW_CONCURRENCY = 2
@@ -65,11 +95,13 @@ async function postForm<T>(url: string, form: FormData, fallback: string): Promi
   }
 }
 
-function uploadForm(file: File, accountId: string, force?: number[]) {
+function uploadForm(file: File, accountId: string, force?: number[], using?: ImportedWith) {
   const form = new FormData()
   form.append('file', file)
   form.append('accountId', accountId)
   if (force) form.append('force', JSON.stringify(force))
+  if (using && 'profileId' in using) form.append('profileId', using.profileId)
+  if (using && 'mapping' in using) form.append('mapping', JSON.stringify(using.mapping))
   return form
 }
 
@@ -95,19 +127,62 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
   const focusAfterRemove = useRef<string | null>(null)
   // bumped on reset so previews or imports of a cleared list are dropped
   const generation = useRef(0)
+  // mapped accounts: one mapping per header signature, and what each file was imported with
+  const [groups, setGroups] = useState<Record<string, MapGroup>>({})
+  const importedWith = useRef(new Map<string, ImportedWith>())
 
   const account = accounts.find(a => a.id === accountId) ?? null
   const busy = progress !== null || forcing !== null
   const single = files.length === 1
   const shownId = selectedOrFirstReady(files, selectedId)
   const shown = files.find(x => x.id === shownId) ?? null
-  const queue = importableIds(files)
   const totals = batchTotals(files)
   const imported = files.filter(x => x.import === 'done' && x.result)
   const reading = files.some(x => x.read === 'reading')
 
+  const groupKey = (x: Entry) => (x.preview?.mapper ? x.preview.mapper.signature : null)
+  // each mapped file checked against its group's mapping (previews are capped, so this stays cheap)
+  const checks = useMemo(() => {
+    const out = new Map<string, MappingCheck>()
+    for (const x of files) {
+      const key = groupKey(x)
+      const group = key !== null ? groups[key] : undefined
+      if (!x.preview?.mapper || !group) continue
+      out.set(x.id, checkMapping(x.preview.sheets[group.mapping.sheet], group.mapping, x.preview.mapper.kind))
+    }
+    return out
+  }, [files, groups])
+  const mappedReady = (id: string) => {
+    const x = files.find(f => f.id === id)
+    return !x?.preview?.mapper || checks.get(id)?.reason === null
+  }
+  const ready = importableIds(files)
+  const queue = ready.filter(mappedReady)
+  const waiting = ready.filter(id => !mappedReady(id))
+
+  function usingFor(x: Entry): ImportedWith | undefined {
+    const key = groupKey(x)
+    const group = key !== null ? groups[key] : undefined
+    if (!group) return undefined
+    return group.profile ? { profileId: group.profile.id } : { mapping: group.mapping }
+  }
+
+  function updateGroup(key: string, patch: Partial<MapGroup>) {
+    setGroups(g => (g[key] ? { ...g, [key]: { ...g[key], ...patch } } : g))
+  }
+
+  function editMapping(key: string, mapping: ImportMapping) {
+    setGroups(g => {
+      const cur = g[key]
+      if (!cur) return g
+      return { ...g, [key]: { ...cur, mapping, profile: null, basedOn: cur.profile ?? cur.basedOn, editing: true } }
+    })
+  }
+
   function reset() {
     generation.current++
+    setGroups({})
+    importedWith.current.clear()
     setFiles([])
     setSelectedId(null)
     setProgress(null)
@@ -142,6 +217,8 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
       const outcome: PreviewOutcome<PreviewResponse> = res.ok
         ? { ok: true, preview: res.data, importSupported: res.data.importSupported }
         : { ok: false, error: res.error }
+      const mapper = res.ok ? res.data.mapper : null
+      if (mapper) setGroups(g => (g[mapper.signature] ? g : { ...g, [mapper.signature]: newGroup(mapper) }))
       setFiles(list => applyPreviewOutcome(list, entry.id, outcome))
     })
   }
@@ -178,7 +255,9 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
       setProgress({ k: i + 1, n })
       setAnnouncement(n > 1 ? `מייבא קובץ ${i + 1} מתוך ${n}: ${entry.file.name}` : 'מייבא...')
       setFiles(list => setImporting(list, entry.id))
-      const res = await postForm<FileImportResult>('/api/upload', uploadForm(entry.file, account.id), 'שגיאה בייבוא')
+      const using = usingFor(entry)
+      if (using) importedWith.current.set(entry.id, using)
+      const res = await postForm<FileImportResult>('/api/upload', uploadForm(entry.file, account.id, undefined, using), 'שגיאה בייבוא')
       if (gen !== generation.current) return
       const outcome: ImportOutcome = res.ok ? { ok: true, result: res.data } : { ok: false, error: res.error }
       if (outcome.ok) results.push(outcome.result)
@@ -202,7 +281,11 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
     const gen = generation.current
     setForcing(entry.id)
     setForceError(null)
-    const res = await postForm<FileImportResult>('/api/upload', uploadForm(entry.file, account.id, indexes), 'שגיאה בייבוא')
+    const res = await postForm<FileImportResult>(
+      '/api/upload',
+      uploadForm(entry.file, account.id, indexes, importedWith.current.get(entry.id)),
+      'שגיאה בייבוא'
+    )
     if (gen !== generation.current) return
     setForcing(null)
     if (!res.ok) {
@@ -233,6 +316,35 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
         : `ייבא ${queue.length} קבצים ל${accountName}`
   const unsupported = files.find(x => x.read === 'unsupported')?.preview
   const canForce = account?.kind === 'CREDIT_CARD'
+
+  // the shown file's mapping, when its account imports through one
+  const shownMapper = shown?.preview?.mapper ?? null
+  const shownKey = shown ? groupKey(shown) : null
+  const shownGroup = shownKey !== null ? groups[shownKey] : undefined
+  const shownCheck = shown ? checks.get(shown.id) : undefined
+  const shownDone = shown?.import === 'done'
+  const mapping = shownMapper && shownGroup && shownCheck ? { mapper: shownMapper, group: shownGroup, check: shownCheck, key: shownKey! } : null
+  const sharing = mapping ? files.filter(x => x.id !== shown!.id && groupKey(x) === mapping.key && x.import !== 'done').length : 0
+  const stepTitle = mapping && mapping.group.editing && !shownDone ? 'מיפוי עמודות' : 'תצוגה מקדימה וייבוא'
+  const showImport = queue.length > 0 || progress !== null || waiting.length > 0
+  const shownWaiting = shown && waiting.includes(shown.id) ? shownCheck?.reason : null
+  const blockReason =
+    queue.length === 0 && !progress
+      ? shownWaiting ?? (waiting.length === 1 ? 'קובץ אחד ממתין למיפוי' : waiting.length > 1 ? `${waiting.length} קבצים ממתינים למיפוי` : null)
+      : waiting.length > 0
+        ? waiting.length === 1
+          ? 'קובץ אחד ממתין למיפוי ולא ייובא עכשיו'
+          : `${waiting.length} קבצים ממתינים למיפוי ולא ייובאו עכשיו`
+        : null
+  // offer to save each hand-made mapping once a file imported with it
+  const toSave = [
+    ...new Set(
+      imported
+        .map(x => groupKey(x))
+        .filter((k): k is string => k !== null && !!groups[k] && !groups[k].profile && !groups[k].dismissed)
+    ),
+  ]
+  const providerName = account ? providerLabel(account.provider) : ''
 
   return (
     <div className="space-y-4 min-w-0">
@@ -295,12 +407,25 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
         )}
 
         {files.length > 1 && (
-          <FileList files={files} shownId={shownId} locked={busy} onShow={setSelectedId} onRemove={remove} />
+          <FileList
+            files={files}
+            shownId={shownId}
+            locked={busy}
+            onShow={setSelectedId}
+            onRemove={remove}
+            readyLabel={id => {
+              const x = files.find(f => f.id === id)
+              if (!x?.preview?.mapper) return undefined
+              if (!mappedReady(id)) return 'צריך מיפוי'
+              const key = groupKey(x)
+              return key !== null && groups[key]?.profile ? 'מיפוי שמור' : undefined
+            }}
+          />
         )}
       </Step>
 
       {shown?.preview && (
-        <Step n={3} title="תצוגה מקדימה וייבוא">
+        <Step n={3} title={stepTitle}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="font-medium min-w-0 break-all" dir="auto">{shown.preview.fileName}</span>
@@ -310,18 +435,60 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             )}
           </div>
 
-          <RawGridPreview key={shown.id} workbook={shown.preview} />
+          {mapping ? (
+            <>
+              {mapping.group.profile && !shownDone && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-primary/5 px-3 py-2 text-sm">
+                  <BookmarkCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  <span className="min-w-0">
+                    זוהה מיפוי שמור: <span className="font-medium">{mapping.group.profile.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => updateGroup(mapping.key, { editing: true, basedOn: mapping.group.profile, profile: null })}
+                    disabled={busy}
+                    className="ms-auto text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50"
+                  >
+                    שנה מיפוי
+                  </button>
+                </div>
+              )}
+              {mapping.group.editing && !shownDone && (
+                <ColumnMapper
+                  key={`${shown.id}-${mapping.group.mapping.sheet}`}
+                  workbook={shown.preview}
+                  kind={mapping.mapper.kind}
+                  mapping={mapping.group.mapping}
+                  onChange={next => editMapping(mapping.key, next)}
+                />
+              )}
+              {sharing > 0 && mapping.group.editing && !shownDone && (
+                <p className="text-xs text-muted-foreground">
+                  המיפוי חל גם על {sharing === 1 ? 'קובץ נוסף' : `${sharing} קבצים נוספים`} עם אותן כותרות.
+                </p>
+              )}
+              <MappedPreview
+                kind={mapping.mapper.kind}
+                sheet={shown.preview.sheets[mapping.group.mapping.sheet]}
+                mapping={mapping.group.mapping}
+                check={mapping.check}
+                totalRows={shown.preview.sheets[mapping.group.mapping.sheet]?.rowCount}
+              />
+            </>
+          ) : (
+            <RawGridPreview key={shown.id} workbook={shown.preview} />
+          )}
 
           {unsupported ? (
             <UnsupportedNote account={unsupported.account.displayName} provider={providerLabel(unsupported.account.provider)} />
           ) : (
-            (queue.length > 0 || progress) && (
+            showImport && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     onClick={importAll}
-                    disabled={busy || reading}
+                    disabled={busy || reading || queue.length === 0}
                     className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] disabled:opacity-50"
                   >
                     {importLabel}
@@ -336,6 +503,9 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                   </button>
                   {reading && !busy && <span className="text-xs text-muted-foreground">ממתין שכל הקבצים ייקראו...</span>}
                 </div>
+                {blockReason && !reading && !busy && (
+                  <p className="text-xs text-muted-foreground" aria-live="polite">{blockReason}</p>
+                )}
                 {progress && progress.n > 1 && (
                   <div aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">
                     <div
@@ -418,6 +588,30 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                   )}
                 </div>
               )}
+
+          {account &&
+            !busy &&
+            toSave.map(key => {
+              const group = groups[key]
+              const sample = files.find(x => groupKey(x) === key && x.preview)?.preview
+              const sheet = sample?.sheets[group.mapping.sheet]
+              if (!sample?.mapper || !sheet) return null
+              return group.saved ? (
+                <SavedProfileNote key={key} name={group.saved.name} />
+              ) : (
+                <SaveProfile
+                  key={key}
+                  accountId={account.id}
+                  accountName={account.displayName}
+                  defaultName={defaultProfileName(providerName, sample.mapper.kind)}
+                  mapping={group.mapping}
+                  headerSignature={headerSignature(sheet, group.mapping.headerRow)}
+                  basedOn={group.basedOn}
+                  onSaved={profile => updateGroup(key, { saved: profile })}
+                  onDismiss={() => updateGroup(key, { dismissed: true })}
+                />
+              )
+            })}
 
           {pendingCategories.length > 0 && !busy && (
             <NewCategoriesPrompt

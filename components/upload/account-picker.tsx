@@ -28,7 +28,7 @@ const NEW_ACCOUNT_LINKS = [
   { kind: 'CREDIT_CARD', label: 'כרטיס אשראי חדש' },
 ] as const
 
-const PROVIDER_LABELS: Record<string, string> = { leumi: 'לאומי', max: 'מקס', hitech: 'הייטקזון' }
+const PROVIDER_LABELS: Record<string, string> = { leumi: 'לאומי', max: 'מקס', hitech: 'הייטקזון', cal: 'כאל', isracard: 'ישראכרט' }
 
 export function providerLabel(provider: string): string {
   return PROVIDER_LABELS[provider] ?? provider

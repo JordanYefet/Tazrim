@@ -37,7 +37,7 @@ export async function mapperFor(
   const sheet = workbook.sheets[sheetIndex]
   const suggestion = sheet
     ? suggestMapping(sheet, kind, sheetIndex)
-    : suggestMapping({ name: '', rows: [], rowCount: 0, columnCount: 0 }, kind)
+    : suggestMapping({ rows: [] }, kind)
 
   const match = await findMatchingProfile(account, workbook)
   const mapping = match?.mapping ?? suggestion

@@ -180,7 +180,7 @@ export function AddAccountForm({
       {!supported && (
         <p className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
           <Info className="h-4 w-4 shrink-0" aria-hidden />
-          ייבוא אוטומטי לספק הזה עדיין לא נתמך. אפשר ליצור את החשבון ולהעלות אליו קבצים, הם יוצגו כטבלה גולמית.
+          לספק הזה אין ייבוא מובנה. בהעלאה הראשונה תתאים את העמודות של הקובץ, ואפשר לשמור את המיפוי לפעמים הבאות.
         </p>
       )}
 

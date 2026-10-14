@@ -32,7 +32,7 @@ export function resultCounts(created: number, skipped: number, always = true): s
 
 type Tone ='muted' | 'busy' | 'ok' | 'bad'
 
-function status(x: BatchFile<File, RawWorkbookPreview>): { label: string; detail?: string; tone: Tone } {
+function status(x: BatchFile<File, RawWorkbookPreview>, readyLabel?: string): { label: string; detail?: string; tone: Tone } {
   if (x.import === 'importing') return { label: 'מייבא', tone: 'busy' }
   if (x.import === 'done' && x.result) {
     const { created, skipped } = x.result
@@ -47,7 +47,7 @@ function status(x: BatchFile<File, RawWorkbookPreview>): { label: string; detail
     case 'unsupported':
       return { label: 'הספק לא נתמך', tone: 'muted' }
     case 'ready':
-      return { label: 'מוכן', tone: 'muted' }
+      return { label: readyLabel ?? 'מוכן', tone: 'muted' }
   }
 }
 
@@ -70,8 +70,11 @@ export function FileList({
   locked,
   onShow,
   onRemove,
+  readyLabel,
 }: {
   files: BatchFile<File, RawWorkbookPreview>[]
+  /** Overrides "מוכן" for a ready file, e.g. one that still needs a column mapping */
+  readyLabel?: (id: string) => string | undefined
   shownId: string | null
   /** an import is running: rows can still be viewed, not removed */
   locked: boolean
@@ -81,7 +84,7 @@ export function FileList({
   return (
     <ul aria-label="קבצים שנבחרו" className="divide-y rounded-lg border">
       {files.map(x => {
-        const s = status(x)
+        const s = status(x, readyLabel?.(x.id))
         const shown = x.id === shownId
         const meta = x.preview ? previewSummary(x.preview) : null
         return (
@@ -148,7 +151,7 @@ export function UnsupportedNote({ account, provider }: { account: string; provid
     <p className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
       <Info className="mt-0.5 h-4 w-4 shrink-0" />
       <span>
-        ייבוא ל{account} ({provider}) עדיין לא נתמך. אפשר לראות את תוכן הקובץ, ומיפוי עמודות יתווסף בהמשך.
+        ייבוא ל{account} ({provider}) עדיין לא נתמך: מיפוי עמודות זמין לחשבונות בנק ולכרטיסי אשראי בלבד. אפשר לראות את תוכן הקובץ.
       </span>
     </p>
   )
