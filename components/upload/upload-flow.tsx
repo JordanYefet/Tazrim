@@ -7,7 +7,9 @@ import { RollingNumber } from '@/components/ui/rolling-number'
 import { RawGridPreview } from './raw-grid-preview'
 import { AccountPicker, providerLabel, type UploadAccount } from './account-picker'
 import { NewCategoriesPrompt } from './new-categories-prompt'
+import { SkippedRows } from './skipped-rows'
 import type { RawFormat, RawWorkbookPreview } from '@/lib/parsers/raw-grid'
+import type { SkippedRow } from '@/lib/upload/import'
 
 type PreviewResponse = RawWorkbookPreview & {
   fileName: string
@@ -18,6 +20,7 @@ type PreviewResponse = RawWorkbookPreview & {
 interface ImportResponse {
   created: number
   skipped: number
+  skippedRows: SkippedRow[]
   newCategories?: string[]
 }
 
@@ -88,19 +91,31 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
     }
   }
 
-  async function runImport() {
+  /** Imports the file; with `force`, imports those skipped rows anyway and folds the result in. */
+  async function runImport(force?: number[]) {
     if (!file || !preview) return
     setLoading('import')
     setError(null)
     const form = new FormData()
     form.append('file', file)
     form.append('accountId', preview.account.id)
+    if (force) form.append('force', JSON.stringify(force))
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json()
+      const data: ImportResponse & { error?: string } = await res.json()
       if (!res.ok) { setError(data.error ?? 'שגיאה בייבוא'); return }
-      setResult(data)
-      setPendingCategories(data.newCategories ?? [])
+      if (force && result) {
+        const forced = new Set(force)
+        setResult({
+          ...result,
+          created: result.created + data.created,
+          skipped: result.skipped - data.created,
+          skippedRows: result.skippedRows.filter(r => !forced.has(r.index)),
+        })
+      } else {
+        setResult(data)
+        setPendingCategories(data.newCategories ?? [])
+      }
       onImported()
     } catch {
       setError('שגיאת רשת')
@@ -191,7 +206,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={runImport}
+                  onClick={() => runImport()}
                   disabled={loading !== null}
                   className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
@@ -228,13 +243,23 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
               </span>
               {result.skipped > 0 && (
                 <span className="text-muted-foreground">
-                  · <RollingNumber value={result.skipped} format="integer" /> כפולות דולגו
+                  · <RollingNumber value={result.skipped} format="integer" /> כבר קיימות ודולגו
                 </span>
               )}
               <button type="button" onClick={reset} className="ms-auto text-xs underline text-muted-foreground hover:text-foreground">
                 קובץ נוסף
               </button>
             </div>
+          )}
+
+          {result && (
+            <SkippedRows
+              key={result.skippedRows.length}
+              rows={result.skippedRows}
+              canForce={preview.account.kind === 'CREDIT_CARD'}
+              busy={loading === 'import'}
+              onForce={indexes => runImport(indexes)}
+            />
           )}
 
           {pendingCategories.length > 0 && (

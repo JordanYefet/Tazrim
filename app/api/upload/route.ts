@@ -2,22 +2,22 @@ import { NextResponse } from 'next/server'
 import { readUploadForm } from '@/lib/upload/form'
 import { importUpload } from '@/lib/upload/import'
 
-/** Imports `file` into the account `accountId`, using that account's provider parser. */
+/**
+ * Imports `file` into the account `accountId`, using that account's provider parser.
+ * `force` (JSON list of file-row positions) imports rows that match stored ones anyway.
+ */
 export async function POST(req: Request) {
   const input = await readUploadForm(req)
   if ('response' in input) return input.response
-  const { file, account } = input
+  const { file, account, force } = input
 
   if (account.archived) {
     return NextResponse.json({ error: 'החשבון בארכיון', code: 'ACCOUNT_ARCHIVED' }, { status: 409 })
   }
 
-  const result = await importUpload(account, Buffer.from(await file.arrayBuffer()), file.name)
+  const result = await importUpload(account, Buffer.from(await file.arrayBuffer()), file.name, { force })
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error, code: result.code, ...(result.code === 'DUPLICATE_FILE' ? { duplicate: true } : {}) },
-      { status: result.status }
-    )
+    return NextResponse.json({ error: result.error, code: result.code }, { status: result.status })
   }
   const { ok: _ok, ...body } = result
   return NextResponse.json(body)

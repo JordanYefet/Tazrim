@@ -3,6 +3,7 @@ import { prisma } from './client'
 import type { ParsedCCTransaction } from '../parsers/types'
 import { accountWhere, listAccountIds, PROVIDERS, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
+import { cardDedupeKey, localDay, planCardImport } from '../upload/card-dedupe'
 
 // Every function that takes an AccountFilter reads one card (an id), several
 // cards (a list of ids) or every card (undefined).
@@ -12,56 +13,101 @@ export async function getMaxCardIds(): Promise<string[]> {
   return listAccountIds({ kind: 'CREDIT_CARD', provider: PROVIDERS.MAX, includeArchived: true })
 }
 
-/** Inserts the rows into one card account, skipping rows that account already has from another file. */
+/** An uploaded row that was not imported because the account already has it. */
+export interface SkippedCardRow {
+  /** Position of the row in the uploaded file, to import it anyway (`force`) */
+  index: number
+  /** Purchase day, YYYY-MM-DD */
+  date: string
+  billingDate: string
+  merchant: string
+  amount: number
+  notes: string
+  /** The stored row it matched */
+  matched: { id: string; sourceFile: string; merchantName: string }
+}
+
+export interface CardUpsertResult {
+  created: number
+  skipped: number
+  skippedRows: SkippedCardRow[]
+}
+
+/**
+ * Inserts the rows into one card account, skipping rows the account already has
+ * (same purchase, billing date and installment; see lib/upload/card-dedupe.ts).
+ * Compares with every stored row of the account, the same file name included, so
+ * re-uploading a statement adds only the rows that are missing. `force` lists
+ * file rows to import even though they match.
+ */
 export async function upsertCCTransactions(
   transactions: ParsedCCTransaction[],
   fileName: string,
-  accountId: string
-): Promise<{ created: number; skipped: number }> {
-  if (!transactions.length) return { created: 0, skipped: 0 }
+  accountId: string,
+  opts: { force?: number[] } = {}
+): Promise<CardUpsertResult> {
+  if (!transactions.length) return { created: 0, skipped: 0, skippedRows: [] }
 
   const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
   const aliasMap = await getAliasMap(account.provider)
 
-  let created = 0
-  let skipped = 0
+  const times = transactions.map(t => t.transactionDate.getTime())
+  const stored = await prisma.creditCardTransaction.findMany({
+    where: { accountId, transactionDate: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
+    select: {
+      id: true,
+      transactionDate: true,
+      billingDate: true,
+      originalMerchantName: true,
+      chargedAmount: true,
+      notes: true,
+      sourceFile: true,
+      merchantName: true,
+    },
+    orderBy: { id: 'asc' },
+  })
+  const byId = new Map(stored.map(s => [s.id, s]))
+  const plan = planCardImport(transactions, stored, opts.force)
 
-  for (const tx of transactions) {
-    // Keeps the parser's provider tag ("MAX") so hashes match rows stored before accounts existed
-    const contentHash = [
-      tx.transactionDate.toISOString().slice(0, 10),
-      tx.originalMerchantName,
-      tx.chargedAmount.toFixed(2),
-      tx.cardProvider,
-    ].join('|')
-
-    const crossFileDuplicate = await prisma.creditCardTransaction.findFirst({
-      where: { accountId, contentHash, sourceFile: { not: fileName } },
+  await prisma.$transaction(
+    plan.create.map(i => {
+      const tx = transactions[i]
+      return prisma.creditCardTransaction.create({
+        data: {
+          accountId,
+          transactionDate: tx.transactionDate,
+          billingDate: tx.billingDate,
+          originalMerchantName: tx.originalMerchantName,
+          merchantName: aliasMap.get(tx.originalMerchantName) ?? tx.originalMerchantName,
+          category: tx.category,
+          chargedAmount: tx.chargedAmount,
+          originalAmount: tx.originalAmount,
+          originalCurrency: tx.originalCurrency,
+          cardLastFour: tx.cardLastFour,
+          transactionType: tx.transactionType,
+          notes: tx.notes,
+          contentHash: cardDedupeKey(tx),
+          sourceFile: fileName,
+        },
+      })
     })
-    if (crossFileDuplicate) { skipped++; continue }
+  )
 
-    await prisma.creditCardTransaction.create({
-      data: {
-        accountId,
-        transactionDate: tx.transactionDate,
-        billingDate: tx.billingDate,
-        originalMerchantName: tx.originalMerchantName,
-        merchantName: aliasMap.get(tx.originalMerchantName) ?? tx.originalMerchantName,
-        category: tx.category,
-        chargedAmount: tx.chargedAmount,
-        originalAmount: tx.originalAmount,
-        originalCurrency: tx.originalCurrency,
-        cardLastFour: tx.cardLastFour,
-        transactionType: tx.transactionType,
-        notes: tx.notes,
-        contentHash,
-        sourceFile: fileName,
-      },
-    })
-    created++
-  }
+  const skippedRows: SkippedCardRow[] = plan.skip.map(({ index, matchedId }) => {
+    const tx = transactions[index]
+    const m = byId.get(matchedId)!
+    return {
+      index,
+      date: localDay(tx.transactionDate),
+      billingDate: localDay(tx.billingDate),
+      merchant: tx.originalMerchantName,
+      amount: tx.chargedAmount,
+      notes: tx.notes,
+      matched: { id: m.id, sourceFile: m.sourceFile, merchantName: m.merchantName },
+    }
+  })
 
-  return { created, skipped }
+  return { created: plan.create.length, skipped: plan.skip.length, skippedRows }
 }
 
 export async function getCCTransactions(params: {

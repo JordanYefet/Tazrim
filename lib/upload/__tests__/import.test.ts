@@ -34,7 +34,7 @@ describe('isImportSupported', () => {
 describe('importUpload', () => {
   it('imports a Leumi file into the chosen account and records the upload there', async () => {
     const res = await mod.importUpload(await acct('acct_leumi'), leumiHtml(), 'bank-fake.xls')
-    expect(res).toEqual({ ok: true, created: 2, skipped: 0 })
+    expect(res).toEqual({ ok: true, created: 2, skipped: 0, skippedRows: [] })
     expect(db.query(`SELECT DISTINCT accountId FROM "BankTransaction"`)).toEqual([{ accountId: 'acct_leumi' }])
     expect(db.query(`SELECT accountId, recordCount FROM "UploadHistory"`)).toEqual([
       { accountId: 'acct_leumi', recordCount: 2 },
@@ -49,16 +49,33 @@ describe('importUpload', () => {
 
   it('imports a MAX file into the chosen card and reports new categories', async () => {
     const res = await mod.importUpload(await acct('acct_max'), maxXlsx('קטגוריה חדשה בדויה'), 'card-fake.xlsx')
-    expect(res).toEqual({ ok: true, created: 1, skipped: 0, newCategories: ['קטגוריה חדשה בדויה'] })
+    expect(res).toEqual({ ok: true, created: 1, skipped: 0, skippedRows: [], newCategories: ['קטגוריה חדשה בדויה'] })
     expect(db.query(`SELECT accountId FROM "CreditCardTransaction"`)).toEqual([{ accountId: 'acct_max' }])
   })
 
-  it('rejects the same MAX file name again for the same card only', async () => {
+  it('re-uploading the same MAX file adds nothing, lists the skipped rows and keeps one history entry', async () => {
     const again = await mod.importUpload(await acct('acct_max'), maxXlsx(), 'card-fake.xlsx')
-    expect(again).toMatchObject({ ok: false, code: 'DUPLICATE_FILE', status: 409 })
+    expect(again).toMatchObject({ ok: true, created: 0, skipped: 1 })
+    expect(again.ok && again.skippedRows).toHaveLength(1)
+    expect(db.query(`SELECT COUNT(*) AS n FROM "CreditCardTransaction" WHERE accountId = 'acct_max'`)).toEqual([{ n: 1 }])
+    expect(db.query(`SELECT recordCount FROM "UploadHistory" WHERE accountId = 'acct_max'`)).toEqual([{ recordCount: 1 }])
 
     const otherCard = await mod.importUpload(await acct('acct_test_max2'), maxXlsx(), 'card-fake.xlsx')
     expect(otherCard).toMatchObject({ ok: true, created: 1 })
+  })
+
+  it('a renamed copy that adds nothing leaves no extra history entry', async () => {
+    const copy = await mod.importUpload(await acct('acct_max'), maxXlsx(), 'card-fake (1).xlsx')
+    expect(copy).toMatchObject({ ok: true, created: 0, skipped: 1 })
+    expect(db.query(`SELECT fileName FROM "UploadHistory" WHERE accountId = 'acct_max'`)).toEqual([
+      { fileName: 'card-fake.xlsx' },
+    ])
+  })
+
+  it('imports skipped rows the user chose to keep', async () => {
+    const forced = await mod.importUpload(await acct('acct_max'), maxXlsx(), 'card-fake.xlsx', { force: [0] })
+    expect(forced).toMatchObject({ ok: true, created: 1, skipped: 0 })
+    expect(db.query(`SELECT recordCount FROM "UploadHistory" WHERE accountId = 'acct_max'`)).toEqual([{ recordCount: 2 }])
   })
 
   it('refuses providers without a parser', async () => {

@@ -3,19 +3,32 @@ import { prisma } from './client'
 import type { ParsedBankTransaction } from '../parsers/types'
 import { accountWhere, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
+import { localDay } from '../upload/card-dedupe'
+
+/** An uploaded bank row that was not imported because the account already has it. */
+export interface SkippedBankRow {
+  index: number
+  /** YYYY-MM-DD */
+  date: string
+  description: string
+  /** Debit as a positive amount, credit as a negative one */
+  amount: number
+  matched: { id: string; sourceFile: string }
+}
 
 /** Inserts the rows into one bank account, skipping rows that account already has. */
 export async function upsertBankTransactions(
   transactions: ParsedBankTransaction[],
   accountId: string
-): Promise<{ created: number; skipped: number }> {
+): Promise<{ created: number; skipped: number; skippedRows: SkippedBankRow[] }> {
   const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
   const aliasMap = await getAliasMap(account.provider)
 
   let created = 0
   let skipped = 0
+  const skippedRows: SkippedBankRow[] = []
 
-  for (const tx of transactions) {
+  for (const [index, tx] of transactions.entries()) {
     const existing = await prisma.bankTransaction.findFirst({
       where: {
         accountId,
@@ -25,7 +38,17 @@ export async function upsertBankTransactions(
         credit: tx.credit,
       },
     })
-    if (existing) { skipped++; continue }
+    if (existing) {
+      skipped++
+      skippedRows.push({
+        index,
+        date: localDay(tx.date),
+        description: tx.originalDescription,
+        amount: tx.debit ? tx.debit : -tx.credit,
+        matched: { id: existing.id, sourceFile: existing.sourceFile },
+      })
+      continue
+    }
 
     await prisma.bankTransaction.create({
       data: {
@@ -43,7 +66,7 @@ export async function upsertBankTransactions(
     created++
   }
 
-  return { created, skipped }
+  return { created, skipped, skippedRows }
 }
 
 /** `accountId` omitted = every bank account. */

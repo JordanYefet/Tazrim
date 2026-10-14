@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
-import { leumiHtml, OTHER_CSV, TEST_ACCOUNTS_SQL } from '@/lib/upload/__tests__/fixtures'
+import { leumiHtml, maxXlsx, OTHER_CSV, TEST_ACCOUNTS_SQL } from '@/lib/upload/__tests__/fixtures'
 
 // All values are made up.
 
@@ -19,10 +19,11 @@ afterAll(async () => {
   db.cleanup()
 })
 
-function req(fields: { file?: File; accountId?: string }): Request {
+function req(fields: { file?: File; accountId?: string; force?: string }): Request {
   const form = new FormData()
   if (fields.file) form.append('file', fields.file)
   if (fields.accountId) form.append('accountId', fields.accountId)
+  if (fields.force !== undefined) form.append('force', fields.force)
   return new Request('http://localhost/api/upload', { method: 'POST', body: form })
 }
 
@@ -42,13 +43,31 @@ describe('POST /api/upload', () => {
   it('imports into the chosen account, and a second import adds nothing', async () => {
     const first = await POST(req({ file: leumiFile(), accountId: 'acct_leumi' }))
     expect(first.status).toBe(200)
-    expect(await first.json()).toEqual({ created: 2, skipped: 0 })
+    expect(await first.json()).toEqual({ created: 2, skipped: 0, skippedRows: [] })
 
     const second = await POST(req({ file: leumiFile(), accountId: 'acct_leumi' }))
-    expect(await second.json()).toMatchObject({ created: 0, skipped: 2 })
+    const body = await second.json()
+    expect(body).toMatchObject({ created: 0, skipped: 2 })
+    expect(body.skippedRows).toHaveLength(2)
+    expect(body.skippedRows[0]).toMatchObject({ index: 0, matchedFile: 'bank-fake.xls' })
     expect(db.query(`SELECT accountId, COUNT(*) AS n FROM "BankTransaction" GROUP BY accountId`)).toEqual([
       { accountId: 'acct_leumi', n: 2 },
     ])
+  })
+
+  it('re-uploads a card file and imports the skipped rows the user chose', async () => {
+    const card = () => new File([new Uint8Array(maxXlsx())], 'card-fake.xlsx')
+    expect(await (await POST(req({ file: card(), accountId: 'acct_max' }))).json()).toMatchObject({ created: 1 })
+    const again = await (await POST(req({ file: card(), accountId: 'acct_max' }))).json()
+    expect(again).toMatchObject({ created: 0, skipped: 1 })
+    const forced = await (await POST(req({ file: card(), accountId: 'acct_max', force: '[0]' }))).json()
+    expect(forced).toMatchObject({ created: 1, skipped: 0 })
+  })
+
+  it('400 for a malformed force list', async () => {
+    for (const force of ['nope', '{}', '[-1]', '[1.5]', '["0"]']) {
+      expect((await POST(req({ file: leumiFile(), accountId: 'acct_leumi', force }))).status).toBe(400)
+    }
   })
 
   it('422 UNSUPPORTED_PROVIDER for an account without a parser', async () => {

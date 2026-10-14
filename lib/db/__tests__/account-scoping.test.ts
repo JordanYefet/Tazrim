@@ -59,8 +59,8 @@ afterAll(async () => {
 
 describe('credit card transactions', () => {
   it('attach the account and apply its provider rules', async () => {
-    expect(await cards.upsertCCTransactions([cc()], 'max-a.xlsx', 'acct_max')).toEqual({ created: 1, skipped: 0 })
-    expect(await cards.upsertCCTransactions([cc()], 'max-b.xlsx', 'acct_test_max2')).toEqual({ created: 1, skipped: 0 })
+    expect(await cards.upsertCCTransactions([cc()], 'max-a.xlsx', 'acct_max')).toMatchObject({ created: 1, skipped: 0 })
+    expect(await cards.upsertCCTransactions([cc()], 'max-b.xlsx', 'acct_test_max2')).toMatchObject({ created: 1, skipped: 0 })
     expect(db.query(`SELECT accountId, merchantName FROM "CreditCardTransaction" ORDER BY accountId`)).toEqual([
       { accountId: 'acct_max', merchantName: 'Cafe B' },
       { accountId: 'acct_test_max2', merchantName: 'Cafe B' },
@@ -68,7 +68,7 @@ describe('credit card transactions', () => {
   })
 
   it('dedupe across files within one account only', async () => {
-    expect(await cards.upsertCCTransactions([cc()], 'max-c.xlsx', 'acct_max')).toEqual({ created: 0, skipped: 1 })
+    expect(await cards.upsertCCTransactions([cc()], 'max-c.xlsx', 'acct_max')).toMatchObject({ created: 0, skipped: 1 })
   })
 
   it('are read per account, per list of accounts, or across all cards', async () => {
@@ -83,9 +83,9 @@ describe('credit card transactions', () => {
 
 describe('bank transactions', () => {
   it('attach the account, apply its provider rules and dedupe per account', async () => {
-    expect(await bank.upsertBankTransactions([bt()], 'acct_leumi')).toEqual({ created: 1, skipped: 0 })
-    expect(await bank.upsertBankTransactions([bt()], 'acct_leumi')).toEqual({ created: 0, skipped: 1 })
-    expect(await bank.upsertBankTransactions([bt()], 'acct_test_bank2')).toEqual({ created: 1, skipped: 0 })
+    expect(await bank.upsertBankTransactions([bt()], 'acct_leumi')).toMatchObject({ created: 1, skipped: 0 })
+    expect(await bank.upsertBankTransactions([bt()], 'acct_leumi')).toMatchObject({ created: 0, skipped: 1 })
+    expect(await bank.upsertBankTransactions([bt()], 'acct_test_bank2')).toMatchObject({ created: 1, skipped: 0 })
     expect(db.query(`SELECT accountId, description FROM "BankTransaction" ORDER BY accountId`)).toEqual([
       { accountId: 'acct_leumi', description: 'Shop A' },
       { accountId: 'acct_test_bank2', description: 'SHOP A' },
@@ -108,7 +108,7 @@ describe('uploads', () => {
   })
 
   it('record the account and delete only that account’s rows', async () => {
-    const u = await upload.recordUpload({ fileName: 'max-b.xlsx', recordCount: 1, accountId: 'acct_test_max2' })
+    const u = (await upload.recordUpload({ fileName: 'max-b.xlsx', recordCount: 1, accountId: 'acct_test_max2' }))!
     expect(await upload.hasUpload('acct_test_max2', 'max-b.xlsx')).toBe(true)
     expect(await upload.hasUpload('acct_max', 'max-b.xlsx')).toBe(false)
 
