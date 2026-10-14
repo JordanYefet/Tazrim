@@ -17,6 +17,7 @@ import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/l
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
 import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
+import { monthlyAverage } from '@/lib/insights/account-overview'
 
 interface SearchParams { year?: string; month?: string; card?: string }
 
@@ -92,9 +93,8 @@ export default async function DashboardPage({
 
   // Bank expenses already include the monthly card payment, so card charges
   // are a breakdown of that money — never add them on top.
-  const averageExpense = !month
-    ? bankExpense / Math.max(Object.values(bank).filter(m => m.expense > 0).length, 1)
-    : undefined
+  // Always the yearly average, so a selected month can be compared with it
+  const averageExpense = monthlyAverage(Object.fromEntries(Object.entries(bank).map(([m, v]) => [m, v.expense])))
 
   const hasData =
     Object.values(bank).some(m => m.income > 0 || m.expense > 0) ||
@@ -134,6 +134,7 @@ export default async function DashboardPage({
             bankExpense={bankExpense}
             ccTotal={ccTotal}
             averageExpense={averageExpense}
+            monthLabel={month ? monthName(month) : undefined}
             query={query}
             bankHint={bankHint}
             cardHint={cardHint}

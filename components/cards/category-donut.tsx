@@ -4,6 +4,8 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import Link from 'next/link'
+import { ChartColumnStacked } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { accountPath } from '@/lib/accounts/routes'
@@ -28,12 +30,14 @@ function CategoryDonutInner({
   stats,
   selectedCategory,
   colors,
+  analysisHref,
 }: {
   accountId: string
   data: Record<string, number>
   stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
   colors?: Record<string, string>
+  analysisHref?: string
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -51,12 +55,23 @@ function CategoryDonutInner({
     } else {
       sp.set('category', entry.name)
     }
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
+    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`, { scroll: false })
   }
 
   return (
     <section className={SECTION}>
-      <ChartHeader title="הוצאות לפי קטגוריה" subtitle="לחיצה על קטגוריה מסננת" />
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <ChartHeader title="הוצאות לפי קטגוריה" subtitle="לחיצה על קטגוריה מסננת" className="mb-0" />
+        {analysisHref && (
+          <Link
+            href={analysisHref}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChartColumnStacked className="h-4 w-4 text-muted-foreground" aria-hidden />
+            ניתוח לפי קטגוריה
+          </Link>
+        )}
+      </div>
       {chartData.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">אין חיובים לתקופה זו</p>
       ) : (
@@ -87,26 +102,40 @@ function CategoryDonutInner({
           </ResponsiveContainer>
         </div>
 
-        {/* Legend as table */}
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {chartData.map((entry, i) => (
-            <button
-              key={entry.name}
-              onClick={() => handleClick(entry)}
-              className="flex items-center gap-2 text-sm text-start w-full rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted"
-              style={{ opacity: selectedCategory && selectedCategory !== entry.name ? 0.4 : 1 }}
-            >
-              <span
-                className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: colorOf(entry.name, i) }}
-              />
-              <span className="flex-1 truncate text-foreground">{entry.name}</span>
-              {stats?.[entry.name] && (
-                <RollingNumber value={stats[entry.name].count} format="integer" className="text-muted-foreground text-xs" />
-              )}
-              <RollingNumber value={entry.value} format="currencyExact" className="text-[hsl(var(--expense))] text-xs font-medium" />
-            </button>
-          ))}
+        {/* Legend as a table: category | count | amount, on one grid so the columns line up */}
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-0.5">
+          {chartData.map((entry, i) => {
+            const count = stats?.[entry.name]?.count
+            return (
+              <button
+                key={entry.name}
+                onClick={() => handleClick(entry)}
+                className="grid w-full grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] items-center gap-x-2 rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted"
+                style={{ opacity: selectedCategory && selectedCategory !== entry.name ? 0.4 : 1 }}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                    style={{ backgroundColor: colorOf(entry.name, i) }}
+                    aria-hidden
+                  />
+                  <span className="truncate text-foreground">{entry.name}</span>
+                </span>
+                <span className="whitespace-nowrap text-center text-xs tabular-nums text-muted-foreground">
+                  {count !== undefined && (
+                    <>
+                      <RollingNumber value={count} format="integer" /> {count === 1 ? 'עסקה' : 'עסקאות'}
+                    </>
+                  )}
+                </span>
+                <RollingNumber
+                  value={entry.value}
+                  format="currencyExact"
+                  className="whitespace-nowrap text-end text-xs font-medium tabular-nums text-[hsl(var(--expense))]"
+                />
+              </button>
+            )
+          })}
         </div>
       </div>
       )}
@@ -120,16 +149,26 @@ export function CategoryDonut({
   stats,
   selectedCategory,
   colors,
+  analysisHref,
 }: {
   accountId: string
   data: Record<string, number>
   stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
   colors?: Record<string, string>
+  /** Link-button to the category analysis page */
+  analysisHref?: string
 }) {
   return (
     <Suspense fallback={<div className={`${SECTION} h-64`} />}>
-      <CategoryDonutInner accountId={accountId} data={data} stats={stats} selectedCategory={selectedCategory} colors={colors} />
+      <CategoryDonutInner
+        accountId={accountId}
+        data={data}
+        stats={stats}
+        selectedCategory={selectedCategory}
+        colors={colors}
+        analysisHref={analysisHref}
+      />
     </Suspense>
   )
 }

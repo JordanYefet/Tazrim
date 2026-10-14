@@ -12,7 +12,7 @@ import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { accountHref } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, plottedMonthCount, type BankMonthly } from '@/lib/insights/account-overview'
-import { periodLabel } from '@/lib/utils/date'
+import { monthName, periodLabel } from '@/lib/utils/date'
 
 interface SearchParams {
   year?: string
@@ -102,7 +102,12 @@ export default async function BankAccountPage({
 
       {hasData ? (
         <>
-          <BankSummaryCards income={income} expense={expense} averageExpense={averageExpense} />
+          <BankSummaryCards
+            income={income}
+            expense={expense}
+            averageExpense={averageExpense}
+            monthLabel={month ? monthName(month) : undefined}
+          />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} monthCount={monthCount} />
             <BalanceChart data={balancePoints} />

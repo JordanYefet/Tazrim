@@ -1,10 +1,13 @@
 import { RollingNumber } from '@/components/ui/rolling-number'
-import { StatGrid, type StatDef } from '@/components/dashboard/summary-cards'
+import { averageStat, StatGrid, type StatDef } from '@/components/dashboard/summary-cards'
 
 interface Props {
   total: number
   count: number
-  average?: number
+  /** Yearly monthly average (of the filtered category, when there is one) */
+  average: number
+  /** The selected month's name: its total is compared with the average */
+  monthLabel?: string
   /** Hero label, e.g. a category filter */
   label?: string
   /** Extra tiles after count and average (the overview adds the number of cards) */
@@ -15,12 +18,14 @@ interface Props {
  * Hero charge total plus quieter tiles, as on the dashboard. The charges are
  * paid from the bank, so they are already inside the bank expenses.
  */
-export function CardSummaryCards({ total, count, average, label = 'סה״כ חיובים', extra = [] }: Props) {
+export function CardSummaryCards({ total, count, average, monthLabel, label = 'סה״כ חיובים', extra = [] }: Props) {
   const stats: StatDef[] = [
     { label: 'מספר עסקאות', value: count, tone: 'neutral', format: 'integer' },
-    ...(average !== undefined
-      ? [{ label: 'ממוצע חודשי', value: average, tone: 'cc' as const, format: 'currencyExact' as const }]
-      : []),
+    averageStat(
+      { label: 'ממוצע חודשי', tone: 'cc', format: 'currencyExact' },
+      average,
+      monthLabel ? { label: monthLabel, value: total } : undefined
+    ),
     ...extra,
   ]
 

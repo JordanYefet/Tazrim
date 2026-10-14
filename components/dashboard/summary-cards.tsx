@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { RollingNumber, type RollingFormat } from '@/components/ui/rolling-number'
 import { cn } from '@/lib/utils/cn'
-import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
+import { averageDelta } from '@/lib/insights/account-overview'
 
 export type Tone = 'income' | 'expense' | 'cc' | 'neutral'
 
@@ -16,13 +17,67 @@ export interface StatDef {
   /** Per-account split under the value (only passed with 2+ accounts) */
   split?: { label: string; value: number }[]
   format?: RollingFormat
+  /** A selected month compared with this (average) value, e.g. "יוני ₪X · 12%+" */
+  compare?: MonthCompare
+}
+
+export interface MonthCompare {
+  /** e.g. "יוני" */
+  label: string
+  value: number
+  /** (value - average) / average, null when there is no average */
+  delta: number | null
+}
+
+/** The yearly average tile; with a month selected it also shows that month against the average. */
+export function averageStat(
+  def: Omit<StatDef, 'value' | 'compare'>,
+  average: number,
+  month?: { label: string; value: number }
+): StatDef {
+  return {
+    ...def,
+    value: average,
+    compare: month && { ...month, delta: averageDelta(month.value, average) },
+  }
+}
+
+const pct = new Intl.NumberFormat('he-IL', { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' })
+
+/** "יוני ₪X" and a small delta chip: up is more spending than usual, down is less. */
+function CompareLine({ label, value, delta, exact }: MonthCompare & { exact: boolean }) {
+  const up = delta !== null && Math.round(delta * 100) > 0
+  const down = delta !== null && Math.round(delta * 100) < 0
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+      <span className="whitespace-nowrap">
+        {label} <span className="font-medium tabular-nums text-foreground">{exact ? formatCurrency(value) : formatCurrencyWhole(value)}</span>
+      </span>
+      {delta !== null && (
+        <span
+          className={cn(
+            'whitespace-nowrap rounded px-1 py-px text-[11px] font-medium tabular-nums',
+            up && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
+            down && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
+            !up && !down && 'bg-muted'
+          )}
+          title={up ? 'מעל הממוצע' : down ? 'מתחת לממוצע' : 'כמו הממוצע'}
+        >
+          <span dir="ltr">{pct.format(delta)}</span>
+        </span>
+      )}
+    </p>
+  )
 }
 
 interface Props {
   bankIncome: number
   bankExpense: number
   ccTotal: number
-  averageExpense?: number
+  /** Yearly average bank expense (bank only, never plus card charges) */
+  averageExpense: number
+  /** The selected month's name, to compare its expense with the average */
+  monthLabel?: string
   /** Current year/month query string, carried over to drill-down links */
   query: string
   /** Bank account name, or a count when there are several */
@@ -40,7 +95,7 @@ export const DOT: Record<Tone, string> = {
   neutral: 'bg-muted-foreground',
 }
 
-export function StatTile({ label, value, tone, href, hint, format, split, wide }: StatDef & { wide?: boolean }) {
+export function StatTile({ label, value, tone, href, hint, format, split, compare, wide }: StatDef & { wide?: boolean }) {
   const body = (
     <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -64,6 +119,7 @@ export function StatTile({ label, value, tone, href, hint, format, split, wide }
           <RollingNumber value={value} format={format} />
         </p>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+        {compare && <CompareLine {...compare} exact={format === 'currencyExact'} />}
         {split && split.length > 1 && (
           <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
             {split.map(s => (
@@ -189,6 +245,7 @@ export function DashboardSummaryCards({
   bankExpense,
   ccTotal,
   averageExpense,
+  monthLabel,
   query,
   bankHint,
   cardHint,
@@ -207,9 +264,11 @@ export function DashboardSummaryCards({
       hint: `${cardHint} · כלול בהוצאות`,
       split: cardSplit,
     },
-    ...(averageExpense !== undefined
-      ? [{ label: 'ממוצע חודשי', value: averageExpense, tone: 'neutral' as const, href: `/banks${qs}`, hint: 'הוצאות בנק' }]
-      : []),
+    averageStat(
+      { label: 'ממוצע חודשי', tone: 'neutral', href: `/banks${qs}`, hint: 'הוצאות בנק' },
+      averageExpense,
+      monthLabel ? { label: monthLabel, value: bankExpense } : undefined
+    ),
   ]
 
   return (

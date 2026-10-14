@@ -15,7 +15,7 @@ import {
 } from '@/lib/insights/account-overview'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
-import { periodLabel } from '@/lib/utils/date'
+import { monthName, periodLabel } from '@/lib/utils/date'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -84,6 +84,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
                 total={total}
                 count={count}
                 average={average}
+                monthLabel={month ? monthName(month) : undefined}
                 label={several ? 'סה״כ חיובים בכל הכרטיסים' : undefined}
                 extra={several ? [{ label: 'כרטיסים', value: accounts.length, tone: 'neutral', format: 'integer' }] : []}
               />

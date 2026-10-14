@@ -13,7 +13,7 @@ import {
   shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
-import { periodLabel } from '@/lib/utils/date'
+import { monthName, periodLabel } from '@/lib/utils/date'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -64,7 +64,12 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         <>
           {hasData ? (
             <>
-              <BankSummaryCards income={totals.income} expense={totals.expense} averageExpense={totals.averageExpense} />
+              <BankSummaryCards
+                income={totals.income}
+                expense={totals.expense}
+                averageExpense={totals.averageExpense}
+                monthLabel={month ? monthName(month) : undefined}
+              />
               <IncomeExpenseChart
                 data={chartData}
                 selectedMonth={month}
