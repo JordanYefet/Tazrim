@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  averageDelta,
   bankPeriodTotals,
   cardPeriodTotals,
   emptyBankMonthly,
   emptyCardMonthly,
   lastMonthWithData,
+  monthlyAverage,
   plottedMonthCount,
   shareOf,
   sumBankMonthly,
@@ -59,12 +61,12 @@ describe('bankPeriodTotals', () => {
     expect(bankPeriodTotals(m)).toEqual({ income: 1500, expense: 1500, net: 0, averageExpense: 750 })
   })
 
-  it('uses only the selected month, without an average', () => {
-    expect(bankPeriodTotals(m, 2)).toEqual({ income: 500, expense: 900, net: -400, averageExpense: undefined })
+  it('uses only the selected month, and keeps the yearly average for comparison', () => {
+    expect(bankPeriodTotals(m, 2)).toEqual({ income: 500, expense: 900, net: -400, averageExpense: 750 })
   })
 
   it('handles a month with no data', () => {
-    expect(bankPeriodTotals(m, 3)).toEqual({ income: 0, expense: 0, net: 0, averageExpense: undefined })
+    expect(bankPeriodTotals(m, 3)).toEqual({ income: 0, expense: 0, net: 0, averageExpense: 750 })
   })
 
   it('does not divide by zero for an empty year', () => {
@@ -79,8 +81,37 @@ describe('cardPeriodTotals', () => {
     expect(cardPeriodTotals(m)).toEqual({ total: 400, average: 200 })
   })
 
-  it('uses only the selected month', () => {
-    expect(cardPeriodTotals(m, 1)).toEqual({ total: 300, average: undefined })
+  it('uses only the selected month, and keeps the yearly average', () => {
+    expect(cardPeriodTotals(m, 1)).toEqual({ total: 300, average: 200 })
+  })
+})
+
+describe('monthlyAverage', () => {
+  it('averages over months that have a value', () => {
+    expect(monthlyAverage(card({ 1: 300, 2: 0, 3: 100 }))).toBe(200)
+  })
+
+  it('can count active months from another series (a category within all charges)', () => {
+    const all = card({ 1: 300, 2: 50, 3: 100 })
+    const category = card({ 1: 60 })
+    expect(monthlyAverage(category, all)).toBe(20)
+  })
+
+  it('accepts string month keys and is 0 for an empty year', () => {
+    expect(monthlyAverage(JSON.parse(JSON.stringify(card({ 5: 40, 6: 20 }))))).toBe(30)
+    expect(monthlyAverage(emptyCardMonthly())).toBe(0)
+  })
+})
+
+describe('averageDelta', () => {
+  it('is the month above or below the average as a fraction', () => {
+    expect(averageDelta(120, 100)).toBeCloseTo(0.2)
+    expect(averageDelta(75, 100)).toBeCloseTo(-0.25)
+    expect(averageDelta(100, 100)).toBe(0)
+  })
+
+  it('is null when there is no average to compare with', () => {
+    expect(averageDelta(50, 0)).toBeNull()
   })
 })
 
