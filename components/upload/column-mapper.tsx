@@ -445,7 +445,7 @@ export function MappedPreview({
         <h3 className="text-sm font-medium">תצוגה מקדימה של הייבוא</h3>
         <p className="text-xs text-muted-foreground tabular-nums">
           {result.rows.length === 1 ? 'עסקה אחת' : `${nfInt.format(result.rows.length)} עסקאות`}
-          {result.skipped > 0 && <> · {nfInt.format(result.skipped)} שורות דולגו</>}
+          {result.skipped > 0 && <> · {result.skipped === 1 ? 'שורה אחת דולגה' : `${nfInt.format(result.skipped)} שורות דולגו`}</>}
           {errorRows > 0 && <span className="text-destructive"> · {errorRows === 1 ? 'שורה אחת עם שגיאה' : `${nfInt.format(errorRows)} שורות עם שגיאות`}</span>}
           {partial && <> · לפי {nfInt.format(sheet!.rows.length)} השורות הראשונות</>}
         </p>

@@ -309,7 +309,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
     ? progress.n > 1
       ? `מייבא קובץ ${progress.k} מתוך ${progress.n}...`
       : 'מייבא...'
-    : single
+    : single || queue.length === 0
       ? `ייבא ל${accountName}`
       : queue.length === 1
         ? `ייבא קובץ אחד ל${accountName}`
@@ -328,14 +328,14 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
   const stepTitle = mapping && mapping.group.editing && !shownDone ? 'מיפוי עמודות' : 'תצוגה מקדימה וייבוא'
   const showImport = queue.length > 0 || progress !== null || waiting.length > 0
   const shownWaiting = shown && waiting.includes(shown.id) ? shownCheck?.reason : null
-  const blockReason =
-    queue.length === 0 && !progress
-      ? shownWaiting ?? (waiting.length === 1 ? 'קובץ אחד ממתין למיפוי' : waiting.length > 1 ? `${waiting.length} קבצים ממתינים למיפוי` : null)
-      : waiting.length > 0
-        ? waiting.length === 1
-          ? 'קובץ אחד ממתין למיפוי ולא ייובא עכשיו'
-          : `${waiting.length} קבצים ממתינים למיפוי ולא ייובאו עכשיו`
-        : null
+  const othersWaiting =
+    queue.length === 0
+      ? waiting.length === 1 ? 'קובץ אחד ממתין למיפוי' : waiting.length > 1 ? `${waiting.length} קבצים ממתינים למיפוי` : null
+      : waiting.length === 1
+        ? 'קובץ אחד ממתין למיפוי ולא ייובא עכשיו'
+        : waiting.length > 1 ? `${waiting.length} קבצים ממתינים למיפוי ולא ייובאו עכשיו` : null
+  // the shown file's own reason first, then the batch's
+  const blockReason = progress ? null : shownWaiting && queue.length > 0 ? `${shownWaiting} · ${othersWaiting}` : shownWaiting ?? othersWaiting
   // offer to save each hand-made mapping once a file imported with it
   const toSave = [
     ...new Set(
