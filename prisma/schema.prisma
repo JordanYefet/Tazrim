@@ -67,6 +67,8 @@ model CreditCardTransaction {
 
   // Same leading columns as before accounts existed, so list reads keep the same plan and row order
   @@index([contentHash, sourceFile, accountId])
+  // Card months follow the billing date (ENG-46)
+  @@index([accountId, billingDate])
 }
 
 /// A merchant / description rule. Keyed by provider (not by account), so it
