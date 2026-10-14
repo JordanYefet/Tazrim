@@ -49,6 +49,14 @@ export function legacyAccountRedirect(
   return accountHref(kind, defaultAccountId ?? undefined, params)
 }
 
+/**
+ * The account management section of /settings (it used to be /accounts).
+ * Every param is kept, so `/accounts?new=card` still opens the add form.
+ */
+export function settingsAccountsHref(params: QueryInput): string {
+  return `${withQuery('/settings', params)}#accounts`
+}
+
 /** Whether a nav item is the current section: "/" exactly, others with their sub-pages. */
 export function isNavActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/'

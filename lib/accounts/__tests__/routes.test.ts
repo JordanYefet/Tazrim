@@ -4,6 +4,7 @@ import {
   accountPath,
   isNavActive,
   legacyAccountRedirect,
+  settingsAccountsHref,
   toQueryString,
   withQuery,
 } from '../routes'
@@ -98,5 +99,17 @@ describe('isNavActive', () => {
   it('does not match a different section that shares a prefix', () => {
     expect(isNavActive('/banksy', '/banks')).toBe(false)
     expect(isNavActive('/categories', '/cards')).toBe(false)
+  })
+})
+
+describe('settingsAccountsHref', () => {
+  it('points at the accounts section of /settings', () => {
+    expect(settingsAccountsHref({})).toBe('/settings#accounts')
+    expect(settingsAccountsHref(undefined)).toBe('/settings#accounts')
+  })
+
+  it('keeps ?new= and any other param (the old /accounts redirect)', () => {
+    expect(settingsAccountsHref({ new: 'card' })).toBe('/settings?new=card#accounts')
+    expect(settingsAccountsHref({ new: 'BANK', extra: ['a', 'b'] })).toBe('/settings?new=BANK&extra=a&extra=b#accounts')
   })
 })
