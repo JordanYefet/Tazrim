@@ -23,13 +23,20 @@ export function previewSummary(preview: RawWorkbookPreview): string {
   return `${FORMAT_LABEL[preview.format]} · ${size}`
 }
 
-type Tone = 'muted' | 'busy' | 'ok' | 'bad'
+/** "5 חדשות · 2 דולגו" (or "חדשה אחת"); the skipped part only when there are some, unless `always`. */
+export function resultCounts(created: number, skipped: number, always = true): string {
+  const c = created === 1 ? 'חדשה אחת' : `${nf.format(created)} חדשות`
+  if (!skipped && !always) return c
+  return `${c} · ${skipped === 1 ? 'אחת דולגה' : `${nf.format(skipped)} דולגו`}`
+}
+
+type Tone ='muted' | 'busy' | 'ok' | 'bad'
 
 function status(x: BatchFile<File, RawWorkbookPreview>): { label: string; detail?: string; tone: Tone } {
   if (x.import === 'importing') return { label: 'מייבא', tone: 'busy' }
   if (x.import === 'done' && x.result) {
     const { created, skipped } = x.result
-    return { label: 'יובא', detail: `${nf.format(created)} חדשות${skipped ? ` · ${nf.format(skipped)} דולגו` : ''}`, tone: 'ok' }
+    return { label: 'יובא', detail: resultCounts(created, skipped, false), tone: 'ok' }
   }
   if (x.import === 'failed') return { label: 'הייבוא נכשל', detail: x.importError, tone: 'bad' }
   switch (x.read) {
@@ -93,10 +100,10 @@ export function FileList({
             >
               <StatusIcon tone={s.tone} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium" dir="auto" title={x.file.name}>
-                  {x.file.name}
+                <span className="block truncate text-sm font-medium" title={x.file.name}>
+                  <bdi>{x.file.name}</bdi>
                 </span>
-                <span className="block text-xs text-muted-foreground">
+                <span className={cn('block text-xs text-muted-foreground', s.tone === 'bad' && !meta && 'hidden')}>
                   {[meta, s.tone !== 'bad' && s.detail].filter(Boolean).join(' · ') || ' '}
                 </span>
                 {s.tone === 'bad' && s.detail && (

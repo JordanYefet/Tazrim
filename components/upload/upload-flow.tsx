@@ -8,7 +8,7 @@ import { RawGridPreview } from './raw-grid-preview'
 import { AccountPicker, providerLabel, type UploadAccount } from './account-picker'
 import { NewCategoriesPrompt } from './new-categories-prompt'
 import { SkippedRows } from './skipped-rows'
-import { FileList, FORMAT_LABEL, UnsupportedNote } from './file-list'
+import { FileList, FORMAT_LABEL, resultCounts, UnsupportedNote } from './file-list'
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
 import {
   addFiles,
@@ -84,6 +84,8 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
   const [progress, setProgress] = useState<{ k: number; n: number } | null>(null)
   const [forcing, setForcing] = useState<string | null>(null)
   const [forceError, setForceError] = useState<{ id: string; message: string } | null>(null)
+  // files whose skipped list the user worked in stay open when it re-renders after a force
+  const [forcedIds, setForcedIds] = useState<Set<string>>(new Set())
   const [pendingCategories, setPendingCategories] = useState<string[]>([])
   const [announcement, setAnnouncement] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -109,6 +111,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
     setProgress(null)
     setForcing(null)
     setForceError(null)
+    setForcedIds(new Set())
     setPendingCategories([])
     setAnnouncement('')
   }
@@ -199,6 +202,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
       return
     }
     setFiles(list => applyForceToFile(list, entry.id, indexes, res.data))
+    setForcedIds(prev => new Set(prev).add(entry.id))
     setAnnouncement(`${nf.format(res.data.created)} שורות יובאו בכל זאת`)
     onImported()
   }
@@ -387,7 +391,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                         <p className="flex min-w-0 items-baseline gap-2 text-sm">
                           <span className="min-w-0 truncate font-medium" dir="auto" title={x.file.name}>{x.file.name}</span>
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {nf.format(x.result!.created)} חדשות · {nf.format(x.result!.skipped)} דולגו
+                            {resultCounts(x.result!.created, x.result!.skipped)}
                           </span>
                         </p>
                         <SkippedRows
@@ -395,7 +399,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                           rows={x.result!.skippedRows}
                           canForce={canForce}
                           busy={forcing !== null}
-                          defaultOpen={false}
+                          defaultOpen={forcedIds.has(x.id)}
                           onForce={indexes => force(x, indexes)}
                         />
                         {forceError?.id === x.id && (
@@ -411,6 +415,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             <NewCategoriesPrompt
               key={pendingCategories.join('\u0000')}
               categories={pendingCategories}
+              severalFiles={imported.length > 1}
               onDone={() => setPendingCategories([])}
             />
           )}
