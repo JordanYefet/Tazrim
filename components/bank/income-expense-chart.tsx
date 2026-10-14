@@ -7,6 +7,7 @@ import { monthName } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
+import { useStableData } from '@/hooks/use-stable-data'
 import { accountPath } from '@/lib/accounts/routes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
@@ -57,7 +58,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
 
-  const chartData = data
+  const rows = data
     .filter(d => d.month <= monthCount)
     .map(d => ({
       month: d.month,
@@ -71,6 +72,8 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
       scroll: false,
     })
   }
+
+  const chartData = useStableData(rows)
 
   return (
     <section className={SECTION}>

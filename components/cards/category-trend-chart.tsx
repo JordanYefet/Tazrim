@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes'
 import { monthName } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useChartAxes } from '@/hooks/use-chart-axes'
+import { useStableData } from '@/hooks/use-stable-data'
 import { OTHER_COLOR } from '@/lib/utils/category-colors'
 import { cn } from '@/lib/utils/cn'
 import type { CategoryMonthly } from '@/lib/insights/category-insights'
@@ -65,7 +66,7 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
   const rest = ranked.filter(c => !series.includes(c))
   const keys = rest.length ? [...series, OTHER] : series
 
-  const chartData = Array.from({ length: monthCount }, (_, i) => {
+  const rows = Array.from({ length: monthCount }, (_, i) => {
     const m = i + 1
     const row: Record<string, number | string> = { month: m, name: monthName(m) }
     for (const c of series) row[c] = monthly[c]?.[m] ?? 0
@@ -83,6 +84,8 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
   }
 
   const dimmed = (m: number) => selectedMonth !== undefined && m !== selectedMonth
+
+  const chartData = useStableData(rows)
 
   return (
     <section className={SECTION}>

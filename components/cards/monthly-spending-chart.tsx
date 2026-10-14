@@ -7,6 +7,7 @@ import { monthName } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
+import { useStableData } from '@/hooks/use-stable-data'
 import { accountPath } from '@/lib/accounts/routes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
@@ -78,7 +79,7 @@ function MonthlySpendingChartInner({
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
 
-  const chartData = Array.from({ length: monthCount }, (_, i) => {
+  const rows = Array.from({ length: monthCount }, (_, i) => {
     const m = i + 1
     const row: Record<string, number | string> = { month: m, name: monthName(m) }
     for (const s of series) row[s.key] = s.data[String(m)] ?? 0
@@ -91,6 +92,8 @@ function MonthlySpendingChartInner({
       { scroll: false }
     )
   }
+
+  const chartData = useStableData(rows)
 
   return (
     <section className={SECTION}>

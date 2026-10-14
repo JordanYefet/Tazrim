@@ -5,6 +5,7 @@ import { monthName } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
+import { useStableData } from '@/hooks/use-stable-data'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
@@ -64,7 +65,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   const c = chartColors(isDark)
   const axes = useChartAxes(c.text)
 
-  const chartData = Array.from({ length: monthCount }, (_, i) => {
+  const rows = Array.from({ length: monthCount }, (_, i) => {
     const m = i + 1
     const bank = bankSummary[m] ?? { income: 0, expense: 0 }
     return {
@@ -79,6 +80,8 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   function handleClick(entry: { month: number }) {
     router.push(withQueryString('/', toggleMonthQuery(params.toString(), entry.month)), { scroll: false })
   }
+
+  const chartData = useStableData(rows)
 
   return (
     <section className="rounded-xl border bg-card p-4 sm:p-6">
