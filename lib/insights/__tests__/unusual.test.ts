@@ -284,6 +284,16 @@ describe('output', () => {
     expect(r.map(u => u.id)).toEqual([big1.id])
   })
 
+  it('matches since/until against `periodDate` when given, keeping `date` for history and display', () => {
+    const history = cafeHistory()
+    // Bought in February, counted in the April period (e.g. a card's billing month)
+    const big = { ...tx('2025-02-01', 420, 'Fake Cafe'), periodDate: '2025-04-02' }
+    expect(detectUnusualTransactions([...history, big], { since: '2025-02-01', until: '2025-02-28' })).toEqual([])
+    const [u] = detectUnusualTransactions([...history, big], { since: '2025-04-01', until: '2025-04-30' })
+    expect(u).toMatchObject({ id: big.id, date: '2025-02-01' })
+    expect(u.flags[0].reason).toBe('merchant_outlier')
+  })
+
   it('carries the display fields of the transaction', () => {
     const a = tx('2025-03-10', 500, 'Fake Shop', { category: 'קניות', accountId: 'acc-1' })
     const b = tx('2025-03-10', 500, 'Fake Shop', { category: 'קניות', accountId: 'acc-1' })
@@ -323,5 +333,13 @@ describe('adapters', () => {
         categoryOverride: 'מזון',
       })
     ).toEqual({ id: 'c1', date: d, amount: 80, description: 'Fake Merchant', source: 'card', category: 'מזון' })
+  })
+
+  it('maps the billing date of card rows to the period date', () => {
+    const d = new Date(2025, 0, 5)
+    const billed = new Date(2025, 2, 2)
+    expect(
+      fromCardTransaction({ id: 'c2', transactionDate: d, billingDate: billed, merchantName: 'Fake Merchant', chargedAmount: 80, category: 'אחר' })
+    ).toMatchObject({ date: d, periodDate: billed })
   })
 })

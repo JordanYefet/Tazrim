@@ -447,6 +447,8 @@ export function isInstallmentType(transactionType: string | null | undefined): b
 /**
  * Card row → detector row. Installment rows all keep the purchase date, so they're
  * dated by `billingDate` (the month each installment is charged) when it's given.
+ * Regular charges keep the purchase date on purpose: a subscription's cadence is
+ * its charge day, while the billing day is the same for every row of a statement.
  */
 export function fromCardRow(row: {
   id: string

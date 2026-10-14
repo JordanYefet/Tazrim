@@ -10,9 +10,11 @@ let summary: typeof import('../summary')
 let accounts: typeof import('../accounts')
 let cards: typeof import('../cards')
 
+// Card months follow the billing date (ENG-46): these rows are billed in the
+// month the bank pays them.
 const cc = (over: Partial<ParsedCCTransaction>): ParsedCCTransaction => ({
   transactionDate: new Date(2030, 0, 5),
-  billingDate: new Date(2030, 1, 2),
+  billingDate: new Date(2030, 0, 28),
   originalMerchantName: 'TEST SHOP',
   merchantName: 'TEST SHOP',
   category: 'Food',
@@ -71,7 +73,7 @@ beforeAll(async () => {
   await cards.upsertCCTransactions(
     [
       cc({ chargedAmount: 70 }),
-      cc({ transactionDate: new Date(2030, 1, 9), originalMerchantName: 'TEST SHOP 2', chargedAmount: 15 }),
+      cc({ transactionDate: new Date(2030, 1, 9), billingDate: new Date(2030, 1, 28), originalMerchantName: 'TEST SHOP 2', chargedAmount: 15 }),
     ],
     'max-1.xlsx',
     'acct_max'

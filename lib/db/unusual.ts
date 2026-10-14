@@ -39,17 +39,20 @@ export function unusualRange({ year, month, now = new Date() }: { year: number; 
   return { since: ymd(since), until: ymd(now) }
 }
 
-/** Newest non-ignored bank or card transaction date, to anchor "the last 90 days" to the data */
+/**
+ * Newest non-ignored bank date or card billing date, to anchor "the last 90
+ * days" to the data. Card rows count by billing date, like their period (ENG-46).
+ */
 export async function latestTransactionDate(): Promise<Date | null> {
   const [b, c] = await Promise.all([
     prisma.bankTransaction.findFirst({ where: { ignored: false }, orderBy: { date: 'desc' }, select: { date: true } }),
     prisma.creditCardTransaction.findFirst({
       where: { ignored: false },
-      orderBy: { transactionDate: 'desc' },
-      select: { transactionDate: true },
+      orderBy: { billingDate: 'desc' },
+      select: { billingDate: true },
     }),
   ])
-  const dates = [b?.date, c?.transactionDate].filter((d): d is Date => !!d)
+  const dates = [b?.date, c?.billingDate].filter((d): d is Date => !!d)
   return dates.length ? new Date(Math.max(...dates.map(d => d.getTime()))) : null
 }
 
@@ -66,7 +69,8 @@ export interface UnusualQuery {
 /**
  * Flagged transactions, newest first, minus the ones the user dismissed. The
  * baseline is the full non-ignored history of the selected accounts; dismissed
- * rows still count as history.
+ * rows still count as history. Card rows fall in `since`/`until` by billing
+ * date; outlier history and duplicates compare purchase dates.
  */
 export async function getUnusualTransactions(query: UnusualQuery = {}): Promise<UnusualTransaction[]> {
   const where = { ...accountWhere(query.accountId), ignored: false }
@@ -78,7 +82,7 @@ export async function getUnusualTransactions(query: UnusualQuery = {}): Promise<
     prisma.creditCardTransaction.findMany({
       where,
       select: {
-        id: true, accountId: true, transactionDate: true, merchantName: true, chargedAmount: true,
+        id: true, accountId: true, transactionDate: true, billingDate: true, merchantName: true, chargedAmount: true,
         category: true, categoryOverride: true,
       },
     }),

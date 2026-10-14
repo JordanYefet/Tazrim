@@ -46,7 +46,9 @@
  *   `isExcluded: t => t.source === 'bank' && isCardPaymentDescription(t.description)`.
  *   Also a good place for rows the user marked as ignored.
  * - `since` / `until` limit which transactions can be flagged; everything else
- *   still serves as history.
+ *   still serves as history. They match `periodDate` when a row has one (a card
+ *   row's billing date, ENG-46), else `date`. History, outliers and duplicates
+ *   always use `date` (the purchase day).
  *
  * Output is deterministic: newest first, then larger amount, then id.
  */
@@ -55,7 +57,10 @@ export type TransactionSource = 'bank' | 'card'
 
 export interface UnusualInput {
   id: string
+  /** When it happened (purchase day): history, duplicates and display */
   date: Date | string
+  /** The period it counts in for `since`/`until`, if not `date` (a card row's billing date) */
+  periodDate?: Date | string
   /** Positive = expense, negative = income/refund */
   amount: number
   description: string
@@ -154,6 +159,8 @@ export function normalizeMerchant(description: string): string {
 interface Row {
   tx: UnusualInput
   day: number
+  /** Day number of `periodDate ?? date`, matched against since/until */
+  periodDay: number
   dateKey: string
   key: string
   category: string | null
@@ -201,7 +208,9 @@ export function detectUnusualTransactions(
     seen.add(tx.id)
     if (!(tx.amount > 0) || o.isExcluded?.(tx)) continue
     const dateKey = toDateKey(tx.date)
-    rows.push({ tx, dateKey, day: dayNumber(dateKey), key: normalizeMerchant(tx.description), category: tx.category ?? null })
+    const day = dayNumber(dateKey)
+    const periodDay = tx.periodDate === undefined ? day : dayNumber(toDateKey(tx.periodDate))
+    rows.push({ tx, dateKey, day, periodDay, key: normalizeMerchant(tx.description), category: tx.category ?? null })
   }
   rows.sort(chronological)
 
@@ -220,7 +229,7 @@ export function detectUnusualTransactions(
   const result: UnusualTransaction[] = []
   for (const r of rows) {
     const { tx } = r
-    if (r.day < sinceDay || r.day > untilDay) continue
+    if (r.periodDay < sinceDay || r.periodDay > untilDay) continue
     const recurringTx = recurringIds.has(tx.id) || !!o.recurring?.isRecurring?.(tx)
     const recurringMerchant = recurringKeys.has(r.key)
     const flags: UnusualFlag[] = []
@@ -327,6 +336,8 @@ export function fromBankTransaction(row: {
 export function fromCardTransaction(row: {
   id: string
   transactionDate: Date | string
+  /** When given, the row counts in its billing period (since/until) */
+  billingDate?: Date | string
   merchantName: string
   chargedAmount: number
   category: string
@@ -336,6 +347,7 @@ export function fromCardTransaction(row: {
   return {
     id: row.id,
     date: row.transactionDate,
+    ...(row.billingDate !== undefined && { periodDate: row.billingDate }),
     amount: row.chargedAmount,
     description: row.merchantName,
     source: 'card',
