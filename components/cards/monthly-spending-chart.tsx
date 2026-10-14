@@ -9,6 +9,7 @@ import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { accountPath } from '@/lib/accounts/routes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
+import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
 
 export interface SpendingSeries {
   /** Unique key (the card's account id) */
@@ -85,9 +86,10 @@ function MonthlySpendingChartInner({
   })
 
   function handleClick(entry: { month: number }) {
-    const sp = new URLSearchParams(params.toString())
-    sp.set('month', String(entry.month))
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`, { scroll: false })
+    router.push(
+      withQueryString(accountPath('CREDIT_CARD', accountId), toggleMonthQuery(params.toString(), entry.month)),
+      { scroll: false }
+    )
   }
 
   return (

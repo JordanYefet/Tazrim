@@ -9,6 +9,7 @@ import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { accountPath } from '@/lib/accounts/routes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
+import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
 
 interface MonthData { month: number; income: number; expense: number }
 
@@ -66,9 +67,9 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
     }))
 
   function handleClick(entry: { month: number }) {
-    const sp = new URLSearchParams(params.toString())
-    sp.set('month', String(entry.month))
-    router.push(`${accountPath('BANK', accountId)}?${sp.toString()}`, { scroll: false })
+    router.push(withQueryString(accountPath('BANK', accountId), toggleMonthQuery(params.toString(), entry.month)), {
+      scroll: false,
+    })
   }
 
   return (

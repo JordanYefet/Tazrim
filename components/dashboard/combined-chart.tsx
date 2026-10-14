@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
 
 interface Props {
   bankSummary: Record<number, { income: number; expense: number }>
@@ -76,9 +77,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   })
 
   function handleClick(entry: { month: number }) {
-    const sp = new URLSearchParams(params.toString())
-    sp.set('month', String(entry.month))
-    router.push(`/?${sp.toString()}`, { scroll: false })
+    router.push(withQueryString('/', toggleMonthQuery(params.toString(), entry.month)), { scroll: false })
   }
 
   return (
