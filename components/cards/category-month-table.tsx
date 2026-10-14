@@ -58,6 +58,7 @@ export function CategoryMonthTable({ accountId, monthly, ranked, colors, lastMon
               {months.map(m => (
                 <th key={m} className={cn('p-0 font-medium', monthCol(m))}>
                   <Link
+                    scroll={false}
                     href={href({ month: selectedMonth === m ? undefined : String(m) })}
                     className={cn(
                       'block px-3 py-2 text-end hover:text-foreground',
@@ -89,6 +90,7 @@ export function CategoryMonthTable({ accountId, monthly, ranked, colors, lastMon
                 >
                   <th scope="row" className={cn(stickyCol, 'p-0 font-normal', active && 'bg-primary/10')}>
                     <Link
+                      scroll={false}
                       href={href({ category: active ? undefined : c })}
                       className="flex max-w-[9.5rem] items-center gap-2 px-3 py-2 text-start hover:underline sm:max-w-none"
                     >

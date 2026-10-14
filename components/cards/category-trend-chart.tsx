@@ -77,7 +77,7 @@ function CategoryTrendChartInner({ accountId, monthly, ranked, colors, monthCoun
   function navigate(update: (sp: URLSearchParams) => void) {
     const sp = new URLSearchParams(params.toString())
     update(sp)
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
+    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`, { scroll: false })
   }
 
   const selectMonth = (m: number) => navigate(sp => sp.set('month', String(m)))

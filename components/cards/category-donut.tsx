@@ -51,7 +51,7 @@ function CategoryDonutInner({
     } else {
       sp.set('category', entry.name)
     }
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`)
+    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`, { scroll: false })
   }
 
   return (
