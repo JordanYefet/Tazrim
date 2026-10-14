@@ -538,8 +538,14 @@ function guessNumberFormat(values: RawCell[]): NumberFormat {
  * Best-effort mapping for an unknown file: the header row, the columns its
  * header names, the billing-date source and the number format.
  */
-export function suggestMapping(sheet: RawSheet, kind: MappingKind, sheetIndex = 0): ImportMapping {
-  const found = findHeaderRow(sheet, kind)
+export function suggestMapping(
+  sheet: Pick<RawSheet, 'rows'>,
+  kind: MappingKind,
+  sheetIndex = 0,
+  /** Use this header row instead of looking for one */
+  atHeaderRow?: number
+): ImportMapping {
+  const found = atHeaderRow ?? findHeaderRow(sheet, kind)
   const headerRow = found === -1 ? 0 : found
   const columns: Partial<Record<MappingField, number>> = {}
   ;(sheet.rows[headerRow] ?? []).forEach((cell, c) => {
@@ -578,6 +584,31 @@ export function suggestMapping(sheet: RawSheet, kind: MappingKind, sheetIndex = 
   }
   if (kind === 'bank' && mapping.amountMode === 'split') delete columns.amount
   return mapping
+}
+
+/**
+ * The mapping after the user marks another header row: columns are re-read from
+ * that row's header text when it names any field (else kept), and data rows
+ * restart below it. Formats and the sign setting are kept.
+ */
+export function withHeaderRow(sheet: Pick<RawSheet, 'rows'>, mapping: ImportMapping, kind: MappingKind, headerRow: number): ImportMapping {
+  const s = suggestMapping(sheet, kind, mapping.sheet, headerRow)
+  const next: ImportMapping = {
+    ...mapping,
+    headerRow,
+    columns: Object.keys(s.columns).length ? s.columns : mapping.columns,
+  }
+  delete next.startRow
+  if (next.endRow !== undefined && next.endRow <= headerRow) delete next.endRow
+  if (kind === 'card') {
+    const cur = mapping.billingDate
+    if (s.columns.billingDate !== undefined) next.billingDate = { from: 'column' }
+    else if (s.billingDate?.from === 'cell' && cur?.from !== 'fixed') next.billingDate = s.billingDate
+    else if (cur?.from === 'cell' && cur.row >= headerRow) next.billingDate = { from: 'column' }
+  } else if (Object.keys(s.columns).length) {
+    next.amountMode = s.amountMode
+  }
+  return next
 }
 
 // ---------------------------------------------------------------------------
