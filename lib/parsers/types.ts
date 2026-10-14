@@ -21,7 +21,8 @@ export interface ParsedCCTransaction {
   cardLastFour: string
   transactionType: string
   notes: string
-  cardProvider: 'MAX' | 'HITECH'
+  /** MAPPED: read through a column mapping (lib/import/mapping.ts) */
+  cardProvider: 'MAX' | 'HITECH' | 'MAPPED'
 }
 
 export interface ParseResult<T> {
