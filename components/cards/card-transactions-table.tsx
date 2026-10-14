@@ -165,7 +165,8 @@ export function CardTransactionsTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                {['תאריך עסקה', 'שם בית עסק', 'קטגוריה', 'סכום חיוב', 'תאריך חיוב', ''].map((h, i) => (
+                {/* Billing date first: rows belong to the month they are billed in (ENG-46) */}
+                {['תאריך חיוב', 'תאריך עסקה', 'שם בית עסק', 'קטגוריה', 'סכום חיוב', ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -179,7 +180,8 @@ export function CardTransactionsTable({
                     tx.ignored && 'opacity-40'
                   )}
                 >
-                  <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs">{formatDate(tx.transactionDate)}</td>
+                  <td className="py-2.5 px-4 whitespace-nowrap text-xs tabular-nums">{formatDate(tx.billingDate)}</td>
+                  <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs tabular-nums">{formatDate(tx.transactionDate)}</td>
                   <td className="py-2.5 px-4 min-w-[160px]">
                     {tx.ignored ? (
                       <span className="line-through text-muted-foreground">{tx.merchantName}</span>
@@ -232,7 +234,6 @@ export function CardTransactionsTable({
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs">{formatDate(tx.billingDate)}</td>
                   <td className="py-2.5 px-4 text-center">
                     <button
                       onClick={() => toggleIgnored(tx)}

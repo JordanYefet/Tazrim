@@ -390,6 +390,8 @@ export function buildCardWhere(
   if (f.accountIds?.length) and.push({ accountId: { in: f.accountIds } })
   if (!f.includeIgnored) and.push({ ignored: false })
   const dates = dayRange(f)
+  // Purchase date on purpose: "what did I buy on/between ..." is about the
+  // purchase. Card totals and pages bucket by billing date instead (ENG-46).
   if (dates) and.push({ transactionDate: dates })
   if (f.amount) and.push(cardAmount(f.amount))
   and.push(

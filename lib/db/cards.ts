@@ -7,6 +7,20 @@ import { cardDedupeKey, localDay, planCardImport } from '../upload/card-dedupe'
 
 // Every function that takes an AccountFilter reads one card (an id), several
 // cards (a list of ids) or every card (undefined).
+//
+// Months and years of card charges follow `billingDate`, the day the bank pays
+// the card (ENG-46): an installment of a June purchase billed in September is
+// September spending, so each month's card total matches the bank's card payment.
+// That payment is already in the bank spending; card charges are its breakdown,
+// never subtracted again. Upload de-duplication keeps using the purchase date.
+
+/** `billingDate` range for a year, or one month of it */
+function billedIn(year: number, month?: number): Prisma.DateTimeFilter {
+  return {
+    gte: new Date(year, month ? month - 1 : 0, 1),
+    lt: month ? new Date(year, month, 1) : new Date(year + 1, 0, 1),
+  }
+}
 
 /** Ids of every MAX card, archived ones included: what the /cards/max page and the dashboard show. */
 export async function getMaxCardIds(): Promise<string[]> {
@@ -130,15 +144,7 @@ export async function getCCTransactions(params: {
     where.ignored = false
   }
 
-  if (params.year) {
-    const m = params.month
-    where.transactionDate = {
-      gte: new Date(params.year, m ? m - 1 : 0, 1),
-      lte: m
-        ? new Date(params.year, m, 0, 23, 59, 59)
-        : new Date(params.year, 12, 0, 23, 59, 59),
-    }
-  }
+  if (params.year) where.billingDate = billedIn(params.year, params.month)
 
   if (params.merchant) {
     where.merchantName = params.merchant
@@ -156,7 +162,8 @@ export async function getCCTransactions(params: {
 
   return prisma.creditCardTransaction.findMany({
     where,
-    orderBy: { transactionDate: 'desc' },
+    // Billing month first (the statement), then the purchase; id keeps paging stable
+    orderBy: [{ billingDate: 'desc' }, { transactionDate: 'desc' }, { id: 'asc' }],
     ...(params.take !== undefined ? { take: params.take } : {}),
     ...(params.skip !== undefined ? { skip: params.skip } : {}),
   })
@@ -170,17 +177,11 @@ export async function updateCCTransaction(
 }
 
 export async function getCCCategorySummary(accountId: AccountFilter, year: number, month?: number) {
-  const m = month
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
-      transactionDate: {
-        gte: new Date(year, m ? m - 1 : 0, 1),
-        lte: m
-          ? new Date(year, m, 0, 23, 59, 59)
-          : new Date(year, 11, 31, 23, 59, 59),
-      },
+      billingDate: billedIn(year, month),
     },
   })
 
@@ -206,17 +207,11 @@ export async function bulkUpdateCCCategory(
 }
 
 export async function getCCCategoryStats(accountId: AccountFilter, year: number, month?: number) {
-  const m = month
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
-      transactionDate: {
-        gte: new Date(year, m ? m - 1 : 0, 1),
-        lte: m
-          ? new Date(year, m, 0, 23, 59, 59)
-          : new Date(year, 11, 31, 23, 59, 59),
-      },
+      billingDate: billedIn(year, month),
     },
   })
   const stats: Record<string, { total: number; count: number }> = {}
@@ -229,15 +224,13 @@ export async function getCCCategoryStats(accountId: AccountFilter, year: number,
   return stats
 }
 
+/** month (1-12) -> total charged, by billing month */
 export async function getCCMonthlySummary(accountId: AccountFilter, year: number) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
-      transactionDate: {
-        gte: new Date(year, 0, 1),
-        lte: new Date(year, 11, 31, 23, 59, 59),
-      },
+      billingDate: billedIn(year),
     },
   })
 
@@ -245,31 +238,28 @@ export async function getCCMonthlySummary(accountId: AccountFilter, year: number
   for (let m = 1; m <= 12; m++) monthly[m] = 0
 
   for (const tx of txs) {
-    const m = tx.transactionDate.getMonth() + 1
+    const m = tx.billingDate.getMonth() + 1
     monthly[m] += tx.chargedAmount
   }
 
   return monthly
 }
 
-/** category -> month (1-12) -> total charged, for one year */
+/** category -> billing month (1-12) -> total charged, for one year */
 export async function getCCCategoryMonthly(accountId: AccountFilter, year: number) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
-      transactionDate: {
-        gte: new Date(year, 0, 1),
-        lte: new Date(year, 11, 31, 23, 59, 59),
-      },
+      billingDate: billedIn(year),
     },
-    select: { transactionDate: true, category: true, categoryOverride: true, chargedAmount: true },
+    select: { billingDate: true, category: true, categoryOverride: true, chargedAmount: true },
   })
 
   const result: Record<string, Record<number, number>> = {}
   for (const tx of txs) {
     const cat = tx.categoryOverride ?? tx.category
-    const m = tx.transactionDate.getMonth() + 1
+    const m = tx.billingDate.getMonth() + 1
     result[cat] ??= {}
     result[cat][m] = (result[cat][m] ?? 0) + tx.chargedAmount
   }
