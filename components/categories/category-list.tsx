@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface Category { id: string; name: string }
 
@@ -11,6 +12,7 @@ export function CategoryList({ initial }: { initial: Category[] }) {
   const [newName, setNewName] = useState('')
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { confirm, dialog } = useConfirm()
 
   async function add() {
     if (!newName.trim()) return
@@ -40,70 +42,74 @@ export function CategoryList({ initial }: { initial: Category[] }) {
     setError(null)
   }
 
-  async function remove(id: string) {
-    await fetch(`/api/categories/${id}`, { method: 'DELETE' })
-    setCategories(prev => prev.filter(c => c.id !== id))
+  async function remove(cat: Category) {
+    if (!(await confirm({ title: <>למחוק את הקטגוריה <bdi>{cat.name}</bdi>?</> }))) return
+    await fetch(`/api/categories/${cat.id}`, { method: 'DELETE' })
+    setCategories(prev => prev.filter(c => c.id !== cat.id))
   }
 
   return (
-    <div className="space-y-4">
-      {/* Add input */}
-      <div className="flex gap-2">
-        <input
-          className="border rounded-lg px-3 py-2 text-sm bg-background flex-1 focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder="שם קטגוריה חדשה"
-          value={newName}
-          onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') add() }}
-        />
-        <button
-          onClick={add}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          הוסף
-        </button>
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {/* Chips grid */}
-      {categories.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {categories.map(cat => (
-            <div
-              key={cat.id}
-              className="group flex items-center gap-1.5 bg-muted hover:bg-muted/70 rounded-lg px-3 py-1.5 text-sm transition-colors"
-            >
-              {editing?.id === cat.id ? (
-                <input
-                  autoFocus
-                  className="border rounded px-1.5 py-0.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring w-24"
-                  value={editing.name}
-                  onChange={e => setEditing({ ...editing, name: e.target.value })}
-                  onBlur={save}
-                  onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(null) }}
-                />
-              ) : (
-                <span
-                  className="cursor-pointer hover:text-primary transition-colors"
-                  onClick={() => setEditing({ id: cat.id, name: cat.name })}
-                >
-                  {cat.name}
-                </span>
-              )}
-              <button
-                onClick={() => remove(cat.id)}
-                className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                aria-label="מחק קטגוריה"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+    <>
+      <div className="space-y-4">
+        {/* Add input */}
+        <div className="flex gap-2">
+          <input
+            className="border rounded-lg px-3 py-2 text-sm bg-background flex-1 focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="שם קטגוריה חדשה"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') add() }}
+          />
+          <button
+            onClick={add}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            הוסף
+          </button>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground py-4">אין קטגוריות עדיין</p>
-      )}
-    </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {/* Chips grid */}
+        {categories.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {categories.map(cat => (
+              <div
+                key={cat.id}
+                className="group flex items-center gap-1.5 bg-muted hover:bg-muted/70 rounded-lg px-3 py-1.5 text-sm transition-colors"
+              >
+                {editing?.id === cat.id ? (
+                  <input
+                    autoFocus
+                    className="border rounded px-1.5 py-0.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring w-24"
+                    value={editing.name}
+                    onChange={e => setEditing({ ...editing, name: e.target.value })}
+                    onBlur={save}
+                    onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(null) }}
+                  />
+                ) : (
+                  <span
+                    className="cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => setEditing({ id: cat.id, name: cat.name })}
+                  >
+                    {cat.name}
+                  </span>
+                )}
+                <button
+                  onClick={() => remove(cat)}
+                  className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                  aria-label="מחק קטגוריה"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-4">אין קטגוריות עדיין</p>
+        )}
+      </div>
+      {dialog}
+    </>
   )
 }

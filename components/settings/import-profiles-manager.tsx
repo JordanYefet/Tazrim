@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Lock, Pencil, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/components/upload/account-picker'
 import type { ProfileView } from '@/lib/import/profile-view'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const BUILT_IN = [
   { key: 'leumi', name: 'לאומי – תנועות בחשבון', kind: 'חשבון בנק' },
@@ -25,7 +26,10 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
   const router = useRouter()
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
-  const [confirming, setConfirming] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<ProfileView | null>(null)
+  // The last profile asked about, so the text stays put while the dialog animates out
+  const asked = useRef<ProfileView | null>(null)
+  if (confirming) asked.current = confirming
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<{ id: string; message: string } | null>(null)
 
@@ -98,45 +102,24 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                 </p>
               </div>
             )}
-            {editing !== p.id &&
-              (confirming === p.id ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">למחוק?</span>
-                  <button
-                    type="button"
-                    onClick={async () => (await call(p.id, { method: 'DELETE' })) && setConfirming(null)}
-                    disabled={pending === p.id}
-                    className="h-8 rounded-lg bg-destructive px-3 text-xs font-medium text-destructive-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-destructive/90 active:scale-[0.97] disabled:opacity-50"
-                  >
-                    מחק
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirming(null)}
-                    className="h-8 rounded-lg px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    ביטול
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center">
-                  <button
-                    type="button"
-                    className={iconButton}
-                    aria-label={`שנה שם: ${p.name}`}
-                    onClick={() => {
-                      setEditing(p.id)
-                      setDraft(p.name)
-                      setConfirming(null)
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden />
-                  </button>
-                  <button type="button" className={iconButton} aria-label={`מחק: ${p.name}`} onClick={() => setConfirming(p.id)}>
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-              ))}
+            {editing !== p.id && (
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  className={iconButton}
+                  aria-label={`שנה שם: ${p.name}`}
+                  onClick={() => {
+                    setEditing(p.id)
+                    setDraft(p.name)
+                  }}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                </button>
+                <button type="button" className={iconButton} aria-label={`מחק: ${p.name}`} onClick={() => setConfirming(p)}>
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            )}
             {error?.id === p.id && <p role="alert" className="w-full text-xs text-destructive">{error.message}</p>}
           </li>
         ))}
@@ -158,6 +141,19 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
           עדיין אין מיפויים שמורים. אחרי ייבוא קובץ של ספק בלי ייבוא מובנה תוכל לשמור את המיפוי שלו.
         </p>
       )}
+
+      <ConfirmDialog
+        open={!!confirming}
+        onOpenChange={open => !open && setConfirming(null)}
+        onConfirm={async () => {
+          if (confirming && (await call(confirming.id, { method: 'DELETE' }))) setConfirming(null)
+        }}
+        title={<>למחוק את המיפוי <bdi>{asked.current?.name}</bdi>?</>}
+        description="קבצים עם אותן כותרות יצטרכו מיפוי עמודות מחדש בהעלאה הבאה. תנועות שכבר יובאו לא ישתנו."
+        busy={!!confirming && pending === confirming.id}
+        busyLabel="מוחק…"
+        error={confirming && error?.id === confirming.id ? error.message : null}
+      />
     </div>
   )
 }
