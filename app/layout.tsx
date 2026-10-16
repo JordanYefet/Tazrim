@@ -46,7 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               />
               <div className="flex flex-col flex-1 min-w-0">
                 <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header /></Suspense>
-                <main className="flex-1 p-4 md:p-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
+                <main className="flex-1 p-4 md:p-6 pb-[calc(5.75rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-6">
                   {children}
                 </main>
               </div>

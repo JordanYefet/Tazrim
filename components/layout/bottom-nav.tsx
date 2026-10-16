@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Building2, ChevronLeft, CreditCard, Ellipsis, LayoutDashboard, Repeat, Settings, Tag, Upload } from 'lucide-react'
+import { Building2, ChevronLeft, CreditCard, Ellipsis, House, LayoutDashboard, Repeat, Settings, Tag, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
 
+// Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
-  { href: '/', label: 'לוח בקרה', icon: LayoutDashboard },
   { href: '/banks', label: 'בנקים', icon: Building2 },
   { href: '/cards', label: 'כרטיסים', title: 'כרטיסי אשראי', icon: CreditCard },
+  { href: '/', label: 'לוח בקרה', icon: House },
   { href: '/recurring', label: 'קבועים', title: 'חיובים קבועים', icon: Repeat },
 ]
 
@@ -22,29 +23,23 @@ const MORE_LINKS = [
   { href: '/settings', label: 'הגדרות', hint: 'ערכת נושא · ניהול חשבונות', icon: Settings },
 ]
 
+// Each tab is a 1/5 slot of the pill; the active highlight slides between slots
 const TAB =
-  'relative flex min-w-0 flex-1 flex-col items-center gap-1 py-2 text-xs whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
+  'group relative z-10 flex h-full min-w-0 flex-1 items-center justify-center rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
 
-function TabBody({ active, icon: Icon, label }: { active: boolean; icon: typeof LayoutDashboard; label: string }) {
+function TabIcon({ active, icon: Icon }: { active: boolean; icon: typeof LayoutDashboard }) {
   return (
-    <>
-      {active && <span aria-hidden className="absolute top-0 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-primary" />}
-      <span
-        className={cn(
-          'flex h-7 w-12 items-center justify-center rounded-lg transition-colors',
-          active ? 'bg-primary/10' : 'group-hover:bg-muted'
-        )}
-      >
-        <Icon className="h-5 w-5" aria-hidden />
-      </span>
-      {label}
-    </>
+    <Icon
+      aria-hidden
+      strokeWidth={active ? 2.2 : 1.8}
+      className="h-6 w-6 transition-transform duration-100 ease-out group-active:scale-[0.88]"
+    />
   )
 }
 
 /**
- * Phone tab bar: four sections plus "עוד", a bottom sheet with the rest.
- * Fixed to the bottom, translucent, and padded for the home indicator.
+ * Phone tab bar: a floating, translucent pill of icons (four sections plus
+ * "עוד", a sheet with the rest). Labels live in aria-label only.
  */
 export function BottomNav() {
   const pathname = usePathname()
@@ -54,41 +49,53 @@ export function BottomNav() {
   useEffect(() => setMoreOpen(false), [pathname])
 
   const moreActive = moreOpen || isMoreActive(pathname)
+  const tabIndex = moreOpen ? -1 : TABS.findIndex(t => isNavActive(pathname, t.href))
+  const activeSlot = moreActive ? TABS.length : tabIndex
 
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card/90 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden [@media(prefers-reduced-transparency:reduce)]:bg-card"
+      className="glass-pill fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[45] mx-auto flex h-16 w-[min(22rem,calc(100%-2rem))] rounded-full p-1.5 md:hidden"
     >
+      {/* Active highlight: one capsule that glides to the selected slot */}
+      <span
+        aria-hidden
+        style={{ '--slot': Math.max(activeSlot, 0) } as React.CSSProperties}
+        className={cn(
+          'tab-highlight pointer-events-none absolute inset-y-1.5 start-1.5 w-[calc((100%-0.75rem)/5)] rounded-full',
+          activeSlot < 0 && 'opacity-0'
+        )}
+      />
+
       {TABS.map(({ href, label, title, icon }) => {
         const active = !moreOpen && isNavActive(pathname, href)
         return (
           <Link
             key={href}
             href={href}
-            aria-label={title}
+            aria-label={title ?? label}
             aria-current={isNavActive(pathname, href) ? 'page' : undefined}
-            className={cn(TAB, 'group', active ? 'font-medium text-primary' : 'text-muted-foreground hover:text-foreground')}
+            className={cn(TAB, active ? 'text-primary' : 'text-foreground/60')}
           >
-            <TabBody active={active} icon={icon} label={label} />
+            <TabIcon active={active} icon={icon} />
           </Link>
         )
       })}
 
       <Dialog.Root open={moreOpen} onOpenChange={setMoreOpen}>
         <Dialog.Trigger
-          className={cn(TAB, 'group', moreActive ? 'font-medium text-primary' : 'text-muted-foreground hover:text-foreground')}
+          className={cn(TAB, moreActive ? 'text-primary' : 'text-foreground/60')}
           aria-label="עוד: העלאת קבצים, קטגוריות, הגדרות"
         >
-          <TabBody active={moreActive} icon={Ellipsis} label="עוד" />
+          <TabIcon active={moreActive} icon={Ellipsis} />
         </Dialog.Trigger>
         <Dialog.Portal>
-          {/* The scrim stops above the tab bar, so "עוד" stays visible (and tappable to close) */}
-          <Dialog.Overlay className="sheet-scrim fixed inset-x-0 top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 bg-black/45 md:hidden" />
+          {/* The pill sits above the scrim, so "עוד" stays visible (and tappable to close) */}
+          <Dialog.Overlay className="sheet-scrim fixed inset-0 z-40 bg-black/45 md:hidden" />
           <Dialog.Content
             dir="rtl"
             aria-describedby={undefined}
-            className="sheet fixed inset-x-2 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-[0_-12px_40px_rgba(0,0,0,0.35)] focus:outline-none md:hidden"
+            className="sheet fixed inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] z-50 overflow-hidden rounded-3xl border bg-card text-card-foreground shadow-[0_-12px_40px_rgba(0,0,0,0.35)] focus:outline-none md:hidden"
           >
             <Dialog.Title className="sr-only">עוד</Dialog.Title>
             <div aria-hidden className="flex justify-center pt-2">
