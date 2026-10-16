@@ -93,6 +93,15 @@
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
 
+  /* iOS Safari gives date inputs an intrinsic min width, so they ignore
+     w-full and spill out of narrow grid cells */
+  input[type='date'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+  }
+  input[type='date']::-webkit-date-and-time-value { text-align: start; }
+
   /* Styled native selects */
   select {
     @apply bg-muted border border-border text-foreground rounded-lg px-3 py-1.5 text-sm;
