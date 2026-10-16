@@ -144,13 +144,16 @@ html {
   from { opacity: 0; transform: translateX(4px) scale(0.98); }
 }
 
-/* Phone "עוד" sheet: rises from the tab bar and returns the same way */
-.sheet[data-state='open'] { animation: sheet-in 280ms cubic-bezier(0.32, 0.72, 0, 1); }
-.sheet[data-state='closed'] { animation: sheet-out 180ms cubic-bezier(0.32, 0.72, 0, 1) forwards; }
-.sheet-scrim[data-state='open'] { animation: fade-in 220ms ease-out; }
-.sheet-scrim[data-state='closed'] { animation: fade-out 180ms ease-out forwards; }
-@keyframes sheet-in { from { transform: translateY(calc(100% + 5rem)); } }
-@keyframes sheet-out { to { transform: translateY(calc(100% + 5rem)); } }
+/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the pill's
+   last slot, at the left edge under RTL), and back into it on close */
+.sheet { transform-origin: 90% 100%; }
+[dir='rtl'] .sheet { transform-origin: 10% 100%; }
+.sheet[data-state='open'] { animation: sheet-in 360ms cubic-bezier(0.23, 1, 0.32, 1); }
+.sheet[data-state='closed'] { animation: sheet-out 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+.sheet-scrim[data-state='open'] { animation: fade-in 320ms ease-out; }
+.sheet-scrim[data-state='closed'] { animation: fade-out 220ms ease-out forwards; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
+@keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
@@ -241,8 +244,8 @@ html {
   /* The capsule jumps to the new tab and fades in instead of sliding */
   .tab-highlight { transition: opacity 200ms ease-out; }
   /* A short cross-fade instead of the slide */
-  .sheet[data-state='open'] { animation: fade-in 150ms ease-out; }
-  .sheet[data-state='closed'] { animation: fade-out 120ms ease-out forwards; }
+  .sheet[data-state='open'] { animation: fade-in 200ms ease-out; }
+  .sheet[data-state='closed'] { animation: fade-out 160ms ease-out forwards; }
 }
 
 /* Horizontal pill rows scroll without a visible scrollbar */
