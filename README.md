@@ -80,10 +80,17 @@ npm run dev:demo     # מריץ את האפליקציה על בסיס הדמו
 1. מוצאים את כתובת ה-IP של המחשב (ב-macOS: `ipconfig getifaddr en0`).
 2. פותחים בטלפון את `http://<כתובת-ה-IP>:3000`.
 
-במסך צר מופיע סרגל ניווט תחתון במקום התפריט הצדדי.
+במסך צר התפריט הצדדי מתחלף בסרגל ניווט צף בצורת גלולה, עם אייקונים בלבד: בנקים, כרטיסים, לוח הבקרה (במרכז), חיובים קבועים, ו"עוד". הסרגל שקוף למחצה, כך שהתוכן נראה דרכו בזמן הגלילה. "עוד" פותח חלון קטן עם העלאת קבצים, קטגוריות והגדרות.
 
 <p align="center">
-  <img src="docs/screenshots/mobile-dashboard.png" width="300" alt="לוח בקרה בטלפון">
+  <img src="docs/screenshots/mobile-dashboard.png" width="260" alt="לוח בקרה בטלפון">
+  <img src="docs/screenshots/mobile-more.png" width="260" alt="התפריט 'עוד' בטלפון">
+</p>
+
+גם חלונות האישור (למשל לפני מחיקה) עולים מלמטה בטלפון, ובמסך רחב מופיעים במרכז:
+
+<p align="center">
+  <img src="docs/screenshots/mobile-confirm.png" width="260" alt="חלון אישור מחיקה בטלפון">
 </p>
 
 ---
