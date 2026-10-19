@@ -95,7 +95,7 @@ export function BottomNav() {
           <Dialog.Content
             dir="rtl"
             aria-describedby={undefined}
-            className="sheet fixed inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] z-50 overflow-hidden rounded-3xl border bg-card text-card-foreground shadow-[0_-12px_40px_rgba(0,0,0,0.35)] focus:outline-none md:hidden"
+            className="sheet fixed inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] z-50 overflow-hidden rounded-3xl surface-overlay text-card-foreground focus:outline-none md:hidden"
           >
             <Dialog.Title className="sr-only">עוד</Dialog.Title>
             <div aria-hidden className="flex justify-center pt-2">

@@ -42,7 +42,7 @@ function seriesFor(cardsName: string) {
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-1">{label}</p>
       {payload.map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">
@@ -84,7 +84,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   const chartData = useStableData(rows)
 
   return (
-    <section className="rounded-xl border bg-card p-4 sm:p-6">
+    <section className="rounded-xl surface p-4 sm:p-6">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
           <h3 className="font-semibold text-base">סיכום חודשי</h3>
@@ -137,7 +137,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
 
 export function CombinedChart(props: Props) {
   return (
-    <Suspense fallback={<div className="rounded-xl border bg-card p-5 h-52 sm:h-64 md:h-80 animate-pulse" />}>
+    <Suspense fallback={<div className="rounded-xl surface p-5 h-52 sm:h-64 md:h-80 animate-pulse" />}>
       <CombinedChartInner {...props} />
     </Suspense>
   )

@@ -71,7 +71,7 @@ export function RawGridPreview({
               className={cn(
                 'shrink-0 py-1.5 px-3 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
                 i === active
-                  ? 'bg-card text-foreground shadow-sm'
+                  ? 'bg-card text-foreground shadow-e1'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >

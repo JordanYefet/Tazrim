@@ -128,7 +128,7 @@ export function RailFlyout({
             id={panelId}
             role="group"
             aria-label={item.label}
-            className="flyout-in flex max-h-[calc(100vh-2rem)] w-56 flex-col gap-0.5 overflow-y-auto rounded-xl border bg-card/95 p-2 shadow-xl backdrop-blur-xl [@media(prefers-reduced-transparency:reduce)]:bg-card"
+            className="flyout-in flex max-h-[calc(100vh-2rem)] w-56 flex-col gap-0.5 overflow-y-auto rounded-xl surface-overlay bg-card/95 p-2 backdrop-blur-xl [@media(prefers-reduced-transparency:reduce)]:bg-card"
           >
             <p className="mx-2.5 mb-1 mt-0.5 text-xs font-semibold text-muted-foreground">{item.label}</p>
             {link(item.href, pathname === item.href, item.allLabel, true)}

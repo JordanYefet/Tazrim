@@ -54,6 +54,12 @@ const config: Config = {
           DEFAULT: 'hsl(var(--cc))',
         },
       },
+      // Elevation scale (app/globals.css, ENG-55)
+      boxShadow: {
+        e1: 'var(--elevation-1)',
+        e2: 'var(--elevation-2)',
+        e3: 'var(--elevation-3)',
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',

@@ -33,7 +33,7 @@ const LEGEND = [
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-1">{label}</p>
       {payload.map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">

@@ -25,7 +25,7 @@ export function UploadPageClient({ accounts }: { accounts: UploadAccount[] }) {
 
       <UploadFlow accounts={accounts} onImported={imported} />
 
-      <div className="rounded-xl border bg-card p-4 sm:p-6">
+      <div className="rounded-xl surface p-4 sm:p-6">
         <h2 className="mb-4 text-base font-semibold">היסטוריית העלאות</h2>
         <UploadHistoryTable refresh={refresh} />
       </div>

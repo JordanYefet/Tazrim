@@ -35,7 +35,7 @@ function CustomTooltip({ active, payload, label }: any) {
   const rows = payload.filter((p: any) => p.value > 0).sort((a: any, b: any) => b.value - a.value)
   const total = rows.reduce((s: number, p: any) => s + p.value, 0)
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-1">{label}</p>
       {rows.map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">

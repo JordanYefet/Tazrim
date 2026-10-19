@@ -106,7 +106,7 @@ export function ChartHeader({
 }
 
 /** Card surface used by every chart and list on these pages. */
-export const SECTION = 'rounded-xl border bg-card p-4 sm:p-6'
+export const SECTION = 'rounded-xl surface p-4 sm:p-6'
 
 export function EmptyState({
   icon: Icon,
@@ -120,7 +120,7 @@ export function EmptyState({
   actions?: { href: string; label: string; icon?: LucideIcon; primary?: boolean }[]
 }) {
   return (
-    <section className="rounded-xl border border-dashed bg-card px-6 py-16 text-center">
+    <section className="rounded-xl surface border-dashed px-6 py-16 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
         <Icon className="h-6 w-6" aria-hidden />
       </div>

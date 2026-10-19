@@ -100,7 +100,7 @@ export function RecurringList({
   className,
 }: Props) {
   return (
-    <section className={cn('flex flex-col rounded-xl border bg-card p-4 sm:p-6', className)}>
+    <section className={cn('flex flex-col rounded-xl surface p-4 sm:p-6', className)}>
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="flex items-center gap-1.5 text-base font-semibold">

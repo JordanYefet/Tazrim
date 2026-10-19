@@ -71,7 +71,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
           מיפויי עמודות שנשמרו בהעלאת קבצים. קובץ עם אותן כותרות מזוהה לבד.
         </p>
       </div>
-      <ul className="divide-y rounded-xl border bg-card">
+      <ul className="divide-y rounded-xl surface">
         {profiles.map(p => (
           <li key={p.id} className="flex min-w-0 flex-wrap items-center gap-2 px-4 py-3 md:px-6">
             {editing === p.id ? (

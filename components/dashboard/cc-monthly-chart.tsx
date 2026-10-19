@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload, label, series }: any) {
   const month: number = payload[0].payload.month
   const split = (series as CardSeries[] | undefined)?.filter(s => s.monthly[month])
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       <p className="text-[hsl(var(--cc))] font-medium tabular-nums">
         {payload[0].value == null ? 'אין נתונים' : formatCurrency(payload[0].value)}
@@ -72,7 +72,7 @@ function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: P
   }
 
   return (
-    <section className="rounded-xl border bg-card p-4 sm:p-6">
+    <section className="rounded-xl surface p-4 sm:p-6">
       <h3 className="font-semibold text-base">מגמת חיובי כרטיס אשראי</h3>
       <p className="text-sm text-muted-foreground mb-5">לחיצה על חודש פותחת את פירוט החיובים שלו</p>
       <div className="h-48 sm:h-64">
@@ -123,7 +123,7 @@ function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: P
 
 export function CCMonthlyChart(props: Props) {
   return (
-    <Suspense fallback={<div className="rounded-xl border bg-card p-5 h-48 sm:h-64 animate-pulse" />}>
+    <Suspense fallback={<div className="rounded-xl surface p-5 h-48 sm:h-64 animate-pulse" />}>
       <CCMonthlyChartInner {...props} />
     </Suspense>
   )

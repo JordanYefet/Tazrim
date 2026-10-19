@@ -31,7 +31,7 @@ export function CardSummaryCards({ total, count, average, monthLabel, label = '×
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <section aria-label={label} className="flex flex-col justify-between gap-6 rounded-xl border bg-card p-4 sm:p-6">
+      <section aria-label={label} className="flex flex-col justify-between gap-6 rounded-xl surface-hero p-4 sm:p-6">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
           <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums text-[hsl(var(--cc))] sm:text-[2.75rem] sm:leading-none">

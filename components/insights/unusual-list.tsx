@@ -25,7 +25,7 @@ const displayDate = (key: string) => key.split('-').reverse().join('.')
 export function UnusualList({ items, onDismiss, title = 'תנועות חריגות', subtitle, limit, footer }: Props) {
   const shown = limit ? items.slice(0, limit) : items
   return (
-    <section dir="rtl" className="flex flex-col rounded-xl border bg-card p-4 sm:p-6">
+    <section dir="rtl" className="flex flex-col rounded-xl surface p-4 sm:p-6">
       <h3 className="text-base font-semibold">{title}</h3>
       {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       <div className="mt-4">

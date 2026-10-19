@@ -54,7 +54,7 @@ export function ConfirmDialog({
         <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
           dir="rtl"
-          className="confirm-dialog fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-sm rounded-3xl border bg-card p-5 text-card-foreground shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] focus:outline-none sm:inset-x-4 sm:top-0 sm:bottom-0 sm:my-auto sm:h-fit"
+          className="confirm-dialog fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-sm rounded-3xl surface-overlay p-5 text-card-foreground focus:outline-none sm:inset-x-4 sm:top-0 sm:bottom-0 sm:my-auto sm:h-fit"
         >
           <form
             onSubmit={e => {

@@ -146,7 +146,7 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
   // Values sit right under the label (not pushed to the bottom), so they line up
   // across a row even when one tile has an extra hint or comparison line
   const base = cn(
-    'group relative flex flex-col gap-3 rounded-xl border bg-card p-4',
+    'group relative flex flex-col gap-3 rounded-xl surface-raised p-4',
     wide && 'col-span-2'
   )
   if (!href) return <div className={base}>{body}</div>
@@ -155,8 +155,8 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
       href={href}
       className={cn(
         base,
-        'transition-[background-color,border-color,transform] duration-200',
-        'hover:border-primary/30 hover:bg-primary/[0.03] active:scale-[0.99]',
+        'transition-[background-color,border-color,box-shadow,transform] duration-200',
+        'hover:border-primary/30 hover:shadow-e3 active:scale-[0.99]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
       )}
     >
@@ -195,7 +195,7 @@ export function NetBalance({
   return (
     <section
       aria-label="מאזן נטו"
-      className="flex flex-col justify-between gap-6 rounded-xl border bg-card p-4 sm:p-6"
+      className="flex flex-col justify-between gap-6 rounded-xl surface-hero p-4 sm:p-6"
     >
       <div>
         <p className="text-sm font-medium text-muted-foreground">מאזן נטו</p>

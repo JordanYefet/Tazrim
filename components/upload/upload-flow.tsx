@@ -74,7 +74,7 @@ const nf = new Intl.NumberFormat('he-IL')
 
 function Step({ n, title, disabled, children }: { n: number; title: string; disabled?: boolean; children: React.ReactNode }) {
   return (
-    <section className={cn('min-w-0 space-y-4 rounded-xl border bg-card p-4 sm:p-6', disabled && 'opacity-60')}>
+    <section className={cn('min-w-0 space-y-4 rounded-xl surface p-4 sm:p-6', disabled && 'opacity-60')}>
       <h2 className="flex items-center gap-2 text-base font-semibold">
         <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center tabular-nums">{n}</span>
         {title}

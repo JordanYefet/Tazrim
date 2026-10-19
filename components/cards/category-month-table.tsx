@@ -39,7 +39,7 @@ export function CategoryMonthTable({ basePath, categoryHrefs, monthly, ranked, c
   const monthCol = (m: number) => selectedMonth === m && 'bg-primary/[0.07]'
 
   return (
-    <section className="rounded-xl border bg-card">
+    <section className="rounded-xl surface">
       <div className="p-4 pb-3 sm:p-6 sm:pb-4">
         <h3 className="text-base font-semibold">פירוט לפי קטגוריה וחודש</h3>
         <p className="text-sm text-muted-foreground">
