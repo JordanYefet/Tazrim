@@ -16,7 +16,7 @@ import {
   toggleSection,
   type NavSectionKey,
 } from '@/lib/nav/state'
-import { MAIN_NAV, SETTINGS_NAV, useNavSections, type NavLinkItem, type NavSectionItem } from './nav-context'
+import { ABOUT_NAV, MAIN_NAV, SETTINGS_NAV, useNavSections, type NavLinkItem, type NavSectionItem } from './nav-context'
 import { RailFlyout } from './rail-flyout'
 
 /*
@@ -282,6 +282,7 @@ export function Sidebar({
 
         <div className="flex shrink-0 flex-col gap-0.5 border-t p-3">
           <PlainItem item={SETTINGS_NAV} pathname={pathname} collapsed={collapsed} />
+          <PlainItem item={ABOUT_NAV} pathname={pathname} collapsed={collapsed} />
         </div>
       </aside>
     </Tooltip.Provider>

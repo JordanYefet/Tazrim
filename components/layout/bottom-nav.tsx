@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Building2, ChevronLeft, CreditCard, Ellipsis, House, LayoutDashboard, Repeat, Settings, Tag, Upload } from 'lucide-react'
+import { Building2, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashboard, Repeat, Settings, Tag, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
@@ -21,6 +21,7 @@ const MORE_LINKS = [
   { href: '/upload', label: 'העלאת קבצים', icon: Upload },
   { href: '/categories', label: 'קטגוריות', icon: Tag },
   { href: '/settings', label: 'הגדרות', hint: 'ערכת נושא · ניהול חשבונות', icon: Settings },
+  { href: '/about', label: 'אודות', hint: 'הסיפור, פרטיות ויצירת קשר', icon: Info },
 ]
 
 // Each tab is a 1/5 slot of the pill; the active highlight slides between slots
@@ -85,7 +86,7 @@ export function BottomNav() {
       <Dialog.Root open={moreOpen} onOpenChange={setMoreOpen}>
         <Dialog.Trigger
           className={cn(TAB, moreActive ? 'text-primary' : 'text-foreground/60')}
-          aria-label="עוד: העלאת קבצים, קטגוריות, הגדרות"
+          aria-label="עוד: העלאת קבצים, קטגוריות, הגדרות, אודות"
         >
           <TabIcon active={moreActive} icon={Ellipsis} />
         </Dialog.Trigger>

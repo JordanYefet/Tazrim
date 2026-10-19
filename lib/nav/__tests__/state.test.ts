@@ -79,7 +79,7 @@ describe('routeAccountId', () => {
 
 describe('isMoreActive', () => {
   it('is active on the pages behind עוד', () => {
-    for (const p of ['/upload', '/upload/preview', '/categories', '/settings', '/accounts']) {
+    for (const p of ['/upload', '/upload/preview', '/categories', '/settings', '/accounts', '/about']) {
       expect(isMoreActive(p)).toBe(true)
     }
   })
