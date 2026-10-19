@@ -7,6 +7,7 @@ import { ThemeSelector } from '@/components/layout/theme-selector'
 import { ImportProfilesManager } from '@/components/settings/import-profiles-manager'
 import { listImportProfiles } from '@/lib/db/import-profiles'
 import { toProfileView } from '@/lib/import/profile-view'
+import { DangerZone } from '@/components/settings/danger-zone'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <section id="import-profiles" aria-labelledby="import-profiles-title">
         <ImportProfilesManager profiles={profiles} />
+      </section>
+
+      <section id="danger-zone" aria-labelledby="danger-zone-title">
+        <DangerZone />
       </section>
     </div>
   )

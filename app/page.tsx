@@ -18,8 +18,9 @@ import { MissingStatementsNotice } from '@/components/dashboard/missing-statemen
 import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
 import { monthlyAverage } from '@/lib/insights/account-overview'
+import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 
-interface SearchParams { year?: string; month?: string; card?: string }
+interface SearchParams { year?: string; month?: string; card?: string; deleted?: string }
 
 export default async function DashboardPage({
   searchParams,
@@ -124,6 +125,8 @@ export default async function DashboardPage({
         <p className="text-sm font-medium text-muted-foreground">{periodLabel}</p>
         <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
       </div>
+
+      <DataDeletedNotice show={params.deleted === '1'} />
 
       <MissingStatementsNotice />
 
