@@ -38,7 +38,8 @@ const EDGE_MASK = 'linear-gradient(to bottom, transparent 0, #000 18%, #000 82%,
 // Sign, digits and separators: the part that is laid out character by character
 const NUMERIC_CORE = /[-−]?\d(?:[\d.,]*\d)?/
 
-function DigitStrip({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
+/** One rolling digit; also used for the card digits as they are typed (ENG-56). */
+export function DigitStrip({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
   return (
     <span
       className="relative block overflow-hidden"

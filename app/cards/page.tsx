@@ -18,11 +18,11 @@ import {
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName, periodLabel } from '@/lib/utils/date'
+import { CARD_COLORS } from '@/lib/nav/state'
 
 interface SearchParams { year?: string; month?: string }
 
-// One color per card in the stacked chart; the first card keeps the dashboard's card color
-const CARD_COLORS = ['var(--chart-cc)', 'var(--chart-1)', 'var(--chart-5)', 'var(--chart-6)', 'var(--chart-8)', 'var(--chart-9)']
+// One color per card in the stacked chart (the nav's order); the first card keeps the dashboard's card color
 const TOP_CATEGORIES = 3
 
 /**
@@ -117,6 +117,8 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
                   key={c.account.id}
                   href={accountHref('CREDIT_CARD', c.account.id, period)}
                   name={c.account.displayName}
+                  provider={c.account.provider}
+                  network={c.account.cardNetwork}
                   lastFour={c.account.cardLastFour}
                   total={c.total}
                   count={c.count}

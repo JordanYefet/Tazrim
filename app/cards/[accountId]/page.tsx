@@ -5,6 +5,7 @@ import { CategoryDonut } from '@/components/cards/category-donut'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
+import { PaymentCard } from '@/components/accounts/account-element'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
 import { getCategories } from '@/lib/db/categories'
@@ -125,8 +126,19 @@ export default async function CardAccountPage({
         badge={account.archived ? 'בארכיון' : undefined}
       />
 
-      {hasData ? (
-        <>
+      {/* The card itself is the page's hero, next to the period totals on wide screens */}
+      <div className="grid items-center gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+        <div className="mx-auto w-full max-w-[21rem] xl:max-w-none">
+          <PaymentCard
+            tilt
+            provider={account.provider}
+            name={account.displayName}
+            lastFour={account.cardLastFour}
+            network={account.cardNetwork}
+            color="var(--chart-cc)"
+          />
+        </div>
+        {hasData ? (
           <CardSummaryCards
             total={total}
             count={count}
@@ -134,6 +146,18 @@ export default async function CardAccountPage({
             monthLabel={month ? monthName(month) : undefined}
             label={params.category ? `חיובים · ${params.category}` : undefined}
           />
+        ) : (
+          <EmptyState
+            icon={FileSpreadsheet}
+            title={`אין חיובים לשנת ${year}`}
+            text={`העלה פירוט חיובים של ${account.displayName} כדי לראות כאן את החיובים לפי חודש וקטגוריה.`}
+            actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+          />
+        )}
+      </div>
+
+      {hasData && (
+        <>
 
           {/* Monthly bar chart + category donut side by side on large screens */}
           {/* Same 5/7 split as the summary row above, so the edges line up */}
@@ -154,13 +178,6 @@ export default async function CardAccountPage({
             />
           </div>
         </>
-      ) : (
-        <EmptyState
-          icon={FileSpreadsheet}
-          title={`אין חיובים לשנת ${year}`}
-          text={`העלה פירוט חיובים של ${account.displayName} כדי לראות כאן את החיובים לפי חודש וקטגוריה.`}
-          actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
-        />
       )}
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (

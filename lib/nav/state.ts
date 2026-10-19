@@ -57,6 +57,9 @@ export interface NavAccount {
   id: string
   name: string
   lastFour: string | null
+  /** Provider key and card network, for the account element's face (ENG-56/57) */
+  provider: string
+  cardNetwork: string | null
   href: string
   /** Dot color; cards match the /cards overview chart */
   color: string
@@ -68,14 +71,16 @@ export interface NavSections {
 }
 
 // Same order as CARD_COLORS on /cards, so a card's dot matches its chart series
-const CARD_COLORS = ['var(--chart-cc)', 'var(--chart-1)', 'var(--chart-5)', 'var(--chart-6)', 'var(--chart-8)', 'var(--chart-9)']
-const BANK_COLORS = ['var(--chart-income)', 'var(--chart-10)', 'var(--chart-6)', 'var(--chart-9)']
+export const CARD_COLORS = ['var(--chart-cc)', 'var(--chart-1)', 'var(--chart-5)', 'var(--chart-6)', 'var(--chart-8)', 'var(--chart-9)']
+export const BANK_COLORS = ['var(--chart-income)', 'var(--chart-10)', 'var(--chart-6)', 'var(--chart-9)']
 
 interface AccountLike {
   id: string
   kind: AccountKind
   displayName: string
   cardLastFour: string | null
+  provider?: string
+  cardNetwork?: string | null
 }
 
 /** Banks and cards for the nav, in the order given (oldest first from listAccounts). */
@@ -87,6 +92,8 @@ export function buildNavSections(accounts: AccountLike[]): NavSections {
         id: a.id,
         name: a.displayName,
         lastFour: a.cardLastFour,
+        provider: a.provider ?? '',
+        cardNetwork: a.cardNetwork ?? null,
         href: accountPath(kind, a.id),
         color: colors[i % colors.length],
       }))

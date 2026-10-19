@@ -6,6 +6,7 @@ import {
   emptyBankMonthly,
   emptyCardMonthly,
   lastMonthWithData,
+  monthEndBalances,
   monthlyAverage,
   plottedMonthCount,
   shareOf,
@@ -145,5 +146,23 @@ describe('plottedMonthCount', () => {
   it('plots up to the last data month in a future year', () => {
     expect(plottedMonthCount(2027, 0, now)).toBe(1)
     expect(plottedMonthCount(2027, 3, now)).toBe(3)
+  })
+})
+
+describe('monthEndBalances', () => {
+  const row = (iso: string, balance: number) => ({ date: new Date(iso), balance })
+
+  it('keeps the last balance of each month, oldest month first', () => {
+    const rows = [row('2030-03-20T12:00:00', 300), row('2030-01-05T12:00:00', 90), row('2030-01-28T12:00:00', 120), row('2030-03-02T12:00:00', 250)]
+    expect(monthEndBalances(rows)).toEqual([
+      { month: 1, balance: 120 },
+      { month: 3, balance: 300 },
+    ])
+  })
+
+  it('stops at the selected month and lets the later same-day row win', () => {
+    const rows = [row('2030-02-10T12:00:00', 10), row('2030-02-10T12:00:00', 15), row('2030-04-01T12:00:00', 99)]
+    expect(monthEndBalances(rows, 3)).toEqual([{ month: 2, balance: 15 }])
+    expect(monthEndBalances([])).toEqual([])
   })
 })

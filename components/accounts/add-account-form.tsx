@@ -4,6 +4,8 @@ import { useId, useState } from 'react'
 import { Info } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { CREATABLE, KIND_META, KNOWN_PROVIDERS, importSupportedFor, type CreatableKindValue } from './account-kinds'
+import { BankElement, PaymentCard } from './account-element'
+import { CARD_NETWORKS, impliedNetwork } from '@/lib/accounts/brands'
 
 const OTHER = '__other__'
 
@@ -16,7 +18,18 @@ export interface CreatedAccount {
 export const inputClass =
   'h-10 w-full rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60'
 
-const defaultProvider = (kind: CreatableKindValue) => KNOWN_PROVIDERS.find(p => p.importKind === kind)?.key ?? OTHER
+const defaultProvider = (kind: CreatableKindValue) => KNOWN_PROVIDERS.find(p => p.kind === kind)?.key ?? OTHER
+
+const NAME_PLACEHOLDER: Record<CreatableKindValue, string> = { CREDIT_CARD: 'הכרטיס שלי', BANK: 'החשבון שלי' }
+
+const chip = (selected: boolean) =>
+  cn(
+    'inline-flex h-9 items-center rounded-lg border px-3 text-sm transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97] motion-reduce:transition-none',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    selected
+      ? 'border-primary/50 bg-primary/10 font-medium text-primary'
+      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+  )
 
 export function AddAccountForm({
   initialKind,
@@ -33,6 +46,9 @@ export function AddAccountForm({
   const [otherProvider, setOtherProvider] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [lastFour, setLastFour] = useState('')
+  // '' = other / unknown. Follows the issuer (Amex) until the user picks one.
+  const [network, setNetwork] = useState<string>(impliedNetwork(defaultProvider(initialKind)) ?? '')
+  const [networkTouched, setNetworkTouched] = useState(false)
   const [error, setError] = useState<{ field?: string; message: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -43,8 +59,13 @@ export function AddAccountForm({
   function chooseKind(next: CreatableKindValue) {
     setKind(next)
     // Follow the kind with the provider while the user has not picked a free-text one
-    if (providerChoice !== OTHER) setProviderChoice(defaultProvider(next))
+    if (providerChoice !== OTHER) chooseProvider(defaultProvider(next))
     setError(null)
+  }
+
+  function chooseProvider(next: string) {
+    setProviderChoice(next)
+    if (!networkTouched) setNetwork(impliedNetwork(next) ?? '')
   }
 
   async function submit(e: React.FormEvent) {
@@ -61,6 +82,7 @@ export function AddAccountForm({
           provider,
           displayName,
           cardLastFour: kind === 'CREDIT_CARD' && lastFour ? lastFour : undefined,
+          cardNetwork: kind === 'CREDIT_CARD' && network ? network : undefined,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -81,6 +103,29 @@ export function AddAccountForm({
   return (
     <form onSubmit={submit} className="space-y-4" aria-labelledby={`${id}-title`} noValidate>
       <h2 id={`${id}-title`} className="font-semibold">חשבון חדש</h2>
+
+      {/* Live preview: the element the account will get, reacting to every field (ENG-56/57) */}
+      <div className="flex justify-center rounded-xl bg-muted/50 px-4 py-6 sm:py-8">
+        <div key={kind} className={cn('acct-enter w-full', kind === 'CREDIT_CARD' ? 'max-w-[19rem]' : 'max-w-[22rem]')}>
+          {kind === 'CREDIT_CARD' ? (
+            <PaymentCard
+              live
+              provider={provider}
+              name={displayName}
+              namePlaceholder={NAME_PLACEHOLDER.CREDIT_CARD}
+              lastFour={lastFour}
+              network={network}
+            />
+          ) : (
+            <BankElement
+              provider={provider}
+              name={displayName}
+              namePlaceholder={NAME_PLACEHOLDER.BANK}
+              emptyText="היתרה תופיע אחרי העלאת הקובץ הראשון"
+            />
+          )}
+        </div>
+      </div>
 
       <div role="radiogroup" aria-label="סוג חשבון" className="inline-flex rounded-lg border bg-muted/50 p-1 gap-1">
         {CREATABLE.map(k => {
@@ -114,9 +159,9 @@ export function AddAccountForm({
             id={`${id}-provider`}
             className={inputClass}
             value={providerChoice}
-            onChange={e => setProviderChoice(e.target.value)}
+            onChange={e => chooseProvider(e.target.value)}
           >
-            {KNOWN_PROVIDERS.map(p => (
+            {KNOWN_PROVIDERS.filter(p => p.kind === kind).map(p => (
               <option key={p.key} value={p.key}>{p.label}</option>
             ))}
             <option value={OTHER}>אחר…</option>
@@ -131,7 +176,7 @@ export function AddAccountForm({
               className={inputClass}
               value={otherProvider}
               onChange={e => setOtherProvider(e.target.value)}
-              placeholder={kind === 'BANK' ? 'לדוגמה: discount' : 'לדוגמה: isracard'}
+              placeholder={kind === 'BANK' ? 'לדוגמה: yahav' : 'לדוגמה: diners'}
               aria-invalid={!!fieldError('provider')}
               autoFocus
             />
@@ -173,6 +218,30 @@ export function AddAccountForm({
             <p id={`${id}-last4-hint`} className={cn('text-xs', lastFourInvalid || fieldError('cardLastFour') ? 'text-destructive' : 'text-muted-foreground')}>
               {fieldError('cardLastFour') ?? (lastFourInvalid ? 'יש להזין בדיוק 4 ספרות' : 'כדי להבדיל בין כרטיסים')}
             </p>
+          </div>
+        )}
+
+        {kind === 'CREDIT_CARD' && (
+          <div className="space-y-1.5 sm:col-span-2">
+            <p id={`${id}-network`} className="text-sm font-medium">
+              רשת <span className="font-normal text-muted-foreground">(לא חובה)</span>
+            </p>
+            <div role="radiogroup" aria-labelledby={`${id}-network`} className="flex flex-wrap gap-2">
+              {[...CARD_NETWORKS, { key: '', label: 'אחר / לא ידוע' }].map(n => (
+                <button
+                  key={n.key || 'other'}
+                  type="button"
+                  role="radio"
+                  aria-checked={network === n.key}
+                  data-network={n.key || 'other'}
+                  onClick={() => { setNetwork(n.key); setNetworkTouched(true) }}
+                  className={chip(network === n.key)}
+                >
+                  {n.key ? <span dir="ltr">{n.label}</span> : n.label}
+                </button>
+              ))}
+            </div>
+            {fieldError('cardNetwork') && <p className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
           </div>
         )}
       </div>

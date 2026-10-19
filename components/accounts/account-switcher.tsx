@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils/cn'
 import { withQuery } from '@/lib/accounts/routes'
 import { routeAccountId } from '@/lib/nav/state'
 import { SECTION_ITEMS, useNavSections } from '@/components/layout/nav-context'
+import { AccountMini } from './account-element'
 
 /**
  * Phone-only pills under the heading of /banks* and /cards*:
@@ -48,8 +49,8 @@ export function AccountSwitcher() {
     ...(params.get('month') ? { month: params.get('month')! } : {}),
   }
   const pills = [
-    { key: 'all', href: item.href, label: item.allLabel, color: undefined, current: pathname === item.href },
-    ...accounts.map(a => ({ key: a.id, href: a.href, label: a.name, color: a.color, current: a.id === currentId })),
+    { key: 'all', href: item.href, label: item.allLabel, account: undefined, current: pathname === item.href },
+    ...accounts.map(a => ({ key: a.id, href: a.href, label: a.name, account: a, current: a.id === currentId })),
   ]
 
   return (
@@ -69,8 +70,13 @@ export function AccountSwitcher() {
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              {p.color && <span aria-hidden className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: p.color }} />}
+              {p.account && (
+                <AccountMini kind={item.kind} provider={p.account.provider} color={p.account.color} className="w-[22px]" />
+              )}
               {p.label}
+              {p.account?.lastFour && (
+                <span dir="ltr" className="text-[11px] tabular-nums opacity-70">·{p.account.lastFour}</span>
+              )}
             </Link>
           </li>
         ))}

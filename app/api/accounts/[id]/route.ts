@@ -1,26 +1,40 @@
 import { NextResponse } from 'next/server'
-import { AccountValidationError, deleteAccount, getAccount, renameAccount, setArchived } from '@/lib/db/accounts'
+import {
+  AccountValidationError,
+  deleteAccount,
+  getAccount,
+  normalizeCardNetwork,
+  normalizeDisplayName,
+  renameAccount,
+  setArchived,
+  setCardNetwork,
+} from '@/lib/db/accounts'
 
 type Ctx = { params: Promise<{ id: string }> }
 
 const notFound = () => NextResponse.json({ error: 'החשבון לא נמצא' }, { status: 404 })
 
-/** Body: { displayName?: string, archived?: boolean }, at least one. */
+/** Body: { displayName?: string, archived?: boolean, cardNetwork?: string | null }, at least one. */
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })
-  const { displayName, archived } = body as { displayName?: unknown; archived?: unknown }
-  if (displayName === undefined && archived === undefined) {
+  const { displayName, archived, cardNetwork } = body as { displayName?: unknown; archived?: unknown; cardNetwork?: unknown }
+  if (displayName === undefined && archived === undefined && cardNetwork === undefined) {
     return NextResponse.json({ error: 'אין מה לעדכן' }, { status: 400 })
   }
   if (archived !== undefined && typeof archived !== 'boolean') {
     return NextResponse.json({ error: 'ערך ארכיון לא תקין', field: 'archived' }, { status: 400 })
   }
   try {
-    if (!(await getAccount(id))) return notFound()
+    const existing = await getAccount(id)
+    if (!existing) return notFound()
+    // Validate everything before the first write, so a bad field changes nothing
+    if (displayName !== undefined) normalizeDisplayName(displayName)
+    if (cardNetwork !== undefined) normalizeCardNetwork(cardNetwork, existing.kind)
     let account = null
     if (displayName !== undefined) account = await renameAccount(id, displayName)
+    if (cardNetwork !== undefined) account = await setCardNetwork(id, cardNetwork)
     if (archived !== undefined) account = await setArchived(id, archived)
     return account ? NextResponse.json(account) : notFound()
   } catch (e) {

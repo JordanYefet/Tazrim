@@ -8,7 +8,7 @@ export async function GET() {
   return NextResponse.json(await listAccountsWithCounts())
 }
 
-/** Body: { kind: 'BANK' | 'CREDIT_CARD', provider, displayName, cardLastFour? }. 201 with the account. */
+/** Body: { kind: 'BANK' | 'CREDIT_CARD', provider, displayName, cardLastFour?, cardNetwork? }. 201 with the account. */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })

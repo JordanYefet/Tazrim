@@ -9,6 +9,8 @@ import { providerLabel } from '@/components/upload/account-picker'
 import { KIND_META, type AccountKindValue, type CreatableKindValue } from './account-kinds'
 import { AddAccountForm, inputClass, type CreatedAccount } from './add-account-form'
 import { DeleteAccountDialog } from './delete-account-dialog'
+import { AccountMini } from './account-element'
+import { CARD_NETWORKS, networkLabel } from '@/lib/accounts/brands'
 
 export interface ManagedAccount {
   id: string
@@ -16,6 +18,7 @@ export interface ManagedAccount {
   provider: string
   displayName: string
   cardLastFour: string | null
+  cardNetwork: string | null
   archived: boolean
   transactionCount: number
   uploadCount: number
@@ -181,11 +184,19 @@ function AccountRow({
   onDelete: () => void
 }) {
   const [editing, setEditing] = useState<string | null>(null)
+  const [network, setNetwork] = useState(account.cardNetwork ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const Icon = KIND_META.find(m => m.kind === account.kind)!.icon
+  const isCard = account.kind === 'CREDIT_CARD'
+  const netLabel = networkLabel(account.cardNetwork)
 
-  async function patch(data: { displayName?: string; archived?: boolean }) {
+  function startEdit() {
+    setEditing(account.displayName)
+    setNetwork(account.cardNetwork ?? '')
+  }
+
+  async function patch(data: { displayName?: string; archived?: boolean; cardNetwork?: string | null }) {
     setBusy(true)
     setError(null)
     try {
@@ -213,18 +224,29 @@ function AccountRow({
     e.preventDefault()
     if (editing === null) return
     const name = editing.trim()
-    if (!name || name === account.displayName) { setEditing(null); setError(null); return }
-    if (await patch({ displayName: name })) setEditing(null)
+    const data: { displayName?: string; cardNetwork?: string | null } = {}
+    if (name && name !== account.displayName) data.displayName = name
+    if (isCard && network !== (account.cardNetwork ?? '')) data.cardNetwork = network || null
+    if (!Object.keys(data).length) { setEditing(null); setError(null); return }
+    if (await patch(data)) setEditing(null)
   }
 
   return (
     <li className={cn('flex flex-wrap items-center gap-3 px-4 py-3 md:px-6', account.archived && 'opacity-80')}>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-        <Icon className="h-4 w-4" aria-hidden />
-      </span>
+      {account.kind === 'BANK' || isCard ? (
+        <AccountMini
+          kind={account.kind as 'BANK' | 'CREDIT_CARD'}
+          provider={account.provider}
+          className={cn('w-11', account.archived && 'grayscale')}
+        />
+      ) : (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="h-4 w-4" aria-hidden />
+        </span>
+      )}
 
       {editing !== null ? (
-        <form onSubmit={submitRename} className="flex min-w-0 flex-1 items-center gap-1">
+        <form onSubmit={submitRename} className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           <input
             autoFocus
             aria-label="שם חדש לחשבון"
@@ -234,7 +256,20 @@ function AccountRow({
             onChange={e => setEditing(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') { setEditing(null); setError(null) } }}
           />
-          <button type="submit" className={iconButton} aria-label="שמור שם" disabled={busy}>
+          {isCard && (
+            <select
+              aria-label="רשת הכרטיס"
+              className="h-9 w-auto"
+              value={network}
+              onChange={e => setNetwork(e.target.value)}
+            >
+              {CARD_NETWORKS.map(n => (
+                <option key={n.key} value={n.key}>{n.label}</option>
+              ))}
+              <option value="">אחר / לא ידוע</option>
+            </select>
+          )}
+          <button type="submit" className={iconButton} aria-label="שמור" disabled={busy}>
             <Check className="h-4 w-4" aria-hidden />
           </button>
           <button type="button" className={iconButton} aria-label="בטל עריכה" onClick={() => { setEditing(null); setError(null) }}>
@@ -255,6 +290,7 @@ function AccountRow({
             <span className="truncate">
               {providerLabel(account.provider)}
               {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
+              {netLabel && <> · <span dir="ltr">{netLabel}</span></>}
             </span>
             <span aria-hidden className="hidden sm:inline">·</span>
             <span className="whitespace-nowrap tabular-nums">
@@ -266,7 +302,7 @@ function AccountRow({
 
       {editing === null && (
         <div className="flex shrink-0 items-center gap-0.5 ms-auto" aria-busy={busy}>
-          <button type="button" className={iconButton} aria-label={`שנה שם: ${account.displayName}`} title="שנה שם" disabled={busy} onClick={() => setEditing(account.displayName)}>
+          <button type="button" className={iconButton} aria-label={`${isCard ? 'עריכה' : 'שנה שם'}: ${account.displayName}`} title={isCard ? 'שם ורשת' : 'שנה שם'} disabled={busy} onClick={startEdit}>
             <Pencil className="h-4 w-4" aria-hidden />
           </button>
           {account.archived ? (

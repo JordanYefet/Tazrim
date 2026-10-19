@@ -103,3 +103,24 @@ export function plottedMonthCount(year: number, lastDataMonth: number, now = new
   if (year < now.getFullYear()) return 12
   return Math.max(year === now.getFullYear() ? now.getMonth() + 1 : 1, lastDataMonth)
 }
+
+/**
+ * A balance trend for the bank account element's sparkline (ENG-57): the
+ * balance after the last row of each month, oldest month first, up to and
+ * including `untilMonth` when given. Rows may come in any order; rows of the
+ * same day keep their given order (the later one wins).
+ */
+export function monthEndBalances(
+  rows: { date: Date; balance: number }[],
+  untilMonth?: number
+): { month: number; balance: number }[] {
+  const last = new Map<number, { time: number; balance: number }>()
+  for (const row of rows) {
+    const month = row.date.getMonth() + 1
+    if (untilMonth && month > untilMonth) continue
+    const time = row.date.getTime()
+    const seen = last.get(month)
+    if (!seen || time >= seen.time) last.set(month, { time, balance: row.balance })
+  }
+  return [...last.entries()].sort(([a], [b]) => a - b).map(([month, v]) => ({ month, balance: v.balance }))
+}

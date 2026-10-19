@@ -18,6 +18,9 @@ model Account {
   provider               String
   displayName            String
   cardLastFour           String?
+  /// Card network for the card element (ENG-56): visa, mastercard, amex or diners.
+  /// Null when unknown or other; always null for bank accounts.
+  cardNetwork            String?
   archived               Boolean                 @default(false)
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]
