@@ -9,6 +9,10 @@ node_modules/
 # Personal financial data: the database and any bank / card exports
 prisma/*.db
 prisma/*.db-journal
+prisma/*.backup.db
+*.db-wal
+*.db-shm
+*.sqlite-journal
 *.sqlite
 *.xls
 *.xlsx
@@ -19,5 +23,6 @@ prisma/*.db-journal
 .claude/worktrees/
 .claude/settings.local.json
 .superpowers/
+.sync-dry-run/
 *.tsbuildinfo
 .DS_Store
