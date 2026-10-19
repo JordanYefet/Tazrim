@@ -147,7 +147,7 @@ if (dataOnly && (await prisma.bankTransaction.count()) + (await prisma.creditCar
   await prisma.$disconnect()
   process.exit(0)
 }
-await prisma.account.update({ where: { id: CARD }, data: { cardLastFour: CARD_LAST_FOUR } })
+await prisma.account.update({ where: { id: CARD }, data: { cardLastFour: CARD_LAST_FOUR, cardNetwork: 'mastercard' } })
 await prisma.bankTransaction.createMany({ data: bankRows })
 await prisma.creditCardTransaction.createMany({ data: cardRows })
 await prisma.uploadHistory.createMany({

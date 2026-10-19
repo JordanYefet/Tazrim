@@ -4,6 +4,8 @@ import { Building2, CreditCard, FileWarning, LineChart, PiggyBank, Plus, type Lu
 import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
 import { settingsAccountsHref } from '@/lib/accounts/routes'
+import { providerLabel } from '@/lib/accounts/brands'
+import { AccountMini } from '@/components/accounts/account-element'
 import { formatMonthRanges, noBreakAtDash } from '@/lib/insights/missing-statements'
 
 export interface UploadAccount {
@@ -28,11 +30,8 @@ const NEW_ACCOUNT_LINKS = [
   { kind: 'CREDIT_CARD', label: 'כרטיס אשראי חדש' },
 ] as const
 
-const PROVIDER_LABELS: Record<string, string> = { leumi: 'לאומי', max: 'מקס', hitech: 'הייטקזון', cal: 'כאל', isracard: 'ישראכרט' }
-
-export function providerLabel(provider: string): string {
-  return PROVIDER_LABELS[provider] ?? provider
-}
+// Kept here for the existing imports; the labels live with the account faces
+export { providerLabel }
 
 export function AccountPicker({
   accounts,
@@ -74,14 +73,18 @@ export function AccountPicker({
                     onChange={() => onChange(account.id)}
                     className="sr-only"
                   />
-                  <span
-                    className={cn(
-                      'w-9 h-9 shrink-0 rounded-lg flex items-center justify-center',
-                      selected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
+                  {account.kind === 'BANK' || account.kind === 'CREDIT_CARD' ? (
+                    <AccountMini kind={account.kind} provider={account.provider} className="w-11" />
+                  ) : (
+                    <span
+                      className={cn(
+                        'w-9 h-9 shrink-0 rounded-lg flex items-center justify-center',
+                        selected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium truncate">{account.displayName}</span>
                     <span className="block text-xs text-muted-foreground truncate">

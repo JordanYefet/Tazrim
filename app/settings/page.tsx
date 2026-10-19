@@ -19,6 +19,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     provider: a.provider,
     displayName: a.displayName,
     cardLastFour: a.cardLastFour,
+    cardNetwork: a.cardNetwork,
     archived: a.archived,
     transactionCount: a.transactionCount,
     uploadCount: a.counts.uploads,
