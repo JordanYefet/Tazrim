@@ -89,9 +89,118 @@
   }
 }
 
+/* ── Depth and surfaces (ENG-55) ────────────────────────────────────────
+   One elevation scale for the whole app, defined here and nowhere else:
+     0  page      the backdrop (body::before), a quiet tonal gradient
+     1  surface   section cards: charts, lists, tables      .surface
+     2  raised    key figures, and links that lift          .surface-raised
+                  the one hero figure per page lifts most   .surface-hero
+     3  overlay   tooltips, menus, dialogs, sheets          .surface-overlay
+   Tailwind mirrors the shadows as shadow-e1 / shadow-e2 / shadow-e3.
+   Shadows are tinted toward the page hue (never pure black on light). In dark
+   mode shadows barely read, so height is carried by a lighter surface and a
+   faint rim of light along the top edge, as dark Apple materials do. */
+@layer base {
+  :root {
+    --shadow-color: 215 45% 28%;
+    --surface-edge: 214 24% 88%;
+    --surface-raised: 0 0% 100%;
+    --surface-overlay: 0 0% 100%;
+    --elevation-1:
+      0 1px 2px hsl(var(--shadow-color) / 0.04),
+      0 2px 6px -2px hsl(var(--shadow-color) / 0.06);
+    --elevation-2:
+      0 1px 2px hsl(var(--shadow-color) / 0.06),
+      0 6px 14px -6px hsl(var(--shadow-color) / 0.12),
+      0 18px 36px -16px hsl(var(--shadow-color) / 0.16);
+    --elevation-3:
+      0 2px 6px hsl(var(--shadow-color) / 0.08),
+      0 14px 30px -8px hsl(var(--shadow-color) / 0.2),
+      0 32px 64px -20px hsl(var(--shadow-color) / 0.24);
+    --hero-light:
+      radial-gradient(120% 100% at 50% -30%, hsl(var(--primary) / 0.08), transparent 65%);
+    --elevation-hero:
+      var(--elevation-2),
+      0 28px 56px -28px hsl(var(--shadow-color) / 0.24);
+    --page-backdrop:
+      radial-gradient(64rem 30rem at 70% -8rem, hsl(199 75% 86% / 0.5), transparent 70%),
+      radial-gradient(50rem 36rem at 0% 105%, hsl(224 50% 86% / 0.45), transparent 70%),
+      linear-gradient(180deg, hsl(210 32% 97%), hsl(214 26% 93.5%));
+  }
+
+  .dark {
+    --shadow-color: 224 60% 3%;
+    --surface-edge: 220 18% 20%;
+    --surface-raised: 220 22% 16%;
+    --surface-overlay: 220 22% 17%;
+    --elevation-1:
+      inset 0 1px 0 hsl(0 0% 100% / 0.04),
+      0 1px 2px hsl(var(--shadow-color) / 0.3);
+    --elevation-2:
+      inset 0 1px 0 hsl(0 0% 100% / 0.07),
+      0 1px 2px hsl(var(--shadow-color) / 0.4),
+      0 12px 28px -12px hsl(var(--shadow-color) / 0.7);
+    --elevation-3:
+      inset 0 1px 0 hsl(0 0% 100% / 0.08),
+      0 14px 32px -8px hsl(var(--shadow-color) / 0.65),
+      0 32px 64px -20px hsl(var(--shadow-color) / 0.75);
+    --hero-light:
+      radial-gradient(120% 100% at 50% -30%, hsl(var(--primary) / 0.14), transparent 65%);
+    --elevation-hero:
+      inset 0 1px 0 hsl(0 0% 100% / 0.09),
+      0 1px 2px hsl(var(--shadow-color) / 0.4),
+      0 18px 40px -16px hsl(var(--shadow-color) / 0.8);
+    --page-backdrop:
+      radial-gradient(64rem 30rem at 70% -8rem, hsl(204 65% 26% / 0.3), transparent 70%),
+      radial-gradient(50rem 36rem at 0% 105%, hsl(234 45% 20% / 0.35), transparent 70%),
+      linear-gradient(180deg, hsl(221 30% 9.5%), hsl(224 32% 7%));
+  }
+}
+
+@layer base {
+  html { background-color: hsl(var(--background)); }
+  /* The backdrop sits on a fixed layer so it never stretches over long pages
+     (iOS ignores background-attachment: fixed) */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--page-backdrop);
+    pointer-events: none;
+  }
+}
+
+@layer components {
+  .surface {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--surface-edge));
+    box-shadow: var(--elevation-1);
+  }
+  .surface-raised,
+  .surface-hero {
+    background-color: hsl(var(--surface-raised));
+    border: 1px solid hsl(var(--surface-edge));
+    box-shadow: var(--elevation-2);
+  }
+  .surface-hero { background-image: var(--hero-light); box-shadow: var(--elevation-hero); }
+  /* Opaque by default; floating chrome that wants glass adds its own blur */
+  .surface-overlay {
+    background-color: hsl(var(--surface-overlay));
+    border: 1px solid hsl(var(--surface-edge));
+    box-shadow: var(--elevation-3);
+  }
+}
+
+/* More contrast: solid page, defined edges, figures don't rely on shadow */
+@media (prefers-contrast: more) {
+  :root, .dark { --surface-edge: var(--foreground) / 0.4; --hero-light: none; }
+  body::before { background: hsl(var(--background)); }
+}
+
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  body { @apply text-foreground; }
 
   /* iOS Safari gives date inputs an intrinsic min width, so they ignore
      w-full and spill out of narrow grid cells */

@@ -58,7 +58,7 @@ export function ThemeSelector() {
               'flex-1 h-full rounded-md flex items-center justify-center transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               selected
-                ? 'bg-card text-foreground shadow-sm'
+                ? 'bg-card text-foreground shadow-e1'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

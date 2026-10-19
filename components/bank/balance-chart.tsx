@@ -12,7 +12,7 @@ interface TxPoint { date: string; balance: number }
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="text-muted-foreground text-xs mb-0.5">{label}</p>
       <p className="text-[hsl(var(--income))] font-semibold tabular-nums">{formatCurrency(payload[0].value)}</p>
     </div>

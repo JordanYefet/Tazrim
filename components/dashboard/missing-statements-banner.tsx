@@ -41,7 +41,7 @@ export function MissingStatementsBanner({ items }: { items: MissingStatementItem
   return (
     <div
       role="status"
-      className="flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2 text-sm shadow-sm"
+      className="flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2 text-sm shadow-e1"
     >
       <FileWarning className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
       <div className="min-w-0 flex-1 space-y-0.5">

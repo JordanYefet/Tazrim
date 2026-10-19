@@ -107,7 +107,7 @@ export function CategoryInsights({
   cardPath = '/cards',
 }: Props) {
   return (
-    <section className="flex flex-col rounded-xl border bg-card p-4 sm:p-6">
+    <section className="flex flex-col rounded-xl surface p-4 sm:p-6">
       <h3 className="font-semibold text-base">שינויים בהוצאות בכרטיס</h3>
       <p className="text-sm text-muted-foreground mb-4">
         {insights

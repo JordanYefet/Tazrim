@@ -3,7 +3,7 @@ import { SearchX, Search } from 'lucide-react'
 /** Before anything is typed: what can be searched */
 export function SearchEmptyState({ compact }: { compact?: boolean }) {
   return (
-    <div className={compact ? 'px-4 py-8 text-center' : 'rounded-xl border bg-card px-4 py-12 text-center'}>
+    <div className={compact ? 'px-4 py-8 text-center' : 'rounded-xl surface px-4 py-12 text-center'}>
       <Search className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden />
       <p className="mt-3 text-sm font-medium">חיפוש בכל התנועות</p>
       <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">
@@ -15,7 +15,7 @@ export function SearchEmptyState({ compact }: { compact?: boolean }) {
 
 export function SearchNoResults({ compact, ignoredHidden }: { compact?: boolean; ignoredHidden?: boolean }) {
   return (
-    <div className={compact ? 'px-4 py-8 text-center' : 'rounded-xl border bg-card px-4 py-12 text-center'}>
+    <div className={compact ? 'px-4 py-8 text-center' : 'rounded-xl surface px-4 py-12 text-center'}>
       <SearchX className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden />
       <p className="mt-3 text-sm font-medium">לא נמצאו תנועות</p>
       <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">

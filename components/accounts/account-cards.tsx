@@ -5,8 +5,8 @@ import { formatDate } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 
 const LINK =
-  'group flex flex-col gap-4 rounded-xl border bg-card p-4 sm:p-5 transition-[background-color,border-color,transform] duration-200 ' +
-  'hover:border-primary/30 hover:bg-primary/[0.03] active:scale-[0.99] ' +
+  'group flex flex-col gap-4 rounded-xl surface-raised p-4 sm:p-5 transition-[background-color,border-color,box-shadow,transform] duration-200 ' +
+  'hover:border-primary/30 hover:shadow-e3 active:scale-[0.99] ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
 function CardHeader({ icon: Icon, name, sub }: { icon: typeof Building2; name: string; sub?: string }) {

@@ -16,7 +16,7 @@ const COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
 function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{payload[0].name}</p>
       <p className="text-[hsl(var(--expense))] font-medium">{formatCurrency(payload[0].value)}</p>
     </div>

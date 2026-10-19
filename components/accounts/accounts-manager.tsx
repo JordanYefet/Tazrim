@@ -85,7 +85,7 @@ export function AccountsManager({
           {notice.kind === 'created' && (
             <Link
               href="/upload"
-              className="inline-flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 font-medium text-primary shadow-sm hover:bg-muted"
+              className="inline-flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 font-medium text-primary shadow-e1 hover:bg-muted"
             >
               <Upload className="h-4 w-4" aria-hidden />
               להעלאת קובץ
@@ -98,7 +98,7 @@ export function AccountsManager({
       )}
 
       {adding && (
-        <section className="rounded-xl border bg-card p-4 md:p-6">
+        <section className="rounded-xl surface p-4 md:p-6">
           <AddAccountForm key={adding} initialKind={adding} onCreated={created} onCancel={() => setAdding(null)} />
         </section>
       )}
@@ -108,7 +108,7 @@ export function AccountsManager({
       )}
 
       {groups.map(group => (
-        <section key={group.kind} className="rounded-xl border bg-card">
+        <section key={group.kind} className="rounded-xl surface">
           <h2 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-medium md:px-6">
             <group.icon className="h-4 w-4 text-muted-foreground" aria-hidden />
             {group.label}
@@ -129,7 +129,7 @@ export function AccountsManager({
       ))}
 
       {archived.length > 0 && (
-        <details className="group rounded-xl border bg-card">
+        <details className="group rounded-xl surface">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm font-medium hover:bg-muted/50 md:px-6 [&::-webkit-details-marker]:hidden">
             <span className="flex items-center gap-2">
               <Archive className="h-4 w-4 text-muted-foreground" aria-hidden />

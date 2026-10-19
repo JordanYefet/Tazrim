@@ -176,7 +176,7 @@ export default async function DashboardPage({
 
 function EmptyState({ year }: { year: string }) {
   return (
-    <section className="rounded-xl border border-dashed bg-card px-6 py-16 text-center">
+    <section className="rounded-xl surface border-dashed px-6 py-16 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
         <FileSpreadsheet className="h-6 w-6" aria-hidden />
       </div>

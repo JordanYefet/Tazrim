@@ -15,7 +15,7 @@ export function RecurringCard({ series, total, limit = 4 }: Props) {
   const top = series.slice(0, limit)
   const flagged = series.filter(s => s.isNew || s.priceIncrease).length
   return (
-    <section className="flex flex-col rounded-xl border bg-card p-4 sm:p-6">
+    <section className="flex flex-col rounded-xl surface p-4 sm:p-6">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="flex items-center gap-1.5 text-base font-semibold">

@@ -39,7 +39,7 @@ function CustomTooltip({ active, payload, label }: any) {
   const rows = payload.filter((p: any) => p.value > 0)
   const total = rows.reduce((s: number, p: any) => s + p.value, 0)
   return (
-    <div className="rounded-lg border bg-card shadow-lg px-3 py-2 text-sm">
+    <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       {payload.length === 1 ? (
         <p className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrency(payload[0].value)}</p>

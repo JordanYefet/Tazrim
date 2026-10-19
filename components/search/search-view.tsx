@@ -109,7 +109,7 @@ export function SearchView({ filters, queryString, page, accounts, categories }:
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="text-2xl font-bold">חיפוש</h1>
 
-      <div className="space-y-3 rounded-xl border bg-card p-3 sm:p-4">
+      <div className="space-y-3 rounded-xl surface p-3 sm:p-4">
         <div className="flex items-center gap-2">
           <label className="relative flex-1">
             <span className="sr-only">טקסט חופשי</span>
@@ -269,7 +269,7 @@ function Results({ initial, queryString, terms }: { initial: SearchPage; querySt
   }
 
   return (
-    <section className="rounded-xl border bg-card p-2 sm:p-3">
+    <section className="rounded-xl surface p-2 sm:p-3">
       <p className="px-2 pb-2 text-xs text-muted-foreground tabular-nums" aria-live="polite">
         {initial.total === 1 ? 'תוצאה אחת' : `${initial.total} תוצאות`}
         {initial.total > results.length ? ` · מוצגות ${results.length}` : ''}

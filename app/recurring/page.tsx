@@ -27,7 +27,7 @@ function actionsFor(s: RecurringListItem) {
 function Collapsible({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   if (count === 0) return null
   return (
-    <details className="group rounded-xl border bg-card">
+    <details className="group rounded-xl surface">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm font-medium hover:bg-muted/50 sm:px-6 [&::-webkit-details-marker]:hidden">
         <span>
           {title} <span className="text-muted-foreground tabular-nums">({count})</span>
