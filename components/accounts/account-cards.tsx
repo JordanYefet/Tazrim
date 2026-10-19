@@ -1,27 +1,12 @@
 import Link from 'next/link'
-import { Building2, ChevronLeft, CreditCard } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { RollingNumber } from '@/components/ui/rolling-number'
-import { formatDate } from '@/lib/utils/date'
+import { BankElement, PaymentCard } from '@/components/accounts/account-element'
+import { cardLabel } from '@/lib/accounts/brands'
 import { cn } from '@/lib/utils/cn'
 
-const LINK =
-  'group flex flex-col gap-4 rounded-xl surface-raised p-4 sm:p-5 transition-[background-color,border-color,box-shadow,transform] duration-200 ' +
-  'hover:border-primary/30 hover:shadow-e3 active:scale-[0.99] ' +
+const FOCUS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
-
-function CardHeader({ icon: Icon, name, sub }: { icon: typeof Building2; name: string; sub?: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Icon className="h-4 w-4" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{name}</p>
-        {sub && <p className="truncate text-xs text-muted-foreground">{sub}</p>}
-      </div>
-    </div>
-  )
-}
 
 function Footer({ label }: { label: string }) {
   return (
@@ -46,55 +31,42 @@ function ShareMeter({ share, color, label }: { share: number; color: string; lab
   )
 }
 
-function Row({ label, value, className }: { label: string; value: number; className?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className={cn('font-medium tabular-nums', className)}>
-        <RollingNumber value={value} format="currencyExact" />
-      </dd>
-    </div>
-  )
-}
-
 export interface BankAccountSummary {
   href: string
   name: string
+  provider: string
+  /** The account's colour, for banks without a face of their own */
+  color?: string
   income: number
   expense: number
   /** Balance after the latest transaction in the period */
   latest?: { balance: number; date: string }
+  /** Month-end balances of the year, oldest first */
+  trend?: number[]
   /** Share of the combined bank expense (only with several accounts) */
   expenseShare?: number
 }
 
-export function BankAccountCard({ href, name, income, expense, latest, expenseShare }: BankAccountSummary) {
-  const net = income - expense
+/** /banks tile: the bank account element itself is the link. */
+export function BankAccountCard({ href, name, provider, color, income, expense, latest, trend, expenseShare }: BankAccountSummary) {
   return (
-    <Link href={href} className={LINK}>
-      <CardHeader
-        icon={Building2}
+    <Link href={href} className={cn('group acct-press block h-full rounded-[18px]', FOCUS)}>
+      <BankElement
+        plain
+        tilt
+        provider={provider}
         name={name}
-        sub={latest ? `יתרה ${formatDate(latest.date)}` : 'אין תנועות בתקופה'}
-      />
-      {latest && (
-        <p className="text-2xl font-semibold tracking-tight tabular-nums">
-          <RollingNumber value={latest.balance} format="currencyExact" />
-        </p>
-      )}
-      <dl className="space-y-1.5">
-        <Row label="הכנסות" value={income} className="text-[hsl(var(--income))]" />
-        <Row label="הוצאות" value={expense} className="text-[hsl(var(--expense))]" />
-        <Row
-          label="מאזן נטו"
-          value={net}
-          className={net >= 0 ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'}
-        />
-      </dl>
-      {expenseShare !== undefined && (
-        <ShareMeter share={expenseShare} color="hsl(var(--expense))" label="מההוצאות בכל החשבונות" />
-      )}
-      <Footer label="לפירוט החשבון" />
+        color={color}
+        latest={latest}
+        totals={{ income, expense }}
+        trend={trend}
+        className="h-full transition-shadow group-hover:shadow-e3"
+      >
+        {expenseShare !== undefined && (
+          <ShareMeter share={expenseShare} color="hsl(var(--expense))" label="מההוצאות בכל החשבונות" />
+        )}
+        <Footer label="לפירוט החשבון" />
+      </BankElement>
     </Link>
   )
 }
@@ -102,6 +74,8 @@ export function BankAccountCard({ href, name, income, expense, latest, expenseSh
 export interface CardAccountSummary {
   href: string
   name: string
+  provider: string
+  network?: string | null
   lastFour?: string | null
   total: number
   count: number
@@ -112,41 +86,59 @@ export interface CardAccountSummary {
   topCategories: { name: string; total: number; color?: string }[]
 }
 
-export function CardAccountCard({ href, name, lastFour, total, count, color, share, topCategories }: CardAccountSummary) {
+/** /cards tile: the card element, with the period's figures under it. */
+export function CardAccountCard({
+  href,
+  name,
+  provider,
+  network,
+  lastFour,
+  total,
+  count,
+  color,
+  share,
+  topCategories,
+}: CardAccountSummary) {
   return (
-    <Link href={href} className={LINK}>
-      <CardHeader
-        icon={CreditCard}
-        name={name}
-        sub={lastFour ? `כרטיס ·${lastFour}` : undefined}
-      />
-      <div>
-        <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight tabular-nums">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />
-          <RollingNumber value={total} format="currencyExact" />
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          <RollingNumber value={count} format="integer" /> עסקאות
-        </p>
-      </div>
-      {share !== undefined && <ShareMeter share={share} color={color} label="מהחיובים בכל הכרטיסים" />}
-      {topCategories.length > 0 && (
-        <div>
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">קטגוריות מובילות</p>
-          <dl className="space-y-1.5">
-            {topCategories.map(c => (
-              <div key={c.name} className="flex items-center gap-2 text-sm">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c.color ?? 'var(--chart-cc)' }} aria-hidden />
-                <dt className="min-w-0 flex-1 truncate">{c.name}</dt>
-                <dd className="tabular-nums text-muted-foreground">
-                  <RollingNumber value={c.total} format="currencyExact" />
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+    <Link
+      href={href}
+      className={cn(
+        'group acct-press flex flex-col gap-4 rounded-xl surface-raised p-3 pb-4 transition-shadow duration-200 hover:shadow-e3 sm:p-4 sm:pb-5',
+        FOCUS
       )}
-      <Footer label="לפירוט הכרטיס" />
+    >
+      <span className="sr-only">{cardLabel({ provider, name, lastFour, network })}</span>
+      <PaymentCard decorative tilt provider={provider} name={name} lastFour={lastFour} network={network} color={color} />
+      <div className="flex flex-col gap-4 px-1 sm:px-1.5">
+        <div>
+          <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight tabular-nums">
+            {/* The card's colour in the chart above */}
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+            <RollingNumber value={total} format="currencyExact" />
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            <RollingNumber value={count} format="integer" /> עסקאות
+          </p>
+        </div>
+        {share !== undefined && <ShareMeter share={share} color={color} label="מהחיובים בכל הכרטיסים" />}
+        {topCategories.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">קטגוריות מובילות</p>
+            <dl className="space-y-1.5">
+              {topCategories.map(c => (
+                <div key={c.name} className="flex items-center gap-2 text-sm">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c.color ?? 'var(--chart-cc)' }} aria-hidden />
+                  <dt className="min-w-0 flex-1 truncate">{c.name}</dt>
+                  <dd className="tabular-nums text-muted-foreground">
+                    <RollingNumber value={c.total} format="currencyExact" />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        <Footer label="לפירוט הכרטיס" />
+      </div>
     </Link>
   )
 }

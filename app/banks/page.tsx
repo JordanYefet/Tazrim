@@ -4,7 +4,8 @@ import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankAccountCard } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { BANK_COLORS } from '@/lib/nav/state'
 import { accountHref } from '@/lib/accounts/routes'
 import {
   bankPeriodTotals,
@@ -26,13 +27,15 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
 
   const accounts = await listAccounts({ kind: 'BANK' })
   const perAccount = await Promise.all(
-    accounts.map(async account => {
-      const [monthly, [latest]] = await Promise.all([
+    accounts.map(async (account, i) => {
+      const [monthly, [latest], trend] = await Promise.all([
         getBankMonthlySummary(Number(year), account.id),
         // newest row in the period: its balance is the account's balance then
         getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
+        getBankBalanceTrend(account.id, Number(year), month),
       ])
-      return { account, monthly, latest, totals: bankPeriodTotals(monthly, month) }
+      const color = BANK_COLORS[i % BANK_COLORS.length]
+      return { account, monthly, latest, trend, color, totals: bankPeriodTotals(monthly, month) }
     })
   )
 
@@ -91,11 +94,14 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               {several ? `החשבונות (${accounts.length})` : 'החשבון'}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {perAccount.map(({ account, latest, totals: t }) => (
+              {perAccount.map(({ account, latest, trend, color, totals: t }) => (
                 <BankAccountCard
                   key={account.id}
                   href={accountHref('BANK', account.id, period)}
                   name={account.displayName}
+                  provider={account.provider}
+                  color={color}
+                  trend={trend.map(p => p.balance)}
                   income={t.income}
                   expense={t.expense}
                   latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}

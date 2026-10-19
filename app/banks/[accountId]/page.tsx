@@ -5,7 +5,8 @@ import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { BankElement } from '@/components/accounts/account-element'
+import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getAccount } from '@/lib/db/accounts'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
@@ -27,7 +28,7 @@ async function getBankData(accountId: string, params: SearchParams) {
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
-  const [txs, monthly, unusual] = await Promise.all([
+  const [txs, monthly, unusual, [latest], trend] = await Promise.all([
     getBankTransactions({
       accountId,
       year: Number(year),
@@ -43,9 +44,14 @@ async function getBankData(accountId: string, params: SearchParams) {
     getRecurringSeries().then(r =>
       getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } })
     ),
+    // The hero's balance: the newest row of the period, whatever the table filters
+    getBankTransactions({ accountId, year: Number(year), month, take: 1 }),
+    getBankBalanceTrend(accountId, Number(year), month),
   ])
 
   return {
+    latest: latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined,
+    trend: trend.map(p => p.balance),
     transactions: asJson(txs),
     unusual: unusual.bank,
     bankSummary: monthly as BankMonthly,
@@ -66,7 +72,7 @@ export default async function BankAccountPage({
   const params = await searchParams
   const year = params.year ?? String(new Date().getFullYear())
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, bankSummary, unusual } = await getBankData(account.id, params)
+  const { transactions, bankSummary, unusual, latest, trend } = await getBankData(account.id, params)
 
   const { income, expense, averageExpense } = bankPeriodTotals(bankSummary, month)
 
@@ -100,27 +106,43 @@ export default async function BankAccountPage({
         badge={account.archived ? 'בארכיון' : undefined}
       />
 
-      {hasData ? (
-        <>
+      {/* The account itself is the page's hero, next to the period totals on wide screens */}
+      <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+        <BankElement
+          hero
+          tilt
+          provider={account.provider}
+          name={account.displayName}
+          color="var(--chart-income)"
+          latest={latest}
+          trend={trend}
+          emptyText="אין תנועות בתקופה"
+        />
+        {hasData ? (
           <BankSummaryCards
             income={income}
             expense={expense}
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
           />
+        ) : (
+          <EmptyState
+            icon={FileSpreadsheet}
+            title={month ? `אין תנועות ב${periodLabel(year, month)}` : `אין תנועות לשנת ${year}`}
+            text={`העלה קובץ תנועות של ${account.displayName} כדי לראות כאן הכנסות, הוצאות ויתרה.`}
+            actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+          />
+        )}
+      </div>
+
+      {hasData && (
+        <>
           {/* Same 5/7 split as the summary row above, so the edges line up */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} monthCount={monthCount} />
             <BalanceChart data={balancePoints} />
           </div>
         </>
-      ) : (
-        <EmptyState
-          icon={FileSpreadsheet}
-          title={month ? `אין תנועות ב${periodLabel(year, month)}` : `אין תנועות לשנת ${year}`}
-          text={`העלה קובץ תנועות של ${account.displayName} כדי לראות כאן הכנסות, הוצאות ויתרה.`}
-          actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
-        />
       )}
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (

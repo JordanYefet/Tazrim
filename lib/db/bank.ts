@@ -4,6 +4,7 @@ import type { ParsedBankTransaction } from '../parsers/types'
 import { accountWhere, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
 import { localDay } from '../upload/card-dedupe'
+import { monthEndBalances } from '../insights/account-overview'
 
 /** An uploaded bank row that was not imported because the account already has it. */
 export interface SkippedBankRow {
@@ -115,6 +116,20 @@ export async function updateBankTransaction(
   data: { description?: string; note?: string; ignored?: boolean }
 ) {
   return prisma.bankTransaction.update({ where: { id }, data })
+}
+
+/**
+ * One account's balance at the end of each month of `year` that has rows, up
+ * to `untilMonth` when given (ENG-57 sparkline). Ignored rows still carry the
+ * bank's running balance, so they count.
+ */
+export async function getBankBalanceTrend(accountId: string, year: number, untilMonth?: number) {
+  const rows = await prisma.bankTransaction.findMany({
+    where: { accountId, date: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) } },
+    orderBy: { date: 'asc' },
+    select: { date: true, balance: true },
+  })
+  return monthEndBalances(rows, untilMonth)
 }
 
 /** Monthly income/expense; `accountId` omitted = every bank account. */
