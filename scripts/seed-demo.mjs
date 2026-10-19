@@ -18,20 +18,26 @@ import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const file = path.resolve(root, process.argv[2] ?? 'prisma/demo.db')
+// --data-only (used by the Docker image with TAZRIM_DEMO=1): the database is
+// already migrated by `prisma migrate deploy`; only add the demo rows, and only
+// when it has no transactions yet, so real data is never mixed with demo data.
+const dataOnly = process.argv.includes('--data-only')
+const file = path.resolve(root, process.argv.slice(2).find(a => !a.startsWith('--')) ?? 'prisma/demo.db')
 const migrationsDir = path.join(root, 'prisma/migrations')
 
-fs.rmSync(file, { force: true })
-const exec = sql => execFileSync('sqlite3', ['-bail', file], { input: sql })
-exec(`CREATE TABLE "_prisma_migrations" (
-  "id" TEXT PRIMARY KEY NOT NULL, "checksum" TEXT NOT NULL, "finished_at" DATETIME,
-  "migration_name" TEXT NOT NULL, "logs" TEXT, "rolled_back_at" DATETIME,
-  "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
-  "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);`)
-for (const name of fs.readdirSync(migrationsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()) {
-  exec(fs.readFileSync(path.join(migrationsDir, name, 'migration.sql'), 'utf8'))
-  exec(`INSERT INTO "_prisma_migrations" ("id","checksum","migration_name","finished_at","applied_steps_count")
-        VALUES ('demo-${name}','demo','${name}',CURRENT_TIMESTAMP,1);`)
+if (!dataOnly) {
+  fs.rmSync(file, { force: true })
+  const exec = sql => execFileSync('sqlite3', ['-bail', file], { input: sql })
+  exec(`CREATE TABLE "_prisma_migrations" (
+    "id" TEXT PRIMARY KEY NOT NULL, "checksum" TEXT NOT NULL, "finished_at" DATETIME,
+    "migration_name" TEXT NOT NULL, "logs" TEXT, "rolled_back_at" DATETIME,
+    "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
+    "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);`)
+  for (const name of fs.readdirSync(migrationsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()) {
+    exec(fs.readFileSync(path.join(migrationsDir, name, 'migration.sql'), 'utf8'))
+    exec(`INSERT INTO "_prisma_migrations" ("id","checksum","migration_name","finished_at","applied_steps_count")
+          VALUES ('demo-${name}','demo','${name}',CURRENT_TIMESTAMP,1);`)
+  }
 }
 
 // Deterministic, so the demo looks the same on every run
@@ -136,6 +142,11 @@ const bankRows = bankEvents.map(e => {
 })
 
 const prisma = new PrismaClient({ datasourceUrl: `file:${file}` })
+if (dataOnly && (await prisma.bankTransaction.count()) + (await prisma.creditCardTransaction.count()) > 0) {
+  console.log('Demo data skipped: the database already has transactions')
+  await prisma.$disconnect()
+  process.exit(0)
+}
 await prisma.account.update({ where: { id: CARD }, data: { cardLastFour: CARD_LAST_FOUR } })
 await prisma.bankTransaction.createMany({ data: bankRows })
 await prisma.creditCardTransaction.createMany({ data: cardRows })
@@ -147,4 +158,4 @@ await prisma.uploadHistory.createMany({
 })
 await prisma.$disconnect()
 
-console.log(`Demo database: ${path.relative(root, file)} (${bankRows.length} bank rows, ${cardRows.length} card rows)`)
+console.log(`Demo database: ${dataOnly ? file : path.relative(root, file)} (${bankRows.length} bank rows, ${cardRows.length} card rows)`)
