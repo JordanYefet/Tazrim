@@ -13,6 +13,7 @@
 ## תוכן עניינים
 
 - [התקנה והרצה מקומית](#התקנה-והרצה-מקומית)
+- [הרצה עם Docker](#הרצה-עם-docker)
 - [מצב דמו](#מצב-דמו)
 - [פתיחה מהטלפון](#פתיחה-מהטלפון)
 - [איך משתמשים](#איך-משתמשים)
@@ -56,6 +57,81 @@ npm run dev
 ```bash
 npm run build
 npm start        # http://localhost:3000
+```
+
+---
+
+## הרצה עם Docker
+
+אין צורך ב-Node.js, ב-Git או בהתקנות נוספות, רק ב-Docker. בסיס הנתונים נשמר ב-volume של Docker על המחשב שלכם, ולא בתוך הקונטיינר.
+
+### התקנה והפעלה
+
+1. מתקינים את [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows או macOS) או את Docker Engine (Linux), ומפעילים אותו.
+2. מורידים את הקוד, [כקובץ ZIP](https://github.com/JordanYefet/Tazrim/archive/refs/heads/main.zip) או עם `git clone https://github.com/JordanYefet/Tazrim.git`, ונכנסים לתיקייה בטרמינל.
+3. מריצים:
+
+```bash
+docker compose up -d
+```
+
+בפעם הראשונה בונים את האפליקציה, וזה לוקח כמה דקות. אחר כך פותחים בדפדפן את <http://localhost:3000>.
+כשהקונטיינר עולה הוא יוצר את בסיס הנתונים (ובהמשך מעדכן את המבנה שלו), וחוזר לפעול לבד אחרי הפעלה מחדש של המחשב או של Docker.
+
+עצירה: `docker compose stop`. הפעלה מחדש: `docker compose start`.
+
+### שינוי הפורט
+
+אם פורט 3000 תפוס, בוחרים פורט אחר:
+
+```bash
+TAZRIM_PORT=3005 docker compose up -d     # http://localhost:3005
+```
+
+כדי שזה יישמר (וגם ב-Windows, שבו התחביר הזה לא עובד), יוצרים בתיקייה קובץ `.env` עם השורה `TAZRIM_PORT=3005`, ומריצים רק `docker compose up -d`. כך אפשר לקבוע גם את `TAZRIM_DEMO=1` שבהמשך.
+
+### עדכון לגרסה חדשה
+
+```bash
+git pull                       # או מורידים ZIP חדש ופורסים לאותה תיקייה
+docker compose up -d --build
+```
+
+הנתונים נשארים ב-volume, ומבנה בסיס הנתונים מתעדכן אוטומטית בעלייה. כדאי לגבות לפני כל עדכון.
+
+### גיבוי ושחזור
+
+בסיס הנתונים הוא הקובץ `/data/tazrim.db` בתוך הקונטיינר. גיבוי:
+
+```bash
+docker compose cp tazrim:/data/tazrim.db ./tazrim-backup.db
+```
+
+שחזור מגיבוי (מחליף את כל הנתונים הנוכחיים):
+
+```bash
+docker compose stop
+docker compose cp ./tazrim-backup.db tazrim:/data/tazrim.db
+docker compose start
+```
+
+אותו קובץ מתאים גם להרצה המקומית: אפשר להעתיק אותו ל-`prisma/tazrim.db`, וגם להפך.
+
+> `docker compose down` משאיר את הנתונים. `docker compose down -v` **מוחק את ה-volume ואת כל הנתונים**.
+
+### מצב דמו ב-Docker
+
+כדי לראות את האפליקציה עם שנה של תנועות מומצאות:
+
+```bash
+TAZRIM_DEMO=1 docker compose up -d
+```
+
+הנתונים המומצאים נכנסים רק לבסיס נתונים ריק, כלומר רק בהרצה הראשונה. בסיס נתונים שכבר יש בו תנועות לא משתנה. כדי לעבור מהדמו לנתונים אמיתיים, מוחקים את נתוני הדמו ומתחילים מבסיס נתונים ריק:
+
+```bash
+docker compose down -v
+docker compose up -d
 ```
 
 ---
