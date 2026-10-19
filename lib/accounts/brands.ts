@@ -36,7 +36,7 @@ export const CARD_FACES: Record<string, Face> = {
   max: { key: 'max', stops: ['#ff6a5c', '#e2316f', '#7c1d55'] },
   cal: { key: 'cal', stops: ['#2bb3e6', '#1663c7', '#0b2f73'] },
   isracard: { key: 'isracard', stops: ['#3a4f9e', '#1f2c6b', '#111737'] },
-  amex: { key: 'amex', stops: ['#5aa2e0', '#1f6bb8', '#123d73'] },
+  amex: { key: 'amex', stops: ['#5bb2c9', '#1f7393', '#0f3d52'] },
 }
 
 /** Banks with a face of their own. */
@@ -73,6 +73,23 @@ const PROVIDER_ALIASES: Record<string, string> = {
   אמקס: 'amex',
 }
 
+/** Hebrew names of the providers the app knows. */
+export const PROVIDER_LABELS: Record<string, string> = {
+  leumi: 'לאומי',
+  hapoalim: 'הפועלים',
+  discount: 'דיסקונט',
+  mizrahi: 'מזרחי טפחות',
+  max: 'מקס',
+  cal: 'כאל',
+  isracard: 'ישראכרט',
+  amex: 'אמריקן אקספרס',
+  hitech: 'הייטקזון',
+}
+
+export function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[providerKey(provider)] ?? provider
+}
+
 export function providerKey(provider: string | null | undefined): string {
   const p = (provider ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
   return PROVIDER_ALIASES[p] ?? p
@@ -105,4 +122,26 @@ export function faceFor(kind: FaceKind, provider: string | null | undefined, acc
 /** Network a card issuer implies (an Amex card is an Amex card). */
 export function impliedNetwork(provider: string | null | undefined): CardNetwork | null {
   return providerKey(provider) === 'amex' ? 'amex' : null
+}
+
+/** What the card element says to assistive tech: issuer, name, last digits, network. */
+export function cardLabel({
+  provider,
+  name,
+  lastFour,
+  network,
+}: {
+  provider: string
+  name: string
+  lastFour?: string | null
+  network?: string | null
+}): string {
+  return [
+    `כרטיס אשראי${provider ? ` ${providerLabel(provider)}` : ''}`,
+    name,
+    lastFour ? `מסתיים ב-${lastFour}` : null,
+    networkLabel(network),
+  ]
+    .filter(Boolean)
+    .join(', ')
 }
