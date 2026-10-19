@@ -46,6 +46,15 @@ describe('POST /api/accounts', () => {
     expect(await res.json()).toMatchObject({ kind: 'CREDIT_CARD', provider: 'max', displayName: 'Fake card 2', cardLastFour: '0000' })
   })
 
+  it('accepts and returns a card network', async () => {
+    const res = await list.POST(json('POST', { kind: 'CREDIT_CARD', provider: 'cal', displayName: 'Fake card 3', cardNetwork: 'amex' }))
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ provider: 'cal', cardNetwork: 'amex' })
+    const bad = await list.POST(json('POST', { kind: 'CREDIT_CARD', provider: 'cal', displayName: 'x', cardNetwork: 'nope' }))
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).field).toBe('cardNetwork')
+  })
+
   it('400 for bad JSON and invalid fields', async () => {
     expect((await list.POST(json('POST', 'not json'))).status).toBe(400)
     const res = await list.POST(json('POST', { kind: 'PENSION', provider: 'x', displayName: 'x' }))
@@ -64,6 +73,21 @@ describe('PATCH /api/accounts/[id]', () => {
     expect(await archived.json()).toMatchObject({ archived: true })
     const restored = await item.PATCH(json('PATCH', { archived: false }), ctx('acct_test_card'))
     expect(await restored.json()).toMatchObject({ archived: false })
+  })
+
+  it('sets and clears the card network', async () => {
+    const set = await item.PATCH(json('PATCH', { cardNetwork: 'Mastercard' }), ctx('acct_test_card'))
+    expect(await set.json()).toMatchObject({ cardNetwork: 'mastercard' })
+    const cleared = await item.PATCH(json('PATCH', { cardNetwork: null }), ctx('acct_test_card'))
+    expect(await cleared.json()).toMatchObject({ cardNetwork: null })
+  })
+
+  it('400 for a bad network or a network on a bank, and nothing is written', async () => {
+    const bad = await item.PATCH(json('PATCH', { displayName: 'Not saved', cardNetwork: 'nope' }), ctx('acct_test_card'))
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).field).toBe('cardNetwork')
+    expect(db.query(`SELECT displayName FROM "Account" WHERE id = 'acct_test_card'`)).toEqual([{ displayName: 'Renamed card' }])
+    expect((await item.PATCH(json('PATCH', { cardNetwork: 'visa' }), ctx('acct_leumi'))).status).toBe(400)
   })
 
   it('400 for nothing to update, a bad name or a non-boolean archived', async () => {

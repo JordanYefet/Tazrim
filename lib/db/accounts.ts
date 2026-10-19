@@ -1,5 +1,6 @@
 import type { Account, AccountKind } from '@prisma/client'
 import { prisma } from './client'
+import { CARD_NETWORKS, isCardNetwork, type CardNetwork } from '@/lib/accounts/brands'
 
 export type { Account, AccountKind }
 
@@ -92,7 +93,7 @@ export const PROVIDER_MAX = 40
 /** Thrown for invalid input; API routes turn it into a 400. */
 export class AccountValidationError extends Error {
   constructor(
-    public field: 'kind' | 'provider' | 'displayName' | 'cardLastFour' | 'archived',
+    public field: 'kind' | 'provider' | 'displayName' | 'cardLastFour' | 'cardNetwork' | 'archived',
     message: string
   ) {
     super(message)
@@ -105,6 +106,7 @@ export interface NewAccountInput {
   provider: unknown
   displayName: unknown
   cardLastFour?: unknown
+  cardNetwork?: unknown
 }
 
 export function normalizeDisplayName(value: unknown): string {
@@ -126,12 +128,33 @@ export function normalizeProvider(value: unknown): string {
   return provider
 }
 
+/**
+ * Card network (ENG-56): one of CARD_NETWORKS' keys, any case. null, '' and
+ * 'other' clear it (unknown / other network). Cards only.
+ */
+export function normalizeCardNetwork(value: unknown, kind: string): CardNetwork | null {
+  if (value === undefined || value === null) return null
+  const v = typeof value === 'string' ? value.trim().toLowerCase() : value
+  if (v === '' || v === 'other') return null
+  if (kind !== 'CREDIT_CARD') {
+    throw new AccountValidationError('cardNetwork', 'רשת כרטיס רלוונטית רק לכרטיסי אשראי')
+  }
+  if (!isCardNetwork(v)) {
+    throw new AccountValidationError(
+      'cardNetwork',
+      `רשת כרטיס לא מוכרת (אחת מ: ${CARD_NETWORKS.map(n => n.label).join(', ')})`
+    )
+  }
+  return v
+}
+
 /** Validates and normalizes the input of createAccount. Throws AccountValidationError. */
 export function validateNewAccount(input: NewAccountInput): {
   kind: CreatableKind
   provider: string
   displayName: string
   cardLastFour: string | null
+  cardNetwork: CardNetwork | null
 } {
   const kind = input.kind
   if (typeof kind !== 'string' || !(CREATABLE_KINDS as readonly string[]).includes(kind)) {
@@ -150,7 +173,8 @@ export function validateNewAccount(input: NewAccountInput): {
     if (!/^\d{4}$/.test(s)) throw new AccountValidationError('cardLastFour', 'יש להזין בדיוק 4 ספרות')
     cardLastFour = s
   }
-  return { kind: kind as CreatableKind, provider, displayName, cardLastFour }
+  const cardNetwork = normalizeCardNetwork(input.cardNetwork, kind)
+  return { kind: kind as CreatableKind, provider, displayName, cardLastFour, cardNetwork }
 }
 
 export async function createAccount(input: NewAccountInput): Promise<Account> {
@@ -162,6 +186,17 @@ export async function renameAccount(id: string, displayName: unknown): Promise<A
   const name = normalizeDisplayName(displayName)
   const { count } = await prisma.account.updateMany({ where: { id }, data: { displayName: name } })
   return count ? getAccount(id) : null
+}
+
+/**
+ * Sets or clears a card's network. Null when the account does not exist.
+ * Throws AccountValidationError for an unknown network or a bank account.
+ */
+export async function setCardNetwork(id: string, network: unknown): Promise<Account | null> {
+  const account = await getAccount(id)
+  if (!account) return null
+  const cardNetwork = normalizeCardNetwork(network, account.kind)
+  return prisma.account.update({ where: { id }, data: { cardNetwork } })
 }
 
 /**
