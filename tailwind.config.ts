@@ -11,7 +11,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Heebo', 'system-ui', 'sans-serif'],
+        // Self-hosted Heebo from app/fonts.ts (Hebrew + Latin subsets)
+        sans: ['var(--font-heebo-hebrew)', 'var(--font-heebo-latin)', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',

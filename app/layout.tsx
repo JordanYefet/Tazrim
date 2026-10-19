@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import './globals.css'
+import { heeboHebrew, heeboLatin } from './fonts'
 import { Providers } from './providers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
@@ -30,12 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const sections = buildNavSections(accounts)
 
   return (
-    <html lang="he" dir="rtl" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="he" dir="rtl" className={`${heeboHebrew.variable} ${heeboLatin.variable}`} suppressHydrationWarning>
       <body>
         <Providers>
           <NavSectionsProvider sections={sections}>

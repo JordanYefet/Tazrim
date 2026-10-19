@@ -32,7 +32,8 @@ export function formatAxisCurrency(value: number, compact = false): string {
  */
 export function useChartAxes(textColor: string) {
   const small = useIsSmallScreen()
-  const tick = { fontSize: small ? 10 : 11, fill: textColor, fontFamily: 'Heebo' }
+  // No fontFamily: tick text inherits the page's self-hosted Heebo (font-sans)
+  const tick = { fontSize: small ? 10 : 11, fill: textColor }
 
   return {
     small,
