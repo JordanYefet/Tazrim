@@ -8,6 +8,7 @@ import { BottomNav } from '@/components/layout/bottom-nav'
 import { Header } from '@/components/layout/header'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
 import { listAccounts } from '@/lib/db/accounts'
+import { BRAND } from '@/lib/brand/colors'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -19,10 +20,21 @@ import {
 export const metadata: Metadata = {
   title: 'תזרים',
   description: 'ניהול פיננסי אישי',
+  // Installed on an iPhone home screen: opens full screen, with the system status bar
+  appleWebApp: { capable: true, title: 'תזרים', statusBarStyle: 'default' },
 }
 
-// viewport-fit=cover so env(safe-area-inset-*) is non-zero on phones with a home indicator
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' }
+// viewport-fit=cover so env(safe-area-inset-*) is non-zero on phones with a home indicator.
+// themeColor tints the installed app's title bar / phone status bar to match the header (--card).
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: BRAND.lightCard },
+    { media: '(prefers-color-scheme: dark)', color: BRAND.darkCard },
+  ],
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // The sidebar mode comes from a cookie so the first paint already has the right width
