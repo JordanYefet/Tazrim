@@ -7,7 +7,7 @@ import { withQuery } from '@/lib/accounts/routes'
 import { routeAccountId } from '@/lib/nav/state'
 import { SECTION_ITEMS, useNavSections } from '@/components/layout/nav-context'
 import { AccountMini } from './account-element'
-import { CardTransitionLink } from '@/components/cards/card-transition'
+import { WalletLink } from '@/components/cards/card-wallet'
 
 /**
  * Phone-only pills under the heading of /banks* and /cards*:
@@ -58,8 +58,8 @@ export function AccountSwitcher() {
       <ul ref={listRef} className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5">
         {pills.map(p => (
           <li key={p.key} className="shrink-0">
-            <CardTransitionLink
-              transition={item.key === 'cards'}
+            <WalletLink
+              wallet={item.key === 'cards'}
               ref={p.current ? activeRef : undefined}
               href={withQuery(p.href, period)}
               aria-current={p.current ? 'page' : undefined}
@@ -78,7 +78,7 @@ export function AccountSwitcher() {
               {p.account?.lastFour && (
                 <span dir="ltr" className="text-[11px] tabular-nums opacity-70">·{p.account.lastFour}</span>
               )}
-            </CardTransitionLink>
+            </WalletLink>
           </li>
         ))}
       </ul>

@@ -5,9 +5,6 @@ import { CategoryDonut } from '@/components/cards/category-donut'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { PaymentCard } from '@/components/accounts/account-element'
-import { CardTransitionSettled } from '@/components/cards/card-transition'
-import { cardTransitionStyle } from '@/lib/accounts/card-transition-name'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
 import { getCategories } from '@/lib/db/categories'
@@ -117,56 +114,43 @@ export default async function CardAccountPage({
 
   const hasData = lastMonthWithData(monthly) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
-  const card = (
-    <div style={cardTransitionStyle(account.id)}>
-      <PaymentCard
-        tilt
-        provider={account.provider}
-        name={account.displayName}
-        lastFour={account.cardLastFour}
-        network={account.cardNetwork}
-        color="var(--chart-cc)"
-      />
-    </div>
-  )
   const title = account.cardLastFour ? `${account.displayName} ·${account.cardLastFour}` : account.displayName
 
+  // The card itself is the wallet in app/cards/layout.tsx (open on this page);
+  // this page fills the grid around it (components/cards/card-wallet.tsx)
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeading
-        period={periodLabel(year, month)}
-        title={title}
-        back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
-        badge={account.archived ? 'בארכיון' : undefined}
-      />
-
-      {/* The card is one tile of the stats grid; it morphs here from the /cards stack */}
-      <CardTransitionSettled />
-      {hasData ? (
-        <CardSummaryCards
-          total={total}
-          count={count}
-          average={averageMonthly}
-          monthLabel={month ? monthName(month) : undefined}
-          label={params.category ? `חיובים · ${params.category}` : undefined}
-          card={card}
+    <div className="contents">
+      <div className="wallet-shell__head">
+        <PageHeading
+          period={periodLabel(year, month)}
+          title={title}
+          back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
+          badge={account.archived ? 'בארכיון' : undefined}
         />
-      ) : (
-        <div className="space-y-4">
-          <div className="w-1/2 max-w-[17rem] pe-2 lg:w-1/4">{card}</div>
+      </div>
+
+      <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
+        {hasData ? (
+          <CardSummaryCards
+            total={total}
+            count={count}
+            average={averageMonthly}
+            monthLabel={month ? monthName(month) : undefined}
+            label={params.category ? `חיובים · ${params.category}` : undefined}
+          />
+        ) : (
           <EmptyState
             icon={FileSpreadsheet}
             title={`אין חיובים לשנת ${year}`}
             text={`העלה פירוט חיובים של ${account.displayName} כדי לראות כאן את החיובים לפי חודש וקטגוריה.`}
             actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
           />
-        </div>
-      )}
+        )}
+      </div>
 
-      {hasData && (
-        <>
-          {/* Monthly bar chart + category donut side by side on large screens */}
-          {/* Same 5/7 split as the dashboard's summary row */}
+      <div className="wallet-shell__rest space-y-6">
+        {hasData && (
+          /* Monthly bar chart + category donut side by side on large screens */
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <MonthlySpendingChart
               accountId={account.id}
@@ -183,22 +167,22 @@ export default async function CardAccountPage({
               analysisHref={categoryAnalysisHref(account.id, period)}
             />
           </div>
-        </>
-      )}
+        )}
 
-      {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (
-        <CardTransactionsTable
-          key={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')}
-          accountId={account.id}
-          transactions={transactions}
-          categories={categories}
-          activeCategory={params.category}
-          showIgnored={params.showIgnored === 'true'}
-          hasMore={hasMore}
-          fetchParams={hasMore ? fetchSp.toString() : undefined}
-          unusual={unusual}
-        />
-      )}
+        {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (
+          <CardTransactionsTable
+            key={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')}
+            accountId={account.id}
+            transactions={transactions}
+            categories={categories}
+            activeCategory={params.category}
+            showIgnored={params.showIgnored === 'true'}
+            hasMore={hasMore}
+            fetchParams={hasMore ? fetchSp.toString() : undefined}
+            unusual={unusual}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { AccountMini, BankElement } from '@/components/accounts/account-element'
-import { CardTransitionLink } from '@/components/cards/card-transition'
+import { WalletLink } from '@/components/cards/card-wallet'
 import { cardLabel } from '@/lib/accounts/brands'
 import { cn } from '@/lib/utils/cn'
 
@@ -73,7 +73,6 @@ export function BankAccountCard({ href, name, provider, color, income, expense, 
 }
 
 export interface CardAccountSummary {
-  id: string
   href: string
   name: string
   provider: string
@@ -90,10 +89,9 @@ export interface CardAccountSummary {
 
 /**
  * /cards: one card's period figures, as a row of the list next to the stack
- * (ENG-56). The row opens the card through the same transition as the stack.
+ * (ENG-56). The row opens the card, moving it out of the stack like a tap on it.
  */
 export function CardSummaryRow({
-  id,
   href,
   name,
   provider,
@@ -107,7 +105,7 @@ export function CardSummaryRow({
 }: CardAccountSummary) {
   return (
     <li>
-      <CardTransitionLink
+      <WalletLink
         href={href}
         aria-label={`${cardLabel({ provider, name, lastFour, network })}: לפירוט הכרטיס`}
         className={cn(
@@ -116,7 +114,7 @@ export function CardSummaryRow({
         )}
       >
         <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} className="mt-0.5 w-12" />
-        <div className="min-w-0 flex-1 space-y-1.5" data-card={id}>
+        <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="min-w-0 truncate font-medium">
               {name}
@@ -162,7 +160,7 @@ export function CardSummaryRow({
           )}
         </div>
         <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />
-      </CardTransitionLink>
+      </WalletLink>
     </li>
   )
 }
