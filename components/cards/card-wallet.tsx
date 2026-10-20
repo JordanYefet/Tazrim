@@ -1,6 +1,19 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type Ref } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type MouseEvent,
+  type ReactNode,
+  type Ref,
+  type SetStateAction,
+} from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { PaymentCard } from '@/components/accounts/account-element'
@@ -108,14 +121,14 @@ function currentY(el: HTMLElement): number {
   return new DOMMatrixReadOnly(t).m42
 }
 
-function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fromY?: number }) {
+function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fromY?: number }): Animation | null {
   const cs = getComputedStyle(el)
   const from = opts.fromY !== undefined ? `translate3d(0, ${opts.fromY}px, 0)` : cs.transform === 'none' ? 'translate3d(0, 0, 0)' : cs.transform
   const fromOpacity = cs.opacity
   for (const a of el.getAnimations()) a.cancel()
   el.style.transform = to.transform
   el.style.opacity = String(to.opacity)
-  if (prefersReducedMotion()) return
+  if (prefersReducedMotion()) return null
   el.style.willChange = 'transform, opacity'
   // A card appearing or leaving finishes its fade in the first 30% of the
   // motion: half-transparent cards would show the stacked cards through
@@ -139,15 +152,39 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fr
       fill: 'backwards',
     }
   )
-  anim.onfinish = () => {
+  anim.addEventListener('finish', () => {
     if (!el.getAnimations().length) el.style.willChange = ''
-  }
+  })
+  return anim
+}
+
+/** The open card's period total, published by its page (the layout gets no search params). */
+export interface HeroTotal {
+  accountId: string
+  value: number
+  label: string
+}
+
+const HeroTotalContext = createContext<Dispatch<SetStateAction<HeroTotal | null>>>(() => {})
+
+/**
+ * Rendered by a card's page: puts the period total on the open card. A new
+ * period updates it in place (the digits roll); the wallet drops it when the
+ * card closes or another card opens, so a stale total is never shown.
+ */
+export function CardHeroTotal({ accountId, value, label }: HeroTotal) {
+  const set = useContext(HeroTotalContext)
+  useLayoutEffect(() => {
+    set({ accountId, value, label })
+  }, [set, accountId, value, label])
+  return null
 }
 
 export function CardWallet({ cards, children }: { cards: WalletCard[]; children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [intent, setIntent] = useState<string | null>(null)
+  const [heroTotal, setHeroTotal] = useState<HeroTotal | null>(null)
 
   const info = useMemo(() => cards.map(c => ({ id: c.id, archived: c.archived })), [cards])
   const routeMode = walletModeFor(pathname, info)
@@ -184,14 +221,23 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
   if (routeMode.kind === 'none') return <>{children}</>
 
   return (
+    <HeroTotalContext.Provider value={setHeroTotal}>
     <div className="wallet-shell mx-auto max-w-7xl">
       {children}
       <div className="wallet-shell__wallet">
         {/* The box keeps the route's height until the route arrives, so the page
             under it does not jump while the cards are already moving */}
-        <Wallet cards={cards} mode={visibleMode} heightMode={routeMode} period={period} />
+        <Wallet
+          cards={cards}
+          mode={visibleMode}
+          heightMode={routeMode}
+          period={period}
+          heroTotal={heroTotal}
+          setHeroTotal={setHeroTotal}
+        />
       </div>
     </div>
+    </HeroTotalContext.Provider>
   )
 }
 
@@ -200,11 +246,15 @@ function Wallet({
   mode,
   heightMode,
   period,
+  heroTotal,
+  setHeroTotal,
 }: {
   cards: WalletCard[]
   mode: WalletMode
   heightMode: WalletMode
   period: Record<string, string>
+  heroTotal: HeroTotal | null
+  setHeroTotal: Dispatch<SetStateAction<HeroTotal | null>>
 }) {
   // Back to front: the first (oldest) card is in front, so it comes last
   const stackOrder = useMemo(() => cards.filter(c => !c.archived).map(c => c.id).reverse(), [cards])
@@ -219,12 +269,19 @@ function Wallet({
   const boxRef = useRef<HTMLDivElement>(null)
   const lastMode = useRef(mode)
   const lastTop = useRef<number | null>(null)
+  // The open card shows its total once it has settled in place (and hides it as soon as it moves)
+  const [settledId, setSettledId] = useState<string | null>(mode.kind === 'open' ? mode.id : null)
 
   // Mode changed: move every card from where it is now to its new place
   useLayoutEffect(() => {
     const prev = lastMode.current
     lastMode.current = mode
     if (prev.kind === mode.kind && (prev.kind !== 'open' || mode.kind !== 'open' || prev.id === mode.id)) return
+    // The total belongs to one card: drop another card's (a page that already
+    // published this card's total, e.g. on back / forward, keeps it)
+    const openId = mode.kind === 'open' ? mode.id : null
+    setHeroTotal(t => (t && t.accountId === openId ? t : null))
+    setSettledId(null)
     // Leaving the stack, the cards nearest the chosen one go first; coming back, the same
     const order = mode.kind === 'open' ? [...stackOrder].reverse() : stackOrder
     let k = 0
@@ -233,7 +290,11 @@ function Wallet({
       const to = place.get(id)
       if (!el || !to) continue
       const moving = mode.kind === 'open' ? id === mode.id : prev.kind === 'open' && id === prev.id
-      moveCard(el, to, { delay: moving ? 0 : STAGGER_MS * k++ })
+      const anim = moveCard(el, to, { delay: moving ? 0 : STAGGER_MS * k++ })
+      if (openId && id === openId) {
+        if (anim) anim.addEventListener('finish', () => setSettledId(openId))
+        else setSettledId(openId)
+      }
     }
     for (const c of cards) {
       if (stackOrder.includes(c.id)) continue
@@ -255,9 +316,19 @@ function Wallet({
     const shift = top - prevTop
     for (const [id, el] of elements.current) {
       const to = place.get(id)
-      if (to) moveCard(el, to, { fromY: currentY(el) - shift })
+      if (!to) continue
+      const anim = moveCard(el, to, { fromY: currentY(el) - shift })
+      // This replaces the open card's running motion, so it now says when the card has settled
+      if (mode.kind === 'open' && id === mode.id) {
+        const openId = mode.id
+        if (anim) anim.addEventListener('finish', () => setSettledId(openId))
+        else setSettledId(openId)
+      }
     }
   })
+
+  const shownTotal =
+    mode.kind === 'open' && heroTotal?.accountId === mode.id && settledId === mode.id ? heroTotal : null
 
   return (
     <div className="wallet" data-mode={mode.kind}>
@@ -266,6 +337,7 @@ function Wallet({
           const p = place.get(c.id)!
           const first = initial.get(c.id) ?? p
           const isOpen = mode.kind === 'open' && mode.id === c.id
+          const total = isOpen && heroTotal?.accountId === c.id ? heroTotal : null
           const href = withQuery(isOpen ? '/cards' : c.path, period)
           return (
             <div
@@ -293,6 +365,8 @@ function Wallet({
                 <PaymentCard
                   decorative
                   tilt={isOpen}
+                  amount={isOpen ? (total ? { value: total.value, label: total.label } : null) : undefined}
+                  amountVisible={isOpen && !!total && settledId === c.id}
                   provider={c.provider}
                   name={c.name}
                   lastFour={c.lastFour}
@@ -304,6 +378,17 @@ function Wallet({
           )
         })}
       </div>
+      {heightMode.kind === 'open' && (
+        // Under the open card: its total for screen readers (the face is decorative) and where it is paid from
+        <p className="wallet__caption" data-visible={shownTotal ? '' : undefined}>
+          {shownTotal && (
+            <span className="sr-only">
+              {shownTotal.label}: {shownTotal.value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}.{' '}
+            </span>
+          )}
+          נגבה מחשבון הבנק, ולכן כבר כלול בהוצאות הבנק
+        </p>
+      )}
     </div>
   )
 }

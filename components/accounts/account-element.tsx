@@ -140,6 +140,13 @@ export interface PaymentCardProps {
   tilt?: boolean
   /** Hidden from assistive tech when the surrounding link already names the card */
   decorative?: boolean
+  /**
+   * The open card on its page (ENG-56): the period total in the middle band.
+   * undefined: no band (every other use). null: the band, still empty.
+   */
+  amount?: { value: number; label: string } | null
+  /** Fades the band in (after the card has settled) and out (before it leaves) */
+  amountVisible?: boolean
   className?: string
 }
 
@@ -154,6 +161,8 @@ export function PaymentCard({
   live = false,
   tilt = false,
   decorative = false,
+  amount,
+  amountVisible = false,
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
@@ -173,6 +182,7 @@ export function PaymentCard({
       style={faceStyle(face)}
       data-face={face.key}
       data-frost={knownIssuer ? undefined : ''}
+      data-amount={amount !== undefined ? '' : undefined}
       {...(decorative
         ? { 'aria-hidden': true }
         : { role: 'img', 'aria-label': cardLabel({ provider, name: shownName, lastFour, network }) })}
@@ -200,6 +210,19 @@ export function PaymentCard({
             </span>
           )}
         </div>
+        {amount !== undefined && (
+          <div className="acct-card__amount" data-visible={amountVisible && amount ? '' : undefined} aria-hidden={!amountVisible || !amount}>
+            {amount && (
+              <>
+                <p className="acct-card__amount-label" dir="rtl">{amount.label}</p>
+                <p className="acct-card__amount-value">
+                  <span className="acct-card__amount-currency">₪</span>
+                  <RollingNumber value={amount.value} duration={800} format="decimal" />
+                </p>
+              </>
+            )}
+          </div>
+        )}
         <div className="acct-card__row acct-card__row--bottom">
           <CardDigits lastFour={lastFour} live={live} />
           <span key={network ?? 'none'} data-network={network ?? undefined} className={cn('acct-card__network', live && 'acct-swap')}>

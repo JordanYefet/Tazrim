@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { FileSpreadsheet, Upload } from 'lucide-react'
-import { CardSummaryCards } from '@/components/cards/card-summary-cards'
+import { CardStatTiles } from '@/components/cards/card-summary-cards'
+import { CardHeroTotal } from '@/components/cards/card-wallet'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
@@ -132,13 +133,15 @@ export default async function CardAccountPage({
 
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
         {hasData ? (
-          <CardSummaryCards
-            total={total}
-            count={count}
-            average={averageMonthly}
-            monthLabel={month ? monthName(month) : undefined}
-            label={params.category ? `חיובים · ${params.category}` : undefined}
-          />
+          <>
+            {/* The period total goes on the open card (the wallet, in the layout) */}
+            <CardHeroTotal
+              accountId={account.id}
+              value={total}
+              label={params.category ? `חיובים · ${params.category}` : 'סה״כ חיובים'}
+            />
+            <CardStatTiles total={total} count={count} average={averageMonthly} monthLabel={month ? monthName(month) : undefined} />
+          </>
         ) : (
           <EmptyState
             icon={FileSpreadsheet}

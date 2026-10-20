@@ -593,6 +593,80 @@ html {
   .acct-card__content { display: none; }
 }
 
+/* The open card on its page: the period total in the middle band (ENG-56),
+   the only large figure on the face. The tiled wordmark fades out behind it
+   so the digits keep their contrast on every face. */
+.acct-card[data-amount] .acct-card__pattern {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 18%, transparent 34%, transparent 72%, #000 88%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 18%, transparent 34%, transparent 72%, #000 88%);
+}
+.acct-card__amount {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.acct-card__amount[data-visible] {
+  opacity: 1;
+  transform: none;
+  transition-duration: 280ms;
+}
+.acct-card__amount-label {
+  font-size: max(11px, 3.6cqw);
+  font-weight: 500;
+  line-height: 1.2;
+  /* 82% white keeps small text at AA on the lightest faces */
+  color: rgb(255 255 255 / 0.82);
+  text-align: left;
+}
+.acct-card__amount-value {
+  margin-top: 0.8cqw;
+  display: flex;
+  align-items: baseline;
+  gap: 0.18em;
+  font-size: max(22px, 10.5cqw);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  direction: ltr;
+}
+.acct-card__amount-currency {
+  font-size: 0.62em;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.82);
+}
+/* Under the open card: where its charges are paid from */
+.wallet__caption {
+  margin-top: 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+.wallet__caption[data-visible] { opacity: 1; transition-duration: 280ms; }
+/* Wide screens: the caption hangs under the card inside the row gap, so the
+   tiles beside the card align with the card's own edges */
+@media (min-width: 1024px) {
+  .wallet { position: relative; }
+  .wallet__caption {
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    margin-top: 0.375rem;
+    line-height: 1rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acct-card__amount,
+  .acct-card__amount[data-visible],
+  .wallet__caption,
+  .wallet__caption[data-visible] { transition: none; transform: none; }
+}
+
 /* ── The bank account ── */
 .acct-bank {
   position: relative;
