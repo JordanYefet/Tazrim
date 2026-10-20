@@ -5,10 +5,14 @@ import { cn } from '@/lib/utils/cn'
 import { settingsAccountsHref } from '@/lib/accounts/routes'
 import { AccountSwitcher } from './account-switcher'
 import { WalletLink } from '@/components/cards/card-wallet'
+import { PeriodSync } from '@/components/layout/period-context'
+import type { Period } from '@/lib/period'
 
 /**
- * Period label above the title, like the dashboard ("מרץ 2026" / "כל החודשים · 2026").
- * On /banks* and /cards* phones also get account pills under it.
+ * A period page's heading: back link, title, actions. The period is not
+ * repeated here, the header's pickers show it (ENG-64); the page only reports
+ * it, so it is remembered across the app (ENG-63). On /banks* and /cards*
+ * phones also get account pills under it.
  */
 export function PageHeading({
   period,
@@ -17,9 +21,10 @@ export function PageHeading({
   badge,
   children,
 }: {
-  period: string
+  /** The period this page shows (resolved from the URL, cookie or default) */
+  period: Period
   title: string
-  /** Link up to the overview, shown above the period */
+  /** Link up to the overview, shown above the title */
   back?: { href: string; label: string }
   badge?: string
   /** Actions at the end of the row */
@@ -27,6 +32,7 @@ export function PageHeading({
 }) {
   return (
     <div className="space-y-3">
+      <PeriodSync year={period.year} month={period.month} />
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           {back && (
@@ -39,7 +45,6 @@ export function PageHeading({
               {back.label}
             </WalletLink>
           )}
-          <p className="text-sm font-medium text-muted-foreground">{period}</p>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             {badge && (

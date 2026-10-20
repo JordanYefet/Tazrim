@@ -19,6 +19,8 @@ import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
 import { monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
+import { withResolvedPeriod } from '@/lib/period-server'
+import { PeriodSync } from '@/components/layout/period-context'
 
 interface SearchParams { year?: string; month?: string; card?: string; deleted?: string }
 
@@ -27,8 +29,8 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
 
   // Every total covers the active (non-archived) accounts; archived ones keep their data
@@ -114,17 +116,16 @@ export default async function DashboardPage({
       : Math.max(Number(year) === now.getFullYear() ? now.getMonth() + 1 : 1, lastDataMonth)
 
   const query = new URLSearchParams({ year, ...(month ? { month: String(month) } : {}) }).toString()
-  const periodLabel = month ? `${monthName(month)} ${year}` : `כל החודשים · ${year}`
 
   // Category-insight links open the filtered card, the only card, or the default MAX card
   const insightsCardId = cardFilter ?? (activeCards.length === 1 ? activeCards[0] : defaultCard?.id)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <p className="text-sm font-medium text-muted-foreground">{periodLabel}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
-      </div>
+      {/* Remembers the period across the app (ENG-63) */}
+      <PeriodSync year={Number(year)} month={month} />
+      {/* The header's pickers show the period; the title doesn't repeat it (ENG-64) */}
+      <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
 
       <DataDeletedNotice show={params.deleted === '1'} />
 

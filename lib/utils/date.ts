@@ -19,7 +19,7 @@ export function monthNameShort(month: number): string {
   return monthName(month)
 }
 
-/** The selected period as the dashboard heading shows it. */
+/** The selected period in words ("מרץ 2026" / "כל החודשים · 2026"), for sentences such as empty states. */
 export function periodLabel(year: string | number, month?: number): string {
   return month ? `${monthName(month)} ${year}` : `כל החודשים · ${year}`
 }

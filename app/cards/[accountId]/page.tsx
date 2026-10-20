@@ -16,7 +16,8 @@ import { lastMonthWithData, monthlyAverage, plottedMonthCount } from '@/lib/insi
 import { accountHref } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
-import { monthName, periodLabel } from '@/lib/utils/date'
+import { monthName } from '@/lib/utils/date'
+import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams {
   year?: string
@@ -27,8 +28,8 @@ interface SearchParams {
   showIgnored?: string
 }
 
-async function getCardData(accountId: string, params: SearchParams) {
-  const year = params.year ?? String(new Date().getFullYear())
+async function getCardData(accountId: string, params: SearchParams & { year: string }) {
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/cards/[accountId]/transactions (first page of 50 unless a month is selected)
@@ -80,8 +81,8 @@ export default async function CardAccountPage({
   const account = await getAccount(decodeURIComponent(accountId))
   if (!account || account.kind !== 'CREDIT_CARD') notFound()
 
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, unusual } =
     await getCardData(account.id, params)
@@ -110,7 +111,7 @@ export default async function CardAccountPage({
   if (params.merchant) fetchSp.set('merchant', params.merchant)
   if (params.category) fetchSp.set('category', params.category)
   if (params.showIgnored) fetchSp.set('showIgnored', params.showIgnored)
-  const hasMore = !params.month && transactions.length >= 50
+  const hasMore = !month && transactions.length >= 50
 
   const hasData = lastMonthWithData(monthly) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
@@ -122,7 +123,7 @@ export default async function CardAccountPage({
     <div className="contents">
       <div className="wallet-shell__head">
         <PageHeading
-          period={periodLabel(year, month)}
+          period={{ year: Number(year), month }}
           title={title}
           back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
           badge={account.archived ? 'בארכיון' : undefined}

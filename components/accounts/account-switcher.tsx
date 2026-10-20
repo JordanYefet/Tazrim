@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
-import { withQuery } from '@/lib/accounts/routes'
+import { withPeriod } from '@/lib/period'
+import { useCurrentPeriod } from '@/components/layout/period-context'
 import { routeAccountId } from '@/lib/nav/state'
 import { SECTION_ITEMS, useNavSections } from '@/components/layout/nav-context'
 import { AccountMini } from './account-element'
@@ -16,7 +17,7 @@ import { WalletLink } from '@/components/cards/card-wallet'
  */
 export function AccountSwitcher() {
   const pathname = usePathname()
-  const params = useSearchParams()
+  const period = useCurrentPeriod()
   const sections = useNavSections()
   const activeRef = useRef<HTMLAnchorElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
@@ -44,10 +45,6 @@ export function AccountSwitcher() {
 
   if (!item || accounts.length === 0) return null
 
-  const period = {
-    ...(params.get('year') ? { year: params.get('year')! } : {}),
-    ...(params.get('month') ? { month: params.get('month')! } : {}),
-  }
   const pills = [
     { key: 'all', href: item.href, label: item.allLabel, account: undefined, current: pathname === item.href },
     ...accounts.map(a => ({ key: a.id, href: a.href, label: a.name, account: a, current: a.id === currentId })),
@@ -61,7 +58,7 @@ export function AccountSwitcher() {
             <WalletLink
               wallet={item.key === 'cards'}
               ref={p.current ? activeRef : undefined}
-              href={withQuery(p.href, period)}
+              href={withPeriod(p.href, period)}
               aria-current={p.current ? 'page' : undefined}
               className={cn(
                 'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-150 active:scale-[0.97]',

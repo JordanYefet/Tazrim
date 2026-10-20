@@ -14,14 +14,15 @@ import {
   shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
-import { monthName, periodLabel } from '@/lib/utils/date'
+import { monthName } from '@/lib/utils/date'
+import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
 
 /** Every (non-archived) bank account: combined summary and one card per account. */
 export default async function BanksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
@@ -49,7 +50,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeading period={periodLabel(year, month)} title="בנקים">
+      <PageHeading period={{ year: Number(year), month }} title="בנקים">
         <ManageAccountsLink />
       </PageHeading>
 

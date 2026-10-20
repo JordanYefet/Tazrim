@@ -5,7 +5,7 @@ import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
 import { accountHref } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
-import { periodLabel } from '@/lib/utils/date'
+import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -14,8 +14,8 @@ interface SearchParams { year?: string; month?: string }
  * wins over /cards/[accountId], so "categories" never reaches it as an id.
  */
 export default async function AllCardsCategoriesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
@@ -26,7 +26,7 @@ export default async function AllCardsCategoriesPage({ searchParams }: { searchP
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading
-        period={periodLabel(year, month)}
+        period={{ year: Number(year), month }}
         title={accounts.length > 1 ? `ניתוח לפי קטגוריה · ${accounts.length} כרטיסים` : 'ניתוח לפי קטגוריה'}
         back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
       />
