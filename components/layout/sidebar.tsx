@@ -18,6 +18,7 @@ import {
 } from '@/lib/nav/state'
 import { ABOUT_NAV, MAIN_NAV, SETTINGS_NAV, useNavSections, type NavLinkItem, type NavSectionItem } from './nav-context'
 import { RailFlyout } from './rail-flyout'
+import { usePeriodHref } from './period-context'
 
 /*
  * One markup for both widths: every icon sits 32px from the inline-start
@@ -70,11 +71,12 @@ function RailTip({ show, label, children }: { show: boolean; label: string; chil
 
 function PlainItem({ item, pathname, collapsed }: { item: NavLinkItem; pathname: string; collapsed: boolean }) {
   const active = isNavActive(pathname, item.href)
+  const periodHref = usePeriodHref()
   const Icon = item.icon
   return (
     <RailTip show={collapsed} label={item.label}>
       <Link
-        href={item.href}
+        href={periodHref(item.href)}
         aria-label={collapsed ? item.label : undefined}
         aria-current={active ? 'page' : undefined}
         className={cn(ITEM, active ? ACTIVE : IDLE)}
@@ -100,6 +102,7 @@ function SectionItem({
   onToggle: () => void
 }) {
   const accounts = useNavSections()[item.key]
+  const periodHref = usePeriodHref()
   const active = isNavActive(pathname, item.href)
   const currentId = routeAccountId(pathname, item.kind)
   const Icon = item.icon
@@ -108,7 +111,7 @@ function SectionItem({
 
   const row = (
     <Link
-      href={item.href}
+      href={periodHref(item.href)}
       aria-label={collapsed ? item.label : undefined}
       aria-current={pathname === item.href ? 'page' : undefined}
       className={cn(ITEM, active ? ACTIVE : IDLE, accounts.length > 0 && !collapsed && 'pe-10')}
@@ -168,7 +171,7 @@ function SectionItem({
                 return (
                   <li key={a.id}>
                     <Link
-                      href={a.href}
+                      href={periodHref(a.href)}
                       aria-current={current ? 'page' : undefined}
                       title={a.lastFour ? `${a.name} ·${a.lastFour}` : undefined}
                       className={cn(
@@ -198,6 +201,7 @@ export function Sidebar({
   initialClosed: NavSectionKey[]
 }) {
   const pathname = usePathname()
+  const periodHref = usePeriodHref()
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [closed, setClosed] = useState(initialClosed)
 
@@ -247,7 +251,7 @@ export function Sidebar({
         <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
           {toggleButton}
           <Link
-            href="/"
+            href={periodHref('/')}
             aria-label="תזרים · לוח בקרה"
             tabIndex={collapsed ? -1 : undefined}
             aria-hidden={collapsed || undefined}

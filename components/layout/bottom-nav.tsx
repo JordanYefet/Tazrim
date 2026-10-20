@@ -8,6 +8,7 @@ import { Building2, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashbo
 import { cn } from '@/lib/utils/cn'
 import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
+import { usePeriodHref } from './period-context'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -44,6 +45,7 @@ function TabIcon({ active, icon: Icon }: { active: boolean; icon: typeof LayoutD
  */
 export function BottomNav() {
   const pathname = usePathname()
+  const periodHref = usePeriodHref()
   const [moreOpen, setMoreOpen] = useState(false)
 
   // A link in the sheet navigates; close it once the page changes
@@ -73,7 +75,7 @@ export function BottomNav() {
         return (
           <Link
             key={href}
-            href={href}
+            href={periodHref(href)}
             aria-label={title ?? label}
             aria-current={isNavActive(pathname, href) ? 'page' : undefined}
             className={cn(TAB, active ? 'text-primary' : 'text-foreground/60')}
@@ -109,7 +111,7 @@ export function BottomNav() {
                   <li key={href}>
                     {i > 0 && <div aria-hidden className="ms-[3.25rem] h-px bg-border" />}
                     <Link
-                      href={href}
+                      href={periodHref(href)}
                       aria-current={active ? 'page' : undefined}
                       onClick={() => setMoreOpen(false)}
                       className={cn(

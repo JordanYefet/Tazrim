@@ -4,6 +4,7 @@ import { cloneElement, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
 import type { NavAccount, NavSectionItem } from './nav-context'
+import { usePeriodHref } from './period-context'
 
 const CLOSE_DELAY_MS = 140
 
@@ -31,6 +32,7 @@ export function RailFlyout({
   /** The rail icon link */
   children: React.ReactElement
 }) {
+  const periodHref = usePeriodHref()
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -96,7 +98,7 @@ export function RailFlyout({
   const link = (href: string, current: boolean, content: React.ReactNode, muted = false) => (
     <Link
       key={href}
-      href={href}
+      href={periodHref(href)}
       aria-current={current ? 'page' : undefined}
       onClick={() => setPos(null)}
       className={cn(

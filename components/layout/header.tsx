@@ -6,6 +6,8 @@ import { CommandSearch } from '@/components/search/command-search'
 import { useHeaderHidden } from '@/hooks/use-header-hidden'
 import { cn } from '@/lib/utils/cn'
 import { monthsArray } from '@/lib/utils/date'
+import { isPeriodPath, periodQuery, type Period } from '@/lib/period'
+import { useCurrentPeriod, useRememberPeriod } from './period-context'
 
 const MONTHS = monthsArray()
 
@@ -21,22 +23,35 @@ export function Header() {
   const params = useSearchParams()
   const hidden = useHeaderHidden()
 
-  const now = new Date()
-  const year = Number(params.get('year') ?? now.getFullYear())
-  const month = params.get('month') ?? ''
+  const remember = useRememberPeriod()
+  // The URL's period on a period page, else the remembered one
+  const current = useCurrentPeriod()
+  const year = current.year
+  const month = current.month ? String(current.month) : ''
 
-  function update(key: string, value: string) {
-    const sp = new URLSearchParams(params.toString())
-    if (value === '') {
-      sp.delete(key)
-    } else {
-      sp.set(key, value)
+  function update(key: 'year' | 'month', value: string) {
+    const next: Period = {
+      year: key === 'year' ? Number(value) : year,
+      month: key === 'month' ? (value ? Number(value) : undefined) : current.month,
     }
+    // Remembered at once (cookie too), so every page opened from here on shows it
+    remember(next)
+    // Pages without a period (settings, upload...) keep their URL
+    if (!isPeriodPath(pathname)) return
+    // Year always written, so "all months" is explicit in the URL
+    const sp = new URLSearchParams(periodQuery(next))
+    for (const [k, v] of params) if (k !== 'year' && k !== 'month') sp.append(k, v)
     // Same page, new period: keep the reader where they were
     router.push(`${pathname}?${sp.toString()}`, { scroll: false })
   }
 
+  const now = new Date()
+  // The last five years, plus a remembered or linked year further back
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i)
+  if (!years.includes(year)) {
+    years.push(year)
+    years.sort((a, b) => b - a)
+  }
 
   return (
     <>

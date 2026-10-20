@@ -19,6 +19,8 @@ import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
 import { monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
+import { withResolvedPeriod } from '@/lib/period-server'
+import { PeriodSync } from '@/components/layout/period-context'
 
 interface SearchParams { year?: string; month?: string; card?: string; deleted?: string }
 
@@ -27,8 +29,8 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
 
   // Every total covers the active (non-archived) accounts; archived ones keep their data
@@ -121,6 +123,8 @@ export default async function DashboardPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {/* Remembers the period across the app (ENG-63) */}
+      <PeriodSync year={Number(year)} month={month} />
       <div>
         <p className="text-sm font-medium text-muted-foreground">{periodLabel}</p>
         <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>

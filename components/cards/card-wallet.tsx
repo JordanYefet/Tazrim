@@ -2,10 +2,12 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type Ref } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { PaymentCard } from '@/components/accounts/account-element'
 import { cardLabel } from '@/lib/accounts/brands'
 import { withQuery } from '@/lib/accounts/routes'
+import { periodQuery } from '@/lib/period'
+import { useCurrentPeriod } from '@/components/layout/period-context'
 import {
   boxHeight,
   placements,
@@ -144,7 +146,6 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fr
 
 export function CardWallet({ cards, children }: { cards: WalletCard[]; children: ReactNode }) {
   const pathname = usePathname()
-  const params = useSearchParams()
   const router = useRouter()
   const [intent, setIntent] = useState<string | null>(null)
 
@@ -154,14 +155,10 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
   // Keep the open card while the stack is shown elsewhere (no flicker on a stray intent)
   const visibleMode: WalletMode = mode.kind === 'none' ? routeMode : mode
 
-  const period = useMemo(() => {
-    const p: Record<string, string> = {}
-    const year = params.get('year')
-    const month = params.get('month')
-    if (year) p.year = year
-    if (month) p.month = month
-    return p
-  }, [params])
+  // The period on screen (URL first, else the remembered one, ENG-63), so the
+  // cards' links and prefetches always name it
+  const current = useCurrentPeriod()
+  const period: Record<string, string> = useMemo(() => periodQuery(current), [current])
 
   // A tap (here or on a pill / list row / back link) moves the wallet at once
   useEffect(() => {

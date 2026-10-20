@@ -17,8 +17,9 @@ import {
 } from '@/lib/insights/account-overview'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
-import { monthName, periodLabel } from '@/lib/utils/date'
+import { monthName } from '@/lib/utils/date'
 import { CARD_COLORS } from '@/lib/nav/state'
+import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -30,8 +31,8 @@ const TOP_CATEGORIES = 3
  * charges are paid from the bank, so this page never adds bank spending.
  */
 export default async function CardsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
@@ -63,7 +64,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const colors = categoryColorMap(rankCategories(categoryMonthly))
 
   const heading = (
-    <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
+    <PageHeading period={{ year: Number(year), month }} title="כרטיסי אשראי">
       {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
       <ManageAccountsLink />
     </PageHeading>

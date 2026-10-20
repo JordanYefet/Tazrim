@@ -14,6 +14,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { accountHref } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, plottedMonthCount, type BankMonthly } from '@/lib/insights/account-overview'
 import { monthName, periodLabel } from '@/lib/utils/date'
+import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams {
   year?: string
@@ -23,8 +24,8 @@ interface SearchParams {
   showIgnored?: string
 }
 
-async function getBankData(accountId: string, params: SearchParams) {
-  const year = params.year ?? String(new Date().getFullYear())
+async function getBankData(accountId: string, params: SearchParams & { year: string }) {
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
@@ -69,8 +70,8 @@ export default async function BankAccountPage({
   const account = await getAccount(decodeURIComponent(accountId))
   if (!account || account.kind !== 'BANK') notFound()
 
-  const params = await searchParams
-  const year = params.year ?? String(new Date().getFullYear())
+  const params = await withResolvedPeriod(await searchParams)
+  const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const { transactions, bankSummary, unusual, latest, trend } = await getBankData(account.id, params)
 
@@ -92,7 +93,7 @@ export default async function BankAccountPage({
   if (params.search) fetchSp.set('search', params.search)
   if (params.merchant) fetchSp.set('merchant', params.merchant)
   if (params.showIgnored) fetchSp.set('showIgnored', params.showIgnored)
-  const hasMore = !params.month && transactions.length >= 50
+  const hasMore = !month && transactions.length >= 50
 
   const hasData = lastMonthWithData(bankSummary) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
@@ -100,7 +101,7 @@ export default async function BankAccountPage({
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading
-        period={periodLabel(year, month)}
+        period={{ year: Number(year), month }}
         title={account.displayName}
         back={{ href: accountHref('BANK', undefined, period), label: 'בנקים' }}
         badge={account.archived ? 'בארכיון' : undefined}
