@@ -4,7 +4,7 @@ import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
+import { getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
 import { accountHref } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
@@ -15,15 +15,12 @@ import {
   shareOf,
   sumCardMonthly,
 } from '@/lib/insights/account-overview'
-import { rankCategories } from '@/lib/insights/category-insights'
-import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { CARD_COLORS } from '@/lib/nav/state'
 
 interface SearchParams { year?: string; month?: string }
 
 // One color per card in the stacked chart (the nav's order); the first card keeps the dashboard's card color
-const TOP_CATEGORIES = 3
 
 /**
  * Every (non-archived) card: combined charges and a per-card breakdown. Card
@@ -36,22 +33,17 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
   const accounts = await listAccounts({ kind: 'CREDIT_CARD' })
-  const ids = accounts.map(a => a.id)
-  const [perCard, categoryMonthly] = await Promise.all([
-    Promise.all(
-      accounts.map(async (account, i) => {
-        const [monthly, stats] = await Promise.all([
-          getCCMonthlySummary(account.id, Number(year)),
-          getCCCategoryStats(account.id, Number(year), month),
-        ])
-        const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
-        const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
-        return { account, monthly, stats, total, count, color: CARD_COLORS[i % CARD_COLORS.length] }
-      })
-    ),
-    // ranks categories the same way as the card pages, so the colors match
-    ids.length ? getCCCategoryMonthly(ids, Number(year)) : Promise.resolve({}),
-  ])
+  const perCard = await Promise.all(
+    accounts.map(async (account, i) => {
+      const [monthly, stats] = await Promise.all([
+        getCCMonthlySummary(account.id, Number(year)),
+        getCCCategoryStats(account.id, Number(year), month),
+      ])
+      const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
+      const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
+      return { account, monthly, total, count, color: CARD_COLORS[i % CARD_COLORS.length] }
+    })
+  )
 
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
   const { average } = cardPeriodTotals(combined, month)
@@ -60,7 +52,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const monthCount = plottedMonthCount(Number(year), lastMonthWithData(combined))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
-  const colors = categoryColorMap(rankCategories(categoryMonthly))
 
   const heading = (
     <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
@@ -95,8 +86,8 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         <h2 className="pt-3 text-base font-semibold">{several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}</h2>
       </div>
 
-      {/* Each card's figures, beside the stack */}
-      <ul className="wallet-shell__beside self-start divide-y overflow-hidden rounded-xl surface">
+      {/* Each card's figures, beside the stack: as tall as the stack on wide screens */}
+      <ul className="wallet-shell__beside self-start divide-y overflow-hidden rounded-xl surface lg:flex lg:flex-col lg:self-stretch">
         {perCard.map(c => (
           <CardSummaryRow
             key={c.account.id}
@@ -109,10 +100,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             count={c.count}
             color={c.color}
             share={several ? shareOf(c.total, total) : undefined}
-            topCategories={Object.entries(c.stats)
-              .map(([name, v]) => ({ name, total: v.total, color: colors[name] }))
-              .sort((a, b) => b.total - a.total)
-              .slice(0, TOP_CATEGORIES)}
           />
         ))}
       </ul>
