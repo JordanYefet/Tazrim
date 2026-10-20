@@ -61,6 +61,11 @@ describe('card network on accounts', () => {
     expect(a.cardNetwork).toBe('visa')
   })
 
+  it('accepts Isracard as a network (a free-text column, no migration needed)', async () => {
+    const a = await accounts.createAccount({ kind: 'CREDIT_CARD', provider: 'isracard', displayName: 'Fake', cardNetwork: 'Isracard' })
+    expect(a.cardNetwork).toBe('isracard')
+  })
+
   it.each([undefined, null, '', 'other'])('treats %o as no network', async value => {
     const a = await accounts.createAccount({ kind: 'CREDIT_CARD', provider: 'cal', displayName: 'Fake', cardNetwork: value })
     expect(a.cardNetwork).toBeNull()

@@ -2,19 +2,21 @@
  * Faces of the card and bank account elements (ENG-56 / ENG-57).
  *
  * Colours are inspired by each issuer's or bank's brand colours; no logos or
- * trademarks are reproduced. Card networks are shown as their name set in the
- * app font, never as a drawn mark. Every face is dark enough for white text,
+ * issuer logos are reproduced: issuers get a typeset wordmark. Card networks
+ * show their published mark (components/accounts/network-mark.tsx), or a
+ * typeset name where none is published. Every face is dark enough for white text,
  * and the element always shows the name (and digits), so colour is never the
  * only way to tell accounts apart.
  */
 
-export type CardNetwork = 'visa' | 'mastercard' | 'amex' | 'diners'
+export type CardNetwork = 'visa' | 'mastercard' | 'amex' | 'diners' | 'isracard'
 
 export const CARD_NETWORKS: { key: CardNetwork; label: string }[] = [
-  { key: 'visa', label: 'VISA' },
+  { key: 'visa', label: 'Visa' },
   { key: 'mastercard', label: 'Mastercard' },
-  { key: 'amex', label: 'AMEX' },
-  { key: 'diners', label: 'Diners' },
+  { key: 'amex', label: 'American Express' },
+  { key: 'diners', label: 'Diners Club' },
+  { key: 'isracard', label: 'Isracard' },
 ]
 
 export function isCardNetwork(value: unknown): value is CardNetwork {
@@ -31,12 +33,35 @@ export interface Face {
   stops: [string, string, string]
 }
 
-/** Card issuers with a face of their own. */
+/**
+ * Card issuers with a face of their own. A card face reads its stops as
+ * [glow, base, deep]: a deep two-stop field lit by a soft glow of the brand
+ * colour (see .acct-card__field in app/globals.css).
+ */
 export const CARD_FACES: Record<string, Face> = {
-  max: { key: 'max', stops: ['#ff6a5c', '#e2316f', '#7c1d55'] },
-  cal: { key: 'cal', stops: ['#2bb3e6', '#1663c7', '#0b2f73'] },
-  isracard: { key: 'isracard', stops: ['#3a4f9e', '#1f2c6b', '#111737'] },
-  amex: { key: 'amex', stops: ['#5bb2c9', '#1f7393', '#0f3d52'] },
+  max: { key: 'max', stops: ['#ff5a6e', '#8c1a52', '#2a0a22'] },
+  cal: { key: 'cal', stops: ['#3cc4f5', '#1554c0', '#081d4f'] },
+  isracard: { key: 'isracard', stops: ['#f5a524', '#1d2a6e', '#0a0f2b'] },
+  amex: { key: 'amex', stops: ['#6fd0e6', '#1a6f90', '#06283a'] },
+}
+
+/** A matte near-black card, for issuers without a face and no account colour. */
+export const CARD_NEUTRAL_FACE: Face = { key: 'neutral', stops: ['#8c96a8', '#2a2e37', '#0e1014'] }
+
+/**
+ * Issuer wordmarks, set in type (never a logo file). Others show the
+ * provider's label as written.
+ */
+const ISSUER_WORDMARKS: Record<string, string> = { max: 'max', cal: 'cal', isracard: 'isracard', amex: 'amex' }
+
+/** An issuer with a typeset wordmark of its own (and so a face of its own). */
+export function isKnownIssuer(provider: string | null | undefined): boolean {
+  return providerKey(provider) in ISSUER_WORDMARKS
+}
+
+export function issuerWordmark(provider: string | null | undefined): string {
+  const key = providerKey(provider)
+  return ISSUER_WORDMARKS[key] ?? (provider ? providerLabel(provider) : '')
 }
 
 /** Banks with a face of their own. */
@@ -105,6 +130,18 @@ export function faceFor(kind: FaceKind, provider: string | null | undefined, acc
   const key = providerKey(provider)
   const own = (kind === 'BANK' ? BANK_FACES : CARD_FACES)[key]
   if (own) return own
+  if (kind === 'CREDIT_CARD') {
+    if (!accountColor) return CARD_NEUTRAL_FACE
+    // Glow of the account colour over a deep field of the same hue
+    return {
+      key: `color:${accountColor}`,
+      stops: [
+        accountColor,
+        `color-mix(in oklab, ${accountColor} 55%, black)`,
+        `color-mix(in oklab, ${accountColor} 18%, #07080b)`,
+      ],
+    }
+  }
   if (accountColor) {
     // Deepened copies of the colour, so white text stays readable on any series colour
     return {

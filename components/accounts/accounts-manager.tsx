@@ -237,6 +237,7 @@ function AccountRow({
         <AccountMini
           kind={account.kind as 'BANK' | 'CREDIT_CARD'}
           provider={account.provider}
+          network={account.cardNetwork}
           className={cn('w-11', account.archived && 'grayscale')}
         />
       ) : (
