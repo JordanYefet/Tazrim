@@ -116,7 +116,6 @@ export default async function DashboardPage({
       : Math.max(Number(year) === now.getFullYear() ? now.getMonth() + 1 : 1, lastDataMonth)
 
   const query = new URLSearchParams({ year, ...(month ? { month: String(month) } : {}) }).toString()
-  const periodLabel = month ? `${monthName(month)} ${year}` : `כל החודשים · ${year}`
 
   // Category-insight links open the filtered card, the only card, or the default MAX card
   const insightsCardId = cardFilter ?? (activeCards.length === 1 ? activeCards[0] : defaultCard?.id)
@@ -125,10 +124,8 @@ export default async function DashboardPage({
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Remembers the period across the app (ENG-63) */}
       <PeriodSync year={Number(year)} month={month} />
-      <div>
-        <p className="text-sm font-medium text-muted-foreground">{periodLabel}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
-      </div>
+      {/* The header's pickers show the period; the title doesn't repeat it (ENG-64) */}
+      <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
 
       <DataDeletedNotice show={params.deleted === '1'} />
 

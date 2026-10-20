@@ -7,12 +7,12 @@ import { AccountSwitcher } from './account-switcher'
 import { WalletLink } from '@/components/cards/card-wallet'
 import { PeriodSync } from '@/components/layout/period-context'
 import type { Period } from '@/lib/period'
-import { periodLabel } from '@/lib/utils/date'
 
 /**
- * Period label above the title, like the dashboard ("מרץ 2026" / "כל החודשים · 2026").
- * The page reports its period, so it is remembered across the app (ENG-63).
- * On /banks* and /cards* phones also get account pills under it.
+ * A period page's heading: back link, title, actions. The period is not
+ * repeated here, the header's pickers show it (ENG-64); the page only reports
+ * it, so it is remembered across the app (ENG-63). On /banks* and /cards*
+ * phones also get account pills under it.
  */
 export function PageHeading({
   period,
@@ -45,7 +45,6 @@ export function PageHeading({
               {back.label}
             </WalletLink>
           )}
-          <p className="text-sm font-medium text-muted-foreground">{periodLabel(period.year, period.month)}</p>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             {badge && (

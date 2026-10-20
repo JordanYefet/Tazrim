@@ -7,9 +7,11 @@ export function WalletPageSkeleton({ variant }: { variant: 'stack' | 'card' }) {
   const block = 'rounded-xl bg-muted/60 motion-safe:animate-pulse'
   return (
     <div className="contents" aria-busy="true" aria-label="טוען">
-      {/* The real headings' heights, so the wallet does not shift when the page arrives */}
-      <div className={`wallet-shell__head space-y-2 ${variant === 'stack' ? 'h-[194px] lg:h-[100px]' : 'h-[129px] lg:h-[77px]'}`}>
-        <div className={`${block} h-4 w-28`} />
+      {/* The real headings' heights (title, no period line since ENG-64), so the
+          wallet does not shift when the page arrives */}
+      <div className={`wallet-shell__head space-y-2 ${variant === 'stack' ? 'h-[174px] lg:h-[82px]' : 'h-[109px] lg:h-[57px]'}`}>
+        {/* a card's page has the back link above its title */}
+        {variant === 'card' && <div className={`${block} h-4 w-28`} />}
         <div className={`${block} h-8 w-48`} />
       </div>
       {variant === 'stack' ? (
