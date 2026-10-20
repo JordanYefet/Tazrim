@@ -17,9 +17,11 @@ const FORMATTERS = {
   currency: new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }),
   currencyExact: new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 2 }),
   integer: new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }),
+  // An amount without the currency sign, for layouts that set the ₪ themselves
+  decimal: new Intl.NumberFormat('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
 }
 
-export type RollingFormat = 'currency' | 'currencyExact' | 'integer' | 'percent'
+export type RollingFormat = 'currency' | 'currencyExact' | 'integer' | 'decimal' | 'percent'
 
 function format(value: number, kind: RollingFormat) {
   if (kind === 'percent') return `${FORMATTERS.integer.format(value)}%`

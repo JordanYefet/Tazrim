@@ -14,20 +14,31 @@ interface Props {
   extra?: StatDef[]
 }
 
-/**
- * Hero charge total plus quieter tiles, as on the dashboard. The charges are
- * paid from the bank, so they are already inside the bank expenses.
- */
-export function CardSummaryCards({ total, count, average, monthLabel, label = 'סה״כ חיובים', extra = [] }: Props) {
-  const stats: StatDef[] = [
+function cardStats({ total, count, average, monthLabel }: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel'>): StatDef[] {
+  return [
     { label: 'מספר עסקאות', value: count, tone: 'neutral', format: 'integer' },
     averageStat(
       { label: 'ממוצע חודשי', tone: 'cc', format: 'currencyExact' },
       average,
       monthLabel ? { label: monthLabel, value: total } : undefined
     ),
-    ...extra,
   ]
+}
+
+/**
+ * A card's page (ENG-56): the total sits on the card itself, so only the
+ * count and the monthly average remain, as tiles beside it.
+ */
+export function CardStatTiles(props: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel'>) {
+  return <StatGrid stats={cardStats(props)} />
+}
+
+/**
+ * Hero charge total plus quieter tiles, as on the dashboard. The charges are
+ * paid from the bank, so they are already inside the bank expenses.
+ */
+export function CardSummaryCards({ total, count, average, monthLabel, label = 'סה״כ חיובים', extra = [] }: Props) {
+  const stats: StatDef[] = [...cardStats({ total, count, average, monthLabel }), ...extra]
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
