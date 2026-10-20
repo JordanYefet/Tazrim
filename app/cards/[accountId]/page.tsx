@@ -6,6 +6,8 @@ import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { PaymentCard } from '@/components/accounts/account-element'
+import { CardTransitionSettled } from '@/components/cards/card-transition'
+import { cardTransitionStyle } from '@/lib/accounts/card-transition-name'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
 import { getCategories } from '@/lib/db/categories'
@@ -115,6 +117,18 @@ export default async function CardAccountPage({
 
   const hasData = lastMonthWithData(monthly) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
+  const card = (
+    <div style={cardTransitionStyle(account.id)}>
+      <PaymentCard
+        tilt
+        provider={account.provider}
+        name={account.displayName}
+        lastFour={account.cardLastFour}
+        network={account.cardNetwork}
+        color="var(--chart-cc)"
+      />
+    </div>
+  )
   const title = account.cardLastFour ? `${account.displayName} ·${account.cardLastFour}` : account.displayName
 
   return (
@@ -126,41 +140,33 @@ export default async function CardAccountPage({
         badge={account.archived ? 'בארכיון' : undefined}
       />
 
-      {/* The card itself is the page's hero, next to the period totals on wide screens */}
-      <div className="grid items-center gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
-        <div className="mx-auto w-full max-w-[21rem] xl:max-w-none">
-          <PaymentCard
-            tilt
-            provider={account.provider}
-            name={account.displayName}
-            lastFour={account.cardLastFour}
-            network={account.cardNetwork}
-            color="var(--chart-cc)"
-          />
-        </div>
-        {hasData ? (
-          <CardSummaryCards
-            total={total}
-            count={count}
-            average={averageMonthly}
-            monthLabel={month ? monthName(month) : undefined}
-            label={params.category ? `חיובים · ${params.category}` : undefined}
-          />
-        ) : (
+      {/* The card is one tile of the stats grid; it morphs here from the /cards stack */}
+      <CardTransitionSettled />
+      {hasData ? (
+        <CardSummaryCards
+          total={total}
+          count={count}
+          average={averageMonthly}
+          monthLabel={month ? monthName(month) : undefined}
+          label={params.category ? `חיובים · ${params.category}` : undefined}
+          card={card}
+        />
+      ) : (
+        <div className="space-y-4">
+          <div className="w-1/2 max-w-[17rem] pe-2 lg:w-1/4">{card}</div>
           <EmptyState
             icon={FileSpreadsheet}
             title={`אין חיובים לשנת ${year}`}
             text={`העלה פירוט חיובים של ${account.displayName} כדי לראות כאן את החיובים לפי חודש וקטגוריה.`}
             actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {hasData && (
         <>
-
           {/* Monthly bar chart + category donut side by side on large screens */}
-          {/* Same 5/7 split as the summary row above, so the edges line up */}
+          {/* Same 5/7 split as the dashboard's summary row */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <MonthlySpendingChart
               accountId={account.id}

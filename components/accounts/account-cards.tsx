@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { RollingNumber } from '@/components/ui/rolling-number'
-import { BankElement, PaymentCard } from '@/components/accounts/account-element'
+import { AccountMini, BankElement } from '@/components/accounts/account-element'
+import { CardTransitionLink } from '@/components/cards/card-transition'
 import { cardLabel } from '@/lib/accounts/brands'
 import { cn } from '@/lib/utils/cn'
 
@@ -72,6 +73,7 @@ export function BankAccountCard({ href, name, provider, color, income, expense, 
 }
 
 export interface CardAccountSummary {
+  id: string
   href: string
   name: string
   provider: string
@@ -86,8 +88,12 @@ export interface CardAccountSummary {
   topCategories: { name: string; total: number; color?: string }[]
 }
 
-/** /cards tile: the card element, with the period's figures under it. */
-export function CardAccountCard({
+/**
+ * /cards: one card's period figures, as a row of the list next to the stack
+ * (ENG-56). The row opens the card through the same transition as the stack.
+ */
+export function CardSummaryRow({
+  id,
   href,
   name,
   provider,
@@ -100,45 +106,63 @@ export function CardAccountCard({
   topCategories,
 }: CardAccountSummary) {
   return (
-    <Link
-      href={href}
-      className={cn(
-        'group acct-press flex flex-col gap-4 rounded-xl surface-raised p-3 pb-4 transition-shadow duration-200 hover:shadow-e3 sm:p-4 sm:pb-5',
-        FOCUS
-      )}
-    >
-      <span className="sr-only">{cardLabel({ provider, name, lastFour, network })}</span>
-      <PaymentCard decorative tilt provider={provider} name={name} lastFour={lastFour} network={network} color={color} />
-      <div className="flex flex-col gap-4 px-1 sm:px-1.5">
-        <div>
-          <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight tabular-nums">
-            {/* The card's colour in the chart above */}
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />
-            <RollingNumber value={total} format="currencyExact" />
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            <RollingNumber value={count} format="integer" /> עסקאות
-          </p>
-        </div>
-        {share !== undefined && <ShareMeter share={share} color={color} label="מהחיובים בכל הכרטיסים" />}
-        {topCategories.length > 0 && (
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">קטגוריות מובילות</p>
-            <dl className="space-y-1.5">
-              {topCategories.map(c => (
-                <div key={c.name} className="flex items-center gap-2 text-sm">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c.color ?? 'var(--chart-cc)' }} aria-hidden />
-                  <dt className="min-w-0 flex-1 truncate">{c.name}</dt>
-                  <dd className="tabular-nums text-muted-foreground">
-                    <RollingNumber value={c.total} format="currencyExact" />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+    <li>
+      <CardTransitionLink
+        href={href}
+        aria-label={`${cardLabel({ provider, name, lastFour, network })}: לפירוט הכרטיס`}
+        className={cn(
+          'group flex items-start gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-muted/50 sm:px-5',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
         )}
-        <Footer label="לפירוט הכרטיס" />
-      </div>
-    </Link>
+      >
+        <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} className="mt-0.5 w-12" />
+        <div className="min-w-0 flex-1 space-y-1.5" data-card={id}>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="min-w-0 truncate font-medium">
+              {name}
+              {lastFour && (
+                <span dir="ltr" className="ms-1.5 text-xs font-normal tabular-nums text-muted-foreground">
+                  •••• {lastFour}
+                </span>
+              )}
+            </p>
+            <p className="flex shrink-0 items-center gap-1.5 font-semibold tabular-nums">
+              {/* The card's colour in the chart above */}
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+              <RollingNumber value={total} format="currencyExact" />
+            </p>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+            <span>
+              <RollingNumber value={count} format="integer" /> עסקאות
+            </span>
+            {share !== undefined && (
+              <span>
+                <RollingNumber value={Math.round(share * 100)} format="percent" /> מהחיובים בכל הכרטיסים
+              </span>
+            )}
+          </div>
+          {share !== undefined && (
+            <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div className="h-full rounded-full" style={{ width: `${Math.round(share * 100)}%`, backgroundColor: color }} />
+            </div>
+          )}
+          {topCategories.length > 0 && (
+            <ul className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5 text-xs text-muted-foreground" aria-label="קטגוריות מובילות">
+              {topCategories.map(c => (
+                <li key={c.name} className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: c.color ?? 'var(--chart-cc)' }} aria-hidden />
+                  <span className="text-foreground/80">{c.name}</span>
+                  <span className="tabular-nums">
+                    <RollingNumber value={c.total} format="currency" />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />
+      </CardTransitionLink>
+    </li>
   )
 }

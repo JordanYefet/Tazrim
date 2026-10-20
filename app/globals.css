@@ -528,7 +528,7 @@ html {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 7cqw 7.6cqw 6.8cqw;
+  padding: max(11px, 7cqw) max(12px, 7.6cqw) max(10px, 6.8cqw);
 }
 .acct-card__row {
   display: flex;
@@ -540,7 +540,8 @@ html {
 .acct-card__name {
   min-width: 0;
   padding-top: 0.8cqw;
-  font-size: 5.4cqw;
+  /* Floors keep a half-width tile (about 170px wide on a phone) legible */
+  font-size: max(11px, 5.4cqw);
   font-weight: 600;
   line-height: 1.2;
   text-align: left;
@@ -552,7 +553,7 @@ html {
 .acct-card__wordmark {
   flex-shrink: 0;
   max-width: 48%;
-  font-size: 8.4cqw;
+  font-size: max(14px, 8.4cqw);
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.045em;
@@ -561,12 +562,12 @@ html {
   white-space: nowrap;
 }
 /* Typed provider names (any script) are quieter than the known wordmarks */
-.acct-card__wordmark.is-label { font-size: 5.4cqw; font-weight: 700; letter-spacing: -0.01em; padding-top: 0.8cqw; }
+.acct-card__wordmark.is-label { font-size: max(11px, 5.4cqw); font-weight: 700; letter-spacing: -0.01em; padding-top: 0.8cqw; }
 .acct-card__digits {
   display: inline-flex;
   align-items: flex-end;
   gap: 2.4cqw;
-  font-size: 5.2cqw;
+  font-size: max(11px, 5.2cqw);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
@@ -582,7 +583,7 @@ html {
   align-items: flex-end;
   justify-content: flex-end;
   min-height: 1em;
-  font-size: 10.5cqw;
+  font-size: max(17px, 10.5cqw);
   line-height: 1;
   color: #fff;
 }
@@ -724,4 +725,85 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .acct-face, .acct-card, .acct-press, .acct-material--light { transition: none; }
   .acct-enter, .acct-swap, .acct-digit-in { animation: none; }
+}
+
+/* ── Wallet stack on /cards (ENG-56) ──
+   The first card sits in front; each card after it hides behind the one
+   before, showing only its top strip (nickname and issuer, at least 52px,
+   an easy tap target). Rendered back to front (the front card last), so
+   paint order and view-transition layering agree. Card height is 63.08% of
+   the width (85.6 × 54). */
+.wallet-stack {
+  --strip: max(52px, 17cqw);
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+}
+.wallet-stack__item { position: relative; }
+.wallet-stack__item + .wallet-stack__item { margin-top: calc(var(--strip) - 63.08cqw); }
+.wallet-stack__link {
+  display: block;
+  border-radius: 6.4% / 10.15%;
+  transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.wallet-stack__link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+.wallet-stack__link:active { transform: scale(0.985); transition-duration: 120ms; }
+/* Desktop pointers: a card behind lifts to peek; the front one rises a touch */
+@media (hover: hover) and (pointer: fine) {
+  .wallet-stack__item:not(:last-child) .wallet-stack__link:hover { transform: translateY(-12px); }
+  .wallet-stack__item:last-child .wallet-stack__link:hover { transform: translateY(-3px); }
+}
+
+/* ── The card morph between the stack and a card's page ──
+   Only the chosen card is named (components/cards/card-transition.tsx), so it
+   morphs between its place in the stack and its tile while the rest of the
+   page cross-fades. Spring-like ease-out without overshoot. A card with no
+   partner on the other page (switching card to card) leaves downward and the
+   next one rises in. Browsers without view-transition-class fall back to the
+   default morph timing. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+::view-transition-group(*.wallet-card),
+::view-transition-old(*.wallet-card),
+::view-transition-new(*.wallet-card) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* Same aspect on both ends: scale the snapshots instead of squashing them */
+::view-transition-old(*.wallet-card),
+::view-transition-new(*.wallet-card) {
+  height: 100%;
+  object-fit: cover;
+}
+::view-transition-old(*.wallet-card):only-child {
+  animation: wallet-leave 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+::view-transition-new(*.wallet-card):only-child {
+  animation: wallet-arrive 340ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+/* Returning to the stack: the cards in front of the returning card's slot sit
+   above it, already in place (a translucent fade would let the stacked
+   snapshots show through each other), so it slides in under them */
+::view-transition-group(*.wallet-front),
+::view-transition-new(*.wallet-front) { animation: none; }
+@keyframes wallet-leave {
+  to { opacity: 0; transform: translateY(20px) scale(0.97); }
+}
+@keyframes wallet-arrive {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-stack__link { transition: none; }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
