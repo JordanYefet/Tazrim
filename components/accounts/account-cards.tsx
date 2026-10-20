@@ -84,7 +84,6 @@ export interface CardAccountSummary {
   color: string
   /** Share of the combined card charges (only with several cards) */
   share?: number
-  topCategories: { name: string; total: number; color?: string }[]
 }
 
 /**
@@ -101,29 +100,28 @@ export function CardSummaryRow({
   count,
   color,
   share,
-  topCategories,
 }: CardAccountSummary) {
   return (
-    <li>
+    // On wide screens the list matches the stack's height: rows share it evenly
+    <li className="lg:flex lg:flex-1">
       <WalletLink
         href={href}
         aria-label={`${cardLabel({ provider, name, lastFour, network })}: לפירוט הכרטיס`}
         className={cn(
-          'group flex items-start gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-muted/50 sm:px-5',
+          'group flex flex-1 items-center gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-muted/50 sm:px-5',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
         )}
       >
-        <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} className="mt-0.5 w-12" />
+        {/* The card's face, its last four right under it (a fixed slot, so rows stay aligned without them) */}
+        <span className="flex w-12 shrink-0 flex-col items-center gap-1">
+          <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} className="w-12" />
+          <span dir="ltr" className="h-4 text-[11px] leading-4 tabular-nums text-muted-foreground">
+            {lastFour}
+          </span>
+        </span>
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="min-w-0 truncate font-medium">
-              {name}
-              {lastFour && (
-                <span dir="ltr" className="ms-1.5 text-xs font-normal tabular-nums text-muted-foreground">
-                  •••• {lastFour}
-                </span>
-              )}
-            </p>
+            <p className="min-w-0 truncate font-medium">{name}</p>
             <p className="flex shrink-0 items-center gap-1.5 font-semibold tabular-nums">
               {/* The card's colour in the chart above */}
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} aria-hidden />
@@ -145,21 +143,8 @@ export function CardSummaryRow({
               <div className="h-full rounded-full" style={{ width: `${Math.round(share * 100)}%`, backgroundColor: color }} />
             </div>
           )}
-          {topCategories.length > 0 && (
-            <ul className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5 text-xs text-muted-foreground" aria-label="קטגוריות מובילות">
-              {topCategories.map(c => (
-                <li key={c.name} className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: c.color ?? 'var(--chart-cc)' }} aria-hidden />
-                  <span className="text-foreground/80">{c.name}</span>
-                  <span className="tabular-nums">
-                    <RollingNumber value={c.total} format="currency" />
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-        <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />
+        <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />
       </WalletLink>
     </li>
   )
