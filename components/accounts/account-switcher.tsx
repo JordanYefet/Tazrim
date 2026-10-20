@@ -71,7 +71,7 @@ export function AccountSwitcher() {
               )}
             >
               {p.account && (
-                <AccountMini kind={item.kind} provider={p.account.provider} color={p.account.color} className="w-[22px]" />
+                <AccountMini kind={item.kind} provider={p.account.provider} color={p.account.color} network={p.account.cardNetwork} className="w-[22px]" />
               )}
               {p.label}
               {p.account?.lastFour && (

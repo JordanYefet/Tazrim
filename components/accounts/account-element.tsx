@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { cardLabel, faceFor, networkLabel, providerLabel, type Face, type FaceKind } from '@/lib/accounts/brands'
+import { cardLabel, faceFor, isKnownIssuer, issuerWordmark, providerKey, providerLabel, type Face, type FaceKind } from '@/lib/accounts/brands'
+import { NetworkMark } from './network-mark'
 import { DigitStrip, RollingNumber } from '@/components/ui/rolling-number'
 import { formatDate } from '@/lib/utils/date'
 
@@ -158,37 +159,52 @@ export function PaymentCard({
   const ref = useTilt<HTMLDivElement>(tilt, 5)
   const face = faceFor('CREDIT_CARD', provider, color)
   const shownName = name.trim() || namePlaceholder || ''
-  const issuer = provider ? providerLabel(provider) : ''
-  const netLabel = networkLabel(network)
+  const wordmark = issuerWordmark(provider)
+  // Known issuers get a typeset wordmark; a typed provider is shown as written, quieter
+  const knownIssuer = isKnownIssuer(provider)
+  // Known issuers: a tone-on-tone pattern of the wordmark for depth. Others: a frosted pane.
+  const pattern = knownIssuer ? wordmark : ''
 
   return (
     <div
       ref={ref}
+      dir="ltr"
       className={cn('acct-card acct-face', className)}
       style={faceStyle(face)}
       data-face={face.key}
+      data-frost={knownIssuer ? undefined : ''}
       {...(decorative
         ? { 'aria-hidden': true }
         : { role: 'img', 'aria-label': cardLabel({ provider, name: shownName, lastFour, network }) })}
     >
-      <Material />
+      <span aria-hidden className="acct-card__field" />
+      {!knownIssuer && <span aria-hidden className="acct-card__frost" />}
+      {pattern && (
+        <span aria-hidden className="acct-card__pattern">
+          {[0, 1, 2].map(row => (
+            <span key={row}>{`${pattern} `.repeat(6)}</span>
+          ))}
+        </span>
+      )}
+      <span aria-hidden className="acct-material acct-material--grain" />
+      <span aria-hidden className="acct-card__rim" />
+      <span aria-hidden className="acct-material acct-material--light" />
       <div className="acct-card__content">
-        <div className="acct-card__top">
-          <div className="acct-card__names">
-            <p className={cn('acct-card__name', !name.trim() && 'is-placeholder')}>
-              <bdi>{shownName}</bdi>
-            </p>
-            {issuer && issuer !== shownName && <p className="acct-card__issuer">{issuer}</p>}
-          </div>
-        </div>
-        <span className="acct-card__chip" aria-hidden />
-        <div className="acct-card__bottom">
-          <CardDigits lastFour={lastFour} live={live} />
-          {netLabel && (
-            <span key={network} data-network={network} className={cn('acct-card__network', live && 'acct-swap')}>
-              {netLabel}
+        <div className="acct-card__row">
+          <p className={cn('acct-card__name', !name.trim() && 'is-placeholder')} dir="auto">
+            {shownName}
+          </p>
+          {wordmark && (
+            <span key={providerKey(provider)} className={cn('acct-card__wordmark', !knownIssuer && 'is-label', live && 'acct-swap')} dir="auto">
+              {wordmark}
             </span>
           )}
+        </div>
+        <div className="acct-card__row acct-card__row--bottom">
+          <CardDigits lastFour={lastFour} live={live} />
+          <span key={network ?? 'none'} data-network={network ?? undefined} className={cn('acct-card__network', live && 'acct-swap')}>
+            <NetworkMark network={network} />
+          </span>
         </div>
       </div>
     </div>
@@ -200,11 +216,14 @@ export function AccountMini({
   kind,
   provider,
   color,
+  network,
   className,
 }: {
   kind: FaceKind
   provider: string
   color?: string
+  /** Cards: the network mark, shown where the face is wide enough */
+  network?: string | null
   className?: string
 }) {
   const face = faceFor(kind, provider, color)
@@ -220,10 +239,14 @@ export function AccountMini({
     )
   }
   return (
-    <span aria-hidden className={cn('acct-mini acct-face', className)} style={faceStyle(face)}>
-      <span className="acct-material acct-material--base" />
-      <span className="acct-material acct-material--sheen" />
-      <span className="acct-mini__chip" />
+    <span aria-hidden dir="ltr" className={cn('acct-mini acct-mini--card acct-face', className)} style={faceStyle(face)}>
+      <span className="acct-card__field" />
+      <span className="acct-card__rim" />
+      {network && (
+        <span className="acct-mini__mark">
+          <NetworkMark network={network} />
+        </span>
+      )}
     </span>
   )
 }
