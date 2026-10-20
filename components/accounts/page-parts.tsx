@@ -4,6 +4,7 @@ import { ChevronRight, Settings2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { settingsAccountsHref } from '@/lib/accounts/routes'
 import { AccountSwitcher } from './account-switcher'
+import { CardTransitionLink } from '@/components/cards/card-transition'
 
 /**
  * Period label above the title, like the dashboard ("מרץ 2026" / "כל החודשים · 2026").
@@ -29,13 +30,14 @@ export function PageHeading({
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           {back && (
-            <Link
+            <CardTransitionLink
+              transition={back.href.startsWith('/cards')}
               href={back.href}
               className="mb-1 inline-flex items-center gap-0.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ChevronRight className="h-4 w-4" aria-hidden />
               {back.label}
-            </Link>
+            </CardTransitionLink>
           )}
           <p className="text-sm font-medium text-muted-foreground">{period}</p>
           <div className="flex flex-wrap items-center gap-2">

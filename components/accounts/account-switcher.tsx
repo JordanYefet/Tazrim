@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { withQuery } from '@/lib/accounts/routes'
 import { routeAccountId } from '@/lib/nav/state'
 import { SECTION_ITEMS, useNavSections } from '@/components/layout/nav-context'
 import { AccountMini } from './account-element'
+import { CardTransitionLink } from '@/components/cards/card-transition'
 
 /**
  * Phone-only pills under the heading of /banks* and /cards*:
@@ -58,7 +58,8 @@ export function AccountSwitcher() {
       <ul ref={listRef} className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5">
         {pills.map(p => (
           <li key={p.key} className="shrink-0">
-            <Link
+            <CardTransitionLink
+              transition={item.key === 'cards'}
               ref={p.current ? activeRef : undefined}
               href={withQuery(p.href, period)}
               aria-current={p.current ? 'page' : undefined}
@@ -77,7 +78,7 @@ export function AccountSwitcher() {
               {p.account?.lastFour && (
                 <span dir="ltr" className="text-[11px] tabular-nums opacity-70">·{p.account.lastFour}</span>
               )}
-            </Link>
+            </CardTransitionLink>
           </li>
         ))}
       </ul>

@@ -1,7 +1,9 @@
 import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
 import { CardSummaryCards } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
-import { CardAccountCard } from '@/components/accounts/account-cards'
+import { CardSummaryRow } from '@/components/accounts/account-cards'
+import { CardStack } from '@/components/cards/card-stack'
+import { CardTransitionSettled } from '@/components/cards/card-transition'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
@@ -64,6 +66,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      <CardTransitionSettled />
       <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
         {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
         <ManageAccountsLink />
@@ -81,6 +84,50 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         />
       ) : (
         <>
+          {/* The wallet first: the stack is where a card is picked (and where it returns to) */}
+          <section aria-labelledby="card-accounts" className="space-y-3">
+            <h2 id="card-accounts" className="text-base font-semibold">
+              {several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}
+            </h2>
+            {/* Wallet: the stack, and each card's figures in a list beside it */}
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)] lg:gap-8">
+              <div className="mx-auto w-full max-w-[23rem]">
+                <CardStack
+                  cards={perCard.map(c => ({
+                    id: c.account.id,
+                    href: accountHref('CREDIT_CARD', c.account.id, period),
+                    provider: c.account.provider,
+                    name: c.account.displayName,
+                    lastFour: c.account.cardLastFour,
+                    network: c.account.cardNetwork,
+                    color: c.color,
+                  }))}
+                />
+              </div>
+              <ul className="divide-y overflow-hidden rounded-xl surface">
+                {perCard.map(c => (
+                  <CardSummaryRow
+                    key={c.account.id}
+                    id={c.account.id}
+                    href={accountHref('CREDIT_CARD', c.account.id, period)}
+                    name={c.account.displayName}
+                    provider={c.account.provider}
+                    network={c.account.cardNetwork}
+                    lastFour={c.account.cardLastFour}
+                    total={c.total}
+                    count={c.count}
+                    color={c.color}
+                    share={several ? shareOf(c.total, total) : undefined}
+                    topCategories={Object.entries(c.stats)
+                      .map(([name, v]) => ({ name, total: v.total, color: colors[name] }))
+                      .sort((a, b) => b.total - a.total)
+                      .slice(0, TOP_CATEGORIES)}
+                  />
+                ))}
+              </ul>
+            </div>
+          </section>
+
           {hasData ? (
             <>
               <CardSummaryCards
@@ -107,31 +154,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             />
           )}
 
-          <section aria-labelledby="card-accounts" className="space-y-3">
-            <h2 id="card-accounts" className="text-base font-semibold">
-              {several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {perCard.map(c => (
-                <CardAccountCard
-                  key={c.account.id}
-                  href={accountHref('CREDIT_CARD', c.account.id, period)}
-                  name={c.account.displayName}
-                  provider={c.account.provider}
-                  network={c.account.cardNetwork}
-                  lastFour={c.account.cardLastFour}
-                  total={c.total}
-                  count={c.count}
-                  color={c.color}
-                  share={several ? shareOf(c.total, total) : undefined}
-                  topCategories={Object.entries(c.stats)
-                    .map(([name, v]) => ({ name, total: v.total, color: colors[name] }))
-                    .sort((a, b) => b.total - a.total)
-                    .slice(0, TOP_CATEGORIES)}
-                />
-              ))}
-            </div>
-          </section>
         </>
       )}
     </div>
