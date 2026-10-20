@@ -2,8 +2,6 @@ import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
 import { CardSummaryCards } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
-import { CardStack } from '@/components/cards/card-stack'
-import { CardTransitionSettled } from '@/components/cards/card-transition'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
@@ -64,15 +62,17 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const several = accounts.length > 1
   const colors = categoryColorMap(rankCategories(categoryMonthly))
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <CardTransitionSettled />
-      <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
-        {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
-        <ManageAccountsLink />
-      </PageHeading>
+  const heading = (
+    <PageHeading period={periodLabel(year, month)} title="כרטיסי אשראי">
+      {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
+      <ManageAccountsLink />
+    </PageHeading>
+  )
 
-      {accounts.length === 0 ? (
+  if (accounts.length === 0) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        {heading}
         <EmptyState
           icon={CreditCard}
           title="אין כרטיסי אשראי"
@@ -82,80 +82,68 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             { href: '/settings#accounts', label: 'ניהול חשבונות' },
           ]}
         />
-      ) : (
-        <>
-          {/* The wallet first: the stack is where a card is picked (and where it returns to) */}
-          <section aria-labelledby="card-accounts" className="space-y-3">
-            <h2 id="card-accounts" className="text-base font-semibold">
-              {several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}
-            </h2>
-            {/* Wallet: the stack, and each card's figures in a list beside it */}
-            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)] lg:gap-8">
-              <div className="mx-auto w-full max-w-[23rem]">
-                <CardStack
-                  cards={perCard.map(c => ({
-                    id: c.account.id,
-                    href: accountHref('CREDIT_CARD', c.account.id, period),
-                    provider: c.account.provider,
-                    name: c.account.displayName,
-                    lastFour: c.account.cardLastFour,
-                    network: c.account.cardNetwork,
-                    color: c.color,
-                  }))}
-                />
-              </div>
-              <ul className="divide-y overflow-hidden rounded-xl surface">
-                {perCard.map(c => (
-                  <CardSummaryRow
-                    key={c.account.id}
-                    id={c.account.id}
-                    href={accountHref('CREDIT_CARD', c.account.id, period)}
-                    name={c.account.displayName}
-                    provider={c.account.provider}
-                    network={c.account.cardNetwork}
-                    lastFour={c.account.cardLastFour}
-                    total={c.total}
-                    count={c.count}
-                    color={c.color}
-                    share={several ? shareOf(c.total, total) : undefined}
-                    topCategories={Object.entries(c.stats)
-                      .map(([name, v]) => ({ name, total: v.total, color: colors[name] }))
-                      .sort((a, b) => b.total - a.total)
-                      .slice(0, TOP_CATEGORIES)}
-                  />
-                ))}
-              </ul>
-            </div>
-          </section>
+      </div>
+    )
+  }
 
-          {hasData ? (
-            <>
-              <CardSummaryCards
-                total={total}
-                count={count}
-                average={average}
-                monthLabel={month ? monthName(month) : undefined}
-                label={several ? 'סה״כ חיובים בכל הכרטיסים' : undefined}
-                extra={several ? [{ label: 'כרטיסים', value: accounts.length, tone: 'neutral', format: 'integer' }] : []}
-              />
-              <MonthlySpendingChart
-                series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
-                selectedMonth={month}
-                monthCount={monthCount}
-                subtitle={several ? 'כל הכרטיסים, לפי כרטיס · לחיצה על חודש מסננת' : undefined}
-              />
-            </>
-          ) : (
-            <EmptyState
-              icon={FileSpreadsheet}
-              title={`אין חיובי כרטיס לשנת ${year}`}
-              text="העלה פירוט חיובים מחברת האשראי כדי לראות כאן את החיובים החודשיים."
-              actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+  // The stack itself is the wallet in app/cards/layout.tsx; this page fills
+  // the grid around it (components/cards/card-wallet.tsx, .wallet-shell)
+  return (
+    <div className="contents">
+      <div className="wallet-shell__head space-y-3">
+        {heading}
+        <h2 className="pt-3 text-base font-semibold">{several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}</h2>
+      </div>
+
+      {/* Each card's figures, beside the stack */}
+      <ul className="wallet-shell__beside self-start divide-y overflow-hidden rounded-xl surface">
+        {perCard.map(c => (
+          <CardSummaryRow
+            key={c.account.id}
+            href={accountHref('CREDIT_CARD', c.account.id, period)}
+            name={c.account.displayName}
+            provider={c.account.provider}
+            network={c.account.cardNetwork}
+            lastFour={c.account.cardLastFour}
+            total={c.total}
+            count={c.count}
+            color={c.color}
+            share={several ? shareOf(c.total, total) : undefined}
+            topCategories={Object.entries(c.stats)
+              .map(([name, v]) => ({ name, total: v.total, color: colors[name] }))
+              .sort((a, b) => b.total - a.total)
+              .slice(0, TOP_CATEGORIES)}
+          />
+        ))}
+      </ul>
+
+      <div className="wallet-shell__rest space-y-6">
+        {hasData ? (
+          <>
+            <CardSummaryCards
+              total={total}
+              count={count}
+              average={average}
+              monthLabel={month ? monthName(month) : undefined}
+              label={several ? 'סה״כ חיובים בכל הכרטיסים' : undefined}
+              extra={several ? [{ label: 'כרטיסים', value: accounts.length, tone: 'neutral', format: 'integer' }] : []}
             />
-          )}
-
-        </>
-      )}
+            <MonthlySpendingChart
+              series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
+              selectedMonth={month}
+              monthCount={monthCount}
+              subtitle={several ? 'כל הכרטיסים, לפי כרטיס · לחיצה על חודש מסננת' : undefined}
+            />
+          </>
+        ) : (
+          <EmptyState
+            icon={FileSpreadsheet}
+            title={`אין חיובי כרטיס לשנת ${year}`}
+            text="העלה פירוט חיובים מחברת האשראי כדי לראות כאן את החיובים החודשיים."
+            actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+          />
+        )}
+      </div>
     </div>
   )
 }
