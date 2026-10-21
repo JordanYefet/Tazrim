@@ -7,14 +7,14 @@
  * (WAAPI, Recharts, the rolling digits). Keep the three in step.
  *
  *   quick 140ms  press feedback, small popovers (the rail flyout)
- *   fast  200ms  exits, hover, small fades (the card total, notices)
- *   base  300ms  overlays arriving (dialogs, sheets), the tab capsule
- *   page  480ms  a page arriving: the card wallet's spring, the page content
+ *   fast  240ms  exits, hover, small fades (the card total, notices)
+ *   base  380ms  overlays arriving (dialogs, sheets), the tab capsule
+ *   page  600ms  a page arriving: the card wallet's spring, the page content
  *                fade, the summary numbers' roll and the charts' entrance all
  *                start together and land on this beat
  */
 
-export const MOTION = { quick: 140, fast: 200, base: 300, page: 480 } as const
+export const MOTION = { quick: 140, fast: 240, base: 380, page: 600 } as const
 
 export const EASE = {
   /** Strong ease-out: things arriving or responding */

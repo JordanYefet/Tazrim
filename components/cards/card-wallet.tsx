@@ -21,7 +21,7 @@ import { RollingNumber } from '@/components/ui/rolling-number'
 import { cardLabel } from '@/lib/accounts/brands'
 import { withQuery } from '@/lib/accounts/routes'
 import { periodQuery } from '@/lib/period'
-import { EASE, LAND_AT } from '@/lib/motion'
+import { EASE, LAND_AT, MOTION } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
 import {
   POCKET_HEIGHT_CQW,
@@ -29,6 +29,7 @@ import {
   placements,
   pocketTop,
   springEasing,
+  springResponseFor,
   walletModeFor,
   type CardPlacement,
   type WalletMode,
@@ -64,7 +65,7 @@ export interface WalletCard {
 
 // Settles on the page beat (MOTION.page): the content fade, the numbers' roll
 // and the charts land with the card (motion tokens, lib/motion.ts)
-export const SPRING = springEasing(0.92, 0.35)
+export const SPRING = springEasing(0.92, springResponseFor(MOTION.page, 0.92))
 const FALLBACK_EASING = EASE.spring
 // The one deliberate stagger: the other cards follow the chosen one by a hair
 const STAGGER_MS = 24

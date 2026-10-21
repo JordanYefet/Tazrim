@@ -113,6 +113,16 @@ export function boxHeight(mode: WalletMode, stackCount: number): string {
 }
 
 /**
+ * The response (s) for which a spring with this damping ratio settles (within
+ * 0.1%, as springEasing samples it) in `durationMs`: the settle time is
+ * ln(1000 / sqrt(1 - z²)) / (z·ω) with ω = 2π / response.
+ */
+export function springResponseFor(durationMs: number, dampingRatio = 0.92): number {
+  const z = Math.min(dampingRatio, 0.999)
+  return (2 * Math.PI * z * (durationMs / 1000)) / Math.log(1000 / Math.sqrt(1 - z * z))
+}
+
+/**
  * A spring as a CSS linear() easing, so WAAPI can run it on the compositor.
  * Apple's parameters: damping ratio (1 = no overshoot) and response (s).
  * Sampled until it settles within 0.1% of the target.
