@@ -1043,27 +1043,32 @@ html {
 .acct-card[data-glass] {
   --glass-ink: var(--acct-ink-dark);
   color: rgb(var(--glass-ink));
-  /* Tinted enough that the text stays readable over another card in the wallet */
-  background-color: rgb(255 255 255 / 0.5);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
+  /* The phone tab bar's recipe (.glass-pill): an almost clear tint, and the
+     blur, saturation and lift do the work, so what is behind shows through */
+  background-color: rgb(248 250 252 / 0.06);
+  -webkit-backdrop-filter: blur(12px) saturate(200%) brightness(1.06);
+  backdrop-filter: blur(12px) saturate(200%) brightness(1.06);
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.75),
-    0 0 0 1px rgb(15 23 42 / 0.07),
-    0 2px 4px -1px hsl(var(--shadow-color) / 0.1),
-    0 18px 36px -18px hsl(var(--shadow-color) / 0.35);
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    inset 0 -1px 0 rgb(255 255 255 / 0.25),
+    inset 0 0 0 1px rgb(255 255 255 / 0.5),
+    0 16px 40px -12px rgb(15 23 42 / 0.28),
+    0 2px 8px rgb(15 23 42 / 0.08);
 }
+/* A soft top sheen and side glints, as on the tab bar, instead of a tint */
 .acct-card[data-glass] .acct-card__field {
   background:
-    radial-gradient(70% 90% at 0% 0%, rgb(255 255 255 / 0.7), transparent 60%),
-    radial-gradient(60% 80% at 100% 100%, rgb(148 163 184 / 0.22), transparent 70%),
-    linear-gradient(118deg, transparent 36%, rgb(255 255 255 / 0.45) 46%, transparent 57%),
-    linear-gradient(160deg, rgb(255 255 255 / 0.5), rgb(226 232 240 / 0.28));
+    radial-gradient(120% 90% at 50% -30%, rgb(255 255 255 / 0.4), transparent 55%),
+    linear-gradient(90deg, rgb(255 255 255 / 0.18), transparent 30%, transparent 70%, rgb(255 255 255 / 0.18)),
+    linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.04));
 }
 .acct-card[data-glass] .acct-card__rim {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.55), transparent 30%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.95);
+  background: none;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.9);
 }
+/* What shows through can be anything (the page, another card): a faint halo
+   keeps the text readable on it */
+.acct-card[data-glass] .acct-card__content { text-shadow: 0 0 6px rgb(255 255 255 / 0.55), 0 1px 1px rgb(255 255 255 / 0.4); }
 .acct-card[data-glass] .acct-material--grain { opacity: 0.06; }
 .acct-card[data-glass] .acct-card__pattern { color: rgb(var(--glass-ink) / 0.025); }
 .acct-card[data-glass] .acct-card__network { color: rgb(var(--glass-ink)); }
@@ -1075,25 +1080,26 @@ html {
 .acct-card[data-glass] .acct-card__amount-value { text-shadow: none; }
 .dark .acct-card[data-glass] {
   --glass-ink: 255 255 255;
-  background-color: rgb(17 21 30 / 0.62);
-  -webkit-backdrop-filter: blur(18px) saturate(150%) brightness(1.1);
-  backdrop-filter: blur(18px) saturate(150%) brightness(1.1);
+  background-color: rgb(20 26 38 / 0.18);
+  -webkit-backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
+  backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.16),
-    0 2px 4px hsl(var(--shadow-color) / 0.4),
-    0 20px 40px -18px hsl(var(--shadow-color) / 0.9);
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    inset 0 -1px 0 rgb(255 255 255 / 0.05),
+    inset 0 0 0 1px rgb(255 255 255 / 0.14),
+    0 16px 40px -12px rgb(0 0 0 / 0.65),
+    0 2px 8px rgb(0 0 0 / 0.3);
 }
 .dark .acct-card[data-glass] .acct-card__field {
   background:
-    radial-gradient(70% 90% at 0% 0%, rgb(255 255 255 / 0.16), transparent 60%),
-    radial-gradient(60% 80% at 100% 100%, rgb(148 163 184 / 0.12), transparent 70%),
-    linear-gradient(118deg, transparent 36%, rgb(255 255 255 / 0.1) 46%, transparent 57%),
-    linear-gradient(160deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
+    radial-gradient(120% 90% at 50% -30%, rgb(255 255 255 / 0.14), transparent 55%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.01));
 }
 .dark .acct-card[data-glass] .acct-card__rim {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.12), transparent 30%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.32);
+  background: none;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.22);
 }
+.dark .acct-card[data-glass] .acct-card__content { text-shadow: 0 0 6px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35); }
 
 .acct-bank[data-glass] {
   --glass-ink: var(--acct-ink-dark);
