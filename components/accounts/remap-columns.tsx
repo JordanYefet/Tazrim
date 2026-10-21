@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { providerLabel } from '@/lib/accounts/brands'
 import { headerSignature, type ImportMapping } from '@/lib/import/mapping'
 import { buildSnapshot } from '@/lib/import/snapshot'
+import { mappedSheets } from '@/lib/import/sheets'
 import { checkMapping, defaultProfileName } from '@/lib/upload/mapping-state'
 import type { MapperInfo } from '@/lib/upload/mapper-preview'
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
@@ -252,6 +253,7 @@ export function RemapColumns({
             mapping={mapping}
             check={check}
             totalRows={sheet?.rowCount}
+            otherSheets={mappedSheets(preview, mapping).slice(1).map(s => preview.sheets[s.index].name)}
           />
 
           {!saved ? (

@@ -1,5 +1,5 @@
 import { listAccountsWithCounts } from '@/lib/db/accounts'
-import { isImportSupported } from '@/lib/upload/import'
+import { hasBuiltInImport, isImportSupported } from '@/lib/upload/import'
 import { mappingKindOf } from '@/lib/import/mapping'
 import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
 import { parseNewKind } from '@/components/accounts/account-kinds'
@@ -22,6 +22,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     if (!colors || archived) return undefined
     return colors[position[kind]++ % colors.length]
   }
+  const profileRows = await listImportProfiles()
+  const ownProfile = (a: { id: string; kind: string }) => {
+    const p = profileRows.find(p => p.accountId === a.id && p.accountKind === a.kind)
+    return p ? { id: p.id, name: p.name } : null
+  }
   const accounts: ManagedAccount[] = (await listAccountsWithCounts()).map(a => ({
     id: a.id,
     kind: a.kind,
@@ -35,9 +40,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     uploadCount: a.counts.uploads,
     importSupported: isImportSupported(a) || mappingKindOf(a.kind) !== null,
     builtInImport: isImportSupported(a),
+    customImport: a.customImport && hasBuiltInImport(a),
+    importProfile: ownProfile(a),
     positionColor: positionColor(a.kind, a.archived),
   }))
-  const profiles = (await listImportProfiles()).map(toProfileView)
+  const profiles = profileRows.map(toProfileView)
 
   return (
     <div className="mx-auto max-w-3xl min-w-0 space-y-10">

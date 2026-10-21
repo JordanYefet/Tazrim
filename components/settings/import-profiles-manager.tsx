@@ -2,11 +2,12 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Lock, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Columns3, Lock, Pencil, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/components/upload/account-picker'
 import type { ProfileView } from '@/lib/import/profile-view'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ProfileEditDialog } from './profile-edit-dialog'
 
 const BUILT_IN = [
   { key: 'leumi', name: 'לאומי – תנועות בחשבון', kind: 'חשבון בנק' },
@@ -19,8 +20,9 @@ const iconButton =
 const kindLabel = (k: ProfileView['accountKind']) => (k === 'BANK' ? 'חשבון בנק' : k === 'CREDIT_CARD' ? 'כרטיס אשראי' : k)
 
 /**
- * Saved column mappings (ENG-24): rename or delete. The built-in importers are
- * listed for reference and can't be changed.
+ * Saved column mappings (ENG-24): edit (ENG-69, from the stored header, no
+ * file), rename or delete. The built-in importers are listed for reference; a
+ * Leumi or Max account switches to its own mapping from its edit window.
  */
 export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] }) {
   const router = useRouter()
@@ -32,6 +34,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
   if (confirming) asked.current = confirming
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<{ id: string; message: string } | null>(null)
+  const [mapping, setMapping] = useState<ProfileView | null>(null)
 
   async function call(id: string, init: RequestInit) {
     setPending(id)
@@ -68,7 +71,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
       <div>
         <h2 id="import-profiles-title" className="text-lg font-semibold">מיפויי ייבוא</h2>
         <p className="text-sm text-muted-foreground">
-          מיפויי עמודות שנשמרו בהעלאת קבצים. קובץ עם אותן כותרות מזוהה לבד.
+          מיפויי עמודות שנשמרו בהעלאת קבצים. קובץ עם אותן כותרות מזוהה לבד, ואפשר לערוך מיפוי גם בלי קובץ.
         </p>
       </div>
       <ul className="divide-y rounded-xl surface">
@@ -100,10 +103,22 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                   {providerLabel(p.provider)} · {kindLabel(p.accountKind)}
                   {p.account && <> · ברירת מחדל של {p.account.displayName}</>}
                 </p>
+                {p.idle && <p className="truncate text-xs text-muted-foreground">לא בשימוש כרגע, החשבון מיובא בייבוא המובנה</p>}
               </div>
             )}
             {editing !== p.id && (
               <div className="flex items-center">
+                {p.fileless && (
+                  <button
+                    type="button"
+                    onClick={() => setMapping(p)}
+                    aria-label={`ערוך את המיפוי: ${p.name}`}
+                    className="me-1 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-3 text-sm font-medium transition-[background-color,transform] duration-quick ease-out hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Columns3 className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    ערוך
+                  </button>
+                )}
                 <button
                   type="button"
                   className={iconButton}
@@ -128,6 +143,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{b.name}</p>
               <p className="truncate text-xs text-muted-foreground">{b.kind} · ייבוא מובנה</p>
+              <p className="text-xs text-muted-foreground text-pretty">אפשר להחליף אותו במיפוי מותאם מחלון עריכת החשבון.</p>
             </div>
             <span className="flex shrink-0 items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
               <Lock className="h-3 w-3" aria-hidden />
@@ -141,6 +157,12 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
           עדיין אין מיפויים שמורים. אחרי ייבוא קובץ של ספק בלי ייבוא מובנה תוכל לשמור את המיפוי שלו.
         </p>
       )}
+
+      <ProfileEditDialog
+        profile={mapping}
+        onOpenChange={open => !open && setMapping(null)}
+        onSaved={() => router.refresh()}
+      />
 
       <ConfirmDialog
         open={!!confirming}

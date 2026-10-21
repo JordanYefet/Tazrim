@@ -14,6 +14,7 @@ import { SaveProfile, SavedProfileNote, type SavedProfile } from './save-profile
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
 import { headerSignature, type ImportMapping } from '@/lib/import/mapping'
 import { buildSnapshot } from '@/lib/import/snapshot'
+import { mappedSheets } from '@/lib/import/sheets'
 import type { MapperInfo } from '@/lib/upload/mapper-preview'
 import { checkMapping, defaultProfileName, type MappingCheck } from '@/lib/upload/mapping-state'
 import {
@@ -39,6 +40,8 @@ type PreviewResponse = RawWorkbookPreview & {
   fileName: string
   account: Pick<UploadAccount, 'id' | 'kind' | 'provider' | 'displayName'>
   importSupported: boolean
+  /** ENG-69: a Leumi / Max account set to import through its own mapping */
+  customImport?: boolean
   /** Set for providers without a built-in parser: the files are imported through a column mapping */
   mapper: MapperInfo | null
 }
@@ -436,6 +439,11 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             )}
           </div>
 
+          {shown.preview.customImport && mapping && !shownDone && (
+            <p className="text-xs text-muted-foreground">
+              {accountName} מוגדר לייבוא לפי מיפוי מותאם במקום הייבוא המובנה. אפשר לשנות את זה בחלון עריכת החשבון.
+            </p>
+          )}
           {mapping ? (
             <>
               {mapping.group.profile && !shownDone && (
@@ -474,6 +482,9 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                 mapping={mapping.group.mapping}
                 check={mapping.check}
                 totalRows={shown.preview.sheets[mapping.group.mapping.sheet]?.rowCount}
+                otherSheets={mappedSheets(shown.preview, mapping.group.mapping)
+                  .slice(1)
+                  .map(s => shown.preview!.sheets[s.index].name)}
               />
             </>
           ) : (

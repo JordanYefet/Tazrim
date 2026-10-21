@@ -2,23 +2,30 @@
 
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Columns3, X } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { AccountForm, type CreatedAccount, type EditableAccount } from './add-account-form'
 import { RemapColumns } from './remap-columns'
+import { ImportSection, type ImportState } from './import-mode'
+import { ProfileEditor } from '@/components/import/profile-editor'
 
 export interface EditDialogAccount extends EditableAccount {
-  /** The app reads this provider's files itself, so there is no mapping to fix */
+  /** The app reads this account's files with a built-in parser (not switched to a custom mapping) */
   builtInImport: boolean
+  /** ENG-69: Leumi / Max switched to its own mapping */
+  customImport: boolean
+  /** The account's own saved mapping */
+  importProfile: { id: string; name: string } | null
   /** The positional colour the brand default falls back to */
   positionColor?: string
 }
 
 /**
  * The edit window for a card or bank account (ENG-65): the add form in edit
- * mode, with the live element on top, plus "re-map columns" for accounts
- * imported through a saved mapping. A sheet from the bottom on phones, a
- * centred window on wider screens.
+ * mode, with the live element on top, plus the import block: re-map columns
+ * with a file, edit the saved mapping without one (ENG-69), and for Leumi /
+ * Max the switch between the built-in importer and a custom mapping. A sheet
+ * from the bottom on phones, a centred window on wider screens.
  */
 export function EditAccountDialog({
   account,
@@ -32,15 +39,26 @@ export function EditAccountDialog({
   /** A re-import changed rows */
   onImported: () => void
 }) {
-  const [view, setView] = useState<'edit' | 'remap'>('edit')
+  const [view, setView] = useState<'edit' | 'remap' | 'mapping'>('edit')
+  const [editingProfile, setEditingProfile] = useState<string | null>(null)
   // Keep the last account while the window animates out
   const last = useRef(account)
   if (account) last.current = account
   const shown = last.current
   const isCard = shown?.kind === 'CREDIT_CARD'
+  // The import mode as changed in this window (the page behind refreshes too)
+  const [imports, setImports] = useState<{ id: string; state: ImportState } | null>(null)
+  const importState: ImportState | null = shown
+    ? imports?.id === shown.id
+      ? imports.state
+      : { customImport: shown.customImport, profile: shown.importProfile }
+    : null
 
   function change(open: boolean) {
-    if (!open) setView('edit')
+    if (!open) {
+      setView('edit')
+      setImports(null)
+    }
     onOpenChange(open)
   }
 
@@ -55,7 +73,7 @@ export function EditAccountDialog({
             'confirm-dialog fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl surface-overlay p-5 text-card-foreground focus:outline-none',
             // Centred without a transform, so the rise animation owns transform
             'sm:inset-x-4 sm:inset-y-0 sm:my-auto sm:h-fit sm:max-h-[88dvh] sm:rounded-3xl sm:p-6',
-            view === 'remap' ? 'sm:max-w-4xl' : 'pb-0 sm:max-w-xl sm:pb-0 md:max-w-3xl'
+            view !== 'edit' ? 'sm:max-w-4xl' : 'pb-0 sm:max-w-xl sm:pb-0 md:max-w-3xl'
           )}
         >
           {shown && (
@@ -80,25 +98,45 @@ export function EditAccountDialog({
                     </Dialog.Title>
                   }
                 >
-                  {!shown.builtInImport && (
-                    <div className="flex flex-wrap items-center gap-3 rounded-xl border p-3.5">
-                      <Columns3 className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">מיפוי עמודות</p>
-                        <p className="text-xs text-muted-foreground text-pretty">
-                          טעית בהתאמת העמודות? בחר שוב קובץ, תקן את המיפוי ואפשר לייבא אותו מחדש.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setView('remap')}
-                        className="inline-flex h-9 shrink-0 items-center rounded-lg border bg-card px-3 text-sm font-medium transition-[background-color,transform] duration-150 hover:bg-muted active:scale-[0.97]"
-                      >
-                        מיפוי מחדש
-                      </button>
-                    </div>
+                  {importState && (
+                    <ImportSection
+                      account={shown}
+                      state={importState}
+                      onState={state => {
+                        setImports({ id: shown.id, state })
+                        onImported()
+                      }}
+                      onEdit={id => {
+                        setEditingProfile(id)
+                        setView('mapping')
+                      }}
+                      onRemap={() => setView('remap')}
+                    />
                   )}
                 </AccountForm>
+              ) : view === 'mapping' && editingProfile ? (
+                <div className="space-y-4">
+                  <Dialog.Title className="pe-10 text-base font-semibold">עריכת מיפוי: {shown.displayName}</Dialog.Title>
+                  <button
+                    type="button"
+                    onClick={() => setView('edit')}
+                    className="-ms-1 inline-flex items-center gap-0.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden />
+                    חזרה לעריכה
+                  </button>
+                  <ProfileEditor
+                    key={editingProfile}
+                    profileId={editingProfile}
+                    onSaved={p => {
+                      if (importState) setImports({ id: shown.id, state: { ...importState, profile: p } })
+                      onImported()
+                    }}
+                    onCancel={() => setView('edit')}
+                    cancelLabel="חזרה"
+                    onNeedFile={() => setView('remap')}
+                  />
+                </div>
               ) : (
                 <div className="space-y-4">
                   <Dialog.Title className="pe-10 text-base font-semibold">מיפוי עמודות מחדש: {shown.displayName}</Dialog.Title>

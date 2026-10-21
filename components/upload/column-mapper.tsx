@@ -1,7 +1,7 @@
 'use client'
 
 import { useId } from 'react'
-import { AlertCircle, ChevronDown } from 'lucide-react'
+import { AlertCircle, ChevronDown, Rows3 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { columnLabel } from '@/lib/utils/column-label'
 import { RawGridPreview, type GridRowTone } from './raw-grid-preview'
@@ -63,11 +63,18 @@ export function ColumnMapper({
   kind,
   mapping,
   onChange,
+  fileless = false,
 }: {
   workbook: RawWorkbookPreview
   kind: MappingKind
   mapping: ImportMapping
   onChange: (next: ImportMapping) => void
+  /**
+   * ENG-69: `workbook` is the stored header (and sample rows) laid out as a
+   * sheet, not a file: no grid or sheet picker, the header row is a number,
+   * and each column shows its first sample value.
+   */
+  fileless?: boolean
 }) {
   const id = useId()
   const sheet = sheetOf(workbook, mapping)
@@ -86,8 +93,25 @@ export function ColumnMapper({
     if (next) onChange({ ...suggestMapping(next, kind, i), dateFormat: mapping.dateFormat, number: mapping.number })
   }
 
+  const sample = (c: number) => {
+    if (!fileless || !sheet) return null
+    for (let r = mapping.headerRow + 1; r < sheet.rows.length; r++) {
+      const v = sheet.rows[r]?.[c]
+      if (v !== null && v !== undefined && String(v).trim()) return String(v)
+    }
+    return null
+  }
+
   return (
     <div className="min-w-0 space-y-5">
+      {fileless ? (
+        <div className="flex items-start gap-2.5 rounded-lg bg-muted/50 px-3 py-2.5 text-sm">
+          <Rows3 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <p className="min-w-0 text-pretty text-muted-foreground">
+            העמודות כאן הן הכותרות ששמורות מהקובץ האחרון. אפשר לשנות מה יש בכל עמודה בלי להעלות קובץ.
+          </p>
+        </div>
+      ) : (
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
           לחץ על מספר שורה כדי לסמן את <span className="font-medium text-foreground">שורת הכותרת</span>. השורות שמתחתיה הן העסקאות.
@@ -105,6 +129,7 @@ export function ColumnMapper({
           maxHeightClass="max-h-[45vh]"
         />
       </div>
+      )}
 
       {sheet && sheet.columnCount > 0 && (
         <fieldset className="min-w-0 space-y-2">
@@ -126,8 +151,15 @@ export function ColumnMapper({
                     <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded bg-muted px-1 text-xs font-medium text-muted-foreground">
                       {columnLabel(c)}
                     </span>
-                    <span className="min-w-0 truncate text-sm" dir="auto" title={header || undefined}>
-                      {header || <span className="text-muted-foreground">ללא כותרת</span>}
+                    <span className="flex min-w-0 flex-col">
+                      <span className="min-w-0 truncate text-sm" dir="auto" title={header || undefined}>
+                        {header || <span className="text-muted-foreground">ללא כותרת</span>}
+                      </span>
+                      {sample(c) !== null && (
+                        <span className="min-w-0 truncate text-xs text-muted-foreground" dir="auto">
+                          {sample(c)}
+                        </span>
+                      )}
                     </span>
                   </label>
                   <select
@@ -154,10 +186,13 @@ export function ColumnMapper({
 
       {kind === 'card' && sheet && <BillingDateSource sheet={sheet} mapping={mapping} onChange={onChange} />}
 
-      <Advanced kind={kind} mapping={mapping} onChange={onChange} />
+      <Advanced kind={kind} mapping={mapping} onChange={onChange} fileless={fileless} />
     </div>
   )
 }
+
+/** The highest header row the file-less mapper accepts (the stored header is laid out down to it) */
+const MAX_FILELESS_HEADER_ROW = 200
 
 function BillingDateSource({
   sheet,
@@ -240,10 +275,12 @@ function Advanced({
   kind,
   mapping,
   onChange,
+  fileless,
 }: {
   kind: MappingKind
   mapping: ImportMapping
   onChange: (next: ImportMapping) => void
+  fileless: boolean
 }) {
   const id = useId()
   const setNumber = (patch: Partial<NumberFormat>) => {
@@ -328,6 +365,34 @@ function Advanced({
               <option value="split">עמודות חובה וזכות</option>
               <option value="signed">עמודת סכום אחת (עם סימן)</option>
             </select>
+          </div>
+        )}
+
+        {fileless && (
+          <div className="space-y-1">
+            <label htmlFor={`${id}-header`} className="text-xs font-medium text-muted-foreground">שורת הכותרת בקובץ</label>
+            <input
+              id={`${id}-header`}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_FILELESS_HEADER_ROW}
+              value={mapping.headerRow + 1}
+              onChange={e => {
+                const n = parseInt(e.target.value, 10)
+                if (!Number.isInteger(n) || n < 1 || n > MAX_FILELESS_HEADER_ROW) return
+                const headerRow = n - 1
+                const next: ImportMapping = { ...mapping, headerRow }
+                delete next.startRow
+                if (next.endRow !== undefined && next.endRow <= headerRow) delete next.endRow
+                const b = mapping.billingDate
+                if (b?.from === 'cell' && b.row >= headerRow) next.billingDate = { from: 'column' }
+                onChange(next)
+              }}
+              className={cn(inputClass, 'w-full')}
+              dir="ltr"
+            />
+            <p className="text-xs text-muted-foreground">אם הכותרת זזה בקובץ, היא תימצא לבד בייבוא.</p>
           </div>
         )}
 
@@ -423,6 +488,8 @@ export function MappedPreview({
   mapping,
   check,
   totalRows,
+  otherSheets = [],
+  emptyNote,
 }: {
   kind: MappingKind
   sheet: RawSheet | undefined
@@ -430,6 +497,10 @@ export function MappedPreview({
   check: MappingCheck
   /** rows in the whole file, when the preview has only the first ones */
   totalRows?: number
+  /** Names of the file's other sheets with the same header: the import reads them too (ENG-69) */
+  otherSheets?: string[]
+  /** Shown instead of the reason when there are no rows to show */
+  emptyNote?: string
 }) {
   const { result, reason } = check
   const shown = result.outcomes.filter(o => o.status !== 'skipped').slice(0, PREVIEW_ROWS)
@@ -446,14 +517,28 @@ export function MappedPreview({
         <p className="text-xs text-muted-foreground tabular-nums">
           {result.rows.length === 1 ? 'עסקה אחת' : `${nfInt.format(result.rows.length)} עסקאות`}
           {result.skipped > 0 && <> · {result.skipped === 1 ? 'שורה אחת דולגה' : `${nfInt.format(result.skipped)} שורות דולגו`}</>}
+          {result.pending > 0 && <> · {result.pending === 1 ? 'עסקה אחת שטרם נקלטה תדלג' : `${nfInt.format(result.pending)} עסקאות שטרם נקלטו ידלגו`}</>}
           {errorRows > 0 && <span className="text-destructive"> · {errorRows === 1 ? 'שורה אחת עם שגיאה' : `${nfInt.format(errorRows)} שורות עם שגיאות`}</span>}
           {partial && <> · לפי {nfInt.format(sheet!.rows.length)} השורות הראשונות</>}
         </p>
       </div>
 
+      {otherSheets.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          ייקראו גם {otherSheets.length === 1 ? 'הגיליון' : 'הגיליונות'}{' '}
+          {otherSheets.map((n, i) => (
+            <span key={i}>
+              {i > 0 && ', '}
+              <bdi className="font-medium text-foreground">{n}</bdi>
+            </span>
+          ))}
+          , עם אותה שורת כותרת. גיליונות עם כותרת אחרת לא נקראים.
+        </p>
+      )}
+
       {shown.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-          {reason ?? 'אין שורות להצגה'}
+          {emptyNote ?? reason ?? 'אין שורות להצגה'}
         </p>
       ) : (
         <div className="max-h-[50vh] max-w-full overflow-auto overscroll-contain rounded-lg border">
