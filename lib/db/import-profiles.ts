@@ -6,8 +6,11 @@
  */
 import type { Account, ImportProfile } from '@prisma/client'
 import { prisma } from './client'
-import { headerSignature, mappingKindOf, validateMapping, type ImportMapping } from '@/lib/import/mapping'
+import { mappingKindOf, validateMapping, type ImportMapping } from '@/lib/import/mapping'
 import type { RawWorkbook } from '@/lib/parsers/raw-grid'
+import { parseSnapshot, snapshotFromSignature, snapshotSignature, validateSnapshot, type HeaderSnapshot } from '@/lib/import/snapshot'
+import { locateHeader } from '@/lib/import/sheets'
+import { builtInLayoutFor, layoutSignature, layoutSnapshot } from '@/lib/import/builtin-layouts'
 
 export type { ImportProfile }
 
@@ -16,7 +19,7 @@ export const SIGNATURE_MAX = 4000
 
 export class ProfileValidationError extends Error {
   constructor(
-    public field: 'name' | 'mapping' | 'account' | 'headerSignature',
+    public field: 'name' | 'mapping' | 'account' | 'headerSignature' | 'headers',
     message: string
   ) {
     super(message)
@@ -64,6 +67,16 @@ function checkSignature(value: unknown): string {
   return value
 }
 
+/** A snapshot from the client, checked, and matching the signature it is saved with. */
+function checkHeaders(value: unknown, signature: string): string {
+  const res = validateSnapshot(value)
+  if (!res.ok) throw new ProfileValidationError('headers', res.error)
+  if (snapshotSignature(res.snapshot) !== signature) {
+    throw new ProfileValidationError('headers', 'הכותרות אינן תואמות לחתימת הכותרת')
+  }
+  return JSON.stringify(res.snapshot)
+}
+
 export type ProfileWithAccount = ImportProfile & { account: Pick<Account, 'id' | 'displayName'> | null }
 
 /** Every profile, newest first, with its linked account's name. */
@@ -82,6 +95,8 @@ export interface NewProfileInput {
   name: unknown
   mapping: unknown
   headerSignature: unknown
+  /** HeaderSnapshot of the file (ENG-69), so the mapping can be edited without it later */
+  headers?: unknown
   /** Make it the account's default profile */
   linkAccount?: boolean
 }
@@ -91,6 +106,7 @@ export async function createImportProfile(account: ProfileAccount, input: NewPro
   const name = normalizeProfileName(input.name)
   const mapping = checkMapping(account, input.mapping)
   const signature = checkSignature(input.headerSignature)
+  const headers = input.headers === undefined ? null : checkHeaders(input.headers, signature)
   return prisma.$transaction(async tx => {
     // One default profile per account
     if (input.linkAccount) await tx.importProfile.updateMany({ where: { accountId: account.id }, data: { accountId: null } })
@@ -101,28 +117,60 @@ export async function createImportProfile(account: ProfileAccount, input: NewPro
         provider: account.provider,
         mapping: JSON.stringify(mapping),
         headerSignature: signature,
+        headers,
         accountId: input.linkAccount ? account.id : null,
       },
     })
   })
 }
 
-/** Rename and/or replace the mapping. Null when the profile does not exist. */
+/**
+ * Rename and/or replace the mapping. Null when the profile does not exist.
+ * A mapping made on a file comes with that file's `headerSignature` (and
+ * `headers`); one edited without a file (ENG-69) leaves both out and keeps the
+ * stored ones.
+ */
 export async function updateImportProfile(
   id: string,
-  input: { name?: unknown; mapping?: unknown; headerSignature?: unknown }
+  input: { name?: unknown; mapping?: unknown; headerSignature?: unknown; headers?: unknown }
 ): Promise<ImportProfile | null> {
   const profile = await getImportProfile(id)
   if (!profile) return null
-  const data: { name?: string; mapping?: string; headerSignature?: string } = {}
+  const data: { name?: string; mapping?: string; headerSignature?: string; headers?: string | null } = {}
   if (input.name !== undefined) data.name = normalizeProfileName(input.name)
   if (input.mapping !== undefined) {
     data.mapping = JSON.stringify(
       checkMapping({ id: profile.accountId ?? '', kind: profile.accountKind, provider: profile.provider }, input.mapping)
     )
-    data.headerSignature = checkSignature(input.headerSignature)
+    if (input.headerSignature !== undefined) data.headerSignature = checkSignature(input.headerSignature)
   }
+  if (input.headers !== undefined) data.headers = checkHeaders(input.headers, data.headerSignature ?? profile.headerSignature)
+  // A new file's header with no snapshot of it: the old snapshot no longer describes the file
+  else if (data.headerSignature !== undefined && data.headerSignature !== profile.headerSignature) data.headers = null
   return prisma.importProfile.update({ where: { id }, data })
+}
+
+export interface ProfileForEdit {
+  profile: ImportProfile
+  kind: 'card' | 'bank'
+  mapping: ImportMapping
+  /** The stored header (and samples), or one rebuilt from the signature; null: a file is needed */
+  snapshot: HeaderSnapshot | null
+}
+
+/**
+ * What the file-less mapper (ENG-69) opens: the profile's mapping and its
+ * header snapshot. Profiles saved before ENG-69 get their header back from
+ * headerSignature (the normalized header text), without sample rows.
+ * Null when the profile does not exist or its mapping is unreadable.
+ */
+export async function getProfileForEdit(id: string): Promise<ProfileForEdit | null> {
+  const profile = await getImportProfile(id)
+  const kind = profile && mappingKindOf(profile.accountKind)
+  const mapping = profile && profileMapping(profile)
+  if (!profile || !kind || !mapping) return null
+  const snapshot = parseSnapshot(profile.headers) ?? snapshotFromSignature(profile.headerSignature)
+  return { profile, kind, mapping, snapshot }
 }
 
 export async function deleteImportProfile(id: string): Promise<boolean> {
@@ -153,7 +201,57 @@ export async function findMatchingProfile(
   for (const profile of await candidateProfiles(account)) {
     const mapping = profileMapping(profile)
     const sheet = mapping && workbook.sheets[mapping.sheet]
-    if (sheet && headerSignature(sheet, mapping.headerRow) === profile.headerSignature) return { profile, mapping }
+    // the saved header may sit a few rows lower or higher in this file (ENG-69)
+    const placed = sheet && locateHeader(sheet, mapping, profile.headerSignature)
+    if (placed) return { profile, mapping: placed }
   }
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Custom mappings for built-in providers (ENG-69)
+
+type ModeAccount = Pick<Account, 'id' | 'kind' | 'provider' | 'displayName'>
+
+/**
+ * Switches a Leumi or Max account to its own mapping (`custom`) or back to
+ * the built-in parser. Switching to custom links a profile seeded from the
+ * built-in layout when the account has none, so it can be edited with no
+ * file; switching back keeps that profile (a later switch reuses it).
+ * Null when the provider has no built-in importer.
+ */
+export async function setImportMode(
+  account: ModeAccount,
+  mode: 'custom' | 'builtin'
+): Promise<{ customImport: boolean; profile: ImportProfile | null } | null> {
+  const layout = builtInLayoutFor(account)
+  if (!layout) return null
+  return prisma.$transaction(async tx => {
+    await tx.account.update({ where: { id: account.id }, data: { customImport: mode === 'custom' } })
+    let profile = await tx.importProfile.findFirst({ where: { accountId: account.id, accountKind: account.kind } })
+    if (mode === 'custom' && !profile) {
+      profile = await tx.importProfile.create({
+        data: {
+          name: layout.name,
+          accountKind: account.kind,
+          provider: account.provider,
+          mapping: JSON.stringify(layout.mapping),
+          headerSignature: layoutSignature(layout),
+          headers: JSON.stringify(layoutSnapshot(layout)),
+          accountId: account.id,
+        },
+      })
+    }
+    return { customImport: mode === 'custom', profile }
+  })
+}
+
+/** Drops the sample rows of the account's linked profiles (its transactions are being deleted). */
+export async function dropProfileSamples(accountId: string, db: Pick<typeof prisma, 'importProfile'> = prisma): Promise<void> {
+  for (const p of await db.importProfile.findMany({ where: { accountId }, select: { id: true, headers: true } })) {
+    const snapshot = parseSnapshot(p.headers)
+    if (snapshot?.samples.length) {
+      await db.importProfile.update({ where: { id: p.id }, data: { headers: JSON.stringify({ ...snapshot, samples: [] }) } })
+    }
+  }
 }

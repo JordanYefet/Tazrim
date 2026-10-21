@@ -10,8 +10,11 @@
  *
  * Which rows are data: from the row after the header (or `startRow`) to
  * `endRow`. Blank rows are always skipped. A row whose date cell is not a date
- * (a footer, a total, a sub-header) is skipped too while `skipInvalid` is on;
- * any other bad cell is reported as an error for that row.
+ * (a footer, a total, a sub-header) is skipped too while `skipInvalid` is on,
+ * and so is a dated row with no amount at all, and a card row with no billing
+ * date in its billing-date column (approved but not billed yet, like Max's
+ * pending sheet: counted in `pending`, ENG-69). Any other bad cell is
+ * reported as an error for that row.
  */
 import type { RawCell, RawSheet } from '@/lib/parsers/raw-grid'
 import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
@@ -117,15 +120,17 @@ export interface MappingError {
 export type RowOutcome<T> =
   | { row: number; status: 'ok'; tx: T }
   | { row: number; status: 'error'; errors: MappingError[] }
-  | { row: number; status: 'skipped'; reason: 'blank' | 'invalid' }
+  | { row: number; status: 'skipped'; reason: 'blank' | 'invalid' | 'pending' }
 
 export interface MappingResult<T> {
   rows: T[]
   /** Sheet row of each entry in `rows` */
   rowNumbers: number[]
   errors: MappingError[]
-  /** Blank rows and rows without a date (when skipInvalid) */
+  /** Blank rows, and rows without a date or an amount (when skipInvalid) */
   skipped: number
+  /** Card rows with a date but an empty billing date: not billed yet (when skipInvalid) */
+  pending: number
   outcomes: RowOutcome<T>[]
 }
 
@@ -318,7 +323,7 @@ export function applyMapping<K extends MappingKind>(
   kind: K,
   opts: { fileName?: string; limit?: number } = {}
 ): MappingResult<ParsedFor<K>> {
-  const result: MappingResult<ParsedFor<K>> = { rows: [], rowNumbers: [], errors: [], skipped: 0, outcomes: [] }
+  const result: MappingResult<ParsedFor<K>> = { rows: [], rowNumbers: [], errors: [], skipped: 0, pending: 0, outcomes: [] }
   const missing = missingFields(mapping, kind)
   if (missing.length) {
     result.errors = missing.map(field => ({ row: -1, field, message: 'לא נבחרה עמודה' }))
@@ -356,6 +361,26 @@ export function applyMapping<K extends MappingKind>(
       result.skipped++
       result.outcomes.push({ row: r, status: 'skipped', reason: 'invalid' })
       continue
+    }
+    if (date && mapping.skipInvalid) {
+      const empty = (f: MappingField) => mapping.columns[f] !== undefined && text(col(row, f)) === ''
+      // Approved, not billed yet: comes back billed in a later statement
+      if (kind === 'card' && !billing && empty('billingDate')) {
+        result.pending++
+        result.outcomes.push({ row: r, status: 'skipped', reason: 'pending' })
+        continue
+      }
+      const noAmount =
+        kind === 'card'
+          ? empty('chargedAmount')
+          : mapping.amountMode === 'signed'
+            ? empty('amount')
+            : (['debit', 'credit'] as const).every(f => mapping.columns[f] === undefined || empty(f))
+      if (noAmount) {
+        result.skipped++
+        result.outcomes.push({ row: r, status: 'skipped', reason: 'invalid' })
+        continue
+      }
     }
 
     const errors: MappingError[] = []

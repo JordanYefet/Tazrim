@@ -25,6 +25,7 @@ import {
   type MappingError,
 } from '@/lib/import/mapping'
 import { readRawGrid, RawGridError, type RawWorkbook } from '@/lib/parsers/raw-grid'
+import { mappedSheets } from '@/lib/import/sheets'
 import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
 
 export type ImportErrorCode = 'UNSUPPORTED_PROVIDER' | 'PARSE_ERROR' | 'INVALID_MAPPING' | 'PROFILE_NOT_FOUND'
@@ -50,7 +51,8 @@ export type ImportResult =
   | { ok: true; created: number; skipped: number; skippedRows: SkippedRow[]; newCategories?: string[]; pending?: number }
   | ImportFailure
 
-type ImportableAccount = Pick<Account, 'id' | 'kind' | 'provider'>
+/** `customImport`: a Leumi or Max account set to import through its mapping (ENG-69) */
+type ImportableAccount = Pick<Account, 'id' | 'kind' | 'provider'> & { customImport?: boolean }
 
 export interface ImportOptions {
   /** File rows to import even though the account already has them (card accounts) */
@@ -183,12 +185,18 @@ export function mappingErrorText(e: MappingError): string {
  * The mapped path (ENG-23/24): the mapping comes from the client (`mapping`) or a
  * saved profile (`profileId`), is validated here, and the rows then take the
  * same store path as the built-in parsers. Any row error refuses the whole file.
+ *
+ * Every sheet with the mapping's header row is read, not only the mapping's
+ * own (ENG-69: Max splits an export over sheets), and the header may have
+ * moved a few rows (lib/import/sheets). Card rows with no billing date are
+ * left out and counted as pending, like the Max parser does.
  */
 const parseMapped: Parser = async (account, buffer, fileName, opts) => {
   const kind = mappingKindOf(account.kind)
   if (!kind) return { ok: false, status: 422, code: 'UNSUPPORTED_PROVIDER', error: 'לא ניתן למפות קבצים לסוג חשבון זה' }
 
   let mapping: ImportMapping
+  let signature: string | undefined
   if (opts.profileId !== undefined) {
     const profile = await getImportProfile(opts.profileId)
     const fits =
@@ -199,6 +207,7 @@ const parseMapped: Parser = async (account, buffer, fileName, opts) => {
     const stored = profileMapping(profile)
     if (!stored) return invalidMapping('המיפוי השמור אינו תקין', 422)
     mapping = stored
+    signature = profile.headerSignature
   } else {
     const res = validateMapping(opts.mapping, kind)
     if (!res.ok) return invalidMapping(res.error)
@@ -212,17 +221,30 @@ const parseMapped: Parser = async (account, buffer, fileName, opts) => {
     if (e instanceof RawGridError) return parseError(e.message)
     throw e
   }
-  const sheet = workbook.sheets[mapping.sheet]
-  if (!sheet) return parseError('הגיליון שבמיפוי לא נמצא בקובץ')
+  const sheets = mappedSheets(workbook, mapping, signature)
+  if (!sheets.length) return parseError('הגיליון שבמיפוי לא נמצא בקובץ')
 
-  const { rows, errors } = applyMapping(sheet, mapping, kind, { fileName })
+  const rows: (ParsedCCTransaction | ParsedBankTransaction)[] = []
+  const errors: MappingError[] = []
+  let pending = 0
+  let failedSheet = ''
+  for (const s of sheets) {
+    const res = applyMapping(workbook.sheets[s.index], s.mapping, kind, { fileName })
+    if (res.errors.length && !errors.length) failedSheet = workbook.sheets[s.index].name
+    rows.push(...res.rows)
+    errors.push(...res.errors)
+    pending += res.pending
+  }
   if (errors.length) {
     const more = errors.length > 1 ? ` (ועוד ${errors.length - 1})` : ''
-    return parseError(mappingErrorText(errors[0]) + more)
+    const where = sheets.length > 1 && failedSheet ? `גיליון ${failedSheet}, ` : ''
+    return parseError(where + mappingErrorText(errors[0]) + more)
   }
-  if (!rows.length) return parseError('לא נמצאו עסקאות בקובץ')
+  if (!rows.length) {
+    return parseError(pending ? 'בקובץ יש רק עסקאות שטרם נקלטו, אין עדיין חיובים לייבא' : 'לא נמצאו עסקאות בקובץ')
+  }
   return kind === 'card'
-    ? { ok: true, kind: 'card', rows: rows as ParsedCCTransaction[] }
+    ? { ok: true, kind: 'card', rows: rows as ParsedCCTransaction[], ...(pending ? { pending } : {}) }
     : { ok: true, kind: 'bank', rows: rows as ParsedBankTransaction[] }
 }
 
@@ -232,12 +254,23 @@ const PARSERS: Record<string, { kind: Account['kind']; run: Parser }> = {
   [PROVIDERS.MAX]: { kind: 'CREDIT_CARD', run: parseMax },
 }
 
-function parserFor(account: Pick<Account, 'kind' | 'provider'>): Parser | null {
+function builtInParser(account: Pick<Account, 'kind' | 'provider'>): Parser | null {
   const entry = PARSERS[account.provider]
   return entry && entry.kind === account.kind ? entry.run : null
 }
 
-export function isImportSupported(account: Pick<Account, 'kind' | 'provider'>): boolean {
+/** The provider has a built-in parser (whether or not the account uses it). */
+export function hasBuiltInImport(account: Pick<Account, 'kind' | 'provider'>): boolean {
+  return builtInParser(account) !== null
+}
+
+/** The parser the account imports with: none when it was switched to a custom mapping (ENG-69). */
+function parserFor(account: Pick<Account, 'kind' | 'provider'> & { customImport?: boolean }): Parser | null {
+  return account.customImport ? null : builtInParser(account)
+}
+
+/** The account's files are read by a built-in parser (not switched to a custom mapping). */
+export function isImportSupported(account: Pick<Account, 'kind' | 'provider'> & { customImport?: boolean }): boolean {
   return parserFor(account) !== null
 }
 
@@ -251,6 +284,9 @@ export async function parseUpload(
   if (opts.mapping !== undefined || opts.profileId !== undefined) return parseMapped(account, buffer, fileName, opts)
   const run = parserFor(account)
   if (!run) {
+    if (account.customImport && hasBuiltInImport(account)) {
+      return invalidMapping('החשבון מוגדר לייבוא לפי מיפוי מותאם, ולא נשלח מיפוי', 400)
+    }
     return { ok: false, status: 422, code: 'UNSUPPORTED_PROVIDER', error: 'ייבוא עבור ספק זה עדיין לא נתמך' }
   }
   return run(account, buffer, fileName, opts)

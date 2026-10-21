@@ -24,7 +24,10 @@ model Account {
   /// Account colour (ENG-66): a palette key from lib/accounts/colors.ts, a #rrggbb
   /// hex, or "glass". Null means the brand default (issuer/bank face, else positional).
   color                  String?
-  archived               Boolean                 @default(false)
+  /// ENG-69: a Leumi or Max account imports through its linked ImportProfile
+  /// instead of the built-in parser. Ignored for providers without one.
+  customImport           Boolean                 @default(false)
+  archived              Boolean                 @default(false)
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]
   creditCardTransactions CreditCardTransaction[]
@@ -165,6 +168,10 @@ model ImportProfile {
   mapping         String
   /// headerSignature() of the file the mapping was made on
   headerSignature String
+  /// HeaderSnapshot JSON (lib/import/snapshot.ts): the header row and a few sample
+  /// rows of the file, so the mapping can be edited without one (ENG-69).
+  /// Null for profiles saved before ENG-69. Kept only in this local database.
+  headers         String?
   /// The account this profile is the default for; cleared if the account goes away
   accountId       String?
   account         Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
