@@ -60,7 +60,7 @@ export function Header() {
         className={cn(
           'sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b bg-card/80 px-4 py-2.5 backdrop-blur-xl',
           '[@media(prefers-reduced-transparency:reduce)]:bg-card',
-          'transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]',
+          'transition-transform duration-fast ease-ui',
           'data-[hidden]:-translate-y-full focus-within:!translate-y-0',
           'motion-reduce:!translate-y-0 motion-reduce:transition-none'
         )}

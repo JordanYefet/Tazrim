@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { monthName } from '@/lib/utils/date'
@@ -57,6 +58,8 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
 
   const rows = data
     .filter(d => d.month <= monthCount)
@@ -100,7 +103,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
             />
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
-            <Bar dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
+            <Bar {...anim} dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
               {chartData.map(entry => (
                 <Cell
                   key={entry.month}
@@ -108,7 +111,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
                 />
               ))}
             </Bar>
-            <Bar dataKey="הוצאות" fill={expenseColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
+            <Bar {...anim} dataKey="הוצאות" fill={expenseColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
               {chartData.map(entry => (
                 <Cell
                   key={entry.month}

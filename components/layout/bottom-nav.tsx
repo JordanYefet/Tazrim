@@ -27,14 +27,14 @@ const MORE_LINKS = [
 
 // Each tab is a 1/5 slot of the pill; the active highlight slides between slots
 const TAB =
-  'group relative z-10 flex h-full min-w-0 flex-1 items-center justify-center rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
+  'group relative z-10 flex h-full min-w-0 flex-1 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
 
 function TabIcon({ active, icon: Icon }: { active: boolean; icon: typeof LayoutDashboard }) {
   return (
     <Icon
       aria-hidden
       strokeWidth={active ? 2.2 : 1.8}
-      className="h-6 w-6 transition-transform duration-100 ease-out group-active:scale-[0.88]"
+      className="h-6 w-6 transition-transform duration-quick ease-out group-active:scale-[0.88]"
     />
   )
 }

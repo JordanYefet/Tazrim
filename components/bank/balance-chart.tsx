@@ -1,6 +1,7 @@
 'use client'
 
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
@@ -26,6 +27,8 @@ export function BalanceChart({ data }: { data: TxPoint[] }) {
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
 
   const chartData = [...data].reverse().map(d => ({
     date: formatDate(d.date),
@@ -51,7 +54,7 @@ export function BalanceChart({ data }: { data: TxPoint[] }) {
               />
               <YAxis {...axes.yAxis} />
               <Tooltip content={<CustomTooltip />} cursor={{ stroke: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', strokeWidth: 1 }} />
-              <Line
+              <Line {...anim}
                 type="monotone"
                 dataKey="יתרה"
                 stroke={strokeColor}

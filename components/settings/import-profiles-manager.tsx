@@ -14,7 +14,7 @@ const BUILT_IN = [
 ]
 
 const iconButton =
-  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40'
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-quick ease-out hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40'
 
 const kindLabel = (k: ProfileView['accountKind']) => (k === 'BANK' ? 'חשבון בנק' : k === 'CREDIT_CARD' ? 'כרטיס אשראי' : k)
 

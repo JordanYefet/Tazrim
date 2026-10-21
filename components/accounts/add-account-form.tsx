@@ -24,7 +24,7 @@ const NAME_PLACEHOLDER: Record<CreatableKindValue, string> = { CREDIT_CARD: '×”×
 
 const chip = (selected: boolean) =>
   cn(
-    'inline-flex h-9 items-center rounded-lg border px-3 text-sm transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97] motion-reduce:transition-none',
+    'inline-flex h-9 items-center rounded-lg border px-3 text-sm transition-[background-color,border-color,color,transform] duration-quick active:scale-[0.97] motion-reduce:transition-none',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     selected
       ? 'border-primary/50 bg-primary/10 font-medium text-primary'

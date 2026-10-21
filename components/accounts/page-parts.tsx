@@ -140,7 +140,7 @@ export function EmptyState({
               key={href}
               href={href}
               className={cn(
-                'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-[background-color,transform] duration-200 active:scale-[0.98]',
+                'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-[background-color,transform] duration-fast active:scale-[0.98]',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 primary
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90'

@@ -5,7 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { cn } from '@/lib/utils/cn'
 
 const BUTTON =
-  'inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium transition-[background-color,transform] duration-quick ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:pointer-events-none disabled:opacity-50'
 
 export interface ConfirmOptions {
   title: ReactNode

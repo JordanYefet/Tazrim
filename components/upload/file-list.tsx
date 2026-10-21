@@ -95,7 +95,7 @@ export function FileList({
               disabled={!x.preview}
               aria-current={shown ? 'true' : undefined}
               className={cn(
-                'flex min-w-0 flex-1 items-center gap-3 rounded-md px-2.5 py-2 text-start transition-[background-color,transform] duration-150 ease-out',
+                'flex min-w-0 flex-1 items-center gap-3 rounded-md px-2.5 py-2 text-start transition-[background-color,transform] duration-quick ease-out',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 'enabled:active:scale-[0.99] disabled:cursor-default',
                 shown ? 'bg-muted' : 'enabled:hover:bg-muted/60'
@@ -132,7 +132,7 @@ export function FileList({
                 onClick={() => onRemove(x.id)}
                 disabled={locked}
                 aria-label={`הסר את ${x.file.name}`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-quick ease-out hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
               >
                 <X aria-hidden className="h-4 w-4" />
               </button>

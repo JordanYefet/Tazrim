@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils/cn'
 import { cardLabel, faceFor, isKnownIssuer, issuerWordmark, providerKey, providerLabel, type Face, type FaceKind } from '@/lib/accounts/brands'
 import { NetworkMark } from './network-mark'
 import { DigitStrip, RollingNumber } from '@/components/ui/rolling-number'
+import { MOTION } from '@/lib/motion'
 import { formatDate } from '@/lib/utils/date'
 
 /*
@@ -51,7 +52,7 @@ function useTilt<T extends HTMLElement>(enabled: boolean, maxDeg: number) {
       frame = requestAnimationFrame(() => {
         el.dataset.tilting = ''
         // Follows the pointer closely; the stylesheet's slower transition takes it home on leave
-        el.style.transition = 'transform 140ms cubic-bezier(0.23, 1, 0.32, 1)'
+        el.style.transition = 'transform var(--motion-quick) var(--ease-ui)'
         el.style.transform = `perspective(1000px) rotateX(${((0.5 - y) * 2 * maxDeg).toFixed(2)}deg) rotateY(${((x - 0.5) * 2 * maxDeg).toFixed(2)}deg)`
         el.style.setProperty('--light-x', `${(x * 100).toFixed(1)}%`)
         el.style.setProperty('--light-y', `${(y * 100).toFixed(1)}%`)
@@ -90,7 +91,7 @@ function LiveDigit({ digit }: { digit: number }) {
   }, [digit])
   return (
     <span className="acct-digit-in">
-      <DigitStrip digit={shown} duration={420} delay={0} />
+      <DigitStrip digit={shown} duration={MOTION.base} delay={0} />
     </span>
   )
 }
@@ -217,7 +218,7 @@ export function PaymentCard({
                 <p className="acct-card__amount-label" dir="rtl">{amount.label}</p>
                 <p className="acct-card__amount-value">
                   <span className="acct-card__amount-currency">₪</span>
-                  <RollingNumber value={amount.value} duration={800} format="decimal" />
+                  <RollingNumber value={amount.value} format="decimal" />
                 </p>
               </>
             )}
@@ -382,7 +383,7 @@ export function BankElement({
   return (
     <Tag
       ref={ref}
-      className={cn('acct-bank acct-face transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none', hero && 'acct-bank--hero', className)}
+      className={cn('acct-bank acct-face transition-transform duration-page ease-ui motion-reduce:transition-none', hero && 'acct-bank--hero', className)}
       style={faceStyle(face)}
       data-face={face.key}
       aria-label={plain ? undefined : `חשבון בנק${bank ? ` ${bank}` : ''}, ${shownName}`}
@@ -401,7 +402,7 @@ export function BankElement({
           </p>
           {latest ? (
             <p className="acct-bank__balance mt-1 tabular-nums">
-              <RollingNumber value={latest.balance} duration={800} format="currencyExact" />
+              <RollingNumber value={latest.balance} format="currencyExact" />
             </p>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">{emptyText}</p>

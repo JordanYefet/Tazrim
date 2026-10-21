@@ -13,7 +13,7 @@ function Footer({ label }: { label: string }) {
   return (
     <span className="mt-auto flex items-center gap-1 text-sm font-medium text-primary">
       {label}
-      <ChevronLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />
+      <ChevronLeft className="h-4 w-4 transition-transform duration-fast group-hover:-translate-x-0.5" aria-hidden />
     </span>
   )
 }
@@ -108,7 +108,7 @@ export function CardSummaryRow({
         href={href}
         aria-label={`${cardLabel({ provider, name, lastFour, network })}: לפירוט הכרטיס`}
         className={cn(
-          'group flex flex-1 items-center gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-muted/50 sm:px-5',
+          'group flex flex-1 items-center gap-3 px-4 py-3.5 transition-colors duration-quick hover:bg-muted/50 sm:px-5',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
         )}
       >
@@ -144,7 +144,7 @@ export function CardSummaryRow({
             </div>
           )}
         </div>
-        <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />
+        <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-fast group-hover:-translate-x-0.5" aria-hidden />
       </WalletLink>
     </li>
   )

@@ -54,6 +54,17 @@ const config: Config = {
           DEFAULT: 'hsl(var(--cc))',
         },
       },
+      // Motion tokens (app/globals.css and lib/motion.ts, ENG-67)
+      transitionDuration: {
+        quick: 'var(--motion-quick)',
+        fast: 'var(--motion-fast)',
+        base: 'var(--motion-base)',
+        page: 'var(--motion-page)',
+      },
+      transitionTimingFunction: {
+        ui: 'var(--ease-ui)',
+        spring: 'var(--ease-spring)',
+      },
       // Elevation scale (app/globals.css, ENG-55)
       boxShadow: {
         e1: 'var(--elevation-1)',

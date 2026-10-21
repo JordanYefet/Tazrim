@@ -10,8 +10,6 @@ interface Props {
   monthLabel?: string
   /** Hero label, e.g. a category filter */
   label?: string
-  /** Extra tiles after count and average (the overview adds the number of cards) */
-  extra?: StatDef[]
 }
 
 function cardStats({ total, count, average, monthLabel }: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel'>): StatDef[] {
@@ -37,8 +35,8 @@ export function CardStatTiles(props: Pick<Props, 'total' | 'count' | 'average' |
  * Hero charge total plus quieter tiles, as on the dashboard. The charges are
  * paid from the bank, so they are already inside the bank expenses.
  */
-export function CardSummaryCards({ total, count, average, monthLabel, label = 'סה״כ חיובים', extra = [] }: Props) {
-  const stats: StatDef[] = [...cardStats({ total, count, average, monthLabel }), ...extra]
+export function CardSummaryCards({ total, count, average, monthLabel, label = 'סה״כ חיובים' }: Props) {
+  const stats = cardStats({ total, count, average, monthLabel })
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -46,7 +44,7 @@ export function CardSummaryCards({ total, count, average, monthLabel, label = '�
         <div>
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
           <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums text-[hsl(var(--cc))] sm:text-[2.75rem] sm:leading-none">
-            <RollingNumber value={total} duration={800} format="currencyExact" />
+            <RollingNumber value={total} format="currencyExact" />
           </p>
         </div>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

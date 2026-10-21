@@ -150,7 +150,7 @@ export function RawGridPreview({
                           aria-label={`שורה ${r + 1}: סמן כשורת הכותרת`}
                           title="סמן כשורת הכותרת"
                           className={cn(
-                            'flex min-h-7 w-full items-center justify-center px-2 transition-[background-color,transform] duration-150 ease-out',
+                            'flex min-h-7 w-full items-center justify-center px-2 transition-[background-color,transform] duration-quick ease-out',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-95',
                             tone !== 'header' && 'hover:bg-primary/15 hover:text-foreground'
                           )}

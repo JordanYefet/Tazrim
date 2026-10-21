@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { monthName } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
@@ -64,6 +65,8 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   const isDark = resolvedTheme === 'dark'
   const c = chartColors(isDark)
   const axes = useChartAxes(c.text)
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
 
   const rows = Array.from({ length: monthCount }, (_, i) => {
     const m = i + 1
@@ -119,7 +122,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             {SERIES.map(s => (
-              <Bar key={s.key} dataKey={s.key} fill={c[s.color]} radius={[3, 3, 0, 0]} maxBarSize={18}>
+              <Bar {...anim} key={s.key} dataKey={s.key} fill={c[s.color]} radius={[3, 3, 0, 0]} maxBarSize={18}>
                 {chartData.map(d => (
                   <Cell
                     key={d.month}

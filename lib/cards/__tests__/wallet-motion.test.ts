@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { boxHeight, placements, springEasing, walletModeFor } from '../wallet-motion'
+import { MOTION } from '@/lib/motion'
 
 // Made-up account ids
 const cards = [
@@ -66,5 +67,12 @@ describe('springEasing', () => {
   it('does not overshoot when critically damped', () => {
     const values = springEasing(1, 0.4).easing.slice(7, -1).split(', ').map(Number)
     expect(Math.max(...values)).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('the wallet spring and the page beat (ENG-67)', () => {
+  it('settles within 25ms of MOTION.page, so the card lands with the page content', () => {
+    // Same parameters as components/cards/card-wallet.tsx
+    expect(Math.abs(springEasing(0.92, 0.35).duration - MOTION.page)).toBeLessThanOrEqual(25)
   })
 })

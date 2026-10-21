@@ -20,6 +20,7 @@ import { PaymentCard } from '@/components/accounts/account-element'
 import { cardLabel } from '@/lib/accounts/brands'
 import { withQuery } from '@/lib/accounts/routes'
 import { periodQuery } from '@/lib/period'
+import { EASE, LAND_AT } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
 import {
   boxHeight,
@@ -56,9 +57,22 @@ export interface WalletCard {
   archived: boolean
 }
 
-const SPRING = springEasing(0.92, 0.36)
-const FALLBACK_EASING = 'cubic-bezier(0.32, 0.72, 0, 1)'
-const STAGGER_MS = 32
+// Settles on the page beat (MOTION.page): the content fade, the numbers' roll
+// and the charts land with the card (motion tokens, lib/motion.ts)
+export const SPRING = springEasing(0.92, 0.35)
+const FALLBACK_EASING = EASE.spring
+// The one deliberate stagger: the other cards follow the chosen one by a hair
+const STAGGER_MS = 24
+
+/**
+ * Calls `land` when an animation is LAND_AT through (or at once without one),
+ * so what appears on the moving card lands with it rather than after it.
+ */
+function whenLanding(anim: Animation | null, land: () => void) {
+  if (!anim) return land()
+  const timer = window.setTimeout(land, SPRING.duration * LAND_AT)
+  anim.addEventListener('cancel', () => window.clearTimeout(timer))
+}
 const INTENT_EVENT = 'tazrim:wallet-route'
 
 function supportsLinearEasing(): boolean {
@@ -269,7 +283,7 @@ function Wallet({
   const boxRef = useRef<HTMLDivElement>(null)
   const lastMode = useRef(mode)
   const lastTop = useRef<number | null>(null)
-  // The open card shows its total once it has settled in place (and hides it as soon as it moves)
+  // The open card shows its total as it lands (from LAND_AT of its motion), and hides it as soon as it moves
   const [settledId, setSettledId] = useState<string | null>(mode.kind === 'open' ? mode.id : null)
 
   // Mode changed: move every card from where it is now to its new place
@@ -292,8 +306,7 @@ function Wallet({
       const moving = mode.kind === 'open' ? id === mode.id : prev.kind === 'open' && id === prev.id
       const anim = moveCard(el, to, { delay: moving ? 0 : STAGGER_MS * k++ })
       if (openId && id === openId) {
-        if (anim) anim.addEventListener('finish', () => setSettledId(openId))
-        else setSettledId(openId)
+        whenLanding(anim, () => setSettledId(openId))
       }
     }
     for (const c of cards) {
@@ -321,8 +334,7 @@ function Wallet({
       // This replaces the open card's running motion, so it now says when the card has settled
       if (mode.kind === 'open' && id === mode.id) {
         const openId = mode.id
-        if (anim) anim.addEventListener('finish', () => setSettledId(openId))
-        else setSettledId(openId)
+        whenLanding(anim, () => setSettledId(openId))
       }
     }
   })

@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
@@ -60,6 +61,8 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
 
   // Top categories get their own series, the rest are grouped as "אחר"
   const series = ranked.slice(0, TOP_N)
@@ -109,7 +112,7 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             {keys.map((key, i) => (
-              <Bar
+              <Bar {...anim}
                 key={key}
                 dataKey={key}
                 stackId="cat"
