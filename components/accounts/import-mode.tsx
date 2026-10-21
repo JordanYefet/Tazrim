@@ -24,6 +24,9 @@ const button =
 const quiet =
   'inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-sm text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-muted hover:text-foreground active:scale-[0.97] disabled:opacity-50'
 
+/** A little longer than the confirmation's exit animation */
+const CONFIRM_EXIT_MS = 260
+
 /** What the built-in importer handles that a mapping may not. */
 export function BuiltInWarning({ lines }: { lines: string[] }) {
   return (
@@ -72,8 +75,12 @@ export function ImportSection({
       if (!res.ok) return setError(data.error ?? 'הפעולה נכשלה')
       setAsking(null)
       onState({ customImport: data.customImport, profile: data.profile })
-      // straight into the seeded mapping, so it can be checked before the next upload
-      if (mode === 'custom' && data.profile) onEdit(data.profile.id)
+      // straight into the seeded mapping, so it can be checked before the next upload; after the
+      // confirmation has closed (unmounting it while open would close the edit window too)
+      if (mode === 'custom' && data.profile) {
+        const id = data.profile.id
+        setTimeout(() => onEdit(id), CONFIRM_EXIT_MS)
+      }
     } catch {
       setError('שגיאת רשת')
     } finally {
@@ -91,7 +98,7 @@ export function ImportSection({
         ) : (
           <Columns3 className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-60">
           <p className="text-sm font-medium">{builtInActive ? 'ייבוא מובנה' : layout ? 'מיפוי מותאם' : 'מיפוי עמודות'}</p>
           <p className="text-xs text-muted-foreground text-pretty">
             {builtInActive ? (
@@ -137,6 +144,9 @@ export function ImportSection({
       {error && !asking && <p role="alert" className="text-xs text-destructive">{error}</p>}
 
       {layout && (
+        // React events bubble through the portal: keep the confirmation's submit
+        // away from the account form this block sits in
+        <div className="contents" onSubmit={e => e.stopPropagation()}>
         <ConfirmDialog
           open={asking !== null}
           onOpenChange={o => !busy && !o && setAsking(null)}
@@ -161,6 +171,7 @@ export function ImportSection({
             )
           }
         />
+        </div>
       )}
     </div>
   )

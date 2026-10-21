@@ -108,7 +108,7 @@ export function ColumnMapper({
         <div className="flex items-start gap-2.5 rounded-lg bg-muted/50 px-3 py-2.5 text-sm">
           <Rows3 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <p className="min-w-0 text-pretty text-muted-foreground">
-            העמודות כאן הן הכותרות ששמורות מהקובץ האחרון. אפשר לשנות מה יש בכל עמודה בלי להעלות קובץ.
+            העמודות כאן הן הכותרות השמורות במיפוי. אפשר לשנות מה יש בכל עמודה בלי להעלות קובץ.
           </p>
         </div>
       ) : (

@@ -103,7 +103,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                   {providerLabel(p.provider)} · {kindLabel(p.accountKind)}
                   {p.account && <> · ברירת מחדל של {p.account.displayName}</>}
                 </p>
-                {p.idle && <p className="truncate text-xs text-muted-foreground">לא בשימוש כרגע, החשבון מיובא בייבוא המובנה</p>}
+                {p.idle && <p className="text-xs text-muted-foreground text-pretty">לא בשימוש כרגע, החשבון מיובא בייבוא המובנה</p>}
               </div>
             )}
             {editing !== p.id && (
