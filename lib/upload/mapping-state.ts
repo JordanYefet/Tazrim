@@ -64,7 +64,7 @@ const list = (fields: MappingField[]) => fields.map(f => FIELD_LABELS[f]).join('
 
 /** Whether `sheet` imports cleanly with `mapping`, and the parsed rows for the preview. */
 export function checkMapping<K extends MappingKind>(sheet: RawSheet | undefined, mapping: ImportMapping, kind: K): MappingCheck<K> {
-  const empty: MappingResult<ParsedFor<K>> = { rows: [], rowNumbers: [], errors: [], skipped: 0, outcomes: [] }
+  const empty: MappingResult<ParsedFor<K>> = { rows: [], rowNumbers: [], errors: [], skipped: 0, pending: 0, outcomes: [] }
   if (!sheet) return { result: empty, reason: 'הגיליון שנבחר לא נמצא בקובץ' }
   const missing = missingFields(mapping, kind)
   if (missing.length) {

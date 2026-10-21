@@ -13,6 +13,8 @@ import { ColumnMapper, MappedPreview } from './column-mapper'
 import { SaveProfile, SavedProfileNote, type SavedProfile } from './save-profile'
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
 import { headerSignature, type ImportMapping } from '@/lib/import/mapping'
+import { buildSnapshot } from '@/lib/import/snapshot'
+import { mappedSheets } from '@/lib/import/sheets'
 import type { MapperInfo } from '@/lib/upload/mapper-preview'
 import { checkMapping, defaultProfileName, type MappingCheck } from '@/lib/upload/mapping-state'
 import {
@@ -38,6 +40,8 @@ type PreviewResponse = RawWorkbookPreview & {
   fileName: string
   account: Pick<UploadAccount, 'id' | 'kind' | 'provider' | 'displayName'>
   importSupported: boolean
+  /** ENG-69: a Leumi / Max account set to import through its own mapping */
+  customImport?: boolean
   /** Set for providers without a built-in parser: the files are imported through a column mapping */
   mapper: MapperInfo | null
 }
@@ -61,7 +65,14 @@ interface MapGroup {
 function newGroup(mapper: MapperInfo): MapGroup {
   return mapper.profile
     ? { mapping: mapper.profile.mapping, profile: { id: mapper.profile.id, name: mapper.profile.name }, basedOn: null, editing: false }
-    : { mapping: mapper.suggestion, profile: null, basedOn: null, editing: true }
+    : {
+        mapping: mapper.suggestion,
+        profile: null,
+        // a file that doesn't match the account's own mapping (e.g. one seeded from a built-in
+        // layout, ENG-69): saving afterwards updates that mapping instead of adding another
+        basedOn: mapper.accountProfile ? { id: mapper.accountProfile.id, name: mapper.accountProfile.name } : null,
+        editing: true,
+      }
 }
 
 /** What a mapped file was imported with, so a force re-post uses the same. */
@@ -435,6 +446,11 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             )}
           </div>
 
+          {shown.preview.customImport && mapping && !shownDone && (
+            <p className="text-xs text-muted-foreground">
+              {accountName} מוגדר לייבוא לפי מיפוי מותאם במקום הייבוא המובנה. אפשר לשנות את זה בחלון עריכת החשבון.
+            </p>
+          )}
           {mapping ? (
             <>
               {mapping.group.profile && !shownDone && (
@@ -473,6 +489,9 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                 mapping={mapping.group.mapping}
                 check={mapping.check}
                 totalRows={shown.preview.sheets[mapping.group.mapping.sheet]?.rowCount}
+                otherSheets={mappedSheets(shown.preview, mapping.group.mapping)
+                  .slice(1)
+                  .map(s => shown.preview!.sheets[s.index].name)}
               />
             </>
           ) : (
@@ -611,6 +630,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                   defaultName={defaultProfileName(providerName, sample.mapper.kind)}
                   mapping={group.mapping}
                   headerSignature={headerSignature(sheet, group.mapping.headerRow)}
+                  headers={buildSnapshot(sheet, group.mapping, sample.mapper.kind)}
                   basedOn={group.basedOn}
                   onSaved={profile => updateGroup(key, { saved: profile })}
                   onDismiss={() => updateGroup(key, { dismissed: true })}

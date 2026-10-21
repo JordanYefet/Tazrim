@@ -1,4 +1,5 @@
 import type { Account, AccountKind } from '@prisma/client'
+import { dropProfileSamples } from './import-profiles'
 import { prisma } from './client'
 import { CARD_NETWORKS, isCardNetwork, type CardNetwork } from '@/lib/accounts/brands'
 import { normalizeColorValue } from '@/lib/accounts/colors'
@@ -368,6 +369,8 @@ export async function deleteAccount(id: string, opts: { confirmName?: unknown } 
     const bank = await tx.bankTransaction.deleteMany({ where: { accountId: id } })
     const cards = await tx.creditCardTransaction.deleteMany({ where: { accountId: id } })
     const uploads = await tx.uploadHistory.deleteMany({ where: { accountId: id } })
+    // The account's profiles stay (unlinked), but not the sample rows they kept from its files (ENG-69)
+    await dropProfileSamples(id, tx)
     await tx.account.delete({ where: { id } })
 
     return {

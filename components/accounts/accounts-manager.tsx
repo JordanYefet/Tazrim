@@ -26,8 +26,12 @@ export interface ManagedAccount {
   transactionCount: number
   uploadCount: number
   importSupported: boolean
-  /** The app has a parser for this provider: no column mapping to fix (ENG-65) */
+  /** The app reads this account's files with a built-in parser: no column mapping to fix (ENG-65) */
   builtInImport: boolean
+  /** ENG-69: a Leumi / Max account switched to its own mapping */
+  customImport: boolean
+  /** The account's own saved mapping, if any */
+  importProfile: { id: string; name: string } | null
   /** The colour of its position (dots, charts), for the brand default's preview */
   positionColor?: string
 }
