@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { EASE as MOTION_EASE, ROLL } from '@/lib/motion'
 import { cn } from '@/lib/utils/cn'
 
 /*
@@ -31,10 +32,10 @@ function format(value: number, kind: RollingFormat) {
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 // Line box of every glyph; the window is exactly one line tall
 const LINE_HEIGHT = '1.15em'
-// Strong ease-out: fast start, long settle — reads as "rolling into place"
-const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)'
-// Lower digits start first, odometer-style
-const STAGGER_MS = 30
+// Strong ease-out: fast start, long settle, reads as "rolling into place" (motion tokens, ENG-67)
+const EASE = MOTION_EASE.ui
+// Lower digits start a hair earlier, odometer-style, but every digit lands on the same beat
+const STAGGER_MS = ROLL.stagger
 // Soft top/bottom edges so passing digits fade instead of being cut off
 const EDGE_MASK = 'linear-gradient(to bottom, transparent 0, #000 18%, #000 82%, transparent 100%)'
 // Sign, digits and separators: the part that is laid out character by character
@@ -68,25 +69,22 @@ export function DigitStrip({ digit, duration, delay }: { digit: number; duration
 
 interface RollingNumberProps {
   value: number
-  /** Roll duration per digit, in ms */
+  /** Roll duration (the last digit lands at this time), in ms; defaults to the page beat */
   duration?: number
   format?: RollingFormat
   className?: string
 }
 
-export function RollingNumber({ value, duration = 650, format: kind = 'currency', className }: RollingNumberProps) {
-  // Server render and first client paint show zeros; after the browser has
-  // painted that frame we switch to the real digits, which triggers the roll.
+export function RollingNumber({ value, duration = ROLL.duration, format: kind = 'currency', className }: RollingNumberProps) {
+  // The server render and the first client render show zeros. Before the
+  // browser paints, the zeros' styles are resolved (a forced layout read) and
+  // the real digits are set, so the roll starts on the very first frame, in
+  // step with the rest of the page (no frame-waiting delay, ENG-67).
+  const ref = useRef<HTMLSpanElement>(null)
   const [rolled, setRolled] = useState(false)
-  useEffect(() => {
-    let second = 0
-    const first = requestAnimationFrame(() => {
-      second = requestAnimationFrame(() => setRolled(true))
-    })
-    return () => {
-      cancelAnimationFrame(first)
-      cancelAnimationFrame(second)
-    }
+  useLayoutEffect(() => {
+    ref.current?.getBoundingClientRect()
+    setRolled(true)
   }, [])
 
   const text = format(value, kind)
@@ -98,7 +96,7 @@ export function RollingNumber({ value, duration = 650, format: kind = 'currency'
   const chars = [...match[0]]
 
   return (
-    <span className={cn('tabular-nums', className)}>
+    <span ref={ref} className={cn('tabular-nums', className)}>
       <span className="sr-only">{text}</span>
       <span aria-hidden>
         {before}
@@ -113,7 +111,8 @@ export function RollingNumber({ value, duration = 650, format: kind = 'currency'
               <DigitStrip
                 key={`d${fromEnd}`}
                 digit={rolled ? Number(ch) : 0}
-                duration={duration}
+                // Shorter by its delay, so all digits land together
+                duration={Math.max(duration / 2, duration - fromEnd * STAGGER_MS)}
                 delay={fromEnd * STAGGER_MS}
               />
             ) : (

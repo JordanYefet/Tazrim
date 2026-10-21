@@ -23,6 +23,21 @@
     --ring: 199 72% 38%;
     --radius: 0.625rem;
 
+    /* Motion tokens (ENG-67): one clock for the app. Mirrored for JavaScript in
+       lib/motion.ts and as Tailwind aliases (duration-quick / fast / base / page,
+       ease-ui / ease-spring); keep them in step.
+         quick  press feedback, small popovers
+         fast   exits, hover, small fades
+         base   overlays arriving (dialogs, sheets), the tab capsule
+         page   a page arriving: the card spring, content fade, numbers' roll and
+                charts' entrance start together and land on this beat */
+    --motion-quick: 140ms;
+    --motion-fast: 200ms;
+    --motion-base: 300ms;
+    --motion-page: 480ms;
+    --ease-ui: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+
     /* Semantic color tokens */
     --income: 158 55% 32%;
     --income-foreground: 158 55% 32%;
@@ -247,7 +262,7 @@ html {
 /* Rail flyout: a quick fade and settle from the rail side, no overshoot */
 .flyout-in {
   transform-origin: right top;
-  animation: flyout-in 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: flyout-in var(--motion-quick) var(--ease-ui);
 }
 @keyframes flyout-in {
   from { opacity: 0; transform: translateX(4px) scale(0.98); }
@@ -257,20 +272,20 @@ html {
    last slot, at the left edge under RTL), and back into it on close */
 .sheet { transform-origin: 90% 100%; }
 [dir='rtl'] .sheet { transform-origin: 10% 100%; }
-.sheet[data-state='open'] { animation: sheet-in 360ms cubic-bezier(0.23, 1, 0.32, 1); }
-.sheet[data-state='closed'] { animation: sheet-out 220ms cubic-bezier(0.23, 1, 0.32, 1) forwards; }
-.sheet-scrim[data-state='open'] { animation: fade-in 320ms ease-out; }
-.sheet-scrim[data-state='closed'] { animation: fade-out 220ms ease-out forwards; }
+.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-ui); }
+.sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
+.sheet-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
+.sheet-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 @keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
 
 /* Confirmation windows (components/ui/confirm-dialog.tsx): rise a short way
    from below and settle; leave the same way, a little quicker */
 .confirm-dialog { transform-origin: 50% 100%; }
-.confirm-dialog[data-state='open'] { animation: confirm-in 340ms cubic-bezier(0.23, 1, 0.32, 1); }
-.confirm-dialog[data-state='closed'] { animation: confirm-out 200ms cubic-bezier(0.23, 1, 0.32, 1) forwards; }
-.dialog-scrim[data-state='open'] { animation: fade-in 300ms ease-out; }
-.dialog-scrim[data-state='closed'] { animation: fade-out 200ms ease-out forwards; }
+.confirm-dialog[data-state='open'] { animation: confirm-in var(--motion-base) var(--ease-ui); }
+.confirm-dialog[data-state='closed'] { animation: confirm-out var(--motion-fast) var(--ease-ui) forwards; }
+.dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
+.dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes confirm-in { from { opacity: 0; transform: translateY(20px) scale(0.97); } }
 @keyframes confirm-out { to { opacity: 0; transform: translateY(12px) scale(0.98); } }
 @keyframes fade-in { from { opacity: 0; } }
@@ -330,7 +345,7 @@ html {
     inset 0 0 0 0.5px hsl(var(--primary) / 0.18),
     0 1px 3px rgb(15 23 42 / 0.08);
   transform: translateX(calc(var(--slot) * 100%));
-  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease-out;
+  transition: transform var(--motion-base) var(--ease-spring), opacity var(--motion-fast) var(--ease-ui);
 }
 [dir='rtl'] .tab-highlight { transform: translateX(calc(var(--slot) * -100%)); }
 .dark .tab-highlight {
@@ -355,18 +370,18 @@ html {
 /* Picking a month on a bar chart: bars dim and brighten softly instead of
    snapping. Opacity only, so it stays on under reduced motion. */
 .recharts-bar-rectangle path {
-  transition: fill-opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: fill-opacity var(--motion-fast) var(--ease-ui);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .flyout-in { animation: none; }
-  /* The capsule jumps to the new tab and fades in instead of sliding */
-  .tab-highlight { transition: opacity 200ms ease-out; }
-  /* A short cross-fade instead of the slide */
-  .sheet[data-state='open'] { animation: fade-in 200ms ease-out; }
-  .sheet[data-state='closed'] { animation: fade-out 160ms ease-out forwards; }
-  .confirm-dialog[data-state='open'] { animation: fade-in 200ms ease-out; }
-  .confirm-dialog[data-state='closed'] { animation: fade-out 160ms ease-out forwards; }
+  /* Instant: the capsule jumps to the new tab, sheets and dialogs appear and go (ENG-67) */
+  .tab-highlight { transition: none; }
+  .sheet[data-state='open'], .sheet[data-state='closed'],
+  .confirm-dialog[data-state='open'], .confirm-dialog[data-state='closed'],
+  .sheet-scrim[data-state='open'], .sheet-scrim[data-state='closed'],
+  .dialog-scrim[data-state='open'], .dialog-scrim[data-state='closed'] { animation: none; }
+  .recharts-bar-rectangle path { transition: none; }
 }
 
 /* iOS zooms the page into any field under 16px when it gets focus, and stays
@@ -401,9 +416,9 @@ html {
 
 .acct-face {
   transition:
-    --face-a 420ms cubic-bezier(0.23, 1, 0.32, 1),
-    --face-b 420ms cubic-bezier(0.23, 1, 0.32, 1),
-    --face-c 420ms cubic-bezier(0.23, 1, 0.32, 1);
+    --face-a var(--motion-base) var(--ease-ui),
+    --face-b var(--motion-base) var(--ease-ui),
+    --face-c var(--motion-base) var(--ease-ui);
 }
 
 /* Shared material layers */
@@ -434,7 +449,7 @@ html {
 .acct-material--light {
   opacity: 0;
   background: radial-gradient(60% 75% at var(--light-x, 30%) var(--light-y, 20%), rgb(255 255 255 / 0.2), transparent 70%);
-  transition: opacity 240ms ease;
+  transition: opacity var(--motion-fast) ease;
 }
 [data-tilting] .acct-material--light { opacity: 1; }
 
@@ -463,7 +478,7 @@ html {
     0 16px 30px -14px color-mix(in oklab, var(--face-b) 60%, transparent),
     0 34px 64px -30px hsl(var(--shadow-color) / 0.4);
   transform-style: preserve-3d;
-  transition: transform 500ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--motion-page) var(--ease-ui);
 }
 .dark .acct-card {
   box-shadow:
@@ -604,13 +619,12 @@ html {
   opacity: 0;
   transform: translateY(4px);
   transition:
-    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+    opacity var(--motion-fast) var(--ease-ui),
+    transform var(--motion-fast) var(--ease-ui);
 }
 .acct-card__amount[data-visible] {
   opacity: 1;
   transform: none;
-  transition-duration: 280ms;
 }
 .acct-card__amount-label {
   font-size: max(11px, 3.6cqw);
@@ -645,9 +659,9 @@ html {
   line-height: 1.4;
   color: hsl(var(--muted-foreground));
   opacity: 0;
-  transition: opacity 140ms ease-out;
+  transition: opacity var(--motion-fast) var(--ease-ui);
 }
-.wallet__caption[data-visible] { opacity: 1; transition-duration: 280ms; }
+.wallet__caption[data-visible] { opacity: 1; }
 /* Wide screens: the caption hangs under the card inside the row gap, so the
    tiles beside the card align with the card's own edges */
 @media (min-width: 1024px) {
@@ -774,20 +788,20 @@ html {
 }
 
 /* Gentle entrance of the live preview, and the network name swapping in */
-.acct-enter { animation: acct-enter 420ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.acct-enter { animation: acct-enter var(--motion-base) var(--ease-ui) both; }
 @keyframes acct-enter {
   from { opacity: 0; transform: translateY(10px) scale(0.97); }
 }
-.acct-swap { animation: acct-swap 260ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.acct-swap { animation: acct-swap var(--motion-fast) var(--ease-ui) both; }
 @keyframes acct-swap {
   from { opacity: 0; transform: translateY(0.12em) scale(0.96); filter: blur(2px); }
 }
-.acct-digit-in { animation: acct-digit-in 200ms ease-out both; }
+.acct-digit-in { animation: acct-digit-in var(--motion-fast) var(--ease-ui) both; }
 @keyframes acct-digit-in { from { opacity: 0; } }
 
 /* Press feedback for element links (all pointers) */
 .acct-press {
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--motion-quick) var(--ease-ui);
 }
 .acct-press:active { transform: scale(0.985); }
 
@@ -831,7 +845,7 @@ html {
 }
 /* A page's own content eases in when it arrives (the wallet is already there) */
 .wallet-shell__beside,
-.wallet-shell__rest { animation: wallet-content-in 260ms cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+.wallet-shell__rest { animation: wallet-content-in var(--motion-page) var(--ease-ui) backwards; }
 @keyframes wallet-content-in { from { opacity: 0; transform: translateY(6px); } }
 
 /* The wallet: cards are absolutely placed in a box whose height follows the
@@ -850,21 +864,131 @@ html {
   display: block;
   border-radius: 6.4% / 10.15%;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--motion-fast) var(--ease-ui);
 }
 .wallet-card__link:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
 }
-.wallet-card__link:active { transform: scale(0.985); transition-duration: 120ms; }
-/* Desktop pointers: a card behind lifts to peek, the front one rises a touch */
+.wallet-card__link:active { transform: scale(0.985); transition-duration: var(--motion-quick); }
+/* Desktop pointers: a card lifts a little out of the pocket */
 @media (hover: hover) and (pointer: fine) {
-  .wallet[data-mode='stack'] .wallet-card:not([data-front]) .wallet-card__link:hover { transform: translateY(-12px); }
-  .wallet[data-mode='stack'] .wallet-card[data-front] .wallet-card__link:hover { transform: translateY(-3px); }
+  /* In the pocket: the hovered card lifts a few px out of it */
+  .wallet[data-mode='stack'] .wallet-card .wallet-card__link:hover { transform: translateY(-8px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .wallet-card__link { transition: none; }
   .wallet-shell__beside,
   .wallet-shell__rest { animation: none; }
+}
+
+/* ── The leather card holder on /cards (round 7) ──
+   A cognac leather pocket, as wide as the other UI cards; the credit cards
+   stand inside it (components/cards/card-wallet.tsx, geometry in
+   lib/cards/wallet-motion.ts). The leather is a material, so it stays cognac
+   in light and dark; only its shadow adapts. Text is debossed into it: dark
+   ink with a light lower edge. The notch is cut with a mask, so the shadow is
+   a drop-shadow filter on a wrapper (box-shadow would be masked away too). */
+.wallet-pocket {
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: auto;
+  filter:
+    drop-shadow(0 -6px 9px rgb(40 16 2 / 0.32))
+    drop-shadow(0 16px 22px rgb(60 30 10 / 0.28));
+}
+.dark .wallet-pocket {
+  filter:
+    drop-shadow(0 -6px 10px rgb(0 0 0 / 0.5))
+    drop-shadow(0 18px 26px rgb(0 0 0 / 0.55));
+}
+.wallet-pocket__leather {
+  position: relative;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: max(46px, 14cqw) clamp(22px, 8.2cqw, 32px) clamp(18px, 6.5cqw, 24px);
+  border-radius: 26px;
+  background:
+    radial-gradient(90% 70% at 25% 12%, rgb(255 238 214 / 0.24), rgb(255 238 214 / 0) 60%),
+    linear-gradient(165deg, #d69c64 0%, #c4834a 50%, #a96c39 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  /* The thumb notch at the top centre */
+  -webkit-mask-image: radial-gradient(circle 38px at 50% 0, transparent 37px, #000 38px);
+  mask-image: radial-gradient(circle 38px at 50% 0, transparent 37px, #000 38px);
+  color: #4f280d;
+}
+/* Stitching, inset 9px, tone on tone */
+.wallet-pocket__leather::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 19px;
+  border: 1.5px dashed rgb(86 44 14 / 0.42);
+  pointer-events: none;
+}
+/* A very faint grain */
+.wallet-pocket__leather::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-radial-gradient(circle at 20% 30%, rgb(255 255 255 / 0.03) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+.wallet-pocket__deboss {
+  position: relative;
+  text-shadow: 0 1px 0 rgb(255 238 214 / 0.5), 0 -1px 0 rgb(40 16 2 / 0.14);
+}
+.wallet-pocket__label { font-size: 16px; font-weight: 700; line-height: 1.3; }
+.wallet-pocket__total {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.15em;
+  direction: ltr;
+  font-size: clamp(38px, 12.2cqw, 46px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.wallet-pocket__currency { font-size: 0.58em; font-weight: 700; color: rgb(79 40 13 / 0.78); }
+.wallet-pocket__foot {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.wallet-pocket__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgb(79 40 13 / 0.08);
+  box-shadow: inset 0 1px 2px rgb(40 16 2 / 0.14), 0 1px 0 rgb(255 238 214 / 0.5);
+  font-size: 13px;
+  font-weight: 700;
+}
+.wallet-pocket__mark {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgb(79 40 13 / 0.4);
+  text-shadow: 0 1px 0 rgb(255 238 214 / 0.5);
+}
+.wallet-pocket__totalwrap {
+  transition: opacity var(--motion-fast) var(--ease-ui);
+}
+.wallet-pocket__totalwrap:not([data-visible]) { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .wallet-pocket__totalwrap { transition: none; }
+}
+@media (prefers-contrast: more) {
+  .wallet-pocket__leather { color: #2e1405; }
+  .wallet-pocket__leather::after { display: none; }
 }

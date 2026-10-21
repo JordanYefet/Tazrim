@@ -110,7 +110,7 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
         <span className="font-medium">{label}</span>
         {href && (
           <ChevronLeft
-            className="ms-auto h-4 w-4 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-x-0.5"
+            className="ms-auto h-4 w-4 opacity-0 transition-all duration-fast group-hover:opacity-100 group-hover:-translate-x-0.5"
             aria-hidden
           />
         )}
@@ -155,7 +155,7 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
       href={href}
       className={cn(
         base,
-        'transition-[background-color,border-color,box-shadow,transform] duration-200',
+        'transition-[background-color,border-color,box-shadow,transform] duration-fast',
         'hover:border-primary/30 hover:shadow-e3 active:scale-[0.99]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
       )}
@@ -205,7 +205,7 @@ export function NetBalance({
             positive ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'
           )}
         >
-          <RollingNumber value={net} duration={800} format={format} />
+          <RollingNumber value={net} format={format} />
         </p>
         {bankIncome > 0 && (
           <p className="mt-2 text-sm text-muted-foreground">

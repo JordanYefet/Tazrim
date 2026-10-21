@@ -2,6 +2,7 @@ import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
 import { CardSummaryCards } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
+import { CardStackTotal } from '@/components/cards/card-wallet'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
@@ -82,10 +83,9 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   // the grid around it (components/cards/card-wallet.tsx, .wallet-shell)
   return (
     <div className="contents">
-      <div className="wallet-shell__head space-y-3">
-        {heading}
-        <h2 className="pt-3 text-base font-semibold">{several ? `הכרטיסים (${accounts.length})` : 'הכרטיס'}</h2>
-      </div>
+      <div className="wallet-shell__head">{heading}</div>
+      {/* The total across the cards goes on the wallet's leather pocket (the count lives there too) */}
+      <CardStackTotal value={total} />
 
       {/* Each card's figures, beside the stack: as tall as the stack on wide screens */}
       <ul className="wallet-shell__beside self-start divide-y overflow-hidden rounded-xl surface lg:flex lg:flex-col lg:self-stretch">
@@ -114,7 +114,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               average={average}
               monthLabel={month ? monthName(month) : undefined}
               label={several ? 'סה״כ חיובים בכל הכרטיסים' : undefined}
-              extra={several ? [{ label: 'כרטיסים', value: accounts.length, tone: 'neutral', format: 'integer' }] : []}
             />
             <MonthlySpendingChart
               series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}

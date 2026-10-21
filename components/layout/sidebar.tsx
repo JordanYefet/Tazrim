@@ -31,7 +31,7 @@ const ITEM =
 const IDLE = 'text-muted-foreground hover:bg-muted hover:text-foreground'
 const ACTIVE = 'bg-primary/10 text-primary font-medium'
 // The width eases out without overshoot (critically damped feel), and stays put under reduced motion
-const WIDTH_MOTION = 'transition-[width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none'
+const WIDTH_MOTION = 'transition-[width] duration-fast ease-ui motion-reduce:transition-none'
 
 function writeCookie(name: string, value: string) {
   document.cookie = cookieAssignment(name, value)
@@ -41,7 +41,7 @@ function Label({ collapsed, children }: { collapsed: boolean; children: React.Re
   return (
     <span
       className={cn(
-        'min-w-0 flex-1 truncate whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none',
+        'min-w-0 flex-1 truncate whitespace-nowrap transition-opacity duration-quick motion-reduce:transition-none',
         collapsed && 'opacity-0'
       )}
     >
@@ -146,7 +146,7 @@ function SectionItem({
           >
             <ChevronDown
               className={cn(
-                'h-4 w-4 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
+                'h-4 w-4 transition-transform duration-fast ease-ui motion-reduce:transition-none',
                 !expanded && 'rotate-90'
               )}
               aria-hidden
@@ -160,7 +160,7 @@ function SectionItem({
           id={listId}
           inert={!expanded}
           className={cn(
-            'grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
+            'grid transition-[grid-template-rows,opacity] duration-fast ease-ui motion-reduce:transition-none',
             expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
           )}
         >
@@ -256,7 +256,7 @@ export function Sidebar({
             tabIndex={collapsed ? -1 : undefined}
             aria-hidden={collapsed || undefined}
             className={cn(
-              'flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity duration-quick motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               collapsed && 'pointer-events-none opacity-0'
             )}
           >

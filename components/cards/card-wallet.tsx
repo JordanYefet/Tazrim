@@ -17,13 +17,17 @@ import {
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { PaymentCard } from '@/components/accounts/account-element'
+import { RollingNumber } from '@/components/ui/rolling-number'
 import { cardLabel } from '@/lib/accounts/brands'
 import { withQuery } from '@/lib/accounts/routes'
 import { periodQuery } from '@/lib/period'
+import { EASE, LAND_AT } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
 import {
+  POCKET_HEIGHT_CQW,
   boxHeight,
   placements,
+  pocketTop,
   springEasing,
   walletModeFor,
   type CardPlacement,
@@ -56,9 +60,22 @@ export interface WalletCard {
   archived: boolean
 }
 
-const SPRING = springEasing(0.92, 0.36)
-const FALLBACK_EASING = 'cubic-bezier(0.32, 0.72, 0, 1)'
-const STAGGER_MS = 32
+// Settles on the page beat (MOTION.page): the content fade, the numbers' roll
+// and the charts land with the card (motion tokens, lib/motion.ts)
+export const SPRING = springEasing(0.92, 0.35)
+const FALLBACK_EASING = EASE.spring
+// The one deliberate stagger: the other cards follow the chosen one by a hair
+const STAGGER_MS = 24
+
+/**
+ * Calls `land` when an animation is LAND_AT through (or at once without one),
+ * so what appears on the moving card lands with it rather than after it.
+ */
+function whenLanding(anim: Animation | null, land: () => void) {
+  if (!anim) return land()
+  const timer = window.setTimeout(land, SPRING.duration * LAND_AT)
+  anim.addEventListener('cancel', () => window.clearTimeout(timer))
+}
 const INTENT_EVENT = 'tazrim:wallet-route'
 
 function supportsLinearEasing(): boolean {
@@ -180,11 +197,27 @@ export function CardHeroTotal({ accountId, value, label }: HeroTotal) {
   return null
 }
 
+const StackTotalContext = createContext<Dispatch<SetStateAction<number | null>>>(() => {})
+
+/**
+ * Rendered by /cards: puts the period's total across all cards on the leather
+ * pocket (round 7). A new period updates it in place (the digits roll); the
+ * wallet drops it when the stack closes, so a stale total never shows.
+ */
+export function CardStackTotal({ value }: { value: number }) {
+  const set = useContext(StackTotalContext)
+  useLayoutEffect(() => {
+    set(value)
+  }, [set, value])
+  return null
+}
+
 export function CardWallet({ cards, children }: { cards: WalletCard[]; children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [intent, setIntent] = useState<string | null>(null)
   const [heroTotal, setHeroTotal] = useState<HeroTotal | null>(null)
+  const [stackTotal, setStackTotal] = useState<number | null>(null)
 
   const info = useMemo(() => cards.map(c => ({ id: c.id, archived: c.archived })), [cards])
   const routeMode = walletModeFor(pathname, info)
@@ -222,6 +255,7 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
 
   return (
     <HeroTotalContext.Provider value={setHeroTotal}>
+    <StackTotalContext.Provider value={setStackTotal}>
     <div className="wallet-shell mx-auto max-w-7xl">
       {children}
       <div className="wallet-shell__wallet">
@@ -234,9 +268,12 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
           period={period}
           heroTotal={heroTotal}
           setHeroTotal={setHeroTotal}
+          stackTotal={stackTotal}
+          setStackTotal={setStackTotal}
         />
       </div>
     </div>
+    </StackTotalContext.Provider>
     </HeroTotalContext.Provider>
   )
 }
@@ -248,6 +285,8 @@ function Wallet({
   period,
   heroTotal,
   setHeroTotal,
+  stackTotal,
+  setStackTotal,
 }: {
   cards: WalletCard[]
   mode: WalletMode
@@ -255,6 +294,8 @@ function Wallet({
   period: Record<string, string>
   heroTotal: HeroTotal | null
   setHeroTotal: Dispatch<SetStateAction<HeroTotal | null>>
+  stackTotal: number | null
+  setStackTotal: Dispatch<SetStateAction<number | null>>
 }) {
   // Back to front: the first (oldest) card is in front, so it comes last
   const stackOrder = useMemo(() => cards.filter(c => !c.archived).map(c => c.id).reverse(), [cards])
@@ -267,9 +308,19 @@ function Wallet({
   const [initial] = useState(() => place)
   const elements = useRef(new Map<string, HTMLDivElement>())
   const boxRef = useRef<HTMLDivElement>(null)
+  // The leather pocket: in place for the stack, dropped away and faded on a card's page
+  const pocketRef = useRef<HTMLDivElement>(null)
+  const pocketPlace = (m: WalletMode): CardPlacement => ({
+    transform: m.kind === 'stack' ? 'translate3d(0, 0, 0)' : 'translate3d(0, 28px, 0)',
+    opacity: m.kind === 'stack' ? 1 : 0,
+    hidden: m.kind !== 'stack',
+    zIndex: cards.length + 1,
+    front: false,
+  })
+  const [initialPocket] = useState(() => pocketPlace(mode))
   const lastMode = useRef(mode)
   const lastTop = useRef<number | null>(null)
-  // The open card shows its total once it has settled in place (and hides it as soon as it moves)
+  // The open card shows its total as it lands (from LAND_AT of its motion), and hides it as soon as it moves
   const [settledId, setSettledId] = useState<string | null>(mode.kind === 'open' ? mode.id : null)
 
   // Mode changed: move every card from where it is now to its new place
@@ -281,7 +332,11 @@ function Wallet({
     // published this card's total, e.g. on back / forward, keeps it)
     const openId = mode.kind === 'open' ? mode.id : null
     setHeroTotal(t => (t && t.accountId === openId ? t : null))
+    // The pocket's total belongs to the stack on screen: drop it when the stack closes
+    if (mode.kind !== 'stack') setStackTotal(null)
     setSettledId(null)
+    // The pocket drops away with the other cards (or rises back with them)
+    if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), {})
     // Leaving the stack, the cards nearest the chosen one go first; coming back, the same
     const order = mode.kind === 'open' ? [...stackOrder].reverse() : stackOrder
     let k = 0
@@ -292,8 +347,7 @@ function Wallet({
       const moving = mode.kind === 'open' ? id === mode.id : prev.kind === 'open' && id === prev.id
       const anim = moveCard(el, to, { delay: moving ? 0 : STAGGER_MS * k++ })
       if (openId && id === openId) {
-        if (anim) anim.addEventListener('finish', () => setSettledId(openId))
-        else setSettledId(openId)
+        whenLanding(anim, () => setSettledId(openId))
       }
     }
     for (const c of cards) {
@@ -314,6 +368,7 @@ function Wallet({
     lastTop.current = top
     if (prevTop === null || Math.abs(top - prevTop) < 0.5 || prefersReducedMotion()) return
     const shift = top - prevTop
+    if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), { fromY: currentY(pocketRef.current) - shift })
     for (const [id, el] of elements.current) {
       const to = place.get(id)
       if (!to) continue
@@ -321,8 +376,7 @@ function Wallet({
       // This replaces the open card's running motion, so it now says when the card has settled
       if (mode.kind === 'open' && id === mode.id) {
         const openId = mode.id
-        if (anim) anim.addEventListener('finish', () => setSettledId(openId))
-        else setSettledId(openId)
+        whenLanding(anim, () => setSettledId(openId))
       }
     }
   })
@@ -377,6 +431,40 @@ function Wallet({
             </div>
           )
         })}
+        {stackOrder.length > 0 && (
+          <div
+            ref={pocketRef}
+            className="wallet-pocket"
+            style={{
+              top: pocketTop(stackOrder.length),
+              height: `${POCKET_HEIGHT_CQW}cqw`,
+              transform: initialPocket.transform,
+              opacity: initialPocket.opacity,
+              zIndex: cards.length + 1,
+              pointerEvents: mode.kind === 'stack' ? undefined : 'none',
+            }}
+            aria-hidden={mode.kind !== 'stack' || undefined}
+          >
+            <div className="wallet-pocket__leather">
+              <div className="wallet-pocket__deboss">
+                <p className="wallet-pocket__label">סה״כ חיובים בכל הכרטיסים</p>
+                {/* Kept in place (and rolled to 0) until the page gives the total, which then rolls up */}
+                <p className="wallet-pocket__total wallet-pocket__totalwrap" data-visible={stackTotal !== null ? '' : undefined}>
+                  <span className="wallet-pocket__currency">₪</span>
+                  <RollingNumber value={stackTotal ?? 0} format="decimal" />
+                </p>
+              </div>
+              <div className="wallet-pocket__foot wallet-pocket__deboss">
+                <span className="wallet-pocket__chip">
+                  {stackOrder.length === 1 ? 'כרטיס אחד' : `${stackOrder.length} כרטיסים`}
+                </span>
+                <span className="wallet-pocket__mark" aria-hidden>
+                  תזרים
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {heightMode.kind === 'open' && (
         // Under the open card: its total for screen readers (the face is decorative) and where it is paid from

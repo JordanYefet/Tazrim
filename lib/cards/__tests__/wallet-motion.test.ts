@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { boxHeight, placements, springEasing, walletModeFor } from '../wallet-motion'
+import { boxHeight, placements, pocketTop, springEasing, walletModeFor } from '../wallet-motion'
+import { MOTION } from '@/lib/motion'
 
 // Made-up account ids
 const cards = [
@@ -29,25 +30,30 @@ describe('walletModeFor', () => {
 describe('placements', () => {
   it('stacks back to front with the front card last', () => {
     const p = placements({ kind: 'stack' }, cards, stackOrder)
-    expect(p.get('card_b')).toMatchObject({ transform: 'translate3d(0, 0, 0)', zIndex: 1, front: false, hidden: false })
+    expect(p.get('card_b')).toMatchObject({ transform: 'translate3d(0, 0, 0) scale(0.93)', zIndex: 1, front: false, hidden: false })
     expect(p.get('card_a')).toMatchObject({ zIndex: 2, front: true, opacity: 1 })
-    expect(p.get('card_a')!.transform).toContain('calc(1 * max(52px, 17cqw))')
+    expect(p.get('card_a')!.transform).toBe('translate3d(0, calc(1 * max(50px, 13.7cqw)), 0) scale(0.93)')
     expect(p.get('card_old')).toMatchObject({ hidden: true, opacity: 0 })
   })
 
   it('puts the open card on top and the others out of sight below it', () => {
     const p = placements({ kind: 'open', id: 'card_b' }, cards, stackOrder)
-    expect(p.get('card_b')).toMatchObject({ transform: 'translate3d(0, 0, 0)', opacity: 1, zIndex: 4, front: true })
+    expect(p.get('card_b')).toMatchObject({ transform: 'translate3d(0, 0, 0)', opacity: 1, zIndex: 5, front: true })
     expect(p.get('card_a')).toMatchObject({ hidden: true, opacity: 0 })
     expect(p.get('card_old')).toMatchObject({ hidden: true })
   })
 })
 
-describe('boxHeight', () => {
-  it('is one card when open or single, the strips plus a card when stacked', () => {
+describe('boxHeight and pocketTop', () => {
+  it('is one card when open, the strips plus the pocket when stacked', () => {
     expect(boxHeight({ kind: 'open', id: 'card_a' }, 2)).toBe('63.0841cqw')
-    expect(boxHeight({ kind: 'stack' }, 1)).toBe('63.0841cqw')
-    expect(boxHeight({ kind: 'stack' }, 3)).toBe('calc(2 * max(52px, 17cqw) + 63.0841cqw)')
+    expect(boxHeight({ kind: 'stack' }, 3)).toBe('calc(2 * max(50px, 13.7cqw) + max(44px, 12cqw) + 61cqw)')
+    expect(pocketTop(3)).toBe('calc(2 * max(50px, 13.7cqw) + max(44px, 12cqw))')
+  })
+
+  it('shows the top of a single card above the pocket', () => {
+    expect(pocketTop(1)).toBe('calc(max(44px, 12cqw))')
+    expect(boxHeight({ kind: 'stack' }, 1)).toBe('calc(max(44px, 12cqw) + 61cqw)')
   })
 })
 
@@ -66,5 +72,12 @@ describe('springEasing', () => {
   it('does not overshoot when critically damped', () => {
     const values = springEasing(1, 0.4).easing.slice(7, -1).split(', ').map(Number)
     expect(Math.max(...values)).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('the wallet spring and the page beat (ENG-67)', () => {
+  it('settles within 25ms of MOTION.page, so the card lands with the page content', () => {
+    // Same parameters as components/cards/card-wallet.tsx
+    expect(Math.abs(springEasing(0.92, 0.35).duration - MOTION.page)).toBeLessThanOrEqual(25)
   })
 })

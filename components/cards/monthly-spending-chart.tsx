@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { monthName } from '@/lib/utils/date'
@@ -78,6 +79,8 @@ function MonthlySpendingChartInner({
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
 
   const rows = Array.from({ length: monthCount }, (_, i) => {
     const m = i + 1
@@ -120,7 +123,7 @@ function MonthlySpendingChartInner({
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             {series.map((s, i) => (
-              <Bar
+              <Bar {...anim}
                 key={s.key}
                 dataKey={s.key}
                 name={s.label}

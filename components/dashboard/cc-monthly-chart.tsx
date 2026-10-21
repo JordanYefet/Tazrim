@@ -1,6 +1,7 @@
 'use client'
 
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { monthName } from '@/lib/utils/date'
@@ -56,6 +57,8 @@ function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: P
   const strokeColor = isDark ? 'var(--chart-cc, #d4955a)' : 'var(--chart-cc, #b8732a)'
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const axes = useChartAxes(textColor)
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
   const gridColor = isDark ? '#283040' : '#e2e8ed'
 
   // Months without an uploaded statement are gaps, not ₪0
@@ -92,7 +95,7 @@ function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: P
             />
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip series={series} />} cursor={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />
-            <Line
+            <Line {...anim}
               type="monotone"
               dataKey="חיובי מקס"
               stroke={strokeColor}

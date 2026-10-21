@@ -1,6 +1,7 @@
 'use client'
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
@@ -40,6 +41,8 @@ function CategoryDonutInner({
 }) {
   const router = useRouter()
   const params = useSearchParams()
+  // Entrance on the shared page beat (ENG-67)
+  const anim = useChartAnimation()
 
   const chartData = Object.entries(data)
     .map(([name, value]) => ({ name, value }))
@@ -70,7 +73,7 @@ function CategoryDonutInner({
         <div className="h-52 w-52 flex-shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie
+              <Pie {...anim}
                 data={chartData}
                 dataKey="value"
                 nameKey="name"

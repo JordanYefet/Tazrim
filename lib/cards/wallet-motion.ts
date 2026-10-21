@@ -6,7 +6,19 @@
 /** Card height as a share of its width: 54 / 85.6 mm. */
 export const CARD_HEIGHT_CQW = 63.0841
 /** A stack strip: the visible top of a card behind another (nickname + issuer, an easy tap target). */
-export const STRIP = 'max(52px, 17cqw)'
+export const STRIP = 'max(50px, 13.7cqw)'
+/**
+ * The leather pocket (round 7) spans the wallet's full width, like the other
+ * UI cards; the credit cards stand inside it, 7% smaller (about 12-14px in on
+ * each side: 334px cards in a 358px pocket on a phone, 352 in 380 on a
+ * desktop), each showing only its strip. The front card shows this much above
+ * the pocket (a 44px tap target); the pocket is 61% of the wallet's width tall
+ * (222px / 230px). On a card's page the open card is full width, so opening
+ * and closing is one translate + scale (a FLIP of the same element).
+ */
+export const STACK_SCALE = 0.93
+export const FRONT_PEEK = 'max(44px, 12cqw)'
+export const POCKET_HEIGHT_CQW = 61
 /** Gap below the open card before the hidden cards' resting place. */
 const HIDDEN_GAP_PX = 24
 const HIDDEN_STEP_PX = 14
@@ -66,12 +78,13 @@ export function placements(mode: WalletMode, cards: WalletCardInfo[], stackOrder
       if (id === mode.id) continue
       out.set(id, hidden(k++, stackOrder.indexOf(id) + 1))
     }
-    out.set(mode.id, { transform: 'translate3d(0, 0, 0)', opacity: 1, hidden: false, zIndex: cards.length + 1, front: true })
+    // Above the pocket (which sits at cards.length + 1) while it rises out of it
+    out.set(mode.id, { transform: 'translate3d(0, 0, 0)', opacity: 1, hidden: false, zIndex: cards.length + 2, front: true })
     return out
   }
   stackOrder.forEach((id, i) => {
     out.set(id, {
-      transform: i === 0 ? 'translate3d(0, 0, 0)' : `translate3d(0, calc(${i} * ${STRIP}), 0)`,
+      transform: `${i === 0 ? 'translate3d(0, 0, 0)' : `translate3d(0, calc(${i} * ${STRIP}), 0)`} scale(${STACK_SCALE})`,
       opacity: 1,
       hidden: false,
       zIndex: i + 1,
@@ -84,10 +97,19 @@ export function placements(mode: WalletMode, cards: WalletCardInfo[], stackOrder
   return out
 }
 
-/** Height of the wallet box in a mode (CSS). */
+function pocketTopExpr(stackCount: number): string {
+  return stackCount <= 1 ? FRONT_PEEK : `${stackCount - 1} * ${STRIP} + ${FRONT_PEEK}`
+}
+
+/** Where the pocket's top sits in the stack (CSS): just under the front card's strip. */
+export function pocketTop(stackCount: number): string {
+  return `calc(${pocketTopExpr(stackCount)})`
+}
+
+/** Height of the wallet box in a mode (CSS): the open card, or the cards down to the pocket's bottom. */
 export function boxHeight(mode: WalletMode, stackCount: number): string {
-  if (mode.kind === 'open' || stackCount <= 1) return `${CARD_HEIGHT_CQW}cqw`
-  return `calc(${stackCount - 1} * ${STRIP} + ${CARD_HEIGHT_CQW}cqw)`
+  if (mode.kind === 'open' || stackCount < 1) return `${CARD_HEIGHT_CQW}cqw`
+  return `calc(${pocketTopExpr(stackCount)} + ${POCKET_HEIGHT_CQW}cqw)`
 }
 
 /**

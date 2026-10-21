@@ -258,7 +258,7 @@ function Advanced({
     <details className="group rounded-lg border">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
         מתקדם
-        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 ease-out group-open:rotate-180" aria-hidden />
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-fast ease-out group-open:rotate-180" aria-hidden />
       </summary>
       <div className="grid gap-4 border-t p-3 sm:grid-cols-2">
         <div className="space-y-1">
