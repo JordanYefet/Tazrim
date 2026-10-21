@@ -162,7 +162,15 @@ describe('batchTotals', () => {
     list = applyImportOutcome(list, list[0].id, { ok: true, result: result({ created: 5, skipped: 0, skippedRows: [] }) })
     list = applyImportOutcome(list, list[1].id, { ok: true, result: result({ created: 0, skipped: 3 }) })
     list = applyImportOutcome(list, list[2].id, { ok: false, error: 'x' })
-    expect(batchTotals(list)).toEqual({ created: 5, skipped: 3, imported: 2, failed: 1 })
+    expect(batchTotals(list)).toEqual({ created: 5, skipped: 3, imported: 2, failed: 1, pending: 0 })
+  })
+
+  it('adds up the rows left out because they are not billed yet', () => {
+    let list = addFiles<F, P>([], [f('a'), f('b')]).list
+    list = ready(ready(list, list[0].id), list[1].id)
+    list = applyImportOutcome(list, list[0].id, { ok: true, result: result({ created: 4, pending: 2 }) })
+    list = applyImportOutcome(list, list[1].id, { ok: true, result: result({ created: 1, pending: 1 }) })
+    expect(batchTotals(list).pending).toBe(3)
   })
 })
 

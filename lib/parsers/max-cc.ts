@@ -6,10 +6,12 @@ function parseAmount(val: unknown): number {
   return parseFloat(String(val ?? '0').replace(/,/g, '')) || 0
 }
 
-function parseDashedDate(val: unknown): Date {
-  const str = String(val ?? '')
-  const [day, month, year] = str.split('-')
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+/** DD-MM-YYYY, or null when the cell is empty or not a date */
+function parseDashedDate(val: unknown): Date | null {
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(String(val ?? '').trim())
+  if (!m) return null
+  const date = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]))
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function isDataRow(row: unknown[]): boolean {
@@ -25,16 +27,30 @@ function buildColMap(headerRow: string[]): Record<string, number> {
   }, {} as Record<string, number>)
 }
 
-function parseSheet(rows: unknown[][]): ParsedCCTransaction[] {
+function parseSheet(rows: unknown[][]): { transactions: ParsedCCTransaction[]; pending: number } {
   // rows[0-2]: metadata, rows[3]: headers, rows[4+]: data + footer
   const colMap = buildColMap(rows[3] as string[])
+  const transactions: ParsedCCTransaction[] = []
+  let pending = 0
 
-  return rows.slice(4).filter(isDataRow).map(row => {
+  for (const row of rows.slice(4).filter(isDataRow)) {
     const r = row as unknown[]
+    const transactionDate = parseDashedDate(r[colMap['תאריך עסקה']])
+    const billingCell = String(r[colMap['תאריך חיוב']] ?? '').trim()
+    const billingDate = parseDashedDate(billingCell)
+    // Approved but not billed yet (Max's "עסקאות שאושרו וטרם נקלטו" sheet): nothing
+    // is charged, and the row comes back billed in a later export. Importing it now
+    // would count it twice, since the billed row has a different date and amount.
+    if (!billingCell) {
+      pending++
+      continue
+    }
+    // An unreadable date skips the row rather than failing the whole file
+    if (!transactionDate || !billingDate) continue
     const originalMerchantName = String(r[colMap['שם בית העסק']] ?? '').trim()
-    return {
-      transactionDate: parseDashedDate(r[colMap['תאריך עסקה']]),
-      billingDate: parseDashedDate(r[colMap['תאריך חיוב']]),
+    transactions.push({
+      transactionDate,
+      billingDate,
       originalMerchantName,
       merchantName: originalMerchantName,
       category: String(r[colMap['קטגוריה']] ?? ''),
@@ -45,16 +61,20 @@ function parseSheet(rows: unknown[][]): ParsedCCTransaction[] {
       transactionType: String(r[colMap['סוג עסקה']] ?? ''),
       notes: String(r[colMap['הערות']] ?? ''),
       cardProvider: 'MAX' as const,
-    }
-  })
+    })
+  }
+  return { transactions, pending }
 }
 
 export function parseMaxCC(buffer: Buffer): ParseResult<ParsedCCTransaction> {
   const transactions: ParsedCCTransaction[] = []
+  let pending = 0
 
   for (const { rows } of readWorkbookRows(buffer)) {
-    transactions.push(...parseSheet(rows))
+    const sheet = parseSheet(rows)
+    transactions.push(...sheet.transactions)
+    pending += sheet.pending
   }
 
-  return { transactions, errors: [] }
+  return { transactions, errors: [], pending }
 }

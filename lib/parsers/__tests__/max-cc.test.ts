@@ -80,4 +80,44 @@ describe('parseMaxCC', () => {
     const { transactions } = parseMaxCC(buf)
     expect(transactions).toHaveLength(2)
   })
+
+  // Max puts approved-but-not-yet-billed charges on their own sheet: no billing
+  // date and nothing charged yet. They come back billed in a later export.
+  const PENDING = ['20-10-2026','חנות לדוגמה','מזון וצריכה','1234','רגילה',0,'₪',58.4,'₪','','','','','','','']
+
+  function workbookWithPending(): Buffer {
+    const wb = XLSX.utils.book_new()
+    const makeSheet = (rows: unknown[][]) =>
+      XLSX.utils.aoa_to_sheet([['כל המשתמשים (1)', ''], ['כל הכרטיסים (1)', ''], ['10/2026', ''], HEADER_ROW, ...rows])
+    XLSX.utils.book_append_sheet(wb, makeSheet([TX1, TX2]), 'עסקאות במועד החיוב')
+    XLSX.utils.book_append_sheet(wb, makeSheet([PENDING, PENDING]), 'עסקאות שאושרו וטרם נקלטו')
+    return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }))
+  }
+
+  it('leaves out rows that are not billed yet and counts them', () => {
+    const { transactions, errors, pending } = parseMaxCC(workbookWithPending())
+    expect(errors).toEqual([])
+    expect(transactions).toHaveLength(2)
+    expect(pending).toBe(2)
+  })
+
+  it('never returns an invalid date', () => {
+    const { transactions } = parseMaxCC(workbookWithPending())
+    for (const t of transactions) {
+      expect(Number.isNaN(t.transactionDate.getTime())).toBe(false)
+      expect(Number.isNaN(t.billingDate.getTime())).toBe(false)
+    }
+  })
+
+  it('skips a row whose billing date cannot be read instead of failing the file', () => {
+    const garbled = [...TX1]
+    garbled[9] = 'לא תאריך'
+    const { transactions } = parseMaxCC(buildWorkbook([garbled, TX2]))
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0].originalMerchantName).toBe('חנות פירות לדוגמה')
+  })
+
+  it('reports no pending rows for a normal export', () => {
+    expect(parseMaxCC(buildWorkbook([TX1, TX2])).pending).toBe(0)
+  })
 })

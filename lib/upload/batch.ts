@@ -10,6 +10,8 @@ export interface FileImportResult {
   skipped: number
   skippedRows: SkippedRow[]
   newCategories?: string[]
+  /** Rows left out because they are not billed yet (Max) */
+  pending?: number
 }
 
 /** reading: preview in flight; unsupported: readable, but the account's provider cannot be imported yet */
@@ -114,14 +116,16 @@ export function batchTotals<F, P>(list: BatchFile<F, P>[]) {
   let skipped = 0
   let imported = 0
   let failed = 0
+  let pending = 0
   for (const x of list) {
     if (x.import === 'failed') failed++
     if (x.import !== 'done' || !x.result) continue
     imported++
     created += x.result.created
     skipped += x.result.skipped
+    pending += x.result.pending ?? 0
   }
-  return { created, skipped, imported, failed }
+  return { created, skipped, imported, failed, pending }
 }
 
 /** Every file's new categories, once each, in the order first seen. */
