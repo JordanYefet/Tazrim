@@ -28,4 +28,6 @@ export interface ParsedCCTransaction {
 export interface ParseResult<T> {
   transactions: T[]
   errors: string[]
+  /** Rows left out because they are not billed yet (Max's pending sheet) */
+  pending?: number
 }

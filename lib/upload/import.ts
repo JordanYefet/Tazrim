@@ -47,7 +47,7 @@ export interface SkippedRow {
 export type ImportFailure = { ok: false; status: number; code: ImportErrorCode; error: string }
 
 export type ImportResult =
-  | { ok: true; created: number; skipped: number; skippedRows: SkippedRow[]; newCategories?: string[] }
+  | { ok: true; created: number; skipped: number; skippedRows: SkippedRow[]; newCategories?: string[]; pending?: number }
   | ImportFailure
 
 type ImportableAccount = Pick<Account, 'id' | 'kind' | 'provider'>
@@ -64,7 +64,7 @@ export interface ImportOptions {
 /** A file read into rows, not stored yet. */
 export type ParsedUpload =
   | { ok: true; kind: 'bank'; rows: ParsedBankTransaction[] }
-  | { ok: true; kind: 'card'; rows: ParsedCCTransaction[] }
+  | { ok: true; kind: 'card'; rows: ParsedCCTransaction[]; pending?: number }
   | ImportFailure
 
 type Parser = (account: ImportableAccount, buffer: Buffer, fileName: string, opts: ImportOptions) => Promise<ParsedUpload>
@@ -143,9 +143,10 @@ function storeRows(
   opts: ImportOptions,
   db: Db = prisma
 ): Promise<ImportResult> {
-  return parsed.kind === 'card'
-    ? storeCard(account, parsed.rows, fileName, opts, db)
-    : storeBank(account, parsed.rows, fileName, db)
+  if (parsed.kind === 'bank') return storeBank(account, parsed.rows, fileName, db)
+  // Rows the file holds but are not billed yet (Max), reported, never stored
+  const pending = parsed.pending ?? 0
+  return storeCard(account, parsed.rows, fileName, opts, db).then(r => (r.ok && pending ? { ...r, pending } : r))
 }
 
 const parseLeumi: Parser = async (_account, buffer, fileName) => {
@@ -162,10 +163,12 @@ const parseMax: Parser = async (_account, buffer) => {
   } catch {
     return parseError('לא ניתן לקרוא את הקובץ כקובץ מקס')
   }
-  const { transactions, errors } = parsed
+  const { transactions, errors, pending } = parsed
   if (errors.length) return parseError(errors[0])
-  if (!transactions.length) return parseError('לא נמצאו עסקאות בקובץ')
-  return { ok: true, kind: 'card', rows: transactions }
+  if (!transactions.length) {
+    return parseError(pending ? 'בקובץ יש רק עסקאות שטרם נקלטו, אין עדיין חיובים לייבא' : 'לא נמצאו עסקאות בקובץ')
+  }
+  return { ok: true, kind: 'card', rows: transactions, pending }
 }
 
 const invalidMapping = (error: string, status = 400): ImportFailure => ({ ok: false, status, code: 'INVALID_MAPPING', error })

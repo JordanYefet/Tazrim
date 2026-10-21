@@ -29,6 +29,21 @@ export function maxXlsx(category = 'קטגוריה בדויה'): Buffer {
   return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }))
 }
 
+/** A MAX export with an "approved, not billed yet" sheet: no billing date, nothing charged. */
+export function maxXlsxWithPending(): Buffer {
+  const wb = XLSX.utils.book_new()
+  const sheet = (rows: unknown[][]) =>
+    XLSX.utils.aoa_to_sheet([['כל המשתמשים (1)'], ['כל הכרטיסים (1)'], ['01/2030'], MAX_HEADER, ...rows, ['סך הכל']])
+  XLSX.utils.book_append_sheet(wb, sheet([
+    ['12-01-2030', 'עסק בדוי אחר', 'קטגוריה בדויה', '0000', 'רגילה', 22, '₪', 22, '₪', '10-02-2030', ''],
+  ]), 'עסקאות במועד החיוב')
+  XLSX.utils.book_append_sheet(wb, sheet([
+    ['28-01-2030', 'עסק ממתין בדוי', 'קטגוריה בדויה', '0000', 'רגילה', 0, '₪', 31, '₪', '', ''],
+    ['29-01-2030', 'עסק ממתין בדוי', 'קטגוריה בדויה', '0000', 'רגילה', 0, '₪', 12, '₪', '', ''],
+  ]), 'עסקאות שאושרו וטרם נקלטו')
+  return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }))
+}
+
 export const OTHER_CSV = Buffer.from('תאריך,פירוט,סכום\n2030-01-08,ספק בדוי,9.90\n')
 
 export const TEST_ACCOUNTS_SQL = `

@@ -532,6 +532,11 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                   · <RollingNumber value={totals.skipped} format="integer" /> כבר קיימות ודולגו
                 </span>
               )}
+              {totals.pending > 0 && (
+                <span className="text-muted-foreground">
+                  · {totals.pending === 1 ? 'עסקה אחת שטרם נקלטה לא יובאה' : `${totals.pending} עסקאות שטרם נקלטו לא יובאו`}, הן ייכנסו עם הפירוט הבא
+                </span>
+              )}
               {!single && (
                 <span className="text-muted-foreground">
                   · {totals.imported === 1 ? 'מקובץ אחד' : `מ־${totals.imported} קבצים`}

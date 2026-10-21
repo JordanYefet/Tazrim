@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
-import { leumiHtml, maxXlsx, OTHER_CSV, TEST_ACCOUNTS_SQL } from './fixtures'
+import { leumiHtml, maxXlsx, maxXlsxWithPending, OTHER_CSV, TEST_ACCOUNTS_SQL } from './fixtures'
 
 let db: TestDb
 let mod: typeof import('../import')
@@ -81,6 +81,14 @@ describe('importUpload', () => {
   it('refuses providers without a parser', async () => {
     const res = await mod.importUpload(await acct('acct_test_other'), OTHER_CSV, 'other.csv')
     expect(res).toMatchObject({ ok: false, code: 'UNSUPPORTED_PROVIDER', status: 422 })
+  })
+
+  it('imports the billed rows of a MAX file and only reports the ones not billed yet', async () => {
+    const res = await mod.importUpload(await acct('acct_test_max2'), maxXlsxWithPending(), 'pending-fake.xlsx')
+    expect(res).toMatchObject({ ok: true, created: 1, pending: 2 })
+    expect(db.query(`SELECT originalMerchantName AS m FROM "CreditCardTransaction" WHERE sourceFile = 'pending-fake.xlsx'`)).toEqual([
+      { m: 'עסק בדוי אחר' },
+    ])
   })
 
   it('reports a parse error when the file has no transactions for that parser', async () => {
