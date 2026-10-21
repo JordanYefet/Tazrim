@@ -4,7 +4,7 @@
  * and the header signature that groups files sharing one mapping.
  */
 import type { Account } from '@prisma/client'
-import { findMatchingProfile } from '@/lib/db/import-profiles'
+import { candidateProfiles, findMatchingProfile, profileMapping } from '@/lib/db/import-profiles'
 import {
   findHeaderRow,
   headerSignature,
@@ -22,6 +22,12 @@ export interface MapperInfo {
   profile: { id: string; name: string; mapping: ImportMapping; linked: boolean } | null
   /** headerSignature at the mapping's header row: files with the same one share a mapping */
   signature: string
+  /**
+   * The account's own default profile, whether or not this file matches it:
+   * re-mapping (ENG-65) starts from it when the file doesn't match any profile
+   * (e.g. the saved header row was the mistake), and saves back into it.
+   */
+  accountProfile: { id: string; name: string; mapping: ImportMapping } | null
 }
 
 /** Null for account kinds that can't be mapped (trading, pension). */
@@ -42,7 +48,10 @@ export async function mapperFor(
   const match = await findMatchingProfile(account, workbook)
   const mapping = match?.mapping ?? suggestion
   const signatureSheet = workbook.sheets[mapping.sheet]
+  const own = (await candidateProfiles(account)).find(p => p.accountId === account.id)
+  const ownMapping = own ? profileMapping(own) : null
   return {
+    accountProfile: own && ownMapping ? { id: own.id, name: own.name, mapping: ownMapping } : null,
     kind,
     suggestion,
     profile: match

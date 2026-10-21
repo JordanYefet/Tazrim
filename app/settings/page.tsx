@@ -8,12 +8,20 @@ import { ImportProfilesManager } from '@/components/settings/import-profiles-man
 import { listImportProfiles } from '@/lib/db/import-profiles'
 import { toProfileView } from '@/lib/import/profile-view'
 import { DangerZone } from '@/components/settings/danger-zone'
+import { BANK_COLORS, CARD_COLORS } from '@/lib/nav/state'
 
 export const dynamic = 'force-dynamic'
 
 /** Appearance, account management (the old /accounts page, at #accounts) and saved import mappings (#import-profiles). */
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   const { new: newParam } = await searchParams
+  // The colour each account has by position (dots, charts), as in the nav: the brand default's fallback
+  const position = { BANK: 0, CREDIT_CARD: 0 } as Record<string, number>
+  const positionColor = (kind: string, archived: boolean) => {
+    const colors = kind === 'BANK' ? BANK_COLORS : kind === 'CREDIT_CARD' ? CARD_COLORS : null
+    if (!colors || archived) return undefined
+    return colors[position[kind]++ % colors.length]
+  }
   const accounts: ManagedAccount[] = (await listAccountsWithCounts()).map(a => ({
     id: a.id,
     kind: a.kind,
@@ -21,10 +29,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     displayName: a.displayName,
     cardLastFour: a.cardLastFour,
     cardNetwork: a.cardNetwork,
+    color: a.color,
     archived: a.archived,
     transactionCount: a.transactionCount,
     uploadCount: a.counts.uploads,
     importSupported: isImportSupported(a) || mappingKindOf(a.kind) !== null,
+    builtInImport: isImportSupported(a),
+    positionColor: positionColor(a.kind, a.archived),
   }))
   const profiles = (await listImportProfiles()).map(toProfileView)
 
