@@ -991,6 +991,7 @@ html {
 @media (prefers-contrast: more) {
   .wallet-pocket__leather { color: #2e1405; }
   .wallet-pocket__leather::after { display: none; }
+}
 
 /* ── Account colours (ENG-66) ────────────────────────────────────────────
    Chosen colours, custom colours and glass (lib/accounts/colors.ts). Faces
