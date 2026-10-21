@@ -65,7 +65,14 @@ interface MapGroup {
 function newGroup(mapper: MapperInfo): MapGroup {
   return mapper.profile
     ? { mapping: mapper.profile.mapping, profile: { id: mapper.profile.id, name: mapper.profile.name }, basedOn: null, editing: false }
-    : { mapping: mapper.suggestion, profile: null, basedOn: null, editing: true }
+    : {
+        mapping: mapper.suggestion,
+        profile: null,
+        // a file that doesn't match the account's own mapping (e.g. one seeded from a built-in
+        // layout, ENG-69): saving afterwards updates that mapping instead of adding another
+        basedOn: mapper.accountProfile ? { id: mapper.accountProfile.id, name: mapper.accountProfile.name } : null,
+        editing: true,
+      }
 }
 
 /** What a mapped file was imported with, so a force re-post uses the same. */
