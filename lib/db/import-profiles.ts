@@ -77,13 +77,15 @@ function checkHeaders(value: unknown, signature: string): string {
   return JSON.stringify(res.snapshot)
 }
 
-export type ProfileWithAccount = ImportProfile & { account: Pick<Account, 'id' | 'displayName'> | null }
+export type ProfileWithAccount = ImportProfile & {
+  account: Pick<Account, 'id' | 'displayName' | 'kind' | 'provider' | 'customImport'> | null
+}
 
 /** Every profile, newest first, with its linked account's name. */
 export async function listImportProfiles(): Promise<ProfileWithAccount[]> {
   return prisma.importProfile.findMany({
     orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
-    include: { account: { select: { id: true, displayName: true } } },
+    include: { account: { select: { id: true, displayName: true, kind: true, provider: true, customImport: true } } },
   })
 }
 

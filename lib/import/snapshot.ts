@@ -25,17 +25,19 @@ export interface HeaderSnapshot {
 }
 
 export const SAMPLE_ROWS = 5
+/** Sample cells are cut to this; header cells are kept whole (they make the signature) */
 export const MAX_CELL_CHARS = 200
+const MAX_HEADER_CHARS = 4000
 const MAX_CELLS_ABOVE = 4
 
-const clip = (v: RawCell | undefined): RawCell => {
+const clip = (v: RawCell | undefined, max = MAX_CELL_CHARS): RawCell => {
   if (v === undefined || v === null) return null
   if (typeof v === 'number') return Number.isFinite(v) ? v : null
-  return v.length > MAX_CELL_CHARS ? v.slice(0, MAX_CELL_CHARS) : v
+  return v.length > max ? v.slice(0, max) : v
 }
 
-function trimRow(row: RawCell[] | undefined): RawCell[] {
-  const out = (row ?? []).slice(0, MAX_COLUMN + 1).map(clip)
+function trimRow(row: RawCell[] | undefined, max = MAX_CELL_CHARS): RawCell[] {
+  const out = (row ?? []).slice(0, MAX_COLUMN + 1).map(v => clip(v, max))
   while (out.length && out[out.length - 1] === null) out.pop()
   return out
 }
@@ -47,7 +49,7 @@ const isBlank = (row: RawCell[] | undefined) => !row || row.every(c => c === nul
  * map cleanly (else the first non-blank ones), and the billing-date cell.
  */
 export function buildSnapshot(sheet: Pick<RawSheet, 'rows'>, mapping: ImportMapping, kind: MappingKind): HeaderSnapshot {
-  const header = trimRow(sheet.rows[mapping.headerRow])
+  const header = trimRow(sheet.rows[mapping.headerRow], MAX_HEADER_CHARS)
   const asSheet = sheet as RawSheet
   const ok = applyMapping(asSheet, mapping, kind, { limit: 50 }).rowNumbers.slice(0, SAMPLE_ROWS)
   const start = mapping.startRow ?? mapping.headerRow + 1
@@ -60,7 +62,7 @@ export function buildSnapshot(sheet: Pick<RawSheet, 'rows'>, mapping: ImportMapp
   const snapshot: HeaderSnapshot = { v: 1, header, samples: rows.map(r => trimRow(sheet.rows[r])) }
   const b = mapping.billingDate
   if (kind === 'card' && b?.from === 'cell' && b.row < mapping.headerRow) {
-    snapshot.cells = [{ row: b.row, col: b.col, value: clip(sheet.rows[b.row]?.[b.col]) }]
+    snapshot.cells = [{ row: b.row, col: b.col, value: clip(sheet.rows[b.row]?.[b.col], MAX_HEADER_CHARS) }]
   }
   return snapshot
 }
@@ -72,9 +74,10 @@ export function snapshotFromSignature(signature: string): HeaderSnapshot | null 
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-const isCell = (v: unknown): v is RawCell =>
-  v === null || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= MAX_CELL_CHARS)
-const isRow = (v: unknown): v is RawCell[] => Array.isArray(v) && v.length <= MAX_COLUMN + 1 && v.every(isCell)
+const isCell = (v: unknown, max = MAX_CELL_CHARS): v is RawCell =>
+  v === null || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= max)
+const isRow = (v: unknown, max = MAX_CELL_CHARS): v is RawCell[] =>
+  Array.isArray(v) && v.length <= MAX_COLUMN + 1 && v.every(c => isCell(c, max))
 const isIndex = (v: unknown, max: number): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max
 
 export type SnapshotResult = { ok: true; snapshot: HeaderSnapshot } | { ok: false; error: string }
@@ -84,14 +87,14 @@ export function validateSnapshot(input: unknown): SnapshotResult {
   const fail = (): SnapshotResult => ({ ok: false, error: 'כותרות הקובץ אינן תקינות' })
   if (!isObj(input) || input.v !== 1) return fail()
   const { header, samples, cells, rebuilt } = input
-  if (!isRow(header) || !header.length) return fail()
-  if (!Array.isArray(samples) || samples.length > SAMPLE_ROWS || !samples.every(isRow)) return fail()
+  if (!isRow(header, MAX_HEADER_CHARS) || !header.length) return fail()
+  if (!Array.isArray(samples) || samples.length > SAMPLE_ROWS || !samples.every(r => isRow(r))) return fail()
   const snapshot: HeaderSnapshot = { v: 1, header: [...header], samples: samples.map(r => [...r]) }
   if (cells !== undefined) {
     if (
       !Array.isArray(cells) ||
       cells.length > MAX_CELLS_ABOVE ||
-      !cells.every(c => isObj(c) && isIndex(c.row, MAX_ROW) && isIndex(c.col, MAX_COLUMN) && isCell(c.value))
+      !cells.every(c => isObj(c) && isIndex(c.row, MAX_ROW) && isIndex(c.col, MAX_COLUMN) && isCell(c.value, MAX_HEADER_CHARS))
     )
       return fail()
     snapshot.cells = cells.map(c => ({ row: c.row as number, col: c.col as number, value: c.value as RawCell }))

@@ -3,6 +3,7 @@
 import { useId, useState } from 'react'
 import { BookmarkPlus, CheckCircle2 } from 'lucide-react'
 import type { ImportMapping } from '@/lib/import/mapping'
+import type { HeaderSnapshot } from '@/lib/import/snapshot'
 
 export interface SavedProfile {
   id: string
@@ -20,6 +21,7 @@ export function SaveProfile({
   defaultName,
   mapping,
   headerSignature,
+  headers,
   basedOn,
   onSaved,
   onDismiss,
@@ -29,6 +31,8 @@ export function SaveProfile({
   defaultName: string
   mapping: ImportMapping
   headerSignature: string
+  /** The file's header row and a few sample rows, so the mapping can be edited later without a file (ENG-69) */
+  headers: HeaderSnapshot
   basedOn: SavedProfile | null
   onSaved: (profile: SavedProfile) => void
   onDismiss: () => void
@@ -61,9 +65,9 @@ export function SaveProfile({
     e.preventDefault()
     if (saving || !name.trim()) return
     if (basedOn) {
-      void send(`/api/import-profiles/${basedOn.id}`, 'PATCH', { name, mapping, headerSignature })
+      void send(`/api/import-profiles/${basedOn.id}`, 'PATCH', { name, mapping, headerSignature, headers })
     } else {
-      void send('/api/import-profiles', 'POST', { accountId, name, mapping, headerSignature, linkAccount: link })
+      void send('/api/import-profiles', 'POST', { accountId, name, mapping, headerSignature, headers, linkAccount: link })
     }
   }
 

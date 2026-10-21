@@ -13,6 +13,7 @@ import { ColumnMapper, MappedPreview } from './column-mapper'
 import { SaveProfile, SavedProfileNote, type SavedProfile } from './save-profile'
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
 import { headerSignature, type ImportMapping } from '@/lib/import/mapping'
+import { buildSnapshot } from '@/lib/import/snapshot'
 import type { MapperInfo } from '@/lib/upload/mapper-preview'
 import { checkMapping, defaultProfileName, type MappingCheck } from '@/lib/upload/mapping-state'
 import {
@@ -611,6 +612,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                   defaultName={defaultProfileName(providerName, sample.mapper.kind)}
                   mapping={group.mapping}
                   headerSignature={headerSignature(sheet, group.mapping.headerRow)}
+                  headers={buildSnapshot(sheet, group.mapping, sample.mapper.kind)}
                   basedOn={group.basedOn}
                   onSaved={profile => updateGroup(key, { saved: profile })}
                   onDismiss={() => updateGroup(key, { dismissed: true })}
