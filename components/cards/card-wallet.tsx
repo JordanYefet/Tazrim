@@ -312,6 +312,9 @@ function Wallet({
   const boxRef = useRef<HTMLDivElement>(null)
   // The leather pocket: in place for the stack, dropped away and faded on a card's page
   const pocketRef = useRef<HTMLDivElement>(null)
+  // While the pocket fades away its total keeps the last figure (no roll to 0 behind the fade)
+  const [lastStackTotal, setLastStackTotal] = useState(0)
+  if (stackTotal !== null && stackTotal !== lastStackTotal) setLastStackTotal(stackTotal)
   const pocketPlace = (m: WalletMode): CardPlacement => ({
     transform: m.kind === 'stack' ? 'translate3d(0, 0, 0)' : 'translate3d(0, 28px, 0)',
     opacity: m.kind === 'stack' ? 1 : 0,
@@ -449,12 +452,12 @@ function Wallet({
             aria-hidden={mode.kind !== 'stack' || undefined}
           >
             <div className="wallet-pocket__leather">
-              <div className="wallet-pocket__deboss">
+              <div className="wallet-pocket__body wallet-pocket__deboss">
                 <p className="wallet-pocket__label">סה״כ חיובים בכל הכרטיסים</p>
-                {/* Kept in place (and rolled to 0) until the page gives the total, which then rolls up */}
+                {/* Hidden until the page gives the total; on the first visit it rolls up from 0, later from the last total */}
                 <p className="wallet-pocket__total wallet-pocket__totalwrap" data-visible={stackTotal !== null ? '' : undefined}>
                   <span className="wallet-pocket__currency">₪</span>
-                  <RollingNumber value={stackTotal ?? 0} format="decimal" />
+                  <RollingNumber value={stackTotal ?? lastStackTotal} format="decimal" />
                 </p>
               </div>
               <div className="wallet-pocket__foot wallet-pocket__deboss">
@@ -469,6 +472,12 @@ function Wallet({
           </div>
         )}
       </div>
+      {heightMode.kind === 'stack' && stackOrder.length > 0 && (
+        // Under the pocket: where the cards' charges are paid from (the total is on the leather)
+        <p className="wallet__caption" data-visible={stackTotal !== null ? '' : undefined}>
+          נגבה מחשבון הבנק, ולכן כבר כלול בהוצאות הבנק
+        </p>
+      )}
       {heightMode.kind === 'open' && (
         // Under the open card: its total for screen readers (the face is decorative) and where it is paid from
         <p className="wallet__caption" data-visible={shownTotal ? '' : undefined}>

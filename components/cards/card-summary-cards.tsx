@@ -1,5 +1,4 @@
-import { RollingNumber } from '@/components/ui/rolling-number'
-import { averageStat, StatGrid, type StatDef } from '@/components/dashboard/summary-cards'
+import { averageStat, StatGrid, StatTile, type StatDef } from '@/components/dashboard/summary-cards'
 
 interface Props {
   total: number
@@ -8,8 +7,6 @@ interface Props {
   average: number
   /** The selected month's name: its total is compared with the average */
   monthLabel?: string
-  /** Hero label, e.g. a category filter */
-  label?: string
 }
 
 function cardStats({ total, count, average, monthLabel }: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel'>): StatDef[] {
@@ -32,27 +29,18 @@ export function CardStatTiles(props: Pick<Props, 'total' | 'count' | 'average' |
 }
 
 /**
- * Hero charge total plus quieter tiles, as on the dashboard. The charges are
- * paid from the bank, so they are already inside the bank expenses.
+ * /cards: the total across the cards is on the wallet's leather pocket (with
+ * the "paid from the bank" caption under it), so only the count and the
+ * monthly average remain. A pair on phones; on wide screens they follow the
+ * wallet shell's columns (count under the wallet, average under the list),
+ * so the row lines up with the stack and the list above it.
  */
-export function CardSummaryCards({ total, count, average, monthLabel, label = 'סה״כ חיובים' }: Props) {
-  const stats = cardStats({ total, count, average, monthLabel })
-
+export function CardSummaryCards(props: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel'>) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <section aria-label={label} className="flex flex-col justify-between gap-6 rounded-xl surface-hero p-4 sm:p-6">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums text-[hsl(var(--cc))] sm:text-[2.75rem] sm:leading-none">
-            <RollingNumber value={total} format="currencyExact" />
-          </p>
-        </div>
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-[hsl(var(--cc))]" aria-hidden />
-          נגבה מחשבון הבנק, ולכן כבר כלול בהוצאות הבנק
-        </p>
-      </section>
-      <StatGrid stats={stats} />
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)]">
+      {cardStats(props).map(s => (
+        <StatTile key={s.label} {...s} />
+      ))}
     </div>
   )
 }

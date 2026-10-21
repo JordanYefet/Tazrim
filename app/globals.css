@@ -616,6 +616,14 @@ html {
   mask-image: linear-gradient(to bottom, #000 0, #000 18%, transparent 34%, transparent 72%, #000 88%);
 }
 .acct-card__amount {
+  /* The band between the corner rows: label above amount, right-aligned and
+     vertically centred, as on the wallet's leather pocket */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  min-height: 0;
   opacity: 0;
   transform: translateY(4px);
   transition:
@@ -632,7 +640,7 @@ html {
   line-height: 1.2;
   /* 82% white keeps small text at AA on the lightest faces */
   color: rgb(255 255 255 / 0.82);
-  text-align: left;
+  text-align: right;
 }
 .acct-card__amount-value {
   margin-top: 0.8cqw;
@@ -646,9 +654,10 @@ html {
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
   direction: ltr;
+  justify-content: flex-end;
 }
 .acct-card__amount-currency {
-  font-size: 0.62em;
+  font-size: 0.58em;
   font-weight: 500;
   color: rgb(255 255 255 / 0.82);
 }
@@ -841,7 +850,8 @@ html {
   .wallet-shell__head { grid-column: 1 / -1; }
   .wallet-shell__wallet { grid-column: 1; grid-row: 2; }
   .wallet-shell__beside { grid-column: 2; grid-row: 2; }
-  .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; }
+  /* A little more room: the wallet's caption hangs in the row gap above */
+  .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; margin-top: 0.5rem; }
 }
 /* A page's own content eases in when it arrives (the wallet is already there) */
 .wallet-shell__beside,
@@ -910,7 +920,9 @@ html {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: max(46px, 14cqw) clamp(22px, 8.2cqw, 32px) clamp(18px, 6.5cqw, 24px);
+  /* The top padding is the notch's depth: the label and total centre in the
+     leather between the notch and the bottom row (.wallet-pocket__body) */
+  padding: 38px clamp(22px, 8.2cqw, 32px) clamp(18px, 6.5cqw, 24px);
   border-radius: 26px;
   background:
     radial-gradient(90% 70% at 25% 12%, rgb(255 238 214 / 0.24), rgb(255 238 214 / 0) 60%),
@@ -943,7 +955,14 @@ html {
   position: relative;
   text-shadow: 0 1px 0 rgb(255 238 214 / 0.5), 0 -1px 0 rgb(40 16 2 / 0.14);
 }
-.wallet-pocket__label { font-size: 16px; font-weight: 700; line-height: 1.3; }
+.wallet-pocket__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* A shade darker than the rest of the ink: the label sits a little lower on the leather, where it is darker (4.3:1 or more) */
+.wallet-pocket__label { font-size: 16px; font-weight: 700; line-height: 1.3; color: #47230a; }
 .wallet-pocket__total {
   display: flex;
   justify-content: flex-end;

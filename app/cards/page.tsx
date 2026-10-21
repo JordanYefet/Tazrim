@@ -115,7 +115,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               count={count}
               average={average}
               monthLabel={month ? monthName(month) : undefined}
-              label={several ? 'סה״כ חיובים בכל הכרטיסים' : undefined}
             />
             <MonthlySpendingChart
               series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
