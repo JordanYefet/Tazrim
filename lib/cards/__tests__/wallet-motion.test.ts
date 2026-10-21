@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boxHeight, placements, pocketTop, springEasing, walletModeFor } from '../wallet-motion'
+import { boxHeight, placements, pocketTop, springEasing, springResponseFor, walletModeFor } from '../wallet-motion'
 import { MOTION } from '@/lib/motion'
 
 // Made-up account ids
@@ -78,6 +78,12 @@ describe('springEasing', () => {
 describe('the wallet spring and the page beat (ENG-67)', () => {
   it('settles within 25ms of MOTION.page, so the card lands with the page content', () => {
     // Same parameters as components/cards/card-wallet.tsx
-    expect(Math.abs(springEasing(0.92, 0.35).duration - MOTION.page)).toBeLessThanOrEqual(25)
+    expect(Math.abs(springEasing(0.92, springResponseFor(MOTION.page, 0.92)).duration - MOTION.page)).toBeLessThanOrEqual(25)
+  })
+
+  it('derives the response from any duration', () => {
+    for (const ms of [300, 480, 600, 800]) {
+      expect(Math.abs(springEasing(0.92, springResponseFor(ms, 0.92)).duration - ms)).toBeLessThanOrEqual(10)
+    }
   })
 })
