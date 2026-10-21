@@ -6,6 +6,7 @@ import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accoun
 import { listAccounts } from '@/lib/db/accounts'
 import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { BANK_COLORS } from '@/lib/nav/state'
+import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref } from '@/lib/accounts/routes'
 import {
   bankPeriodTotals,
@@ -35,7 +36,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
         getBankBalanceTrend(account.id, Number(year), month),
       ])
-      const color = BANK_COLORS[i % BANK_COLORS.length]
+      const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
       return { account, monthly, latest, trend, color, totals: bankPeriodTotals(monthly, month) }
     })
   )
@@ -102,6 +103,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
                   name={account.displayName}
                   provider={account.provider}
                   color={color}
+                  colorChoice={account.color}
                   trend={trend.map(p => p.balance)}
                   income={t.income}
                   expense={t.expense}

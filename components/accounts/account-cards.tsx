@@ -38,6 +38,8 @@ export interface BankAccountSummary {
   provider: string
   /** The account's colour, for banks without a face of their own */
   color?: string
+  /** Account.color (ENG-66) */
+  colorChoice?: string | null
   income: number
   expense: number
   /** Balance after the latest transaction in the period */
@@ -49,7 +51,7 @@ export interface BankAccountSummary {
 }
 
 /** /banks tile: the bank account element itself is the link. */
-export function BankAccountCard({ href, name, provider, color, income, expense, latest, trend, expenseShare }: BankAccountSummary) {
+export function BankAccountCard({ href, name, provider, color, colorChoice, income, expense, latest, trend, expenseShare }: BankAccountSummary) {
   return (
     <Link href={href} className={cn('group acct-press block h-full rounded-[18px]', FOCUS)}>
       <BankElement
@@ -58,6 +60,7 @@ export function BankAccountCard({ href, name, provider, color, income, expense, 
         provider={provider}
         name={name}
         color={color}
+        colorChoice={colorChoice}
         latest={latest}
         totals={{ income, expense }}
         trend={trend}
@@ -82,6 +85,8 @@ export interface CardAccountSummary {
   count: number
   /** CSS color of this card's series in the chart */
   color: string
+  /** Account.color (ENG-66) */
+  colorChoice?: string | null
   /** Share of the combined card charges (only with several cards) */
   share?: number
 }
@@ -99,6 +104,7 @@ export function CardSummaryRow({
   total,
   count,
   color,
+  colorChoice,
   share,
 }: CardAccountSummary) {
   return (
@@ -114,7 +120,7 @@ export function CardSummaryRow({
       >
         {/* The card's face, its last four right under it (a fixed slot, so rows stay aligned without them) */}
         <span className="flex w-12 shrink-0 flex-col items-center gap-1">
-          <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} className="w-12" />
+          <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} colorChoice={colorChoice} className="w-12" />
           <span dir="ltr" className="h-4 text-[11px] leading-4 tabular-nums text-muted-foreground">
             {lastFour}
           </span>

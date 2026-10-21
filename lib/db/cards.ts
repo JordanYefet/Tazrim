@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { prisma } from './client'
+import { prisma, type Db } from './client'
 import type { ParsedCCTransaction } from '../parsers/types'
 import { accountWhere, listAccountIds, PROVIDERS, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
@@ -58,15 +58,17 @@ export async function upsertCCTransactions(
   transactions: ParsedCCTransaction[],
   fileName: string,
   accountId: string,
-  opts: { force?: number[] } = {}
+  opts: { force?: number[] } = {},
+  /** Run inside a caller's transaction (re-import, ENG-65) */
+  db: Db = prisma
 ): Promise<CardUpsertResult> {
   if (!transactions.length) return { created: 0, skipped: 0, skippedRows: [] }
 
-  const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
-  const aliasMap = await getAliasMap(account.provider)
+  const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
+  const aliasMap = await getAliasMap(account.provider, db)
 
   const times = transactions.map(t => t.transactionDate.getTime())
-  const stored = await prisma.creditCardTransaction.findMany({
+  const stored = await db.creditCardTransaction.findMany({
     where: { accountId, transactionDate: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
     select: {
       id: true,
@@ -83,29 +85,32 @@ export async function upsertCCTransactions(
   const byId = new Map(stored.map(s => [s.id, s]))
   const plan = planCardImport(transactions, stored, opts.force)
 
-  await prisma.$transaction(
-    plan.create.map(i => {
-      const tx = transactions[i]
-      return prisma.creditCardTransaction.create({
-        data: {
-          accountId,
-          transactionDate: tx.transactionDate,
-          billingDate: tx.billingDate,
-          originalMerchantName: tx.originalMerchantName,
-          merchantName: aliasMap.get(tx.originalMerchantName) ?? tx.originalMerchantName,
-          category: tx.category,
-          chargedAmount: tx.chargedAmount,
-          originalAmount: tx.originalAmount,
-          originalCurrency: tx.originalCurrency,
-          cardLastFour: tx.cardLastFour,
-          transactionType: tx.transactionType,
-          notes: tx.notes,
-          contentHash: cardDedupeKey(tx),
-          sourceFile: fileName,
-        },
-      })
-    })
-  )
+  const rowData = (i: number) => {
+    const tx = transactions[i]
+    return {
+      accountId,
+      transactionDate: tx.transactionDate,
+      billingDate: tx.billingDate,
+      originalMerchantName: tx.originalMerchantName,
+      merchantName: aliasMap.get(tx.originalMerchantName) ?? tx.originalMerchantName,
+      category: tx.category,
+      chargedAmount: tx.chargedAmount,
+      originalAmount: tx.originalAmount,
+      originalCurrency: tx.originalCurrency,
+      cardLastFour: tx.cardLastFour,
+      transactionType: tx.transactionType,
+      notes: tx.notes,
+      contentHash: cardDedupeKey(tx),
+      sourceFile: fileName,
+    }
+  }
+  if (db === prisma) {
+    // All rows or none
+    await prisma.$transaction(plan.create.map(i => prisma.creditCardTransaction.create({ data: rowData(i) })))
+  } else {
+    // Already inside the caller's transaction
+    for (const i of plan.create) await db.creditCardTransaction.create({ data: rowData(i) })
+  }
 
   const skippedRows: SkippedCardRow[] = plan.skip.map(({ index, matchedId }) => {
     const tx = transactions[index]

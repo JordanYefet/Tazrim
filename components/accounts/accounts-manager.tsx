@@ -3,14 +3,15 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Archive, ArchiveRestore, Check, ChevronDown, CheckCircle2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronDown, CheckCircle2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/components/upload/account-picker'
 import { KIND_META, type AccountKindValue, type CreatableKindValue } from './account-kinds'
-import { AddAccountForm, inputClass, type CreatedAccount } from './add-account-form'
+import { AddAccountForm, type CreatedAccount } from './add-account-form'
+import { EditAccountDialog } from './edit-account-dialog'
 import { DeleteAccountDialog } from './delete-account-dialog'
 import { AccountMini } from './account-element'
-import { CARD_NETWORKS, networkLabel } from '@/lib/accounts/brands'
+import { networkLabel } from '@/lib/accounts/brands'
 
 export interface ManagedAccount {
   id: string
@@ -19,10 +20,16 @@ export interface ManagedAccount {
   displayName: string
   cardLastFour: string | null
   cardNetwork: string | null
+  /** Account.color (ENG-66) */
+  color: string | null
   archived: boolean
   transactionCount: number
   uploadCount: number
   importSupported: boolean
+  /** The app has a parser for this provider: no column mapping to fix (ENG-65) */
+  builtInImport: boolean
+  /** The colour of its position (dots, charts), for the brand default's preview */
+  positionColor?: string
 }
 
 const iconButton =
@@ -44,6 +51,7 @@ export function AccountsManager({
   const [adding, setAdding] = useState<CreatableKindValue | null>(initialNewKind)
   const [notice, setNotice] = useState<Notice>(null)
   const [deleting, setDeleting] = useState<ManagedAccount | null>(null)
+  const [editing, setEditing] = useState<ManagedAccount | null>(null)
 
   const refresh = () => startTransition(() => router.refresh())
 
@@ -124,6 +132,7 @@ export function AccountsManager({
                 account={a}
                 lastOfKind={kindCount(a.kind) <= 1}
                 onChanged={refresh}
+                onEdit={() => setEditing(a)}
                 onDelete={() => setDeleting(a)}
               />
             ))}
@@ -151,6 +160,7 @@ export function AccountsManager({
                   account={a}
                   lastOfKind={kindCount(a.kind) <= 1}
                   onChanged={refresh}
+                  onEdit={() => setEditing(a)}
                   onDelete={() => setDeleting(a)}
                 />
               ))}
@@ -158,6 +168,20 @@ export function AccountsManager({
           </div>
         </details>
       )}
+
+      <EditAccountDialog
+        account={
+          editing && (editing.kind === 'BANK' || editing.kind === 'CREDIT_CARD')
+            ? { ...editing, kind: editing.kind }
+            : null
+        }
+        onOpenChange={open => { if (!open) setEditing(null) }}
+        onSaved={() => {
+          setEditing(null)
+          refresh()
+        }}
+        onImported={refresh}
+      />
 
       <DeleteAccountDialog
         account={deleting}
@@ -176,27 +200,23 @@ function AccountRow({
   account,
   lastOfKind,
   onChanged,
+  onEdit,
   onDelete,
 }: {
   account: ManagedAccount
   lastOfKind: boolean
   onChanged: () => void
+  onEdit: () => void
   onDelete: () => void
 }) {
-  const [editing, setEditing] = useState<string | null>(null)
-  const [network, setNetwork] = useState(account.cardNetwork ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const Icon = KIND_META.find(m => m.kind === account.kind)!.icon
   const isCard = account.kind === 'CREDIT_CARD'
+  const editable = account.kind === 'BANK' || isCard
   const netLabel = networkLabel(account.cardNetwork)
 
-  function startEdit() {
-    setEditing(account.displayName)
-    setNetwork(account.cardNetwork ?? '')
-  }
-
-  async function patch(data: { displayName?: string; archived?: boolean; cardNetwork?: string | null }) {
+  async function patch(data: { archived: boolean }) {
     setBusy(true)
     setError(null)
     try {
@@ -208,36 +228,25 @@ function AccountRow({
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         setError(body.error ?? 'השמירה נכשלה')
-        return false
+        return
       }
       onChanged()
-      return true
     } catch {
       setError('השמירה נכשלה')
-      return false
     } finally {
       setBusy(false)
     }
   }
 
-  async function submitRename(e: React.FormEvent) {
-    e.preventDefault()
-    if (editing === null) return
-    const name = editing.trim()
-    const data: { displayName?: string; cardNetwork?: string | null } = {}
-    if (name && name !== account.displayName) data.displayName = name
-    if (isCard && network !== (account.cardNetwork ?? '')) data.cardNetwork = network || null
-    if (!Object.keys(data).length) { setEditing(null); setError(null); return }
-    if (await patch(data)) setEditing(null)
-  }
-
   return (
     <li className={cn('flex flex-wrap items-center gap-3 px-4 py-3 md:px-6', account.archived && 'opacity-80')}>
-      {account.kind === 'BANK' || isCard ? (
+      {editable ? (
         <AccountMini
           kind={account.kind as 'BANK' | 'CREDIT_CARD'}
           provider={account.provider}
           network={account.cardNetwork}
+          color={account.positionColor}
+          colorChoice={account.color}
           className={cn('w-11', account.archived && 'grayscale')}
         />
       ) : (
@@ -246,93 +255,60 @@ function AccountRow({
         </span>
       )}
 
-      {editing !== null ? (
-        <form onSubmit={submitRename} className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-          <input
-            autoFocus
-            aria-label="שם חדש לחשבון"
-            className={cn(inputClass, 'h-9 min-w-0 flex-1')}
-            value={editing}
-            maxLength={60}
-            onChange={e => setEditing(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') { setEditing(null); setError(null) } }}
-          />
-          {isCard && (
-            <select
-              aria-label="רשת הכרטיס"
-              className="h-9 w-auto"
-              value={network}
-              onChange={e => setNetwork(e.target.value)}
-            >
-              {CARD_NETWORKS.map(n => (
-                <option key={n.key} value={n.key}>{n.label}</option>
-              ))}
-              <option value="">אחר / לא ידוע</option>
-            </select>
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <span className="truncate">{account.displayName}</span>
+          {!account.importSupported && (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+              ייבוא עדיין לא נתמך
+            </span>
           )}
-          <button type="submit" className={iconButton} aria-label="שמור" disabled={busy}>
-            <Check className="h-4 w-4" aria-hidden />
-          </button>
-          <button type="button" className={iconButton} aria-label="בטל עריכה" onClick={() => { setEditing(null); setError(null) }}>
-            <X className="h-4 w-4" aria-hidden />
-          </button>
-        </form>
-      ) : (
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <span className="truncate">{account.displayName}</span>
-            {!account.importSupported && (
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
-                ייבוא עדיין לא נתמך
-              </span>
-            )}
-          </p>
-          <p className="flex flex-col text-xs text-muted-foreground sm:flex-row sm:gap-x-1.5">
-            <span className="truncate">
-              {providerLabel(account.provider)}
-              {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
-              {netLabel && <> · <span dir="ltr">{netLabel}</span></>}
-            </span>
-            <span aria-hidden className="hidden sm:inline">·</span>
-            <span className="whitespace-nowrap tabular-nums">
-              {n(account.transactionCount)} תנועות · {n(account.uploadCount)} העלאות
-            </span>
-          </p>
-        </div>
-      )}
+        </p>
+        <p className="flex flex-col text-xs text-muted-foreground sm:flex-row sm:gap-x-1.5">
+          <span className="truncate">
+            {providerLabel(account.provider)}
+            {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
+            {netLabel && <> · <span dir="ltr">{netLabel}</span></>}
+          </span>
+          <span aria-hidden className="hidden sm:inline">·</span>
+          <span className="whitespace-nowrap tabular-nums">
+            {n(account.transactionCount)} תנועות · {n(account.uploadCount)} העלאות
+          </span>
+        </p>
+      </div>
 
-      {editing === null && (
-        <div className="flex shrink-0 items-center gap-0.5 ms-auto" aria-busy={busy}>
-          <button type="button" className={iconButton} aria-label={`${isCard ? 'עריכה' : 'שנה שם'}: ${account.displayName}`} title={isCard ? 'שם ורשת' : 'שנה שם'} disabled={busy} onClick={startEdit}>
+      <div className="flex shrink-0 items-center gap-0.5 ms-auto" aria-busy={busy}>
+        {editable && (
+          <button type="button" className={iconButton} aria-label={`עריכה: ${account.displayName}`} title="עריכה" disabled={busy} onClick={onEdit}>
             <Pencil className="h-4 w-4" aria-hidden />
           </button>
-          {account.archived ? (
-            <button
-              type="button"
-              className={cn(iconButton, 'w-auto gap-1 px-2 text-xs')}
-              disabled={busy}
-              onClick={() => patch({ archived: false })}
-            >
-              <ArchiveRestore className="h-4 w-4" aria-hidden />
-              שחזר
-            </button>
-          ) : (
-            <button type="button" className={iconButton} aria-label={`העבר לארכיון: ${account.displayName}`} title="העבר לארכיון" disabled={busy} onClick={() => patch({ archived: true })}>
-              <Archive className="h-4 w-4" aria-hidden />
-            </button>
-          )}
+        )}
+        {account.archived ? (
           <button
             type="button"
-            className={cn(iconButton, 'hover:bg-destructive/10 hover:text-destructive')}
-            aria-label={`מחק: ${account.displayName}`}
-            title={lastOfKind ? 'אי אפשר למחוק את החשבון האחרון מסוגו' : 'מחק'}
-            disabled={busy || lastOfKind}
-            onClick={onDelete}
+            className={cn(iconButton, 'w-auto gap-1 px-2 text-xs')}
+            disabled={busy}
+            onClick={() => patch({ archived: false })}
           >
-            <Trash2 className="h-4 w-4" aria-hidden />
+            <ArchiveRestore className="h-4 w-4" aria-hidden />
+            שחזר
           </button>
-        </div>
-      )}
+        ) : (
+          <button type="button" className={iconButton} aria-label={`העבר לארכיון: ${account.displayName}`} title="העבר לארכיון" disabled={busy} onClick={() => patch({ archived: true })}>
+            <Archive className="h-4 w-4" aria-hidden />
+          </button>
+        )}
+        <button
+          type="button"
+          className={cn(iconButton, 'hover:bg-destructive/10 hover:text-destructive')}
+          aria-label={`מחק: ${account.displayName}`}
+          title={lastOfKind ? 'אי אפשר למחוק את החשבון האחרון מסוגו' : 'מחק'}
+          disabled={busy || lastOfKind}
+          onClick={onDelete}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
 
       {error && <p className="basis-full text-xs text-destructive" role="alert">{error}</p>}
     </li>

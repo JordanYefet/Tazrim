@@ -2,6 +2,10 @@
  * Import an uploaded file into one chosen account, using the parser of that
  * account's provider, or a column mapping / saved profile for providers without
  * one. Dedupe and the "already uploaded" check are per account.
+ *
+ * Reading a file (parseUpload) is separate from storing its rows (storeRows),
+ * so a re-import (ENG-65) can replace a file's earlier rows and store the new
+ * ones through the same path, in one transaction.
  */
 import type { Account } from '@prisma/client'
 import { parseBankLeumi } from '@/lib/parsers/bank-leumi'
@@ -10,7 +14,7 @@ import { upsertBankTransactions } from '@/lib/db/bank'
 import { upsertCCTransactions } from '@/lib/db/cards'
 import { recordUpload } from '@/lib/db/upload'
 import { PROVIDERS } from '@/lib/db/accounts'
-import { prisma } from '@/lib/db/client'
+import { prisma, type Db } from '@/lib/db/client'
 import { getImportProfile, profileMapping } from '@/lib/db/import-profiles'
 import {
   applyMapping,
@@ -40,9 +44,11 @@ export interface SkippedRow {
   matchedFile: string
 }
 
+export type ImportFailure = { ok: false; status: number; code: ImportErrorCode; error: string }
+
 export type ImportResult =
   | { ok: true; created: number; skipped: number; skippedRows: SkippedRow[]; newCategories?: string[] }
-  | { ok: false; status: number; code: ImportErrorCode; error: string }
+  | ImportFailure
 
 type ImportableAccount = Pick<Account, 'id' | 'kind' | 'provider'>
 
@@ -55,14 +61,25 @@ export interface ImportOptions {
   profileId?: string
 }
 
-type Importer = (account: ImportableAccount, buffer: Buffer, fileName: string, opts: ImportOptions) => Promise<ImportResult>
+/** A file read into rows, not stored yet. */
+export type ParsedUpload =
+  | { ok: true; kind: 'bank'; rows: ParsedBankTransaction[] }
+  | { ok: true; kind: 'card'; rows: ParsedCCTransaction[] }
+  | ImportFailure
 
-const parseError = (error: string): ImportResult => ({ ok: false, status: 422, code: 'PARSE_ERROR', error })
+type Parser = (account: ImportableAccount, buffer: Buffer, fileName: string, opts: ImportOptions) => Promise<ParsedUpload>
+
+const parseError = (error: string): ImportFailure => ({ ok: false, status: 422, code: 'PARSE_ERROR', error })
 
 /** Stores parsed bank rows (same path for the built-in parser and a mapping). */
-async function storeBank(account: ImportableAccount, transactions: ParsedBankTransaction[], fileName: string): Promise<ImportResult> {
-  const { created, skipped, skippedRows } = await upsertBankTransactions(transactions, account.id)
-  await recordUpload({ fileName, recordCount: created, accountId: account.id })
+async function storeBank(
+  account: ImportableAccount,
+  transactions: ParsedBankTransaction[],
+  fileName: string,
+  db: Db
+): Promise<ImportResult> {
+  const { created, skipped, skippedRows } = await upsertBankTransactions(transactions, account.id, db)
+  await recordUpload({ fileName, recordCount: created, accountId: account.id }, db)
   return {
     ok: true,
     created,
@@ -82,17 +99,22 @@ async function storeCard(
   account: ImportableAccount,
   transactions: ParsedCCTransaction[],
   fileName: string,
-  opts: ImportOptions
+  opts: ImportOptions,
+  db: Db
 ): Promise<ImportResult> {
   // A file uploaded before is compared row by row like any other, so uploading it
   // again only adds the rows that are missing (e.g. installments an older import dropped)
-  const { created, skipped, skippedRows } = await upsertCCTransactions(transactions, fileName, account.id, {
-    force: opts.force,
-  })
-  await recordUpload({ fileName, recordCount: created, accountId: account.id })
+  const { created, skipped, skippedRows } = await upsertCCTransactions(
+    transactions,
+    fileName,
+    account.id,
+    { force: opts.force },
+    db
+  )
+  await recordUpload({ fileName, recordCount: created, accountId: account.id }, db)
 
   const txCategories = [...new Set(transactions.map(t => t.category).filter(Boolean))]
-  const existing = await prisma.category.findMany({ where: { name: { in: txCategories } } })
+  const existing = await db.category.findMany({ where: { name: { in: txCategories } } })
   const existingNames = new Set(existing.map(c => c.name))
   const newCategories = txCategories.filter(name => !existingNames.has(name))
 
@@ -113,14 +135,27 @@ async function storeCard(
   }
 }
 
-const importLeumi: Importer = async (account, buffer, fileName) => {
+/** Stores rows parseUpload read, through the de-dup of the account's kind. */
+function storeRows(
+  account: ImportableAccount,
+  parsed: Extract<ParsedUpload, { ok: true }>,
+  fileName: string,
+  opts: ImportOptions,
+  db: Db = prisma
+): Promise<ImportResult> {
+  return parsed.kind === 'card'
+    ? storeCard(account, parsed.rows, fileName, opts, db)
+    : storeBank(account, parsed.rows, fileName, db)
+}
+
+const parseLeumi: Parser = async (_account, buffer, fileName) => {
   const { transactions, errors } = parseBankLeumi(buffer, fileName)
   if (errors.length) return parseError(errors[0])
   if (!transactions.length) return parseError('לא נמצאו עסקאות בקובץ')
-  return storeBank(account, transactions, fileName)
+  return { ok: true, kind: 'bank', rows: transactions }
 }
 
-const importMax: Importer = async (account, buffer, fileName, opts) => {
+const parseMax: Parser = async (_account, buffer) => {
   let parsed: ReturnType<typeof parseMaxCC>
   try {
     parsed = parseMaxCC(buffer)
@@ -130,10 +165,10 @@ const importMax: Importer = async (account, buffer, fileName, opts) => {
   const { transactions, errors } = parsed
   if (errors.length) return parseError(errors[0])
   if (!transactions.length) return parseError('לא נמצאו עסקאות בקובץ')
-  return storeCard(account, transactions, fileName, opts)
+  return { ok: true, kind: 'card', rows: transactions }
 }
 
-const invalidMapping = (error: string, status = 400): ImportResult => ({ ok: false, status, code: 'INVALID_MAPPING', error })
+const invalidMapping = (error: string, status = 400): ImportFailure => ({ ok: false, status, code: 'INVALID_MAPPING', error })
 
 /** "שורה 7: סכום חיוב – סכום לא תקין" (rows are 1-based, like the grid). */
 export function mappingErrorText(e: MappingError): string {
@@ -146,7 +181,7 @@ export function mappingErrorText(e: MappingError): string {
  * saved profile (`profileId`), is validated here, and the rows then take the
  * same store path as the built-in parsers. Any row error refuses the whole file.
  */
-async function importMapped(account: ImportableAccount, buffer: Buffer, fileName: string, opts: ImportOptions): Promise<ImportResult> {
+const parseMapped: Parser = async (account, buffer, fileName, opts) => {
   const kind = mappingKindOf(account.kind)
   if (!kind) return { ok: false, status: 422, code: 'UNSUPPORTED_PROVIDER', error: 'לא ניתן למפות קבצים לסוג חשבון זה' }
 
@@ -184,23 +219,38 @@ async function importMapped(account: ImportableAccount, buffer: Buffer, fileName
   }
   if (!rows.length) return parseError('לא נמצאו עסקאות בקובץ')
   return kind === 'card'
-    ? storeCard(account, rows as ParsedCCTransaction[], fileName, opts)
-    : storeBank(account, rows as ParsedBankTransaction[], fileName)
+    ? { ok: true, kind: 'card', rows: rows as ParsedCCTransaction[] }
+    : { ok: true, kind: 'bank', rows: rows as ParsedBankTransaction[] }
 }
 
 /** Parser per provider, and the account kind it produces rows for. */
-const IMPORTERS: Record<string, { kind: Account['kind']; run: Importer }> = {
-  [PROVIDERS.LEUMI]: { kind: 'BANK', run: importLeumi },
-  [PROVIDERS.MAX]: { kind: 'CREDIT_CARD', run: importMax },
+const PARSERS: Record<string, { kind: Account['kind']; run: Parser }> = {
+  [PROVIDERS.LEUMI]: { kind: 'BANK', run: parseLeumi },
+  [PROVIDERS.MAX]: { kind: 'CREDIT_CARD', run: parseMax },
 }
 
-function importerFor(account: Pick<Account, 'kind' | 'provider'>): Importer | null {
-  const entry = IMPORTERS[account.provider]
+function parserFor(account: Pick<Account, 'kind' | 'provider'>): Parser | null {
+  const entry = PARSERS[account.provider]
   return entry && entry.kind === account.kind ? entry.run : null
 }
 
 export function isImportSupported(account: Pick<Account, 'kind' | 'provider'>): boolean {
-  return importerFor(account) !== null
+  return parserFor(account) !== null
+}
+
+/** Reads the file into rows for the account (built-in parser, or the mapping / profile). Nothing is stored. */
+export async function parseUpload(
+  account: ImportableAccount,
+  buffer: Buffer,
+  fileName: string,
+  opts: ImportOptions = {}
+): Promise<ParsedUpload> {
+  if (opts.mapping !== undefined || opts.profileId !== undefined) return parseMapped(account, buffer, fileName, opts)
+  const run = parserFor(account)
+  if (!run) {
+    return { ok: false, status: 422, code: 'UNSUPPORTED_PROVIDER', error: 'ייבוא עבור ספק זה עדיין לא נתמך' }
+  }
+  return run(account, buffer, fileName, opts)
 }
 
 export async function importUpload(
@@ -209,10 +259,58 @@ export async function importUpload(
   fileName: string,
   opts: ImportOptions = {}
 ): Promise<ImportResult> {
-  if (opts.mapping !== undefined || opts.profileId !== undefined) return importMapped(account, buffer, fileName, opts)
-  const run = importerFor(account)
-  if (!run) {
-    return { ok: false, status: 422, code: 'UNSUPPORTED_PROVIDER', error: 'ייבוא עבור ספק זה עדיין לא נתמך' }
+  const parsed = await parseUpload(account, buffer, fileName, opts)
+  if (!parsed.ok) return parsed
+  return storeRows(account, parsed, fileName, opts)
+}
+
+/** Rows the account holds from one file (they carry its name in `sourceFile`). */
+export async function countRowsFromFile(account: ImportableAccount, fileName: string, db: Db = prisma): Promise<number> {
+  const where = { accountId: account.id, sourceFile: fileName }
+  if (account.kind === 'BANK') return db.bankTransaction.count({ where })
+  if (account.kind === 'CREDIT_CARD') return db.creditCardTransaction.count({ where })
+  return 0
+}
+
+export type ReimportResult =
+  /** dryRun: what a re-import would do, nothing written */
+  | { ok: true; dryRun: true; existing: number; incoming: number }
+  | (Extract<ImportResult, { ok: true }> & { dryRun: false; replaced: number })
+  | ImportFailure
+
+/**
+ * Re-imports a file with a (corrected) mapping, ENG-65: the rows the account
+ * got from a file of the same name, and that file's upload record, are
+ * replaced by the file's rows read again, in one transaction. The new rows go
+ * through the usual store path, so de-dup against the account's other files
+ * still applies. Notes and category edits on the replaced rows are lost (the
+ * window says so before confirming). `dryRun` only counts.
+ */
+export async function reimportUpload(
+  account: ImportableAccount,
+  buffer: Buffer,
+  fileName: string,
+  opts: ImportOptions & { dryRun?: boolean } = {}
+): Promise<ReimportResult> {
+  const parsed = await parseUpload(account, buffer, fileName, opts)
+  if (!parsed.ok) return parsed
+  if (opts.dryRun) {
+    return { ok: true, dryRun: true, existing: await countRowsFromFile(account, fileName), incoming: parsed.rows.length }
   }
-  return run(account, buffer, fileName, opts)
+  return prisma.$transaction(
+    async tx => {
+      const where = { accountId: account.id, sourceFile: fileName }
+      const removed =
+        parsed.kind === 'card'
+          ? await tx.creditCardTransaction.deleteMany({ where })
+          : await tx.bankTransaction.deleteMany({ where })
+      await tx.uploadHistory.deleteMany({ where: { accountId: account.id, fileName } })
+      const stored = await storeRows(account, parsed, fileName, { force: opts.force }, tx)
+      // Any failure rolls the whole re-import back, the deleted rows included
+      if (!stored.ok) throw new Error(stored.error)
+      return { ...stored, dryRun: false as const, replaced: removed.count }
+    },
+    // A statement can be a few thousand rows (bank rows are checked one by one)
+    { timeout: 120_000, maxWait: 10_000 }
+  )
 }

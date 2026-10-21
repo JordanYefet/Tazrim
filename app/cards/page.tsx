@@ -18,6 +18,7 @@ import {
 } from '@/lib/insights/account-overview'
 import { monthName } from '@/lib/utils/date'
 import { CARD_COLORS } from '@/lib/nav/state'
+import { seriesColor } from '@/lib/accounts/colors'
 import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
@@ -43,7 +44,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       ])
       const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
       const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
-      return { account, monthly, total, count, color: CARD_COLORS[i % CARD_COLORS.length] }
+      return { account, monthly, total, count, color: seriesColor(account.color, CARD_COLORS[i % CARD_COLORS.length]) }
     })
   )
 
@@ -100,6 +101,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             total={c.total}
             count={c.count}
             color={c.color}
+            colorChoice={c.account.color}
             share={several ? shareOf(c.total, total) : undefined}
           />
         ))}

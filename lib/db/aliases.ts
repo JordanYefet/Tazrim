@@ -1,4 +1,4 @@
-import { prisma } from './client'
+import { prisma, type Db } from './client'
 import { PROVIDERS } from './accounts'
 
 /**
@@ -32,8 +32,8 @@ export async function getAliases(provider?: string) {
 }
 
 /** originalName -> displayName for one provider's rules. */
-export async function getAliasMap(provider: string): Promise<Map<string, string>> {
-  const aliases = await prisma.transactionAlias.findMany({ where: { provider } })
+export async function getAliasMap(provider: string, db: Db = prisma): Promise<Map<string, string>> {
+  const aliases = await db.transactionAlias.findMany({ where: { provider } })
   return new Map(aliases.map(a => [a.originalName, a.displayName]))
 }
 

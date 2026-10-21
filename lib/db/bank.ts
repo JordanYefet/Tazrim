@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client'
-import { prisma } from './client'
+import { prisma, type Db } from './client'
 import type { ParsedBankTransaction } from '../parsers/types'
 import { accountWhere, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
@@ -17,20 +17,24 @@ export interface SkippedBankRow {
   matched: { id: string; sourceFile: string }
 }
 
-/** Inserts the rows into one bank account, skipping rows that account already has. */
+/**
+ * Inserts the rows into one bank account, skipping rows that account already
+ * has. `db`: run inside a caller's transaction (re-import, ENG-65).
+ */
 export async function upsertBankTransactions(
   transactions: ParsedBankTransaction[],
-  accountId: string
+  accountId: string,
+  db: Db = prisma
 ): Promise<{ created: number; skipped: number; skippedRows: SkippedBankRow[] }> {
-  const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
-  const aliasMap = await getAliasMap(account.provider)
+  const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
+  const aliasMap = await getAliasMap(account.provider, db)
 
   let created = 0
   let skipped = 0
   const skippedRows: SkippedBankRow[] = []
 
   for (const [index, tx] of transactions.entries()) {
-    const existing = await prisma.bankTransaction.findFirst({
+    const existing = await db.bankTransaction.findFirst({
       where: {
         accountId,
         date: tx.date,
@@ -51,7 +55,7 @@ export async function upsertBankTransactions(
       continue
     }
 
-    await prisma.bankTransaction.create({
+    await db.bankTransaction.create({
       data: {
         accountId,
         date: tx.date,

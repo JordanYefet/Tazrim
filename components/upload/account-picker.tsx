@@ -16,6 +16,8 @@ export interface UploadAccount {
   cardLastFour: string | null
   /** Card network, for the card's face (ENG-56) */
   cardNetwork?: string | null
+  /** Account.color, for the face (ENG-66) */
+  color?: string | null
   /** "YYYY-MM" months with no uploaded statement (ENG-10); omitted or empty when none */
   missingMonths?: string[]
 }
@@ -76,7 +78,7 @@ export function AccountPicker({
                     className="sr-only"
                   />
                   {account.kind === 'BANK' || account.kind === 'CREDIT_CARD' ? (
-                    <AccountMini kind={account.kind} provider={account.provider} network={account.cardNetwork} className="w-11" />
+                    <AccountMini kind={account.kind} provider={account.provider} network={account.cardNetwork} colorChoice={account.color} className="w-11" />
                   ) : (
                     <span
                       className={cn(

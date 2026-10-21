@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, type Prisma } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
@@ -10,3 +10,9 @@ export const prisma =
   globalForPrisma.prisma ?? new PrismaClient(datasourceUrl ? { datasourceUrl } : undefined)
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+/**
+ * The global client or an interactive transaction's client: write helpers
+ * take one so a caller can run several of them in a single transaction.
+ */
+export type Db = Prisma.TransactionClient

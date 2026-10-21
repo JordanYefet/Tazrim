@@ -1,6 +1,7 @@
 import type { Account, AccountKind } from '@prisma/client'
 import { prisma } from './client'
 import { CARD_NETWORKS, isCardNetwork, type CardNetwork } from '@/lib/accounts/brands'
+import { normalizeColorValue } from '@/lib/accounts/colors'
 
 export type { Account, AccountKind }
 
@@ -93,7 +94,7 @@ export const PROVIDER_MAX = 40
 /** Thrown for invalid input; API routes turn it into a 400. */
 export class AccountValidationError extends Error {
   constructor(
-    public field: 'kind' | 'provider' | 'displayName' | 'cardLastFour' | 'cardNetwork' | 'archived',
+    public field: 'kind' | 'provider' | 'displayName' | 'cardLastFour' | 'cardNetwork' | 'archived' | 'color',
     message: string
   ) {
     super(message)
@@ -107,6 +108,28 @@ export interface NewAccountInput {
   displayName: unknown
   cardLastFour?: unknown
   cardNetwork?: unknown
+  color?: unknown
+}
+
+/**
+ * Account colour (ENG-66): a palette key, '#rrggbb' (or '#rgb'), 'glass';
+ * null / '' / 'default' keep the brand default (null).
+ */
+export function normalizeAccountColor(value: unknown): string | null {
+  const res = normalizeColorValue(value)
+  if (!res.ok) throw new AccountValidationError('color', 'צבע לא תקין')
+  return res.value
+}
+
+/** Cards only: exactly 4 digits; null / '' clear it. */
+export function normalizeCardLastFour(value: unknown, kind: string): string | null {
+  if (value === undefined || value === null || value === '') return null
+  if (kind !== 'CREDIT_CARD') {
+    throw new AccountValidationError('cardLastFour', '4 ספרות אחרונות רלוונטיות רק לכרטיסי אשראי')
+  }
+  const s = typeof value === 'string' ? value.trim() : ''
+  if (!/^\d{4}$/.test(s)) throw new AccountValidationError('cardLastFour', 'יש להזין בדיוק 4 ספרות')
+  return s
 }
 
 export function normalizeDisplayName(value: unknown): string {
@@ -155,6 +178,7 @@ export function validateNewAccount(input: NewAccountInput): {
   displayName: string
   cardLastFour: string | null
   cardNetwork: CardNetwork | null
+  color: string | null
 } {
   const kind = input.kind
   if (typeof kind !== 'string' || !(CREATABLE_KINDS as readonly string[]).includes(kind)) {
@@ -162,19 +186,10 @@ export function validateNewAccount(input: NewAccountInput): {
   }
   const provider = normalizeProvider(input.provider)
   const displayName = normalizeDisplayName(input.displayName)
-
-  const raw = input.cardLastFour
-  let cardLastFour: string | null = null
-  if (raw !== undefined && raw !== null && raw !== '') {
-    if (kind !== 'CREDIT_CARD') {
-      throw new AccountValidationError('cardLastFour', '4 ספרות אחרונות רלוונטיות רק לכרטיסי אשראי')
-    }
-    const s = typeof raw === 'string' ? raw.trim() : ''
-    if (!/^\d{4}$/.test(s)) throw new AccountValidationError('cardLastFour', 'יש להזין בדיוק 4 ספרות')
-    cardLastFour = s
-  }
+  const cardLastFour = normalizeCardLastFour(input.cardLastFour, kind)
   const cardNetwork = normalizeCardNetwork(input.cardNetwork, kind)
-  return { kind: kind as CreatableKind, provider, displayName, cardLastFour, cardNetwork }
+  const color = normalizeAccountColor(input.color)
+  return { kind: kind as CreatableKind, provider, displayName, cardLastFour, cardNetwork, color }
 }
 
 export async function createAccount(input: NewAccountInput): Promise<Account> {
@@ -207,6 +222,71 @@ export async function setCardNetwork(id: string, network: unknown): Promise<Acco
 export async function setArchived(id: string, archived: boolean): Promise<Account | null> {
   const { count } = await prisma.account.updateMany({ where: { id }, data: { archived } })
   return count ? getAccount(id) : null
+}
+
+export interface AccountUpdateInput {
+  displayName?: unknown
+  provider?: unknown
+  cardLastFour?: unknown
+  cardNetwork?: unknown
+  color?: unknown
+  archived?: unknown
+  /** Required (true) to change the provider of an account that has transactions */
+  confirmProviderChange?: unknown
+}
+
+export type UpdateAccountResult =
+  | { status: 'updated'; account: Account }
+  | { status: 'not_found' }
+  | { status: 'nothing_to_update' }
+  /**
+   * The provider changes on an account with transactions, without
+   * confirmProviderChange. Merchant rules are keyed by provider, so the
+   * account's rows stop matching the old provider's rules (ENG-65).
+   */
+  | { status: 'provider_change_unconfirmed'; from: string; to: string; transactionCount: number; ruleCount: number }
+
+/**
+ * Edits any field of an account at once (the edit window, ENG-65): every
+ * field is validated before anything is written, then one update. Throws
+ * AccountValidationError for a bad field.
+ */
+export async function updateAccount(id: string, input: AccountUpdateInput): Promise<UpdateAccountResult> {
+  const fields = ['displayName', 'provider', 'cardLastFour', 'cardNetwork', 'color', 'archived'] as const
+  if (fields.every(f => input[f] === undefined)) return { status: 'nothing_to_update' }
+
+  const account = await prisma.account.findUnique({
+    where: { id },
+    include: { _count: { select: { bankTransactions: true, creditCardTransactions: true } } },
+  })
+  if (!account) return { status: 'not_found' }
+
+  const data: {
+    displayName?: string
+    provider?: string
+    cardLastFour?: string | null
+    cardNetwork?: CardNetwork | null
+    color?: string | null
+    archived?: boolean
+  } = {}
+  if (input.displayName !== undefined) data.displayName = normalizeDisplayName(input.displayName)
+  if (input.provider !== undefined) data.provider = normalizeProvider(input.provider)
+  if (input.cardLastFour !== undefined) data.cardLastFour = normalizeCardLastFour(input.cardLastFour, account.kind)
+  if (input.cardNetwork !== undefined) data.cardNetwork = normalizeCardNetwork(input.cardNetwork, account.kind)
+  if (input.color !== undefined) data.color = normalizeAccountColor(input.color)
+  if (input.archived !== undefined) {
+    if (typeof input.archived !== 'boolean') throw new AccountValidationError('archived', 'ערך ארכיון לא תקין')
+    data.archived = input.archived
+  }
+
+  const transactionCount = account._count.bankTransactions + account._count.creditCardTransactions
+  if (data.provider !== undefined && data.provider !== account.provider && transactionCount > 0 && input.confirmProviderChange !== true) {
+    const ruleCount = await prisma.transactionAlias.count({ where: { provider: account.provider } })
+    return { status: 'provider_change_unconfirmed', from: account.provider, to: data.provider, transactionCount, ruleCount }
+  }
+
+  const updated = await prisma.account.update({ where: { id }, data })
+  return { status: 'updated', account: updated }
 }
 
 export interface AccountCounts {

@@ -99,6 +99,29 @@ describe('PATCH /api/accounts/[id]', () => {
   it('404 for an unknown account', async () => {
     expect((await item.PATCH(json('PATCH', { displayName: 'x' }), ctx('acct_nope'))).status).toBe(404)
   })
+
+  it('edits every field at once: digits, colour (ENG-65/66)', async () => {
+    const res = await item.PATCH(json('PATCH', { cardLastFour: '0000', color: 'Violet', cardNetwork: 'amex' }), ctx('acct_test_card'))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ cardLastFour: '0000', color: 'violet', cardNetwork: 'amex' })
+    const bad = await item.PATCH(json('PATCH', { color: 'not a colour' }), ctx('acct_test_card'))
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).field).toBe('color')
+  })
+
+  it('409 PROVIDER_CHANGE_UNCONFIRMED for a card with rows, then changes with confirmation', async () => {
+    const res = await item.PATCH(json('PATCH', { provider: 'cal' }), ctx('acct_test_card'))
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'PROVIDER_CHANGE_UNCONFIRMED', transactionCount: 1 })
+    const ok = await item.PATCH(json('PATCH', { provider: 'cal', confirmProviderChange: true }), ctx('acct_test_card'))
+    expect(await ok.json()).toMatchObject({ provider: 'cal' })
+  })
+
+  it('bank accounts are edited the same way', async () => {
+    const res = await item.PATCH(json('PATCH', { displayName: 'Fake bank renamed', color: 'glass' }), ctx('acct_leumi'))
+    expect(await res.json()).toMatchObject({ displayName: 'Fake bank renamed', color: 'glass' })
+    expect((await item.PATCH(json('PATCH', { cardLastFour: '1234' }), ctx('acct_leumi'))).status).toBe(400)
+  })
 })
 
 describe('DELETE /api/accounts/[id]', () => {

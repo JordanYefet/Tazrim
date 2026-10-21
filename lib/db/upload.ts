@@ -1,4 +1,4 @@
-import { prisma } from './client'
+import { prisma, type Db } from './client'
 import { PROVIDERS, type AccountKind } from './accounts'
 
 /** The `source` the upload form sends -> the kind and provider of the account the file goes to. */
@@ -17,23 +17,26 @@ export function uploadTarget(source: string): { kind: AccountKind; provider: str
  * every row the file brought in. A new file name that added no rows (a copy of
  * a statement already imported) leaves no entry: there is nothing to delete.
  */
-export async function recordUpload(params: {
-  fileName: string
-  recordCount: number
-  accountId: string
-}) {
-  const existing = await prisma.uploadHistory.findFirst({
+export async function recordUpload(
+  params: {
+    fileName: string
+    recordCount: number
+    accountId: string
+  },
+  db: Db = prisma
+) {
+  const existing = await db.uploadHistory.findFirst({
     where: { accountId: params.accountId, fileName: params.fileName },
     orderBy: { uploadedAt: 'asc' },
   })
   if (!existing && params.recordCount === 0) return null
   if (existing) {
-    return prisma.uploadHistory.update({
+    return db.uploadHistory.update({
       where: { id: existing.id },
       data: { recordCount: existing.recordCount + params.recordCount, uploadedAt: new Date() },
     })
   }
-  return prisma.uploadHistory.create({ data: params })
+  return db.uploadHistory.create({ data: params })
 }
 
 export async function hasUpload(accountId: string, fileName: string): Promise<boolean> {
