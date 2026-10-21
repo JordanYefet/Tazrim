@@ -155,7 +155,7 @@ export function faceFromColor(kind: 'BANK' | 'CREDIT_CARD', hex: string): ColorF
   const fix = (c: string) => ensureContrast(c, INK_DARK, '#ffffff')
   const base = fix(hex)
   if (kind === 'CREDIT_CARD') {
-    return { ink, stops: [mix(base, '#ffffff', 0.45), base, fix(mix(hex, black, 0.2))] }
+    return { ink, stops: [mix(base, '#ffffff', 0.45), base, fix(mix(hex, black, 0.1))] }
   }
   return { ink, stops: [mix(base, '#ffffff', 0.35), base, fix(mix(hex, black, 0.16))] }
 }

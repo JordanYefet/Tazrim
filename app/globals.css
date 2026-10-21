@@ -887,7 +887,7 @@ html {
 .acct-card[data-ink='dark'] .acct-card__amount-label,
 .acct-card[data-ink='dark'] .acct-card__amount-currency { color: rgb(var(--acct-ink-dark) / 0.86); }
 .acct-card[data-ink='dark'] .acct-card__amount-value { text-shadow: none; }
-.acct-card[data-ink='dark'] .acct-card__pattern { color: rgb(0 0 0 / 0.035); }
+.acct-card[data-ink='dark'] .acct-card__pattern { color: rgb(0 0 0 / 0.025); }
 .acct-mini[data-ink='dark'] .acct-mini__mark { color: rgb(var(--acct-ink-dark)); }
 .acct-bank[data-ink='dark'] .acct-bank__band { color: rgb(var(--acct-ink-dark)); }
 .acct-bank[data-ink='dark'] .acct-bank__bank { color: rgb(var(--acct-ink-dark) / 0.82); }
@@ -900,7 +900,8 @@ html {
 .acct-card[data-glass] {
   --glass-ink: var(--acct-ink-dark);
   color: rgb(var(--glass-ink));
-  background-color: rgb(255 255 255 / 0.28);
+  /* Tinted enough that the text stays readable over another card in the wallet */
+  background-color: rgb(255 255 255 / 0.5);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
   backdrop-filter: blur(18px) saturate(170%);
   box-shadow:
@@ -931,7 +932,7 @@ html {
 .acct-card[data-glass] .acct-card__amount-value { text-shadow: none; }
 .dark .acct-card[data-glass] {
   --glass-ink: 255 255 255;
-  background-color: rgb(255 255 255 / 0.07);
+  background-color: rgb(17 21 30 / 0.62);
   -webkit-backdrop-filter: blur(18px) saturate(150%) brightness(1.1);
   backdrop-filter: blur(18px) saturate(150%) brightness(1.1);
   box-shadow:
