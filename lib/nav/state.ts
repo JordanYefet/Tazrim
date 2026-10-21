@@ -1,5 +1,6 @@
 import type { AccountKind } from '@prisma/client'
 import { accountPath, type PagedAccountKind } from '@/lib/accounts/routes'
+import { seriesColor } from '@/lib/accounts/colors'
 
 /** Cookie holding the sidebar mode, read by the root layout so the first paint is right. */
 export const SIDEBAR_COOKIE = 'tazrim_sidebar'
@@ -61,8 +62,10 @@ export interface NavAccount {
   provider: string
   cardNetwork: string | null
   href: string
-  /** Dot color; cards match the /cards overview chart */
+  /** Dot color: the account's chosen colour (ENG-66), else its position's; cards match the /cards overview chart */
   color: string
+  /** Account.color (ENG-66), for the account element's face */
+  colorChoice: string | null
 }
 
 export interface NavSections {
@@ -81,6 +84,7 @@ interface AccountLike {
   cardLastFour: string | null
   provider?: string
   cardNetwork?: string | null
+  color?: string | null
 }
 
 /** Banks and cards for the nav, in the order given (oldest first from listAccounts). */
@@ -95,7 +99,8 @@ export function buildNavSections(accounts: AccountLike[]): NavSections {
         provider: a.provider ?? '',
         cardNetwork: a.cardNetwork ?? null,
         href: accountPath(kind, a.id),
-        color: colors[i % colors.length],
+        color: seriesColor(a.color, colors[i % colors.length]),
+        colorChoice: a.color ?? null,
       }))
   return { banks: pick('BANK', BANK_COLORS), cards: pick('CREDIT_CARD', CARD_COLORS) }
 }

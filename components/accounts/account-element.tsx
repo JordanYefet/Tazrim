@@ -18,6 +18,15 @@ export function faceStyle(face: Face): CSSProperties {
   return { '--face-a': face.stops[0], '--face-b': face.stops[1], '--face-c': face.stops[2] } as CSSProperties
 }
 
+/** Text tone and glass flags for the stylesheet (ENG-66, "Account colours" in app/globals.css). */
+function faceData(face: Face) {
+  return {
+    'data-face': face.key,
+    'data-ink': face.ink === 'dark' ? 'dark' : undefined,
+    'data-glass': face.glass ? '' : undefined,
+  }
+}
+
 function Material() {
   return (
     <>
@@ -132,6 +141,8 @@ export interface PaymentCardProps {
   network?: string | null
   /** The account's own colour, for issuers without a face */
   color?: string
+  /** Account.color (ENG-66): a chosen swatch, custom colour or glass; null keeps the brand default */
+  colorChoice?: string | null
   /** Shown (dimmed) while the name is empty, in the add form */
   namePlaceholder?: string
   /** The add form's live preview: digits roll in, the network swaps in */
@@ -157,6 +168,7 @@ export function PaymentCard({
   lastFour = null,
   network = null,
   color,
+  colorChoice,
   namePlaceholder,
   live = false,
   tilt = false,
@@ -166,7 +178,7 @@ export function PaymentCard({
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
-  const face = faceFor('CREDIT_CARD', provider, color)
+  const face = faceFor('CREDIT_CARD', provider, color, colorChoice)
   const shownName = name.trim() || namePlaceholder || ''
   const wordmark = issuerWordmark(provider)
   // Known issuers get a typeset wordmark; a typed provider is shown as written, quieter
@@ -180,15 +192,15 @@ export function PaymentCard({
       dir="ltr"
       className={cn('acct-card acct-face', className)}
       style={faceStyle(face)}
-      data-face={face.key}
-      data-frost={knownIssuer ? undefined : ''}
+      {...faceData(face)}
+      data-frost={knownIssuer || face.glass ? undefined : ''}
       data-amount={amount !== undefined ? '' : undefined}
       {...(decorative
         ? { 'aria-hidden': true }
         : { role: 'img', 'aria-label': cardLabel({ provider, name: shownName, lastFour, network }) })}
     >
       <span aria-hidden className="acct-card__field" />
-      {!knownIssuer && <span aria-hidden className="acct-card__frost" />}
+      {!knownIssuer && !face.glass && <span aria-hidden className="acct-card__frost" />}
       {pattern && (
         <span aria-hidden className="acct-card__pattern">
           {[0, 1, 2].map(row => (
@@ -239,20 +251,23 @@ export function AccountMini({
   kind,
   provider,
   color,
+  colorChoice,
   network,
   className,
 }: {
   kind: FaceKind
   provider: string
   color?: string
+  /** Account.color (ENG-66) */
+  colorChoice?: string | null
   /** Cards: the network mark, shown where the face is wide enough */
   network?: string | null
   className?: string
 }) {
-  const face = faceFor(kind, provider, color)
+  const face = faceFor(kind, provider, color, colorChoice)
   if (kind === 'BANK') {
     return (
-      <span aria-hidden className={cn('acct-mini acct-mini--bank acct-face', className)} style={faceStyle(face)}>
+      <span aria-hidden className={cn('acct-mini acct-mini--bank acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
         <span className="acct-mini__band">
           <span className="acct-material acct-material--base" />
           <span className="acct-material acct-material--sheen" />
@@ -262,7 +277,7 @@ export function AccountMini({
     )
   }
   return (
-    <span aria-hidden dir="ltr" className={cn('acct-mini acct-mini--card acct-face', className)} style={faceStyle(face)}>
+    <span aria-hidden dir="ltr" className={cn('acct-mini acct-mini--card acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
       <span className="acct-card__field" />
       <span className="acct-card__rim" />
       {network && (
@@ -316,6 +331,8 @@ export interface BankElementProps {
   provider: string
   name: string
   color?: string
+  /** Account.color (ENG-66) */
+  colorChoice?: string | null
   namePlaceholder?: string
   /** Balance after the latest row of the period; undefined when there is none */
   latest?: { balance: number; date: string }
@@ -360,6 +377,7 @@ export function BankElement({
   provider,
   name,
   color,
+  colorChoice,
   namePlaceholder,
   latest,
   emptyText = 'אין תנועות בתקופה',
@@ -373,7 +391,7 @@ export function BankElement({
 }: BankElementProps) {
   // Typed as a div: <section> adds nothing to HTMLElement that the tilt uses
   const ref = useTilt<HTMLDivElement>(tilt, 2.5)
-  const face = faceFor('BANK', provider, color)
+  const face = faceFor('BANK', provider, color, colorChoice)
   const shownName = name.trim() || namePlaceholder || ''
   const bank = provider ? providerLabel(provider) : ''
   const showTrend = trend.length >= 2
@@ -384,7 +402,7 @@ export function BankElement({
       ref={ref}
       className={cn('acct-bank acct-face transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none', hero && 'acct-bank--hero', className)}
       style={faceStyle(face)}
-      data-face={face.key}
+      {...faceData(face)}
       aria-label={plain ? undefined : `חשבון בנק${bank ? ` ${bank}` : ''}, ${shownName}`}
     >
       <div className="acct-bank__band">

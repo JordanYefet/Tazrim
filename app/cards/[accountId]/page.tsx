@@ -8,6 +8,7 @@ import { CardTransactionsTable } from '@/components/cards/card-transactions-tabl
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
+import { seriesColor } from '@/lib/accounts/colors'
 import { getCategories } from '@/lib/db/categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
@@ -158,7 +159,7 @@ export default async function CardAccountPage({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <MonthlySpendingChart
               accountId={account.id}
-              series={[{ key: account.id, label: account.displayName, color: 'var(--chart-cc)', data: monthly }]}
+              series={[{ key: account.id, label: account.displayName, color: seriesColor(account.color, 'var(--chart-cc)'), data: monthly }]}
               selectedMonth={month}
               monthCount={monthCount}
             />

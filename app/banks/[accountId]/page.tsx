@@ -115,6 +115,7 @@ export default async function BankAccountPage({
           provider={account.provider}
           name={account.displayName}
           color="var(--chart-income)"
+          colorChoice={account.color}
           latest={latest}
           trend={trend}
           emptyText="אין תנועות בתקופה"

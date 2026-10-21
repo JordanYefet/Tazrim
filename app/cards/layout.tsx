@@ -2,6 +2,7 @@ import { CardWallet, type WalletCard } from '@/components/cards/card-wallet'
 import { listAccounts } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
 import { CARD_COLORS } from '@/lib/nav/state'
+import { seriesColor } from '@/lib/accounts/colors'
 
 /**
  * Keeps the card wallet mounted across /cards and /cards/<id> (ENG-56), so the
@@ -19,7 +20,8 @@ export default async function CardsLayout({ children }: { children: React.ReactN
     lastFour: a.cardLastFour,
     network: a.cardNetwork,
     // Same colour as the card's series on /cards (archived cards have none there)
-    color: a.archived ? 'var(--chart-cc)' : CARD_COLORS[active++ % CARD_COLORS.length],
+    color: seriesColor(a.color, a.archived ? 'var(--chart-cc)' : CARD_COLORS[active++ % CARD_COLORS.length]),
+    colorChoice: a.color,
     archived: a.archived,
   }))
   return <CardWallet cards={cards}>{children}</CardWallet>

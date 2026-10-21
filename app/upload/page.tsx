@@ -16,6 +16,7 @@ export default async function UploadPage() {
         displayName: a.displayName,
         cardLastFour: a.cardLastFour,
         cardNetwork: a.cardNetwork,
+        color: a.color,
         missingMonths: missingById.get(a.id) ?? [],
       }))}
     />

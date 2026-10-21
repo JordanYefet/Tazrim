@@ -9,6 +9,8 @@
  * only way to tell accounts apart.
  */
 
+import { choiceHex, faceFromColor, parseColorChoice, type Ink } from './colors'
+
 export type CardNetwork = 'visa' | 'mastercard' | 'amex' | 'diners' | 'isracard'
 
 export const CARD_NETWORKS: { key: CardNetwork; label: string }[] = [
@@ -31,6 +33,10 @@ export function networkLabel(network: string | null | undefined): string | null 
 export interface Face {
   key: string
   stops: [string, string, string]
+  /** Text tone on the face (ENG-66); white when unset */
+  ink?: Ink
+  /** The translucent glass face (ENG-66): styled in CSS, text follows the theme */
+  glass?: boolean
 }
 
 /**
@@ -122,11 +128,28 @@ export function providerKey(provider: string | null | undefined): string {
 
 export type FaceKind = 'BANK' | 'CREDIT_CARD'
 
+/** Glass (ENG-66): neutral stops for anything that reads them (the bank sparkline); the look is CSS. */
+export const GLASS_FACE: Face = { key: 'glass', stops: ['#ffffff', '#b7c0cc', '#7c8799'], glass: true }
+
 /**
- * The face for a provider: its own, else one made from the account's colour
- * (any CSS colour, e.g. the chart series var), else graphite.
+ * The face for an account. `choice` is Account.color (ENG-66): a chosen
+ * swatch, custom colour or glass wins; null keeps the brand default, which is
+ * the provider's own face, else one made from `accountColor` (the positional
+ * colour, any CSS colour), else graphite.
  */
-export function faceFor(kind: FaceKind, provider: string | null | undefined, accountColor?: string): Face {
+export function faceFor(
+  kind: FaceKind,
+  provider: string | null | undefined,
+  accountColor?: string,
+  choice?: string | null
+): Face {
+  const chosen = parseColorChoice(choice)
+  if (chosen.type === 'glass') return GLASS_FACE
+  const hex = choiceHex(chosen)
+  if (hex) {
+    const { stops, ink } = faceFromColor(kind, hex)
+    return { key: `color:${hex}`, stops, ink }
+  }
   const key = providerKey(provider)
   const own = (kind === 'BANK' ? BANK_FACES : CARD_FACES)[key]
   if (own) return own

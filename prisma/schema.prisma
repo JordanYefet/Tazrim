@@ -21,6 +21,9 @@ model Account {
   /// Card network for the card element (ENG-56): visa, mastercard, amex, diners or isracard.
   /// Null when unknown or other; always null for bank accounts.
   cardNetwork            String?
+  /// Account colour (ENG-66): a palette key from lib/accounts/colors.ts, a #rrggbb
+  /// hex, or "glass". Null means the brand default (issuer/bank face, else positional).
+  color                  String?
   archived               Boolean                 @default(false)
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]

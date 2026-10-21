@@ -53,6 +53,8 @@ export interface WalletCard {
   lastFour: string | null
   network: string | null
   color: string
+  /** Account.color (ENG-66) */
+  colorChoice: string | null
   archived: boolean
 }
 
@@ -372,6 +374,7 @@ function Wallet({
                   lastFour={c.lastFour}
                   network={c.network}
                   color={c.color}
+                  colorChoice={c.colorChoice}
                 />
               </Link>
             </div>
