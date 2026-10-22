@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { boxHeight, placements, pocketTop, springEasing, springResponseFor, walletModeFor } from '../wallet-motion'
+import {
+  CARD_HEIGHT_CQW,
+  STACK_SCALE,
+  boxHeight,
+  placements,
+  pocketTop,
+  predictCardPlacement,
+  springEasing,
+  springResponseFor,
+  stripPx,
+  walletModeFor,
+} from '../wallet-motion'
 import { MOTION } from '@/lib/motion'
 
 // Made-up account ids
@@ -85,5 +96,35 @@ describe('the wallet spring and the page beat (ENG-67)', () => {
     for (const ms of [300, 480, 600, 800]) {
       expect(Math.abs(springEasing(0.92, springResponseFor(ms, 0.92)).duration - ms)).toBeLessThanOrEqual(10)
     }
+  })
+})
+
+describe('predictCardPlacement (ENG-72: baking glass ahead)', () => {
+  const box = { x: 16, y: 400, width: 358 }
+  const order = ['back', 'middle', 'front']
+  it('the open card fills the box at its top', () => {
+    const p = predictCardPlacement({ kind: 'open', id: 'front' }, 'front', order, box)!
+    expect(p.rect).toEqual({ x: 16, y: 400, width: 358, height: (358 * CARD_HEIGHT_CQW) / 100 })
+    expect(p.scaleX).toBe(1)
+  })
+  it('other cards are hidden while one is open', () => {
+    expect(predictCardPlacement({ kind: 'open', id: 'front' }, 'back', order, box)).toBeNull()
+  })
+  it('stack cards are scaled from their top centre and stepped down by a strip', () => {
+    const back = predictCardPlacement({ kind: 'stack' }, 'back', order, box)!
+    const front = predictCardPlacement({ kind: 'stack' }, 'front', order, box)!
+    expect(back.rect.y).toBe(400)
+    expect(front.rect.y).toBeCloseTo(400 + 2 * stripPx(358))
+    expect(back.rect.width).toBeCloseTo(358 * STACK_SCALE)
+    expect(back.rect.x).toBeCloseTo(16 + (358 * (1 - STACK_SCALE)) / 2)
+    expect(front.scaleX).toBe(STACK_SCALE)
+  })
+  it('the strip is at least 50px, else 13.7% of the wallet', () => {
+    expect(stripPx(300)).toBe(50)
+    expect(stripPx(1000)).toBeCloseTo(137)
+  })
+  it('a card not in the stack has no stack place', () => {
+    expect(predictCardPlacement({ kind: 'stack' }, 'archived', order, box)).toBeNull()
+    expect(predictCardPlacement({ kind: 'none' }, 'front', order, box)).toBeNull()
   })
 })

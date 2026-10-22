@@ -120,9 +120,22 @@ export function fresnelSchlick(cosTheta: number, f0 = 0.04): number {
   return f0 + (1 - f0) * Math.pow(1 - c, 5)
 }
 
-/** A key that changes whenever a bake would look different (rounded to half a px). */
-export function bakeKey(parts: { rect: Rect; scale: number; dpr: number; theme: string; background: string }): string {
+/**
+ * The cache key of a bake: what it belongs to and everything that changes
+ * how it looks, then (after "@") where it is on the document, rounded to
+ * half a px. Two keys with the same part before "@" differ only in place.
+ */
+export function cacheKey(parts: { id: string; width: number; height: number; rect: Rect; scale: number; dpr: number; theme: string; background: string }): string {
   const r = (n: number) => Math.round(n * 2) / 2
-  const { rect } = parts
-  return `${r(rect.x)},${r(rect.y)},${r(rect.width)},${r(rect.height)}|${parts.scale.toFixed(3)}|${parts.dpr}|${parts.theme}|${parts.background}`
+  return `${parts.id}|${r(parts.width)}x${r(parts.height)}|${parts.scale.toFixed(3)}|${parts.dpr}|${parts.theme}|${parts.background}@${r(parts.rect.x)},${r(parts.rect.y)}`
+}
+
+/** Whether two rects are within `tolerance` px of each other on every edge. */
+export function nearSameRect(a: Rect, b: Rect, tolerance: number): boolean {
+  return (
+    Math.abs(a.x - b.x) <= tolerance &&
+    Math.abs(a.y - b.y) <= tolerance &&
+    Math.abs(a.width - b.width) <= tolerance &&
+    Math.abs(a.height - b.height) <= tolerance
+  )
 }

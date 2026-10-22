@@ -23,12 +23,13 @@ import { withQuery } from '@/lib/accounts/routes'
 import { periodQuery } from '@/lib/period'
 import { EASE, LAND_AT, MOTION } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
-import { requestGlassBake } from '@/components/glass/glass-bakery'
+import { prebakeGlass, requestGlassBake, showGlassAt } from '@/components/glass/glass-bakery'
 import {
   POCKET_HEIGHT_CQW,
   boxHeight,
   placements,
   pocketTop,
+  predictCardPlacement,
   springEasing,
   springResponseFor,
   walletModeFor,
@@ -284,6 +285,15 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
   )
 }
 
+/**
+ * Where the wallet box's top sits on the document in each mode, learned as
+ * the pages are visited (the stack page and a card's page have different
+ * headings), per wallet width. Used to bake glass for a card's next place
+ * ahead of time (ENG-72).
+ */
+const learnedBoxTop = new Map<string, number>()
+const boxKey = (kind: WalletMode['kind'], width: number) => `${kind}:${Math.round(width)}`
+
 function Wallet({
   cards,
   mode,
@@ -332,6 +342,16 @@ function Wallet({
   // The open card shows its total as it lands (from LAND_AT of its motion), and hides it as soon as it moves
   const [settledId, setSettledId] = useState<string | null>(mode.kind === 'open' ? mode.id : null)
 
+  // Glass cards (ENG-72): each card's glass is baked ahead for its stack and
+  // open places, so whichever card is chosen has its glass from the first frame
+  const glassHost = (id: string) => elements.current.get(id)?.querySelector<HTMLElement>('.acct-face[data-glass]') ?? null
+  const boxFor = (m: WalletMode) => {
+    const b = boxRef.current
+    if (!b) return null
+    const r = b.getBoundingClientRect()
+    return { x: r.left + window.scrollX, y: learnedBoxTop.get(boxKey(m.kind, r.width)) ?? r.top + window.scrollY, width: r.width }
+  }
+
   // Mode changed: move every card from where it is now to its new place
   useLayoutEffect(() => {
     const prev = lastMode.current
@@ -346,6 +366,15 @@ function Wallet({
     setSettledId(null)
     // The pocket drops away with the other cards (or rises back with them)
     if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), {})
+    // Glass cards show the glass baked for where they are going, from the start of the motion
+    const nextBox = boxFor(mode)
+    if (nextBox) {
+      for (const c of cards) {
+        const host = glassHost(c.id)
+        const to = host && predictCardPlacement(mode, c.id, stackOrder, nextBox)
+        if (host && to) showGlassAt(host, to)
+      }
+    }
     // Leaving the stack, the cards nearest the chosen one go first; coming back, the same
     const order = mode.kind === 'open' ? [...stackOrder].reverse() : stackOrder
     let k = 0
@@ -375,6 +404,8 @@ function Wallet({
     const top = box.getBoundingClientRect().top + window.scrollY
     const prevTop = lastTop.current
     lastTop.current = top
+    // The route has caught up: this is where the box sits in this mode
+    if (heightMode.kind === mode.kind) learnedBoxTop.set(boxKey(mode.kind, box.getBoundingClientRect().width), top)
     if (prevTop === null || Math.abs(top - prevTop) < 0.5 || prefersReducedMotion()) return
     const shift = top - prevTop
     if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), { fromY: currentY(pocketRef.current) - shift })
@@ -389,6 +420,24 @@ function Wallet({
       }
     }
   })
+
+  // Bake every glass card's stack and open places in idle time (cached, so only once)
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      for (const c of cards) {
+        const host = glassHost(c.id)
+        if (!host) continue
+        for (const m of [{ kind: 'stack' } as const, { kind: 'open', id: c.id } as const]) {
+          const b = boxFor(m)
+          const p = b && predictCardPlacement(m, c.id, stackOrder, b)
+          if (p) prebakeGlass(host, c.id, p)
+        }
+      }
+    }, 250)
+    return () => window.clearTimeout(t)
+    // glassHost / boxFor read refs; the places change with these
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, heightMode.kind, stackOrder, cards])
 
   const shownTotal =
     mode.kind === 'open' && heroTotal?.accountId === mode.id && settledId === mode.id ? heroTotal : null
@@ -428,7 +477,8 @@ function Wallet({
                 <PaymentCard
                   decorative
                   tilt={isOpen}
-                  glassBaked={p.front}
+                  glassBaked
+                  glassId={c.id}
                   amount={isOpen ? (total ? { value: total.value, label: total.label } : null) : undefined}
                   amountVisible={isOpen && !!total && settledId === c.id}
                   provider={c.provider}

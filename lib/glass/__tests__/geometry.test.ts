@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   FROST_BLUR,
-  bakeKey,
+  cacheKey,
+  nearSameRect,
   bakeMargin,
   bakeRegion,
   bakeScale,
@@ -91,17 +92,36 @@ describe('the bake region', () => {
   })
 })
 
-describe('bakeKey', () => {
-  const base = { rect: { x: 16, y: 300, width: 358, height: 226 }, scale: 1, dpr: 3, theme: 'light', background: 'lines.indigo-pink.10' }
+describe('cacheKey', () => {
+  const base = { id: 'card-a', width: 358, height: 226, rect: { x: 16, y: 300, width: 358, height: 226 }, scale: 1, dpr: 3, theme: 'light', background: 'lines.indigo-pink.10' }
   it('is stable for the same element in the same place', () => {
-    expect(bakeKey(base)).toBe(bakeKey({ ...base, rect: { ...base.rect, x: 16.1 } }))
+    expect(cacheKey(base)).toBe(cacheKey({ ...base, rect: { ...base.rect, x: 16.1 } }))
   })
-  it('changes when the element moves, resizes, or the theme / background changes', () => {
-    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, rect: { ...base.rect, y: 320 } }))
-    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, rect: { ...base.rect, width: 300 } }))
-    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, theme: 'dark' }))
-    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, background: 'ribbons.indigo-pink.10' }))
-    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, scale: 0.93 }))
+  it('changes when the element, its place, size, scale, theme or background changes', () => {
+    for (const other of [
+      { ...base, id: 'card-b' },
+      { ...base, rect: { ...base.rect, y: 320 } },
+      { ...base, width: 300 },
+      { ...base, scale: 0.93 },
+      { ...base, theme: 'dark' },
+      { ...base, background: 'ribbons.indigo-pink.10' },
+      { ...base, dpr: 2 },
+    ]) expect(cacheKey(other)).not.toBe(cacheKey(base))
+  })
+  it('keeps the place after "@", so a moved element is the same glass elsewhere', () => {
+    const a = cacheKey(base).split('@')
+    const b = cacheKey({ ...base, rect: { ...base.rect, y: 900 } }).split('@')
+    expect(a[0]).toBe(b[0])
+    expect(a[1]).not.toBe(b[1])
+  })
+})
+
+describe('nearSameRect', () => {
+  const r = { x: 10, y: 20, width: 100, height: 60 }
+  it('accepts a settle within the tolerance and rejects more', () => {
+    expect(nearSameRect(r, { ...r, y: 21.5 }, 2)).toBe(true)
+    expect(nearSameRect(r, { ...r, y: 23 }, 2)).toBe(false)
+    expect(nearSameRect(r, { ...r, width: 97 }, 2)).toBe(false)
   })
 })
 

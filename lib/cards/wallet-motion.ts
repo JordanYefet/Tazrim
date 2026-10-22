@@ -147,3 +147,38 @@ export function springEasing(dampingRatio = 0.92, response = 0.42): { easing: st
   }
   return { easing: `linear(${points.join(', ')})`, duration: Math.round(end * 1000) }
 }
+
+/** A stack strip in px for a wallet this wide (STRIP: max(50px, 13.7cqw)). */
+export function stripPx(walletWidth: number): number {
+  return Math.max(50, walletWidth * 0.137)
+}
+
+/**
+ * Where a card will sit on the document in a mode, for baking its glass
+ * ahead (ENG-72): the wallet box's top-left on the document and its width,
+ * and the card's place in the stack (back to front). The card is as wide as
+ * the box; in the stack it is scaled by STACK_SCALE from its top centre.
+ * Null for a card that is hidden in that mode.
+ */
+export function predictCardPlacement(
+  mode: WalletMode,
+  cardId: string,
+  stackOrder: string[],
+  box: { x: number; y: number; width: number }
+): { rect: { x: number; y: number; width: number; height: number }; scaleX: number; scaleY: number } | null {
+  const w = box.width
+  const h = (w * CARD_HEIGHT_CQW) / 100
+  if (mode.kind === 'open') {
+    if (mode.id !== cardId) return null
+    return { rect: { x: box.x, y: box.y, width: w, height: h }, scaleX: 1, scaleY: 1 }
+  }
+  if (mode.kind !== 'stack') return null
+  const i = stackOrder.indexOf(cardId)
+  if (i < 0) return null
+  const s = STACK_SCALE
+  return {
+    rect: { x: box.x + (w * (1 - s)) / 2, y: box.y + i * stripPx(w), width: w * s, height: h * s },
+    scaleX: s,
+    scaleY: s,
+  }
+}
