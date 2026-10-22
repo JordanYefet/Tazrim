@@ -1,16 +1,15 @@
 /*
- * Paints the page background (ENG-72) into a 2D canvas: the same composition
- * the page shows (components/background/background-layer.tsx), so the glass
- * slab (lib/glass/renderer.ts) can refract it. Browser only (Path2D).
+ * Paints the page background (ENG-72) into a 2D canvas, the same composition
+ * the page shows (lib/background/tile-svg.ts on <body>), so a glass element
+ * can bake what is behind it (components/glass). Browser only (Path2D).
  *
- * The canvas covers `region` of the viewport (viewport CSS px) at `scale`
- * canvas pixels per CSS px. The page's background layer is fixed to the
- * viewport, with the lines tile anchored at its top-left corner.
+ * `region` is in document CSS px (the tile is anchored at the document's top
+ * left and scrolls with it); the canvas gets `scale` pixels per CSS px.
  */
 
 import { LINES_TILE } from './lines-tile.data'
 import { LINE_WIDTH, TILE_HEIGHT, TILE_WIDTH } from './lines'
-import { RIBBONS, RIBBON_BLEED, RIBBON_BLUR, RIBBON_BOX, RIBBON_GRADIENTS } from './ribbons'
+import { RIBBONS, RIBBON_BAND, RIBBON_BLUR, RIBBON_BOX, RIBBON_GRADIENTS } from './ribbons'
 import { lineOpacity, paletteColors, type BackgroundSetting } from './setting'
 
 export interface PaintRegion {
@@ -21,7 +20,14 @@ export interface PaintRegion {
   scale: number
 }
 
-/** The page colour under each pattern (the stylesheet's --page-backdrop for lines / ribbons). */
+/** Where the page is: its width (the ribbons fill it) and, for the plain backdrop (fixed to the viewport), the scroll and viewport height. */
+export interface PageGeometry {
+  width: number
+  scrollY: number
+  viewportHeight: number
+}
+
+/** The page colour under each pattern (html background in the stylesheet). */
 export const PAGE_COLOR = {
   lines: { light: '#ffffff', dark: '#0b1120' },
   ribbons: { light: '#eef2f7', dark: '#05060f' },
@@ -33,13 +39,15 @@ function tilePaths(): Path2D[] {
   return paths
 }
 
-function paintPlain(ctx: CanvasRenderingContext2D, vw: number, vh: number, dark: boolean) {
-  const lin = ctx.createLinearGradient(0, 0, 0, vh)
+function paintPlain(ctx: CanvasRenderingContext2D, page: PageGeometry, dark: boolean) {
+  // The tonal backdrop is fixed to the viewport: paint it where it is now
+  const top = page.scrollY
+  const vh = page.viewportHeight
+  const lin = ctx.createLinearGradient(0, top, 0, top + vh)
   lin.addColorStop(0, dark ? 'hsl(221,30%,9.5%)' : 'hsl(210,32%,97%)')
   lin.addColorStop(1, dark ? 'hsl(224,32%,7%)' : 'hsl(214,26%,93.5%)')
   ctx.fillStyle = lin
-  ctx.fillRect(-4000, -4000, 8000 + vw, 8000 + vh)
-  // The two soft glows of --page-backdrop: ellipses 64rem × 30rem and 50rem × 36rem
+  ctx.fillRect(-4000, top - 4000, 8000 + page.width, 8000 + vh)
   const glow = (cx: number, cy: number, rx: number, ry: number, color: string) => {
     ctx.save()
     ctx.translate(cx, cy)
@@ -51,8 +59,8 @@ function paintPlain(ctx: CanvasRenderingContext2D, vw: number, vh: number, dark:
     ctx.fillRect(-1, -1, 2, 2)
     ctx.restore()
   }
-  glow(vw * 0.7, -128, 1024, 480, dark ? 'hsla(204,65%,26%,0.3)' : 'hsla(199,75%,86%,0.5)')
-  glow(0, vh * 1.05, 800, 576, dark ? 'hsla(234,45%,20%,0.35)' : 'hsla(224,50%,86%,0.45)')
+  glow(page.width * 0.7, top - 128, 1024, 480, dark ? 'hsla(204,65%,26%,0.3)' : 'hsla(199,75%,86%,0.5)')
+  glow(0, top + vh * 1.05, 800, 576, dark ? 'hsla(234,45%,20%,0.35)' : 'hsla(224,50%,86%,0.45)')
 }
 
 function paintLines(ctx: CanvasRenderingContext2D, region: PaintRegion, setting: BackgroundSetting, dark: boolean) {
@@ -95,14 +103,13 @@ function supportsCanvasFilter(ctx: CanvasRenderingContext2D): boolean {
   return ok
 }
 
-function drawRibbons(ctx: CanvasRenderingContext2D, vw: number, vh: number, dark: boolean) {
-  // The layer reaches RIBBON_BLEED px past the viewport on every side
-  const sx = (vw + 2 * RIBBON_BLEED) / RIBBON_BOX.width
-  const sy = (vh + 2 * RIBBON_BLEED) / RIBBON_BOX.height
+/** The ribbons of one tile, in tile units (390 × 640), as tile-svg.ts lays them out. */
+function drawRibbonTile(ctx: CanvasRenderingContext2D, dark: boolean) {
   const stops = dark ? RIBBON_GRADIENTS.dark : RIBBON_GRADIENTS.light
+  const bleed = 30
   ctx.save()
-  ctx.translate(-RIBBON_BLEED, -RIBBON_BLEED)
-  ctx.scale(sx, sy)
+  ctx.translate(-bleed, RIBBON_BAND.y)
+  ctx.scale((RIBBON_BOX.width + 2 * bleed) / RIBBON_BOX.width, RIBBON_BAND.scaleY)
   for (const [d, gi, opLight, opDark] of RIBBONS) {
     const g = ctx.createLinearGradient(0, 0, RIBBON_BOX.width, 0)
     g.addColorStop(0, stops[gi][0])
@@ -115,57 +122,54 @@ function drawRibbons(ctx: CanvasRenderingContext2D, vw: number, vh: number, dark
   ctx.globalAlpha = 1
 }
 
-function paintRibbons(ctx: CanvasRenderingContext2D, region: PaintRegion, vw: number, vh: number, dark: boolean) {
-  if (dark) {
-    // radial-gradient(120% 80% at 80% 0%, #12163a 0%, #05060f 70%)
-    ctx.fillStyle = PAGE_COLOR.ribbons.dark
-    ctx.fillRect(region.x, region.y, region.width, region.height)
-    ctx.save()
-    ctx.translate(vw * 0.8, 0)
-    ctx.scale(vw * 1.2, vh * 0.8)
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
-    g.addColorStop(0, '#12163a')
-    g.addColorStop(0.7, '#05060f')
-    ctx.fillStyle = g
-    ctx.fillRect(-2, -2, 4, 4)
-    ctx.restore()
-  } else {
-    ctx.fillStyle = PAGE_COLOR.ribbons.light
-    ctx.fillRect(region.x, region.y, region.width, region.height)
+function paintRibbons(ctx: CanvasRenderingContext2D, region: PaintRegion, page: PageGeometry, dark: boolean) {
+  ctx.fillStyle = dark ? PAGE_COLOR.ribbons.dark : PAGE_COLOR.ribbons.light
+  ctx.fillRect(region.x, region.y, region.width, region.height)
+  // The tile is as wide as the page and repeats down it
+  const k = page.width / RIBBON_BOX.width
+  const tileH = RIBBON_BOX.height * k
+  const blur = (dark ? RIBBON_BLUR.dark : RIBBON_BLUR.light) * k
+  const first = Math.floor(region.y / tileH)
+  const last = Math.floor((region.y + region.height) / tileH)
+  const draw = (c: CanvasRenderingContext2D) => {
+    for (let i = first - 1; i <= last + 1; i++) {
+      c.save()
+      c.translate(0, i * tileH)
+      c.scale(k, k)
+      drawRibbonTile(c, dark)
+      c.restore()
+    }
   }
-  const blur = dark ? RIBBON_BLUR.dark : RIBBON_BLUR.light
   if (supportsCanvasFilter(ctx)) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(region.x, region.y, region.width, region.height)
+    ctx.clip()
     ctx.filter = `blur(${blur * region.scale}px)`
-    drawRibbons(ctx, vw, vh, dark)
+    draw(ctx)
     ctx.filter = 'none'
+    ctx.restore()
     return
   }
-  // No canvas filter (Safari): draw small and scale up; the upscale softens
-  // the ribbons about as much as the page's blur does
-  const k = 1 / blur
+  // No canvas filter (Safari): draw small and scale up, about as soft as the page's blur
+  const f = Math.max(1, blur / 2)
   const small = document.createElement('canvas')
-  small.width = Math.max(2, Math.ceil(vw * k) + 2)
-  small.height = Math.max(2, Math.ceil(vh * k) + 2)
-  const sctx = small.getContext('2d')
-  if (!sctx) return
-  sctx.scale(k, k)
-  drawRibbons(sctx, vw, vh, dark)
+  small.width = Math.max(2, Math.ceil(region.width / f))
+  small.height = Math.max(2, Math.ceil(region.height / f))
+  const s = small.getContext('2d')
+  if (!s) return
+  s.fillStyle = ctx.fillStyle as string
+  s.fillRect(0, 0, small.width, small.height)
+  s.scale(1 / f, 1 / f)
+  s.translate(-region.x, -region.y)
+  draw(s)
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(small, 0, 0, small.width / k, small.height / k)
+  ctx.drawImage(small, region.x, region.y, small.width * f, small.height * f)
 }
 
-/**
- * Paints the background for `setting` into `canvas`, sized to the region.
- * `viewport` is the size of the page's fixed background layer.
- */
-export function paintBackground(
-  canvas: HTMLCanvasElement,
-  setting: BackgroundSetting,
-  dark: boolean,
-  region: PaintRegion,
-  viewport: { width: number; height: number }
-) {
+/** Paints the background behind `region` (document CSS px) into `canvas`. */
+export function paintBackground(canvas: HTMLCanvasElement, setting: BackgroundSetting, dark: boolean, region: PaintRegion, page: PageGeometry) {
   const w = Math.max(1, Math.round(region.width * region.scale))
   const h = Math.max(1, Math.round(region.height * region.scale))
   if (canvas.width !== w) canvas.width = w
@@ -176,7 +180,7 @@ export function paintBackground(
   ctx.clearRect(0, 0, w, h)
   ctx.setTransform(region.scale, 0, 0, region.scale, -region.x * region.scale, -region.y * region.scale)
   if (setting.kind === 'lines') paintLines(ctx, region, setting, dark)
-  else if (setting.kind === 'ribbons') paintRibbons(ctx, region, viewport.width, viewport.height, dark)
-  else paintPlain(ctx, viewport.width, viewport.height, dark)
+  else if (setting.kind === 'ribbons') paintRibbons(ctx, region, page, dark)
+  else paintPlain(ctx, page, dark)
   ctx.setTransform(1, 0, 0, 1, 0, 0)
 }

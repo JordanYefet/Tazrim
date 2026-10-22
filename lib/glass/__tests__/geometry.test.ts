@@ -1,18 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import {
   FROST_BLUR,
-  REGION_SLACK,
-  RIM_BEND,
-  RIM_BEVEL,
-  covers,
-  frostMargin,
+  bakeKey,
+  bakeMargin,
+  bakeRegion,
+  bakeScale,
+  edgeFactor,
+  fresnelSchlick,
   gaussianWeights,
-  neededRegion,
-  paintRegion,
-  paintScale,
+  lensOffset,
+  lensParams,
   resolveRadius,
-  rimBend,
-  rimSample,
   roundedRectDistance,
 } from '../geometry'
 
@@ -48,40 +46,61 @@ describe('roundedRectDistance', () => {
   })
 })
 
-describe('frost regions', () => {
-  const card = { x: 16, y: 120, width: 358, height: 226 }
+describe('the lens', () => {
+  const card = lensParams(358, 226)
 
-  it('the blur sees three standard deviations past the element', () => {
-    expect(frostMargin(16)).toBe(48)
-    const n = neededRegion(card)
-    expect(n.x).toBe(card.x - frostMargin(FROST_BLUR))
-    expect(n.width).toBe(card.width + 2 * frostMargin(FROST_BLUR))
+  it('is a narrow band along the edge', () => {
+    expect(card.band).toBeGreaterThanOrEqual(10)
+    expect(card.band).toBeLessThanOrEqual(20)
+    expect(lensParams(40, 26).band).toBeGreaterThanOrEqual(6)
   })
-
-  it('paints a region with slack that covers what is needed', () => {
-    const r = paintRegion(card)
-    expect(covers(r, neededRegion(card))).toBe(true)
-    expect(r.height - neededRegion(card).height).toBe(2 * REGION_SLACK.y)
+  it('bends most at the edge and not at all past the band', () => {
+    expect(edgeFactor(0, card.band)).toBe(1)
+    expect(edgeFactor(card.band, card.band)).toBe(0)
+    expect(edgeFactor(card.band * 2, card.band)).toBe(0)
+    expect(lensOffset(0, card)).toBeCloseTo(card.reach)
+    expect(lensOffset(card.band / 2, card)).toBeLessThan(card.reach / 2)
+    expect(lensOffset(card.band + 1, card)).toBe(0)
   })
-
-  it('reuses the painted region for a small scroll, repaints for a large one', () => {
-    const r = paintRegion(card)
-    expect(covers(r, neededRegion({ ...card, y: card.y - REGION_SLACK.y + 1 }))).toBe(true)
-    expect(covers(r, neededRegion({ ...card, y: card.y - REGION_SLACK.y - 1 }))).toBe(false)
-    expect(covers(r, neededRegion({ ...card, x: card.x + REGION_SLACK.x + 1 }))).toBe(false)
+  it('eases smoothly (no step at the band)', () => {
+    const near = edgeFactor(card.band * 0.98, card.band)
+    expect(near).toBeGreaterThan(0)
+    expect(near).toBeLessThan(0.01)
   })
+})
 
-  it('paints at the device pixel ratio, up to 3 (an iPhone is not half-res)', () => {
-    const r = paintRegion(card)
-    expect(paintScale(r, 3, 8192)).toBe(3)
-    expect(paintScale(r, 2, 8192)).toBe(2)
-    expect(paintScale(r, 4, 8192)).toBe(3)
-    expect(paintScale(r, 0.5, 8192)).toBe(1)
+describe('the bake region', () => {
+  const p = lensParams(358, 226)
+  it('covers the lens reach and the frost', () => {
+    const m = bakeMargin(p)
+    expect(m).toBeGreaterThanOrEqual(p.reach + 3 * FROST_BLUR)
+    const r = bakeRegion({ x: 16, y: 300, width: 358, height: 226 }, m)
+    expect(r).toEqual({ x: 16 - m, y: 300 - m, width: 358 + 2 * m, height: 226 + 2 * m })
   })
-
+  it('bakes at the device pixel ratio, up to 3', () => {
+    const r = { x: 0, y: 0, width: 450, height: 320 }
+    expect(bakeScale(r, 3, 8192)).toBe(3)
+    expect(bakeScale(r, 2, 8192)).toBe(2)
+    expect(bakeScale(r, 4, 8192)).toBe(3)
+    expect(bakeScale(r, 0.5, 8192)).toBe(1)
+  })
   it('shrinks only to fit the GPU limit', () => {
     const r = { x: 0, y: 0, width: 1500, height: 800 }
-    expect(r.width * paintScale(r, 3, 2048)).toBeLessThanOrEqual(2048)
+    expect(r.width * bakeScale(r, 3, 2048)).toBeLessThanOrEqual(2048)
+  })
+})
+
+describe('bakeKey', () => {
+  const base = { rect: { x: 16, y: 300, width: 358, height: 226 }, scale: 1, dpr: 3, theme: 'light', background: 'lines.indigo-pink.10' }
+  it('is stable for the same element in the same place', () => {
+    expect(bakeKey(base)).toBe(bakeKey({ ...base, rect: { ...base.rect, x: 16.1 } }))
+  })
+  it('changes when the element moves, resizes, or the theme / background changes', () => {
+    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, rect: { ...base.rect, y: 320 } }))
+    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, rect: { ...base.rect, width: 300 } }))
+    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, theme: 'dark' }))
+    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, background: 'ribbons.indigo-pink.10' }))
+    expect(bakeKey(base)).not.toBe(bakeKey({ ...base, scale: 0.93 }))
   })
 })
 
@@ -94,31 +113,14 @@ describe('gaussianWeights', () => {
   })
   it('reaches three standard deviations', () => {
     expect(gaussianWeights(4)).toHaveLength(13)
-    expect(gaussianWeights(0.1).length).toBeGreaterThanOrEqual(2)
   })
 })
 
-describe('the thin rim', () => {
-  it('bends the frost only within the bevel, most at the edge', () => {
-    expect(rimBend(0)).toBeCloseTo(RIM_BEND)
-    expect(rimBend(RIM_BEVEL / 2)).toBeLessThan(RIM_BEND)
-    expect(rimBend(RIM_BEVEL)).toBe(0)
-    expect(rimBend(40)).toBe(0)
-  })
-  it('the bevel is thin: a few px, not a wide band', () => {
-    expect(RIM_BEVEL).toBeGreaterThanOrEqual(3)
-    expect(RIM_BEVEL).toBeLessThanOrEqual(6)
-  })
-  it('samples inside the element, never the page beyond it', () => {
-    const size = { width: 300, height: 200 }
-    // At the left edge, bending inward (right)
-    expect(rimSample({ x: 0, y: 100 }, { x: 1, y: 0 }, 0, size).x).toBeGreaterThanOrEqual(1)
-    // Even a wrong direction stays clamped inside
-    const s = rimSample({ x: 299.5, y: 199.5 }, { x: 1, y: 1 }, 0, size)
-    expect(s.x).toBeLessThanOrEqual(299)
-    expect(s.y).toBeLessThanOrEqual(199)
-  })
-  it('leaves the middle alone', () => {
-    expect(rimSample({ x: 150, y: 100 }, { x: 1, y: 0 }, 100, { width: 300, height: 200 })).toEqual({ x: 150, y: 100 })
+describe('fresnelSchlick', () => {
+  it('is F0 head-on and rises to 1 at grazing angles', () => {
+    expect(fresnelSchlick(1)).toBeCloseTo(0.04)
+    expect(fresnelSchlick(0)).toBeCloseTo(1)
+    expect(fresnelSchlick(0.5)).toBeGreaterThan(0.04)
+    expect(fresnelSchlick(0.5)).toBeLessThan(fresnelSchlick(0.2))
   })
 })

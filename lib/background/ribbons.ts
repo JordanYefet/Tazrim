@@ -1,10 +1,14 @@
 /*
- * The "סרטי צבע" background (ENG-72, the Ribbons mockup): four soft ribbons
- * of colour across the page, blurred. Drawn in a 390 × 640 box stretched to
- * the viewport (they are soft enough that stretching does not show).
+ * The "סרטי צבע" background (ENG-72, the Ribbons mockup): soft ribbons of
+ * colour across the page, blurred. One 390 × 640 tile, shown as wide as the
+ * page and repeated down it (it scrolls with the document). The ribbons sit
+ * inside the tile, clear of its top and bottom, so the repeat has no seam.
  */
 
 export const RIBBON_BOX = { width: 390, height: 640 } as const
+
+/** Fits the mockup's ribbons into the tile's middle band, clear of both edges */
+export const RIBBON_BAND = { y: 56, scaleY: 0.78 } as const
 
 /** [path, gradient (0-2), opacity light, opacity dark] */
 export const RIBBONS: ReadonlyArray<readonly [string, 0 | 1 | 2, number, number]> = [
@@ -28,8 +32,5 @@ export const RIBBON_GRADIENTS = {
   ],
 } as const
 
-/** How far the (blurred) ribbon layer reaches past the viewport, CSS px (.bg-layer--ribbons) */
-export const RIBBON_BLEED = 40
-
-/** Blur of the ribbons, CSS px */
+/** Blur of the ribbons, in tile units (CSS px at a 390px-wide page) */
 export const RIBBON_BLUR = { light: 16, dark: 14 } as const

@@ -228,7 +228,7 @@ export function AccountForm(props: CreateProps | EditProps) {
               {kind === 'CREDIT_CARD' ? (
                 <PaymentCard
                   live
-                  glassWebGL
+                  glassBaked
                   provider={provider}
                   name={displayName}
                   namePlaceholder={NAME_PLACEHOLDER.CREDIT_CARD}
@@ -239,7 +239,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                 />
               ) : (
                 <BankElement
-                  glassWebGL
+                  glassBaked
                   provider={provider}
                   name={displayName}
                   namePlaceholder={NAME_PLACEHOLDER.BANK}

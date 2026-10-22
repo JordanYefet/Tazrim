@@ -1,131 +1,76 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
-import { decideGlassRenderer, type GlassRenderer } from '@/lib/glass/policy'
-import { GlassGL } from '@/lib/glass/renderer'
-import { glowGradients } from '@/lib/glass/glow'
-import { LensInstance, SlabInstance, getPrefs, getServerPrefs, glassSlots, glowEnabled, register, subscribePrefs } from './glass-runtime'
-
-const GLOW_STYLE = { backgroundImage: glowGradients() }
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { decideGlassRenderer } from '@/lib/glass/policy'
+import { trackGlass } from './glass-bakery'
 
 /*
  * The glass material of an account element (Account.color = "glass", ENG-72).
  * Render it as the first child of the face (.acct-card / .acct-bank /
- * .acct-mini); it fills the face beneath the content and reads the face's
- * size, radius and place on screen.
+ * .acct-mini); it fills the face beneath the content.
  *
- *   webgl  large elements that ask for it, while a WebGL slot is free: the
- *          refracting slab (lib/glass/renderer.ts) on a canvas
- *   css    everywhere else, and the fallback: the same frosted look in CSS
- *          (backdrop blur, the page's lines redrawn inside and blurred, the
- *          glow, a milky tint and a thin rim)
- *   solid  reduced transparency / more contrast: hidden; the stylesheet gives
- *          the face an opaque surface
- *
- * The colour glow behind glass (lib/glass/glow.ts) is drawn inside the
- * element and, as a coloured halo, just outside it (`halo`; off for the mini
- * faces in lists).
- *
- * The server renders the CSS version; WebGL takes over after mount.
+ *   baked   large elements (a hero, the front wallet card, the add / edit
+ *           preview): a liquid-glass lens computed once into a canvas
+ *           (lib/glass/bake.ts, scheduled by ./glass-bakery.ts). Until the
+ *           first bake, and as its base, the static look below.
+ *   static  everything else: a light tint, a thin rim and an inner
+ *           highlight in CSS. No blur, no backdrop-filter.
+ *   solid   reduced transparency / more contrast: the stylesheet gives the
+ *           face an opaque surface.
+ * Nothing here runs while the page scrolls.
  */
-export function GlassSurface({ webgl = false, halo = true }: { webgl?: boolean; halo?: boolean }) {
+
+interface Prefs {
+  reducedTransparency: boolean
+  moreContrast: boolean
+}
+const SERVER: Prefs = { reducedTransparency: false, moreContrast: false }
+let prefs: Prefs = SERVER
+let watching = false
+const subs = new Set<() => void>()
+function watch() {
+  if (watching || typeof window === 'undefined') return
+  watching = true
+  const rt = window.matchMedia('(prefers-reduced-transparency: reduce)')
+  const mc = window.matchMedia('(prefers-contrast: more)')
+  const read = () => {
+    prefs = { reducedTransparency: rt.matches, moreContrast: mc.matches }
+    subs.forEach(fn => fn())
+  }
+  rt.addEventListener?.('change', read)
+  mc.addEventListener?.('change', read)
+  read()
+}
+function subscribe(fn: () => void) {
+  watch()
+  subs.add(fn)
+  return () => {
+    subs.delete(fn)
+  }
+}
+const getPrefs = () => {
+  watch()
+  return prefs
+}
+const getServer = () => SERVER
+
+export function GlassSurface({ baked = false }: { baked?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const linesRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const id = useId()
-  const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getServerPrefs)
-  const [mounted, setMounted] = useState(false)
-  const [hasSlot, setHasSlot] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const [glow, setGlow] = useState(false)
-  useEffect(() => {
-    setMounted(true)
-    setGlow(glowEnabled())
-  }, [])
+  const p = useSyncExternalStore(subscribe, getPrefs, getServer)
+  const renderer = decideGlassRenderer({ baked, reducedTransparency: p.reducedTransparency, moreContrast: p.moreContrast })
+  const [ready, setReady] = useState(false)
 
-  // The halo outside the element is the face's own (coloured) shadow
-  useEffect(() => {
-    const host = ref.current?.parentElement
-    if (!host || !glow) return
-    host.dataset.glassGlow = halo ? 'halo' : 'inside'
-    return () => {
-      delete host.dataset.glassGlow
-    }
-  }, [glow, halo])
-
-  // Ask for a WebGL slot only when it could be used
-  const canUseGL = mounted && webgl && prefs.webgl2 && !prefs.reducedTransparency && !prefs.moreContrast && !failed
-  useEffect(() => {
-    if (!canUseGL) return
-    const reg = glassSlots()
-    const sync = () => setHasSlot(reg.holds(id))
-    const unsub = reg.subscribe(sync)
-    reg.acquire(id)
-    sync()
-    return () => {
-      unsub()
-      reg.release(id)
-      setHasSlot(false)
-    }
-  }, [canUseGL, id])
-
-  const renderer: GlassRenderer = mounted
-    ? decideGlassRenderer({ wantsWebGL: webgl, webgl2: prefs.webgl2, reducedTransparency: prefs.reducedTransparency, moreContrast: prefs.moreContrast, failed, hasSlot })
-    : 'css'
-
-  // The CSS lens follows the page while it is shown
-  useEffect(() => {
-    const host = ref.current?.parentElement
-    const lines = linesRef.current
-    if (renderer !== 'css' || !host || !lines) return
-    const lens = new LensInstance(host, lines)
-    const unregister = register(lens)
-    return () => {
-      unregister()
-      lens.dispose()
-    }
-  }, [renderer])
-
-  // The WebGL slab
   useEffect(() => {
     const host = ref.current?.parentElement
     const canvas = canvasRef.current
-    if (renderer !== 'webgl' || !host || !canvas) return
-    let gl: GlassGL
-    try {
-      gl = new GlassGL(canvas)
-    } catch {
-      setFailed(true)
-      return
-    }
-    const slab = new SlabInstance(host, gl, () => setFailed(true))
-    host.dataset.glassGl = ''
-    const unregister = register(slab)
-    const lost = (e: Event) => {
-      e.preventDefault()
-      setFailed(true)
-    }
-    canvas.addEventListener('webglcontextlost', lost)
-    return () => {
-      canvas.removeEventListener('webglcontextlost', lost)
-      unregister()
-      delete host.dataset.glassGl
-      gl.dispose()
-    }
+    if (renderer !== 'baked' || !host || !canvas) return
+    return trackGlass(host, canvas, () => setReady(true))
   }, [renderer])
 
   return (
     <span ref={ref} aria-hidden className="glass" data-renderer={renderer}>
-      {renderer === 'webgl' ? (
-        <canvas ref={canvasRef} className="glass__gl" />
-      ) : (
-        <>
-          <svg ref={linesRef} className="glass__lines" width="100%" height="100%" />
-          {glow && <span className="glass__glow" style={GLOW_STYLE} />}
-          <span className="glass__tint" />
-          <span className="glass__rim" />
-        </>
-      )}
+      {renderer === 'baked' && <canvas ref={canvasRef} className="glass__bake" data-ready={ready ? '' : undefined} />}
     </span>
   )
 }

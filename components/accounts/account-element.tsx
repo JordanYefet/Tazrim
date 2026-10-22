@@ -160,8 +160,8 @@ export interface PaymentCardProps {
   amount?: { value: number; label: string } | null
   /** Fades the band in (after the card has settled) and out (before it leaves) */
   amountVisible?: boolean
-  /** Glass faces (ENG-72): the WebGL slab instead of the CSS lens, for large cards only */
-  glassWebGL?: boolean
+  /** Glass faces (ENG-72): the baked liquid-glass lens, for large cards only (others get the static look) */
+  glassBaked?: boolean
   className?: string
 }
 
@@ -179,7 +179,7 @@ export function PaymentCard({
   decorative = false,
   amount,
   amountVisible = false,
-  glassWebGL = false,
+  glassBaked = false,
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
@@ -205,7 +205,7 @@ export function PaymentCard({
         : { role: 'img', 'aria-label': cardLabel({ provider, name: shownName, lastFour, network }) })}
     >
       {face.glass ? (
-        <GlassSurface webgl={glassWebGL} />
+        <GlassSurface baked={glassBaked} />
       ) : (
         <>
           <span aria-hidden className="acct-card__field" />
@@ -280,7 +280,7 @@ export function AccountMini({
     return (
       <span aria-hidden className={cn('acct-mini acct-mini--bank acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
         {face.glass ? (
-          <GlassSurface halo={false} />
+          <GlassSurface />
         ) : (
           <span className="acct-mini__band">
             <span className="acct-material acct-material--base" />
@@ -294,7 +294,7 @@ export function AccountMini({
   return (
     <span aria-hidden dir="ltr" className={cn('acct-mini acct-mini--card acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
       {face.glass ? (
-        <GlassSurface halo={false} />
+        <GlassSurface />
       ) : (
         <>
           <span className="acct-card__field" />
@@ -365,8 +365,8 @@ export interface BankElementProps {
   trend?: number[]
   hero?: boolean
   tilt?: boolean
-  /** Glass faces (ENG-72): the WebGL slab instead of the CSS lens; on by default for the hero */
-  glassWebGL?: boolean
+  /** Glass faces (ENG-72): the baked liquid-glass lens; on by default for the hero */
+  glassBaked?: boolean
   /** Inside a link: a plain box without its own label (its text is read as part of the link) */
   plain?: boolean
   className?: string
@@ -408,7 +408,7 @@ export function BankElement({
   trend = [],
   hero = false,
   tilt = false,
-  glassWebGL = hero,
+  glassBaked = hero,
   plain = false,
   className,
   children,
@@ -429,7 +429,7 @@ export function BankElement({
       {...faceData(face)}
       aria-label={plain ? undefined : `חשבון בנק${bank ? ` ${bank}` : ''}, ${shownName}`}
     >
-      {face.glass && <GlassSurface webgl={glassWebGL} />}
+      {face.glass && <GlassSurface baked={glassBaked} />}
       <div className="acct-bank__band">
         {!face.glass && <Material />}
         {bank && bank !== shownName && <p className="acct-bank__bank">{bank}</p>}
