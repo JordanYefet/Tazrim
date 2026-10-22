@@ -64,7 +64,7 @@ describe('slabParams', () => {
     const card = slabParams(358, 226, 23)
     const huge = slabParams(2000, 1200, 40)
     expect(card.bevel).toBeGreaterThan(small.bevel)
-    expect(huge.bevel).toBeLessThanOrEqual(34)
+    expect(huge.bevel).toBeLessThanOrEqual(28)
     expect(huge.thickness).toBeLessThanOrEqual(24)
     expect(small.radius).toBeLessThanOrEqual(14)
   })

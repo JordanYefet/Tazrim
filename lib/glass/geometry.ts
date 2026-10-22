@@ -42,7 +42,7 @@ export function slabParams(width: number, height: number, radius: number): SlabP
   const short = Math.max(1, Math.min(width, height))
   return {
     radius: Math.min(radius, short / 2),
-    bevel: Math.min(34, Math.max(6, short * 0.13)),
+    bevel: Math.min(28, Math.max(6, short * 0.11)),
     thickness: Math.min(24, Math.max(6, short * 0.09)),
     lift: Math.min(14, Math.max(4, short * 0.05)),
   }
