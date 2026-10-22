@@ -10,6 +10,7 @@ import { UnusualBadge } from '@/components/insights/unusual-badge'
 import type { UnusualFlag } from '@/lib/insights/unusual'
 import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
+import type { RowSeries } from '@/lib/insights/recurring-overrides'
 
 interface BankTx {
   id: string
@@ -39,8 +40,8 @@ export function BankTransactionsTable({
   fetchParams?: string
   /** Unusual-transaction flags by transaction id */
   unusual?: Record<string, UnusualFlag[]>
-  /** Name of the recurring series each transaction is in, by id (ENG-71) */
-  recurring?: Record<string, string>
+  /** The recurring series each transaction is in, by id (ENG-71) */
+  recurring?: Record<string, RowSeries>
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -171,6 +172,15 @@ export function BankTransactionsTable({
                     {!tx.ignored && unusual[tx.id]?.map(f => (
                       <UnusualBadge key={f.reason} flag={f} className="ms-1.5 align-middle" />
                     ))}
+                    {/* Manual recurring series: its name as a label that opens the sheet (ENG-71).
+                        Phones get the mark action here too, so it needs no sideways scroll. */}
+                    {!tx.ignored && recurring[tx.id]?.manual ? (
+                      <MarkRecurringButton variant="label" source="bank" transactionId={tx.id} seriesName={recurring[tx.id].name} className="ms-1.5" />
+                    ) : (
+                      !tx.ignored && tx.debit > 0 && (
+                        <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]?.name} className="ms-1 align-middle sm:hidden" />
+                      )
+                    )}
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
                     {tx.debit > 0 ? formatCurrency(tx.debit) : ''}
@@ -201,7 +211,7 @@ export function BankTransactionsTable({
                   <td className="py-2.5 px-4 text-center whitespace-nowrap">
                     {/* Mark as recurring (ENG-71): expenses only */}
                     {!tx.ignored && tx.debit > 0 && (
-                      <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]} className="me-0.5 align-middle" />
+                      <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]?.name} className="me-0.5 align-middle max-sm:hidden" />
                     )}
                     <button
                       onClick={() => toggleIgnored(tx)}

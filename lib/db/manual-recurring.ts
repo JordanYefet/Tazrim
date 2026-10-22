@@ -11,6 +11,7 @@ import {
   isManualCadence,
   matchesRule,
   normalizePattern,
+  validAmountRange,
   validDayWindow,
   type ManualCadence,
   type ManualSeriesDef,
@@ -35,6 +36,8 @@ function toDef(row: Row): ManualSeriesDef {
     pattern: row.pattern,
     dayFrom: row.dayFrom,
     dayTo: row.dayTo,
+    amountMin: row.amountMin,
+    amountMax: row.amountMax,
     attachedIds: row.members.filter(m => m.mode === 'ATTACHED').map(m => m.transactionId),
     detachedIds: row.members.filter(m => m.mode === 'DETACHED').map(m => m.transactionId),
   }
@@ -58,6 +61,8 @@ export interface ManualSeriesInput {
   pattern: string
   dayFrom: number | null
   dayTo: number | null
+  amountMin: number | null
+  amountMax: number | null
   attachedIds: string[]
   detachedIds: string[]
 }
@@ -95,6 +100,13 @@ export function parseManualInput(
     if (!validDayWindow(from, to)) return { ok: false, error: 'טווח ימים לא תקין' }
     out.dayFrom = from as number | null
     out.dayTo = to as number | null
+  }
+  if (has('amountMin') || has('amountMax')) {
+    const min = body.amountMin ?? null
+    const max = body.amountMax ?? null
+    if (!validAmountRange(min, max)) return { ok: false, error: 'טווח סכומים לא תקין' }
+    out.amountMin = min as number | null
+    out.amountMax = max as number | null
   }
   for (const k of ['attachedIds', 'detachedIds'] as const) {
     if (!has(k)) continue
@@ -195,6 +207,8 @@ export async function createManualSeries(
         pattern: input.pattern,
         dayFrom: input.dayFrom,
         dayTo: input.dayTo,
+        amountMin: input.amountMin,
+        amountMax: input.amountMax,
       },
     })
     await writeMembers(row.id, accountId, source, input, tx)
@@ -211,8 +225,8 @@ export async function updateManualSeries(id: string, input: Partial<ManualSeries
     if (!row) return { status: 'not_found' as const }
     const next = { ...toDef(row), ...input }
     if (!next.pattern && !next.attachedIds.length) return { status: 'invalid' as const, error: 'צריך תיאור או עסקה אחת לפחות' }
-    const { name, cadence, pattern, dayFrom, dayTo } = input
-    await tx.manualRecurringSeries.update({ where: { id }, data: { name, cadence, pattern, dayFrom, dayTo } })
+    const { name, cadence, pattern, dayFrom, dayTo, amountMin, amountMax } = input
+    await tx.manualRecurringSeries.update({ where: { id }, data: { name, cadence, pattern, dayFrom, dayTo, amountMin, amountMax } })
     await writeMembers(id, row.accountId, row.source === 'card' ? 'card' : 'bank', input, tx)
     return { status: 'ok' as const, id }
   })
@@ -278,6 +292,8 @@ export async function previewManualSeries(
     pattern: string
     dayFrom: number | null
     dayTo: number | null
+    amountMin: number | null
+    amountMax: number | null
     attachedIds: string[]
     detachedIds: string[]
   },
@@ -295,6 +311,8 @@ export async function previewManualSeries(
     pattern: normalizePattern(params.pattern),
     dayFrom: params.dayFrom,
     dayTo: params.dayTo,
+    amountMin: params.amountMin,
+    amountMax: params.amountMax,
     attachedIds: params.attachedIds,
     detachedIds: params.detachedIds,
   }
@@ -377,4 +395,22 @@ export async function getTransactionForMarking(source: RecurringSource, id: stri
     amount: t.amount,
     suggestion: { name: suggestedName(t.description), pattern: normalizePattern(raw), cadence: 'monthly' },
   }
+}
+
+// ---------- labels ----------
+
+/**
+ * Transaction id → name of the manual series that holds it, for the given accounts
+ * (all accounts when omitted). Computed from the rules on every read, never stored on
+ * the transaction, so new uploads are labelled and a detached row loses its label.
+ */
+export async function manualLabels(accountIds?: string[]): Promise<Map<string, string>> {
+  const defs = await listManualSeries(accountIds)
+  const out = new Map<string, string>()
+  if (!defs.length) return out
+  const accounts = [...new Map(defs.map(d => [d.accountId, d.source])).entries()]
+  const txs = (await Promise.all(accounts.map(([id, source]) => accountTransactions(id, source)))).flat()
+  const names = new Map(defs.map(d => [d.id, d.name]))
+  for (const [seriesId, rows] of assignManual(defs, txs)) for (const t of rows) out.set(t.id, names.get(seriesId)!)
+  return out
 }

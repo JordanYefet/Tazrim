@@ -3,10 +3,13 @@ import { detectRecurring, type RecurringTransaction } from '../recurring'
 import {
   assignManual,
   descriptionMatches,
+  inAmountRange,
   inDayWindow,
   normalizePattern,
   priceLevels,
   resolveManualSeries,
+  rangeAround,
+  validAmountRange,
   validDayWindow,
   type ManualSeriesDef,
 } from '../manual-recurring'
@@ -44,6 +47,8 @@ const def = (over: Partial<ManualSeriesDef> = {}): ManualSeriesDef => ({
   pattern: 'שיק',
   dayFrom: null,
   dayTo: null,
+  amountMin: null,
+  amountMax: null,
   attachedIds: [],
   detachedIds: [],
   ...over,
@@ -99,7 +104,7 @@ describe('the cheque whose amount doubles', () => {
     expect(s.active).toBe(true)
     expect(s.nextDate).toBe('2030-11-03')
     expect(s.key).toBe('manual|m1')
-    expect(s.manual).toEqual({ id: 'm1', pattern: 'שיק', dayFrom: null, dayTo: null, attachedIds: [], detachedIds: [] })
+    expect(s.manual).toEqual({ id: 'm1', pattern: 'שיק', dayFrom: null, dayTo: null, amountMin: null, amountMax: null, attachedIds: [], detachedIds: [] })
   })
 
   it('the detector alone misses it (3-digit cheque numbers make every month a different merchant)', () => {
@@ -137,6 +142,60 @@ describe('the cheque whose amount doubles', () => {
   it('the latest charge alone is enough to show a new level', () => {
     const rows = cheques().slice(0, 7)
     expect(resolveManualSeries([def()], rows).series[0].priceIncrease).toEqual({ from: 2000, to: 4000, since: '2030-07-03' })
+  })
+})
+
+describe('amount range', () => {
+  // the kindergarten cheque (₪2,000 then ₪4,000 on the 3rd) and other monthly cheques of
+  // ₪1,250 on the 18th, all described "שיק" with a new number each time
+  const others = Array.from({ length: 10 }, (_, i) => tx(`oth${i + 1}`, `2030-${pad(i + 1)}-18`, 1250, `שיק ${900 + i}`))
+  const rows = [...cheques(), ...others]
+
+  it('is inclusive and either end may be open', () => {
+    expect(inAmountRange(2000, 2000, 4000)).toBe(true)
+    expect(inAmountRange(4000.004, 2000, 4000)).toBe(true)
+    expect(inAmountRange(1999, 2000, null)).toBe(false)
+    expect(inAmountRange(9999, null, 5000)).toBe(false)
+    expect(inAmountRange(1, null, null)).toBe(true)
+    expect(validAmountRange(null, 10)).toBe(true)
+    expect(validAmountRange(10, 5)).toBe(false)
+    expect(validAmountRange(-1, null)).toBe(false)
+    expect(validAmountRange('10', null)).toBe(false)
+    expect(rangeAround(4000, 50)).toEqual({ amountMin: 2000, amountMax: 6000 })
+  })
+
+  it('keeps two cheque series with the same description apart', () => {
+    const kinder = def({ id: 'kinder', name: 'גן ילדים', amountMin: 1800, amountMax: 4500 })
+    const other = def({ id: 'other', name: 'שיקים אחרים', amountMin: 1000, amountMax: 1500 })
+    const { series, claimed } = resolveManualSeries([kinder, other], rows, { today: '2030-10-20' })
+    const [k, o] = series
+    expect(k.transactionIds).toEqual(cheques().map(c => c.id))
+    expect(k.priceIncrease).toEqual({ from: 2000, to: 4000, since: '2030-07-03' })
+    expect(o.transactionIds).toEqual(others.map(c => c.id))
+    expect(o.latestAmount).toBe(1250)
+    expect(o.priceIncrease).toBeNull()
+    expect(claimed.size).toBe(20)
+    expect(summarizeRecurring(series.map(asApplied)).total).toBe(5250)
+  })
+
+  it('without a range the first series takes every cheque', () => {
+    const got = assignManual([def({ id: 'a' }), def({ id: 'b' })], rows)
+    expect(got.get('a')).toHaveLength(20)
+    expect(got.get('b')).toHaveLength(0)
+  })
+
+  it('a range too narrow for the price change splits it; a wide one keeps one series', () => {
+    const narrow = resolveManualSeries([def({ amountMin: 1800, amountMax: 2200 })], rows).series[0]
+    expect(narrow.occurrences).toBe(6)
+    const wide = resolveManualSeries([def(rangeAround(4000, 50))], rows).series[0]
+    expect(wide.occurrences).toBe(10)
+    expect(wide.manual).toMatchObject({ amountMin: 2000, amountMax: 6000 })
+  })
+
+  it('hand-attached rows ignore the range', () => {
+    const s = resolveManualSeries([def({ amountMin: 1800, amountMax: 4500, attachedIds: ['oth1'] })], rows).series[0]
+    expect(s.transactionIds).toContain('oth1')
+    expect(s.occurrences).toBe(11)
   })
 })
 

@@ -23,6 +23,7 @@ function actionsFor(s: RecurringListItem) {
       cadence={a.cadence}
       merchant={a.merchant}
       transactionIds={a.transactionIds}
+      latestAmount={a.latestAmount}
       manual={a.manual}
     />
   )

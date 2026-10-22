@@ -5,7 +5,7 @@ type Ctx = { params: Promise<{ id: string }> }
 
 /**
  * PATCH /api/recurring/manual/:id (ENG-71)
- * Any of { name, cadence, pattern, dayFrom, dayTo, attachedIds, detachedIds }.
+ * Any of { name, cadence, pattern, dayFrom, dayTo, amountMin, amountMax, attachedIds, detachedIds }.
  * The id lists, when given, replace the transactions attached / detached by hand.
  */
 export async function PATCH(req: Request, { params }: Ctx) {

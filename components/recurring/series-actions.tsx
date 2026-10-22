@@ -21,6 +21,8 @@ export interface SeriesActionsProps {
   /** normalized merchant of a detected series, to start a manual rule from */
   merchant: string
   transactionIds: string[]
+  /** current amount, to start an amount range around */
+  latestAmount: number
   /** set on a manual series (ENG-71): edit and remove instead of confirm / dismiss / rename */
   manual?: ManualInfo
 }
@@ -48,6 +50,8 @@ function RuleSheet({ open, onOpenChange, props }: { open: boolean; onOpenChange:
     pattern,
     dayFrom: manual?.dayFrom ?? null,
     dayTo: manual?.dayTo ?? null,
+    amountMin: manual?.amountMin ?? null,
+    amountMax: manual?.amountMax ?? null,
     // a merchant made only of numbers gives no rule: keep the detected rows by hand
     attachedIds: manual ? manual.attachedIds : pattern ? [] : props.transactionIds,
     detachedIds: manual?.detachedIds ?? [],
@@ -58,6 +62,7 @@ function RuleSheet({ open, onOpenChange, props }: { open: boolean; onOpenChange:
         accountId={accountId}
         seriesId={manual?.id}
         initial={initial}
+        amountHint={props.latestAmount || undefined}
         replaceOverrideKeys={manual ? undefined : [props.seriesKey, ...(props.overrideKey ? [props.overrideKey] : [])]}
         onDone={() => onOpenChange(false)}
         onCancel={() => onOpenChange(false)}

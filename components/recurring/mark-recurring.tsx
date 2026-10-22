@@ -51,12 +51,15 @@ export function MarkRecurringButton({
   source,
   transactionId,
   seriesName,
+  variant = 'icon',
   className,
 }: {
   source: 'bank' | 'card'
   transactionId: string
   /** name of the recurring series the row is in, when known: the icon shows it */
   seriesName?: string
+  /** `label`: the series name as a small chip (a manual series' fixed row label) */
+  variant?: 'icon' | 'label'
   className?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -77,15 +80,32 @@ export function MarkRecurringButton({
   const label = seriesName ? `חיוב קבוע: ${seriesName}` : 'סמן כחיוב קבוע'
   return (
     <>
-      <button
-        type="button"
-        onClick={start}
-        aria-label={label}
-        title={label}
-        className={cn(iconButton, seriesName ? 'text-primary' : 'text-muted-foreground hover:text-foreground', className)}
-      >
-        <Repeat className="h-3.5 w-3.5" aria-hidden />
-      </button>
+      {variant === 'label' && seriesName ? (
+        <button
+          type="button"
+          onClick={start}
+          title={label}
+          className={cn(
+            'inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 align-middle text-[11px] font-medium leading-4 text-primary',
+            'transition-[background-color,transform] duration-quick ease-ui hover:bg-primary/15 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'dark:bg-primary/15 dark:hover:bg-primary/25',
+            className
+          )}
+        >
+          <Repeat className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate">{seriesName}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={start}
+          aria-label={label}
+          title={label}
+          className={cn(iconButton, seriesName ? 'text-primary' : 'text-muted-foreground hover:text-foreground', className)}
+        >
+          <Repeat className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
       <RecurringSheet
         open={open}
         onOpenChange={setOpen}
@@ -107,6 +127,8 @@ function seedFor(info: Info, seed: 'new' | 'takeover' | 'edit'): ManualDraft {
       pattern: s.manual.pattern,
       dayFrom: s.manual.dayFrom,
       dayTo: s.manual.dayTo,
+      amountMin: s.manual.amountMin,
+      amountMax: s.manual.amountMax,
       attachedIds: s.manual.attachedIds,
       detachedIds: s.manual.detachedIds,
     }
@@ -117,6 +139,8 @@ function seedFor(info: Info, seed: 'new' | 'takeover' | 'edit'): ManualDraft {
     pattern: t.suggestion.pattern,
     dayFrom: null,
     dayTo: null,
+    amountMin: null,
+    amountMax: null,
     attachedIds: [t.id],
     detachedIds: [],
   }
@@ -157,6 +181,7 @@ function SheetBody({ view, setView, close }: { view: View; setView: (v: View) =>
         seriesId={view.seed === 'edit' ? (s?.manualId ?? undefined) : undefined}
         initial={seedFor(info, view.seed)}
         dayHint={Number(t.date.slice(8, 10))}
+        amountHint={t.amount}
         replaceOverrideKeys={view.seed === 'takeover' && s ? [s.key, ...(s.overrideKey ? [s.overrideKey] : [])] : undefined}
         onDone={close}
         onCancel={close}

@@ -281,7 +281,7 @@ function Results({ initial, queryString, terms }: { initial: SearchPage; querySt
         // Mark as recurring (ENG-71): expenses only; the slot keeps the amounts aligned
         actions={r => (
           <span className="flex h-8 w-7 items-center justify-center">
-            {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} />}
+            {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} seriesName={r.recurringLabel} />}
           </span>
         )}
       />

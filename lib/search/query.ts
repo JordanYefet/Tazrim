@@ -40,6 +40,8 @@ export interface SearchResult {
   category?: string
   note?: string
   ignored: boolean
+  /** Name of the manual recurring series that holds the row (ENG-71), computed per read */
+  recurringLabel?: string
 }
 
 export interface SearchPage {
