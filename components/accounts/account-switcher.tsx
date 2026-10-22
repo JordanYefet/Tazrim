@@ -63,8 +63,10 @@ export function AccountSwitcher() {
               className={cn(
                 'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                // Opaque like the app's cards (ENG-72): the page background never shows through
+                'surface',
                 p.current
-                  ? 'border-primary/45 bg-primary/10 font-medium text-primary'
+                  ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >

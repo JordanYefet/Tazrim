@@ -133,7 +133,8 @@ void main() {
   col = clamp(u_page + (col - u_page) * u_contrast, 0.0, 1.0);
   float luma = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(luma), col, 1.1);
-  col = u_dark > 0.5 ? mix(col, vec3(0.09, 0.12, 0.18), 0.14) : mix(col, vec3(1.0), 0.05);
+  // Light through the pane: a lighter, slightly whiter tint in dark mode, a touch more luminous in light mode
+  col = u_dark > 0.5 ? mix(col, vec3(0.42, 0.47, 0.58), 0.16) + 0.025 : mix(col, vec3(1.0), 0.09);
 
   // The band's slope tilts the normal outward (y down here, z toward the viewer)
   vec3 n = normalize(vec3(grad * f * 1.6, 1.0));
@@ -150,17 +151,17 @@ void main() {
   float spec = max(pow(max(dot(ns, normalize(key + v)), 0.0), 8.0) - base1, 0.0) / (1.0 - base1) * thin;
   float spec2 = max(pow(max(dot(ns, normalize(fill + v)), 0.0), 8.0) - base2, 0.0) / (1.0 - base2) * thin;
   float fres = 0.04 + 0.96 * pow(1.0 - n.z, 5.0);
-  col += vec3(1.0) * (spec * (u_dark > 0.5 ? 0.6 : 0.85) + spec2 * (u_dark > 0.5 ? 0.18 : 0.3));
-  col = mix(col, vec3(1.0), fres * (u_dark > 0.5 ? 0.25 : 0.4));
+  col += vec3(1.0) * (spec * (u_dark > 0.5 ? 1.0 : 1.1) + spec2 * (u_dark > 0.5 ? 0.35 : 0.45));
+  col = mix(col, vec3(1.0), fres * (u_dark > 0.5 ? 0.32 : 0.45));
 
   // A hairline rim, brighter top left
   float tl = clamp(dot(grad, normalize(vec2(-1.0, -1.0))), 0.0, 1.0);
   float rim = 1.0 - smoothstep(0.5, 1.6, e);
-  col = mix(col, vec3(1.0), rim * (0.2 + 0.45 * tl) * (u_dark > 0.5 ? 0.6 : 1.0));
+  col = mix(col, vec3(1.0), rim * (0.35 + 0.55 * tl) * (u_dark > 0.5 ? 0.85 : 1.0));
 
   // A soft inner shadow along the bottom edge
   float bottom = clamp(grad.y, 0.0, 1.0) * (1.0 - smoothstep(0.0, u_band, e));
-  col *= 1.0 - bottom * (u_dark > 0.5 ? 0.22 : 0.08);
+  col *= 1.0 - bottom * (u_dark > 0.5 ? 0.15 : 0.06);
 
   col += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
   o = vec4(clamp(col, 0.0, 1.0) * cover, cover);
@@ -353,7 +354,7 @@ function bake2d(input: BakeInput, painted: HTMLCanvasElement, region: Rect, ctx:
   const ox = (region.x - input.x) / input.scaleX
   const oy = (region.y - input.y) / input.scaleY
   ctx.drawImage(small, ox * k, oy * k, (region.width / input.scaleX) * k, (region.height / input.scaleY) * k)
-  ctx.fillStyle = input.dark ? 'rgba(23, 31, 46, 0.22)' : 'rgba(255, 255, 255, 0.1)'
+  ctx.fillStyle = input.dark ? 'rgba(107, 120, 148, 0.18)' : 'rgba(255, 255, 255, 0.16)'
   ctx.fillRect(0, 0, W, H)
   const sheen = ctx.createLinearGradient(0, 0, W * 0.6, H * 0.6)
   sheen.addColorStop(0, input.dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.3)')
@@ -362,7 +363,7 @@ function bake2d(input: BakeInput, painted: HTMLCanvasElement, region: Rect, ctx:
   ctx.fillRect(0, 0, W, H)
   ctx.restore()
   ctx.lineWidth = Math.max(1, k)
-  ctx.strokeStyle = input.dark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.85)'
+  ctx.strokeStyle = input.dark ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.95)'
   ctx.beginPath()
   ctx.roundRect(ctx.lineWidth / 2, ctx.lineWidth / 2, W - ctx.lineWidth, H - ctx.lineWidth, input.radius * k)
   ctx.stroke()
