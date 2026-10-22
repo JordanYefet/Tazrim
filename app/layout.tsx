@@ -14,6 +14,7 @@ import { listAccounts } from '@/lib/db/accounts'
 import { BRAND } from '@/lib/brand/colors'
 import { BackgroundProvider } from '@/components/background/background-provider'
 import { BACKGROUND_COOKIE, backgroundHtmlAttributes, backgroundHtmlStyle, parseBackgroundCookie } from '@/lib/background/setting'
+import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -56,7 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       dir="rtl"
       className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
       {...backgroundHtmlAttributes(background)}
-      style={backgroundHtmlStyle(background) as React.CSSProperties}
+      style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
       suppressHydrationWarning
     >
       <body>

@@ -23,7 +23,7 @@ import { withQuery } from '@/lib/accounts/routes'
 import { periodQuery } from '@/lib/period'
 import { EASE, LAND_AT, MOTION } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
-import { nudge as redrawGlass } from '@/components/glass/glass-runtime'
+import { requestGlassBake } from '@/components/glass/glass-bakery'
 import {
   POCKET_HEIGHT_CQW,
   boxHeight,
@@ -149,8 +149,8 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fr
   for (const a of el.getAnimations()) a.cancel()
   el.style.transform = to.transform
   el.style.opacity = String(to.opacity)
-  // Glass on a moving card follows it (ENG-72): redraws run while the motion does
-  redrawGlass()
+  // Glass on a moving card (ENG-72): its baked bitmap travels with it; it is baked again once the card settles
+  requestGlassBake()
   if (prefersReducedMotion()) return null
   el.style.willChange = 'transform, opacity'
   // A card appearing or leaving finishes its fade in the first 30% of the
@@ -428,7 +428,7 @@ function Wallet({
                 <PaymentCard
                   decorative
                   tilt={isOpen}
-                  glassWebGL={p.front}
+                  glassBaked={p.front}
                   amount={isOpen ? (total ? { value: total.value, label: total.label } : null) : undefined}
                   amountVisible={isOpen && !!total && settledId === c.id}
                   provider={c.provider}

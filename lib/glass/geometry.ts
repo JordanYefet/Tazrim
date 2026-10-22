@@ -1,34 +1,65 @@
 /*
- * Geometry of the frosted glass (ENG-72, round 2). Pure helpers, shared by
- * the WebGL renderer (lib/glass/renderer.ts), its runtime
- * (components/glass/glass-runtime.ts) and the tests.
+ * Geometry of the glass (ENG-72, round 3): a liquid-glass lens, baked once.
+ * Pure helpers shared by the baker (lib/glass/bake.ts) and the tests.
  *
- * The look: frosted acrylic. What is behind the element is blurred strongly
- * (FROST_BLUR, about CSS blur(16px)), tinted milky, with a thin edge (a
- * RIM_BEVEL px bevel that bends the frost a little, never sampling outside
- * the element) and a 1-2px bright rim, brightest along the top-left edges.
+ * The look: the middle is clear-ish (a moderate frost, FROST_BLUR), and a
+ * narrow band along the rounded edge acts as a lens: it bends what is just
+ * outside the element in toward the rim, strongly at the very edge and not
+ * at all past the band. The band's slope tilts the surface normal, which
+ * also places a thin specular highlight on the top-left rim and a fainter
+ * one opposite.
  */
 
-/** Strength of the frost, as the standard deviation of a CSS blur(), in CSS px. Tunable. */
-export const FROST_BLUR = 16
+/** The frost, as the standard deviation of a CSS blur(), in CSS px. Tunable (the owner asked for "a bit more frosted"). */
+export const FROST_BLUR = 6
 
-/** Width of the thin bevel along the edge, CSS px */
-export const RIM_BEVEL = 4
-
-/** How far the bevel bends the frost toward the middle at the very edge, CSS px */
-export const RIM_BEND = 3
-
-/** The blur runs at this many texels per CSS px (the result is smooth, so a quarter is plenty). */
-export const BLUR_TEXELS_PER_PX = 0.25
-
-/** Extra room around the element the texture covers, so it is reused while the page scrolls a little. */
-export const REGION_SLACK = { x: 32, y: 240 } as const
+/** The blur runs at this many texels per CSS px (the result is smooth). */
+export const BLUR_TEXELS_PER_PX = 0.5
 
 export interface Rect {
   x: number
   y: number
   width: number
   height: number
+}
+
+export interface LensParams {
+  /** Width of the bending band along the edge, CSS px */
+  band: number
+  /** How far the very edge looks outward, CSS px */
+  reach: number
+}
+
+/** The lens for an element of this size: a band about 9% of the short side (8-24px), reaching 1.3× its width. */
+export function lensParams(width: number, height: number): LensParams {
+  const short = Math.max(1, Math.min(width, height))
+  const band = Math.min(24, Math.max(8, short * 0.09))
+  return { band, reach: band * 1.3 }
+}
+
+/**
+ * How much of the lens is at inset `e` (px in from the edge): 1 at the edge,
+ * 0 from `band` inward, easing (smoothstep) in between.
+ */
+export function edgeFactor(e: number, band: number): number {
+  if (band <= 0) return 0
+  const t = Math.min(1, Math.max(0, e / band))
+  return 1 - t * t * (3 - 2 * t)
+}
+
+/** How far (px, outward) the lens looks at inset `e`: grows with the square of the edge factor. */
+export function lensOffset(e: number, p: LensParams): number {
+  const f = edgeFactor(e, p.band)
+  return p.reach * f * f
+}
+
+/** What the bake must paint around the element: the lens's reach plus three standard deviations of frost. */
+export function bakeMargin(p: LensParams, blur = FROST_BLUR): number {
+  return Math.ceil(p.reach + 3 * blur + 2)
+}
+
+export function bakeRegion(rect: Rect, margin: number): Rect {
+  return { x: rect.x - margin, y: rect.y - margin, width: rect.width + 2 * margin, height: rect.height + 2 * margin }
 }
 
 /**
@@ -51,6 +82,7 @@ export function resolveRadius(computed: string | null | undefined, width: number
 /**
  * Signed distance from a point (relative to the centre) to a rounded
  * rectangle with half-size (hw, hh) and corner radius r: negative inside.
+ * (The element is clipped by its CSS border radius, so the lens follows that shape.)
  */
 export function roundedRectDistance(x: number, y: number, hw: number, hh: number, r: number): number {
   const qx = Math.abs(x) - hw + r
@@ -59,42 +91,11 @@ export function roundedRectDistance(x: number, y: number, hw: number, hh: number
   return outside + Math.min(Math.max(qx, qy), 0) - r
 }
 
-/** The blur must see this far past the element: three standard deviations. */
-export function frostMargin(blur = FROST_BLUR): number {
-  return Math.ceil(blur * 3)
-}
-
-/** Whether `outer` contains `inner` entirely. */
-export function covers(outer: Rect, inner: Rect): boolean {
-  return (
-    inner.x >= outer.x &&
-    inner.y >= outer.y &&
-    inner.x + inner.width <= outer.x + outer.width &&
-    inner.y + inner.height <= outer.y + outer.height
-  )
-}
-
-/** What the frost needs to see of the page for an element at `box` (viewport CSS px). */
-export function neededRegion(box: Rect, blur = FROST_BLUR): Rect {
-  const m = frostMargin(blur)
-  return { x: box.x - m, y: box.y - m, width: box.width + 2 * m, height: box.height + 2 * m }
-}
-
 /**
- * The region to paint for an element: what it needs plus some slack (the
- * page mostly scrolls vertically), so small scrolls reuse the texture.
+ * Pixels per CSS px for a bake: the device pixel ratio up to 3 (as sharp as
+ * the page on a phone), shrunk only to stay within the GPU's texture limit.
  */
-export function paintRegion(box: Rect, blur = FROST_BLUR, slack = REGION_SLACK): Rect {
-  const n = neededRegion(box, blur)
-  return { x: n.x - slack.x, y: n.y - slack.y, width: n.width + 2 * slack.x, height: n.height + 2 * slack.y }
-}
-
-/**
- * Texels per CSS px for the painted region: the device pixel ratio (up to 3,
- * so a phone's background is as sharp as the page), shrunk only if the
- * region would pass the GPU's texture limit.
- */
-export function paintScale(region: Rect, devicePixelRatio: number, maxTextureSize: number): number {
+export function bakeScale(region: Rect, devicePixelRatio: number, maxTextureSize: number): number {
   const want = Math.min(3, Math.max(1, devicePixelRatio || 1))
   const fit = Math.min(maxTextureSize / region.width, maxTextureSize / region.height)
   return Math.max(0.25, Math.min(want, fit))
@@ -113,29 +114,15 @@ export function gaussianWeights(sigma: number): number[] {
   return w.map(x => x / total)
 }
 
-/**
- * How far the thin bevel bends the frost toward the middle at inset `e`
- * (px in from the edge): RIM_BEND at the edge, easing to 0 at RIM_BEVEL.
- */
-export function rimBend(e: number, bevel = RIM_BEVEL, bend = RIM_BEND): number {
-  if (e >= bevel || bevel <= 0) return 0
-  const t = 1 - Math.max(0, e) / bevel
-  return bend * t * t
+/** Schlick's approximation of Fresnel reflectance for a surface whose normal makes cos θ with the view. */
+export function fresnelSchlick(cosTheta: number, f0 = 0.04): number {
+  const c = Math.min(1, Math.max(0, cosTheta))
+  return f0 + (1 - f0) * Math.pow(1 - c, 5)
 }
 
-/**
- * Where the frost is sampled for a point of the element (local CSS px), bent
- * at the rim and clamped inside the element, so the edge never shows the
- * page beyond it.
- */
-export function rimSample(
-  local: { x: number; y: number },
-  inward: { x: number; y: number },
-  e: number,
-  size: { width: number; height: number }
-): { x: number; y: number } {
-  const b = rimBend(e)
-  const x = local.x + inward.x * b
-  const y = local.y + inward.y * b
-  return { x: Math.min(size.width - 1, Math.max(1, x)), y: Math.min(size.height - 1, Math.max(1, y)) }
+/** A key that changes whenever a bake would look different (rounded to half a px). */
+export function bakeKey(parts: { rect: Rect; scale: number; dpr: number; theme: string; background: string }): string {
+  const r = (n: number) => Math.round(n * 2) / 2
+  const { rect } = parts
+  return `${r(rect.x)},${r(rect.y)},${r(rect.width)},${r(rect.height)}|${parts.scale.toFixed(3)}|${parts.dpr}|${parts.theme}|${parts.background}`
 }
