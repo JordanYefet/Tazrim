@@ -23,7 +23,7 @@
  * up, the tint and the rim; no lens).
  */
 
-import { paintBackground, type PageGeometry } from '@/lib/background/paint'
+import { PAGE_COLOR, paintBackground, type PageGeometry } from '@/lib/background/paint'
 import type { BackgroundSetting } from '@/lib/background/setting'
 import { BLUR_TEXELS_PER_PX, FROST_BLUR, bakeMargin, bakeRegion, bakeScale, gaussianWeights, lensParams, type Rect } from './geometry'
 
@@ -90,6 +90,8 @@ uniform float u_radius;
 uniform float u_band;
 uniform float u_reach;
 uniform float u_dark;
+uniform vec3 u_page;     // the page colour under the pattern
+uniform float u_contrast; // the pattern reads this much stronger through the glass
 out vec4 o;
 
 float sdRoundRect(vec2 p, vec2 hs, float r) {
@@ -127,18 +129,26 @@ void main() {
     frost(local + off).g,
     frost(local + off * (1.0 - 0.1 * f)).b);
 
-  // A touch of saturation, then a light tint
+  // The pattern a little stronger (as on the approved mockup), a touch of saturation, a light tint
+  col = clamp(u_page + (col - u_page) * u_contrast, 0.0, 1.0);
   float luma = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(luma), col, 1.1);
-  col = u_dark > 0.5 ? mix(col, vec3(0.09, 0.12, 0.18), 0.22) : mix(col, vec3(1.0), 0.1);
+  col = u_dark > 0.5 ? mix(col, vec3(0.09, 0.12, 0.18), 0.14) : mix(col, vec3(1.0), 0.05);
 
   // The band's slope tilts the normal outward (y down here, z toward the viewer)
   vec3 n = normalize(vec3(grad * f * 1.6, 1.0));
   vec3 v = vec3(0.0, 0.0, 1.0);
   vec3 key = normalize(vec3(-0.6, -0.7, 0.8));
   vec3 fill = normalize(vec3(0.6, 0.7, 0.8));
-  float spec = pow(max(dot(n, normalize(key + v)), 0.0), 90.0);
-  float spec2 = pow(max(dot(n, normalize(fill + v)), 0.0), 90.0);
+  // Thin: only the outer few px of the band catch the light, along the whole top-left curve
+  float thin = 1.0 - smoothstep(0.0, 3.5, e);
+  // Blinn-Phong on the rim's normal, measured against the flat top's own highlight so only
+  // the tilted rim lights up; strongest where the rim faces the light
+  float base1 = pow(normalize(key + v).z, 8.0);
+  float base2 = pow(normalize(fill + v).z, 8.0);
+  vec3 ns = normalize(vec3(grad * f * 0.55, 1.0));
+  float spec = max(pow(max(dot(ns, normalize(key + v)), 0.0), 8.0) - base1, 0.0) / (1.0 - base1) * thin;
+  float spec2 = max(pow(max(dot(ns, normalize(fill + v)), 0.0), 8.0) - base2, 0.0) / (1.0 - base2) * thin;
   float fres = 0.04 + 0.96 * pow(1.0 - n.z, 5.0);
   col += vec3(1.0) * (spec * (u_dark > 0.5 ? 0.6 : 0.85) + spec2 * (u_dark > 0.5 ? 0.18 : 0.3));
   col = mix(col, vec3(1.0), fres * (u_dark > 0.5 ? 0.25 : 0.4));
@@ -156,6 +166,18 @@ void main() {
   o = vec4(clamp(col, 0.0, 1.0) * cover, cover);
 }
 `
+
+function hexRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16)
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+}
+
+/** The page colour under the pattern, and how much stronger the pattern reads through glass (the lines only). */
+export function patternBase(setting: BackgroundSetting, dark: boolean): { page: [number, number, number]; contrast: number } {
+  if (setting.kind === 'lines') return { page: hexRgb(dark ? PAGE_COLOR.lines.dark : PAGE_COLOR.lines.light), contrast: 1.5 }
+  if (setting.kind === 'ribbons') return { page: hexRgb(dark ? PAGE_COLOR.ribbons.dark : PAGE_COLOR.ribbons.light), contrast: 1 }
+  return { page: dark ? [0.07, 0.09, 0.12] : [0.95, 0.96, 0.97], contrast: 1 }
+}
 
 interface Target {
   tex: WebGLTexture
@@ -214,7 +236,7 @@ class GLBaker {
     this.blur = link(gl, BLUR)
     this.lens = link(gl, LENS)
     for (const n of ['u_src', 'u_out', 'u_step', 'u_weights', 'u_radius']) this.ub[n] = gl.getUniformLocation(this.blur, n)
-    for (const n of ['u_size', 'u_dpr', 'u_elem', 'u_region', 'u_frost', 'u_radius', 'u_band', 'u_reach', 'u_dark']) this.ul[n] = gl.getUniformLocation(this.lens, n)
+    for (const n of ['u_size', 'u_dpr', 'u_elem', 'u_region', 'u_frost', 'u_radius', 'u_band', 'u_reach', 'u_dark', 'u_page', 'u_contrast']) this.ul[n] = gl.getUniformLocation(this.lens, n)
     const buf = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
@@ -298,6 +320,9 @@ class GLBaker {
     gl.uniform1f(u.u_band, band)
     gl.uniform1f(u.u_reach, reach)
     gl.uniform1f(u.u_dark, input.dark ? 1 : 0)
+    const base = patternBase(input.setting, input.dark)
+    gl.uniform3f(u.u_page, base.page[0], base.page[1], base.page[2])
+    gl.uniform1f(u.u_contrast, base.contrast)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -347,7 +372,8 @@ let gl: GLBaker | null = null
 let glFailed = false
 let painted: HTMLCanvasElement | null = null
 
-type DebugWindow = Window & { __tazrimGlassBakes?: number[] }
+/** Debug timings, only when these arrays exist on window (set from devtools or a test harness). */
+type DebugWindow = Window & { __tazrimGlassBakes?: number[]; __tazrimGlassBakeParts?: Array<Record<string, number | string>> }
 
 /** Bakes one element's glass into its canvas. Returns the time it took and the baker used. */
 export function bakeGlass(input: BakeInput): { ms: number; backend: BakeBackend } {
@@ -362,12 +388,14 @@ export function bakeGlass(input: BakeInput): { ms: number; backend: BakeBackend 
       backend = 'canvas2d'
     }
   }
+  const tSetup = performance.now()
   const lens = lensParams(input.width, input.height)
   const rect = { x: input.x, y: input.y, width: input.width * input.scaleX, height: input.height * input.scaleY }
   const region = bakeRegion(rect, bakeMargin(lens))
   const scale = bakeScale(region, input.dpr, gl?.maxTextureSize ?? 4096)
   if (!painted) painted = document.createElement('canvas')
   paintBackground(painted, input.setting, input.dark, { ...region, scale }, input.page)
+  const tPaint = performance.now()
 
   const W = Math.max(1, Math.round(input.width * input.dpr))
   const H = Math.max(1, Math.round(input.height * input.dpr))
@@ -384,7 +412,8 @@ export function bakeGlass(input: BakeInput): { ms: number; backend: BakeBackend 
     }
   }
   const ms = performance.now() - t0
-  const debug = (window as DebugWindow).__tazrimGlassBakes
-  if (Array.isArray(debug)) debug.push(ms)
+  const w = window as DebugWindow
+  if (Array.isArray(w.__tazrimGlassBakes)) w.__tazrimGlassBakes.push(ms)
+  if (Array.isArray(w.__tazrimGlassBakeParts)) w.__tazrimGlassBakeParts.push({ setup: tSetup - t0, paint: tPaint - tSetup, gpu: performance.now() - tPaint, backend })
   return { ms, backend }
 }

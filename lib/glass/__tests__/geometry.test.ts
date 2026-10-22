@@ -51,8 +51,8 @@ describe('the lens', () => {
 
   it('is a narrow band along the edge', () => {
     expect(card.band).toBeGreaterThanOrEqual(10)
-    expect(card.band).toBeLessThanOrEqual(20)
-    expect(lensParams(40, 26).band).toBeGreaterThanOrEqual(6)
+    expect(card.band).toBeLessThanOrEqual(24)
+    expect(lensParams(40, 26).band).toBeGreaterThanOrEqual(8)
   })
   it('bends most at the edge and not at all past the band', () => {
     expect(edgeFactor(0, card.band)).toBe(1)
@@ -60,6 +60,7 @@ describe('the lens', () => {
     expect(edgeFactor(card.band * 2, card.band)).toBe(0)
     expect(lensOffset(0, card)).toBeCloseTo(card.reach)
     expect(lensOffset(card.band / 2, card)).toBeLessThan(card.reach / 2)
+    expect(card.reach).toBeGreaterThan(card.band)
     expect(lensOffset(card.band + 1, card)).toBe(0)
   })
   it('eases smoothly (no step at the band)', () => {

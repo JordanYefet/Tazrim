@@ -11,7 +11,7 @@
  */
 
 /** The frost, as the standard deviation of a CSS blur(), in CSS px. Tunable (the owner asked for "a bit more frosted"). */
-export const FROST_BLUR = 8
+export const FROST_BLUR = 6
 
 /** The blur runs at this many texels per CSS px (the result is smooth). */
 export const BLUR_TEXELS_PER_PX = 0.5
@@ -30,11 +30,11 @@ export interface LensParams {
   reach: number
 }
 
-/** The lens for an element of this size: a band about 7% of the short side (10-20px), reaching 80% of it. */
+/** The lens for an element of this size: a band about 9% of the short side (8-24px), reaching 1.3× its width. */
 export function lensParams(width: number, height: number): LensParams {
   const short = Math.max(1, Math.min(width, height))
-  const band = Math.min(20, Math.max(6, short * 0.07))
-  return { band, reach: band * 0.8 }
+  const band = Math.min(24, Math.max(8, short * 0.09))
+  return { band, reach: band * 1.3 }
 }
 
 /**
