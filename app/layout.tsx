@@ -12,6 +12,8 @@ import { PeriodProvider } from '@/components/layout/period-context'
 import { getPeriod } from '@/lib/period-server'
 import { listAccounts } from '@/lib/db/accounts'
 import { BRAND } from '@/lib/brand/colors'
+import { BackgroundProvider } from '@/components/background/background-provider'
+import { BACKGROUND_COOKIE, backgroundHtmlAttributes, backgroundHtmlStyle, parseBackgroundCookie } from '@/lib/background/setting'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -45,11 +47,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const [jar, accounts, remembered] = await Promise.all([cookies(), listAccounts(), getPeriod(null)])
   const sections = buildNavSections(accounts)
   const initialPeriod = remembered.month ? { year: remembered.year, month: remembered.month } : { year: remembered.year }
+  // The page background (ENG-72), also from a cookie: the first paint has the right one
+  const background = parseBackgroundCookie(jar.get(BACKGROUND_COOKIE)?.value)
 
   return (
-    <html lang="he" dir="rtl" className={`${heeboHebrew.variable} ${heeboLatin.variable}`} suppressHydrationWarning>
+    <html
+      lang="he"
+      dir="rtl"
+      className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
+      {...backgroundHtmlAttributes(background)}
+      style={backgroundHtmlStyle(background) as React.CSSProperties}
+      suppressHydrationWarning
+    >
       <body>
         <Providers>
+          <BackgroundProvider initial={background}>
           <PeriodProvider initial={initialPeriod}>
             <NavSectionsProvider sections={sections}>
               <div className="flex min-h-screen">
@@ -67,6 +79,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <BottomNav />
             </NavSectionsProvider>
           </PeriodProvider>
+          </BackgroundProvider>
         </Providers>
       </body>
     </html>

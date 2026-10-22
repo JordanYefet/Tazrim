@@ -1055,134 +1055,253 @@ html {
 .acct-bank[data-ink='dark'] .acct-bank__name { text-shadow: none; }
 .acct-bank[data-ink='dark'] .acct-bank__name.is-placeholder { color: rgb(var(--acct-ink-dark) / 0.6); }
 
-/* Glass: a frosted pane over whatever is behind it (the page, or the card
-   below it in the wallet), with a bright edge and one soft specular sweep.
-   A web approximation of frosted glass, not Apple's material. */
-.acct-card[data-glass] {
+/* ── Glass (ENG-66, rebuilt in ENG-72) ──────────────────────────────────
+   A clear glass element over the page background. The face itself carries
+   an almost clear tint, the backdrop recipe of the chosen background and a
+   soft contact shadow; components/glass/glass-surface.tsx fills it with the
+   material (.glass): on large elements a WebGL slab that refracts the page's
+   lines (lib/glass/renderer.ts, the face then gets data-glass-gl), elsewhere
+   the CSS lens of the mockup: the lines redrawn inside, magnified, bent
+   further at the rim, a faint prism edge and highlights. Text keeps a faint
+   halo. A web approximation of glass, not Apple's material. */
+.acct-face[data-glass] {
   --glass-ink: var(--acct-ink-dark);
+  --glass-halo: 0 0 6px rgb(255 255 255 / 0.75), 0 1px 1px rgb(255 255 255 / 0.4);
   color: rgb(var(--glass-ink));
-  /* The phone tab bar's recipe (.glass-pill): an almost clear tint, and the
-     blur, saturation and lift do the work, so what is behind shows through */
+  background-color: rgb(255 255 255 / 0.06);
+  border-color: transparent;
+  -webkit-backdrop-filter: blur(3px) saturate(170%) brightness(1.04);
+  backdrop-filter: blur(3px) saturate(170%) brightness(1.04);
+  box-shadow:
+    0 18px 40px -18px rgb(15 23 42 / 0.22),
+    0 2px 6px rgb(15 23 42 / 0.05),
+    0 0 0 1px rgb(15 23 42 / 0.05);
+}
+.dark .acct-face[data-glass] {
+  --glass-ink: 255 255 255;
+  --glass-halo: 0 0 6px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
+  background-color: rgb(255 255 255 / 0.03);
+  box-shadow:
+    0 24px 48px -16px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(255 255 255 / 0.08);
+}
+/* Ribbons: the Ribbons mockup's frost (no lines to bend) */
+html[data-bg='ribbons'] .acct-face[data-glass] {
+  background-color: rgb(255 255 255 / 0.28);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+html.dark[data-bg='ribbons'] .acct-face[data-glass] { background-color: rgb(255 255 255 / 0.1); }
+/* The plain backdrop: the tab bar's recipe (.glass-pill) */
+html[data-bg='plain'] .acct-face[data-glass] {
   background-color: rgb(248 250 252 / 0.06);
   -webkit-backdrop-filter: blur(12px) saturate(200%) brightness(1.06);
   backdrop-filter: blur(12px) saturate(200%) brightness(1.06);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.85),
-    inset 0 -1px 0 rgb(255 255 255 / 0.25),
-    inset 0 0 0 1px rgb(255 255 255 / 0.5),
-    0 16px 40px -12px rgb(15 23 42 / 0.28),
-    0 2px 8px rgb(15 23 42 / 0.08);
 }
-/* A soft top sheen and side glints, as on the tab bar, instead of a tint */
-.acct-card[data-glass] .acct-card__field {
+html.dark[data-bg='plain'] .acct-face[data-glass] {
+  background-color: rgb(20 26 38 / 0.18);
+  -webkit-backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
+  backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
+}
+/* The WebGL slab draws everything behind the text itself */
+.acct-face[data-glass][data-glass-gl] {
+  background-color: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* The material layers */
+.glass {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.glass > * {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.glass__gl { display: block; width: 100%; height: 100%; }
+.glass__lines { width: 100%; height: 100%; filter: blur(1.2px); }
+.glass__edge {
+  -webkit-mask-image: radial-gradient(ellipse 66% 60% at 50% 50%, transparent 55%, #000 100%);
+  mask-image: radial-gradient(ellipse 66% 60% at 50% 50%, transparent 55%, #000 100%);
+}
+.glass__edge > svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: blur(2px); }
+html:not([data-bg='lines']) .glass__lines,
+html:not([data-bg='lines']) .glass__edge { display: none; }
+/* A faint prism along the rim */
+.glass__prism {
+  padding: 1.5px;
+  background: conic-gradient(from 200deg, rgb(255 0 128 / 0.9), rgb(255 170 0 / 0.9), rgb(0 200 255 / 0.9), rgb(140 80 255 / 0.9), rgb(255 0 128 / 0.9));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.28;
+}
+.dark .glass__prism { opacity: 0.35; }
+/* Light: a bright top-left corner, a softer opposite one, a rim of light */
+.glass__sheen {
   background:
-    radial-gradient(120% 90% at 50% -30%, rgb(255 255 255 / 0.4), transparent 55%),
-    linear-gradient(90deg, rgb(255 255 255 / 0.18), transparent 30%, transparent 70%, rgb(255 255 255 / 0.18)),
-    linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.04));
+    linear-gradient(135deg, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0) 30%),
+    linear-gradient(315deg, rgb(255 255 255 / 0.35) 0%, rgb(255 255 255 / 0) 26%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 1px 0 0 rgb(255 255 255 / 0.7),
+    inset 0 -1px 0 rgb(15 23 42 / 0.08),
+    inset -1px 0 0 rgb(15 23 42 / 0.05);
 }
-.acct-card[data-glass] .acct-card__rim {
-  background: none;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.9);
+.dark .glass__sheen {
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0) 32%),
+    linear-gradient(315deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0) 30%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 1px 0 0 rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3);
 }
-/* What shows through can be anything (the page, another card): a faint halo
-   keeps the text readable on it */
-.acct-card[data-glass] .acct-card__content { text-shadow: 0 0 6px rgb(255 255 255 / 0.55), 0 1px 1px rgb(255 255 255 / 0.4); }
-.acct-card[data-glass] .acct-material--grain { opacity: 0.06; }
-.acct-card[data-glass] .acct-card__pattern { color: rgb(var(--glass-ink) / 0.025); }
+
+/* The card: text follows the theme, with the halo */
+.acct-card[data-glass] .acct-card__content { text-shadow: var(--glass-halo); }
 .acct-card[data-glass] .acct-card__network { color: rgb(var(--glass-ink)); }
 .acct-card[data-glass] .acct-card__name.is-placeholder { color: rgb(var(--glass-ink) / 0.6); }
 .acct-card[data-glass] .acct-card__mask { color: rgb(var(--glass-ink) / 0.8); }
 .acct-card[data-glass] .acct-card__slot.is-empty { color: rgb(var(--glass-ink) / 0.4); }
 .acct-card[data-glass] .acct-card__amount-label,
 .acct-card[data-glass] .acct-card__amount-currency { color: rgb(var(--glass-ink) / 0.82); }
-.acct-card[data-glass] .acct-card__amount-value { text-shadow: none; }
-.dark .acct-card[data-glass] {
-  --glass-ink: 255 255 255;
-  background-color: rgb(20 26 38 / 0.18);
-  -webkit-backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
-  backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.2),
-    inset 0 -1px 0 rgb(255 255 255 / 0.05),
-    inset 0 0 0 1px rgb(255 255 255 / 0.14),
-    0 16px 40px -12px rgb(0 0 0 / 0.65),
-    0 2px 8px rgb(0 0 0 / 0.3);
-}
-.dark .acct-card[data-glass] .acct-card__field {
-  background:
-    radial-gradient(120% 90% at 50% -30%, rgb(255 255 255 / 0.14), transparent 55%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.01));
-}
-.dark .acct-card[data-glass] .acct-card__rim {
-  background: none;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.22);
-}
-.dark .acct-card[data-glass] .acct-card__content { text-shadow: 0 0 6px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35); }
+.acct-card[data-glass] .acct-card__amount-value { text-shadow: var(--glass-halo); }
 
-.acct-bank[data-glass] {
-  --glass-ink: var(--acct-ink-dark);
-  background-color: hsl(var(--surface-raised) / 0.55);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
-  border-color: rgb(255 255 255 / 0.7);
-}
+/* The bank account: one clear pane, the band divided from the body by a hairline */
 .acct-bank[data-glass] .acct-bank__band {
   color: rgb(var(--glass-ink));
   border-bottom: 1px solid hsl(var(--foreground) / 0.07);
 }
-.acct-bank[data-glass] .acct-material--base {
-  background:
-    linear-gradient(118deg, transparent 30%, rgb(255 255 255 / 0.5) 44%, transparent 58%),
-    linear-gradient(160deg, rgb(255 255 255 / 0.62), rgb(226 232 240 / 0.3));
-}
-.acct-bank[data-glass] .acct-material--sheen {
-  background: radial-gradient(90% 120% at 0% 0%, rgb(255 255 255 / 0.6), transparent 60%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95);
-}
+.dark .acct-bank[data-glass] .acct-bank__band { border-bottom-color: rgb(255 255 255 / 0.08); }
+.acct-bank[data-glass] .acct-bank__band,
+.acct-bank[data-glass] .acct-bank__body { text-shadow: var(--glass-halo); }
 .acct-bank[data-glass] .acct-bank__bank { color: rgb(var(--glass-ink) / 0.78); }
-.acct-bank[data-glass] .acct-bank__name { text-shadow: none; }
+.acct-bank[data-glass] .acct-bank__name { text-shadow: var(--glass-halo); }
 .acct-bank[data-glass] .acct-bank__name.is-placeholder { color: rgb(var(--glass-ink) / 0.6); }
 .acct-bank[data-glass] .acct-bank__spark { color: var(--acct-glass); }
-.dark .acct-bank[data-glass] {
-  --glass-ink: 255 255 255;
-  background-color: hsl(var(--surface-raised) / 0.45);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  backdrop-filter: blur(18px) saturate(150%);
-  border-color: rgb(255 255 255 / 0.14);
-}
-.dark .acct-bank[data-glass] .acct-bank__band { border-bottom-color: rgb(255 255 255 / 0.08); }
-.dark .acct-bank[data-glass] .acct-material--base {
-  background:
-    linear-gradient(118deg, transparent 30%, rgb(255 255 255 / 0.08) 44%, transparent 58%),
-    linear-gradient(160deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03));
-}
-.dark .acct-bank[data-glass] .acct-material--sheen {
-  background: radial-gradient(90% 120% at 0% 0%, rgb(255 255 255 / 0.12), transparent 60%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
-}
 
+/* Mini faces: the same lens, small */
 .acct-mini[data-glass] {
-  background: linear-gradient(150deg, rgb(255 255 255 / 0.9), rgb(203 213 225 / 0.55));
-  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.12), inset 0 1px 0 #fff;
+  background: rgb(255 255 255 / 0.35);
+  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.1), 0 1px 2px hsl(var(--shadow-color) / 0.18);
 }
-.acct-mini[data-glass] .acct-card__field,
-.acct-mini[data-glass] .acct-material--base { background: transparent; }
 .acct-mini[data-glass] .acct-mini__mark { color: rgb(var(--acct-ink-dark)); }
 .dark .acct-mini[data-glass] {
-  background: linear-gradient(150deg, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.06));
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
 }
 .dark .acct-mini[data-glass] .acct-mini__mark { color: #fff; }
+.acct-mini[data-glass] .glass__lines { filter: none; }
 
+/* Reduced transparency / more contrast: an opaque surface, no lens */
 @media (prefers-reduced-transparency: reduce) {
-  .acct-card[data-glass], .acct-bank[data-glass] {
+  .acct-face[data-glass],
+  html[data-bg] .acct-face[data-glass] {
     background-color: hsl(var(--surface-raised));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+  .acct-face[data-glass] .glass { display: none; }
 }
 @media (prefers-contrast: more) {
-  .acct-card[data-glass], .acct-bank[data-glass] { box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.5); }
+  .acct-face[data-glass],
+  html[data-bg] .acct-face[data-glass] {
+    background-color: hsl(var(--surface-raised));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.5);
+  }
+  .acct-face[data-glass] .glass { display: none; }
+}
+
+/* ── The page background (ENG-72) ──────────────────────────────────────
+   Settings → רקע: the plain tonal backdrop, faint looping lines (default)
+   or soft ribbons. <html data-bg data-bg-palette style="--bg-strength">
+   comes from a cookie, so the server paints the right one. The layer
+   (components/background/background-layer.tsx) is fixed to the viewport
+   and never moves. Surfaces stay opaque, so content reads as before. */
+:root { --bg-line-a: #4f46e5; --bg-line-b: #d946ef; }
+.dark { --bg-line-a: #818cf8; --bg-line-b: #f0abfc; }
+html[data-bg-palette='ocean'] { --bg-line-a: #0369a1; --bg-line-b: #0d9488; }
+html.dark[data-bg-palette='ocean'] { --bg-line-a: #38bdf8; --bg-line-b: #5eead4; }
+html[data-bg-palette='grey'] { --bg-line-a: #334155; --bg-line-b: #64748b; }
+html.dark[data-bg-palette='grey'] { --bg-line-a: #cbd5e1; --bg-line-b: #94a3b8; }
+
+html[data-bg='lines'] { --page-backdrop: #ffffff; background-color: #ffffff; }
+html.dark[data-bg='lines'] { --page-backdrop: #0b1120; background-color: #0b1120; }
+html[data-bg='ribbons'] { --page-backdrop: #eef2f7; background-color: #eef2f7; }
+html.dark[data-bg='ribbons'] {
+  --page-backdrop: radial-gradient(120% 80% at 80% 0%, #12163a 0%, #05060f 70%);
+  background-color: #05060f;
+}
+
+.bg-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.bg-layer__lines { opacity: var(--bg-strength, 0.1); }
+/* Blurred, so it reaches past the viewport to keep its edges full */
+.bg-layer--ribbons { inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px); filter: blur(16px); }
+.dark .bg-layer--ribbons { filter: blur(14px); }
+.bg-ribbons--dark { display: none; }
+.dark .bg-ribbons--light { display: none; }
+.dark .bg-ribbons--dark { display: inline; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .bg-layer { opacity: 0.5; }
+}
+@media (prefers-contrast: more) {
+  .bg-layer { display: none; }
+  html[data-bg] { background-color: hsl(var(--background)); }
+}
+
+/* Settings → רקע (components/settings/background-settings.tsx) */
+.pattern-choice {
+  background: hsl(var(--card));
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.12);
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow var(--motion-fast) var(--ease-ui), transform var(--motion-quick) var(--ease-ui);
+}
+.pattern-choice[aria-checked='true'] { box-shadow: inset 0 0 0 2px hsl(var(--primary)); }
+.pattern-choice:active { transform: scale(0.97); }
+.pattern-choice:focus-visible { outline: none; box-shadow: inset 0 0 0 2px hsl(var(--ring)), 0 0 0 3px hsl(var(--ring) / 0.25); }
+.pattern-thumb {
+  position: relative;
+  display: block;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.06);
+}
+.pattern-thumb > svg { position: absolute; inset: 0; }
+.pattern-thumb--plain { background: #eef2f7; }
+.pattern-thumb--lines { background: #ffffff; }
+.pattern-thumb--ribbons { background: #f8fafc; }
+.pattern-thumb__ribbons { filter: blur(3px); }
+.pattern-thumb__ribbon-a { fill: #c4b5fd; opacity: 0.8; }
+.pattern-thumb__ribbon-b { fill: #f9a8d4; opacity: 0.7; }
+.dark .pattern-thumb { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08); }
+.dark .pattern-thumb--plain { background: linear-gradient(180deg, hsl(221 30% 11%), hsl(224 32% 8%)); }
+.dark .pattern-thumb--lines { background: #0b1120; }
+.dark .pattern-thumb--ribbons { background: #05060f; }
+.dark .pattern-thumb__ribbon-a { fill: #7c3aed; }
+.dark .pattern-thumb__ribbon-b { fill: #db2777; }
+@media (prefers-reduced-motion: reduce) {
+  .pattern-choice { transition: none; }
+  .pattern-choice:active { transform: none; }
 }
 
 /* The colour picker (components/accounts/color-picker.tsx) */
