@@ -27,7 +27,7 @@ function arrowStep(e: KeyboardEvent): 1 | -1 | 0 {
 
 function Thumb({ kind, colors }: { kind: BackgroundKind; colors: readonly [string, string] }) {
   return (
-    <span className={cn('bg-thumb', `bg-thumb--${kind}`)} aria-hidden>
+    <span className={cn('pattern-thumb', `pattern-thumb--${kind}`)} aria-hidden>
       {kind === 'lines' && (
         <svg width="100%" height="64" viewBox="0 0 100 64" preserveAspectRatio="xMidYMid slice" fill="none" strokeLinecap="round" strokeWidth="5">
           <path d="M-5 20 C 10 0, 30 0, 38 22 S 60 60, 78 44 S 80 10, 70 4" stroke={colors[0]} opacity="0.28" />
@@ -35,9 +35,9 @@ function Thumb({ kind, colors }: { kind: BackgroundKind; colors: readonly [strin
         </svg>
       )}
       {kind === 'ribbons' && (
-        <svg width="100%" height="64" viewBox="0 0 100 64" preserveAspectRatio="xMidYMid slice" className="bg-thumb__ribbons">
-          <path d="M0 22 C 30 8, 55 40, 100 18 L100 40 C 60 58, 35 30, 0 48 Z" className="bg-thumb__ribbon-a" />
-          <path d="M0 44 C 35 30, 60 60, 100 42 L100 64 L0 64 Z" className="bg-thumb__ribbon-b" />
+        <svg width="100%" height="64" viewBox="0 0 100 64" preserveAspectRatio="xMidYMid slice" className="pattern-thumb__ribbons">
+          <path d="M0 22 C 30 8, 55 40, 100 18 L100 40 C 60 58, 35 30, 0 48 Z" className="pattern-thumb__ribbon-a" />
+          <path d="M0 44 C 35 30, 60 60, 100 42 L100 64 L0 64 Z" className="pattern-thumb__ribbon-b" />
         </svg>
       )}
     </span>
@@ -91,7 +91,7 @@ export function BackgroundSettings() {
               aria-checked={selected}
               tabIndex={selected ? 0 : -1}
               onClick={() => update({ kind: k.value })}
-              className="bg-choice flex flex-col gap-1.5 rounded-[14px] p-1.5"
+              className="pattern-choice flex flex-col gap-1.5 rounded-[14px] p-1.5"
             >
               <Thumb kind={k.value} colors={palette.light} />
               <span className="text-center text-[13px] font-semibold">{k.label}</span>
@@ -136,7 +136,7 @@ export function BackgroundSettings() {
                     aria-checked={selected}
                     tabIndex={selected ? 0 : -1}
                     onClick={() => update({ palette: p.value })}
-                    className="bg-choice inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-[13px]"
+                    className="pattern-choice inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-[13px]"
                   >
                     <span className="inline-flex" aria-hidden>
                       <span className="h-3.5 w-3.5 rounded-full" style={{ background: p.light[0] }} />

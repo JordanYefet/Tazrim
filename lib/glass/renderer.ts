@@ -126,8 +126,10 @@ void main() {
                           : mix(vec3(0.5, 0.54, 0.62), vec3(0.98), sky);
   float fresnel = 0.04 + 0.96 * pow(1.0 - clamp(nr.z, 0.0, 1.0), 5.0);
   col = mix(col, env, fresnel * (u_dark > 0.5 ? 0.7 : 0.6));
-  float k = pow(max(dot(r, key), 0.0), 14.0);
-  float l = pow(max(dot(r, fill), 0.0), 10.0);
+  // Lobes measured from the flat top's reflection (r = up), so the flat
+  // middle stays clear and whole edges catch the light, not just corners
+  float k = pow(max(dot(r, key) - key.z, 0.0) / (1.0 - key.z), 2.2);
+  float l = pow(max(dot(r, fill) - fill.z, 0.0) / (1.0 - fill.z), 2.6);
   col += vec3(1.0) * (k * (u_dark > 0.5 ? 0.75 : 0.95) + l * (u_dark > 0.5 ? 0.22 : 0.38));
 
   // A hairline where the bevel meets the air
