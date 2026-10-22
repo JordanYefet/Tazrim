@@ -88,8 +88,7 @@ function CCMonthlyChartInner({ data, series, selectedMonth }: Props) {
             <XAxis
               dataKey="name"
               {...axes.xAxis}
-              tickFormatter={axes.monthTick}
-              interval={axes.monthInterval(chartData.length)}
+              {...axes.monthAxis(chartData.length, selectedMonth)}
             />
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip series={series} />} cursor={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />

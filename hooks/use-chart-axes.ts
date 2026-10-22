@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { monthName, monthNameShort } from '@/lib/utils/date'
+import { showMonthLabel } from '@/lib/insights/chart-months'
 
 const FULL_NAMES = Array.from({ length: 12 }, (_, i) => monthName(i + 1))
 
@@ -53,12 +54,18 @@ export function useChartAxes(textColor: string) {
       tickLine: false,
       tickFormatter: (v: number) => formatAxisCurrency(v, small),
     },
-    /** X-axis tick formatter for full month names: shortened on phones (tooltips keep the full name) */
-    monthTick: (name: string) => {
-      const i = FULL_NAMES.indexOf(name)
-      return small && i >= 0 ? monthNameShort(i + 1) : name
-    },
-    /** Show every other month on phones once there are too many to fit */
-    monthInterval: (count: number) => (small && count > 6 ? 1 : 0),
+    /**
+     * X-axis props for a January-December chart (ENG-70): short names, and on
+     * phones every other month, but always the selected one (its neighbours
+     * give way so the labels don't touch).
+     */
+    monthAxis: (count: number, selectedMonth?: number) => ({
+      interval: 0,
+      tickFormatter: (name: string, index: number) => {
+        if (!showMonthLabel(index + 1, selectedMonth, small && count > 6)) return ''
+        const i = FULL_NAMES.indexOf(name)
+        return small && i >= 0 ? monthNameShort(i + 1) : name
+      },
+    }),
   }
 }

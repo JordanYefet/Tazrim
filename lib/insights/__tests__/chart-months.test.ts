@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { yearChartRows } from '../chart-months'
+import { showMonthLabel, yearChartRows } from '../chart-months'
 import {
   bankPeriodTotals,
   cardPeriodTotals,
@@ -43,6 +43,25 @@ describe('yearChartRows', () => {
   it('treats missing values as 0', () => {
     const rows = yearChartRows(['a'], () => undefined)
     expect(rows.every(r => r.empty && r.a === null)).toBe(true)
+  })
+})
+
+describe('showMonthLabel', () => {
+  const YEAR = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  const shown = (selected?: number) => YEAR.filter(m => showMonthLabel(m, selected, true))
+
+  it('shows every label when they fit', () => {
+    expect(YEAR.every(m => showMonthLabel(m, 12, false))).toBe(true)
+  })
+
+  it('shows every other month on phones', () => {
+    expect(shown()).toEqual([1, 3, 5, 7, 9, 11])
+  })
+
+  it('always shows the selected month; its neighbours give way', () => {
+    expect(shown(12)).toEqual([1, 3, 5, 7, 9, 12])
+    expect(shown(4)).toEqual([1, 4, 7, 9, 11])
+    expect(shown(5)).toEqual([1, 3, 5, 7, 9, 11])
   })
 })
 

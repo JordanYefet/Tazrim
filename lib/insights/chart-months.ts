@@ -23,3 +23,14 @@ export function yearChartRows<K extends string>(
   })
 }
 
+/**
+ * Whether a month's x-axis label shows. On phones (`everyOther`) 12 labels
+ * don't fit, so every other month shows, but the selected month always does
+ * and its neighbours give way so the two labels don't touch.
+ */
+export function showMonthLabel(month: number, selectedMonth: number | undefined, everyOther: boolean): boolean {
+  if (!everyOther || month === selectedMonth) return true
+  if (selectedMonth && Math.abs(month - selectedMonth) === 1) return false
+  return month % 2 === 1
+}
+

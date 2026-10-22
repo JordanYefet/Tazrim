@@ -116,8 +116,7 @@ function MonthlySpendingChartInner({
             <XAxis
               dataKey="name"
               {...axes.xAxis}
-              tickFormatter={axes.monthTick}
-              interval={axes.monthInterval(chartData.length)}
+              {...axes.monthAxis(chartData.length, selectedMonth)}
             />
             <YAxis {...axes.yAxis} />
             <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={28} />} />
