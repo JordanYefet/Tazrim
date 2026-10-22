@@ -2,8 +2,11 @@ import type { RecurringStatus } from '@prisma/client'
 import { prisma } from './client'
 import { accountWhere, type AccountFilter } from './accounts'
 import { detectRecurring, fromBankRow, fromCardRow } from '../insights/recurring'
+import { resolveManualSeries } from '../insights/manual-recurring'
+import { listManualSeries } from './manual-recurring'
 import {
   applyOverrides,
+  asApplied,
   recurringTransactionIds,
   summarizeRecurring,
   type AppliedSeries,
@@ -15,7 +18,7 @@ import {
 export type { AppliedSeries, RecurringStatusValue }
 
 export interface RecurringOverview extends RecurringSummary {
-  /** every detected series with overrides applied (dismissed ones included) */
+  /** every detected series with overrides applied (dismissed ones included), and the manual series */
   series: AppliedSeries[]
   /** transaction ids of every kept series, e.g. to exempt recurring charges from anomaly checks */
   transactionIds: Set<string>
@@ -47,6 +50,8 @@ export async function getRecurringOverrides(): Promise<RecurringOverrideInput[]>
 /**
  * Detects recurring series on the given account(s) (all bank accounts and cards when
  * `accountId` is undefined) and applies the saved overrides. Ignored rows are left out.
+ * Manual series (ENG-71) are resolved first; their transactions are kept out of
+ * detection, so no transaction is counted in two series.
  * Without `today`, each account is judged as of its own latest transaction, so an
  * account whose statements stop earlier doesn't look like it stopped paying.
  */
@@ -54,7 +59,7 @@ export async function getRecurringSeries(
   params: { accountId?: AccountFilter; today?: Date | string } = {}
 ): Promise<RecurringOverview> {
   const where = { ignored: false, ...accountWhere(params.accountId) }
-  const [bankRows, cardRows, overrides, accounts] = await Promise.all([
+  const [bankRows, cardRows, overrides, accounts, manualDefs] = await Promise.all([
     prisma.bankTransaction.findMany({
       where,
       select: { id: true, date: true, description: true, originalDescription: true, debit: true, accountId: true },
@@ -76,13 +81,16 @@ export async function getRecurringSeries(
     }),
     getRecurringOverrides(),
     prisma.account.findMany({ select: { id: true, displayName: true } }),
+    listManualSeries(params.accountId),
   ])
 
-  const detected = detectRecurring(
-    [...bankRows.map(fromBankRow), ...cardRows.map(fromCardRow)],
-    params.today !== undefined ? { today: params.today } : {}
+  const transactions = [...bankRows.map(fromBankRow), ...cardRows.map(fromCardRow)]
+  const today = params.today !== undefined ? { today: params.today } : {}
+  const manual = resolveManualSeries(manualDefs, transactions, today)
+  const detected = detectRecurring(transactions, { ...today, exclude: manual.claimed })
+  const series = [...applyOverrides(detected, overrides), ...manual.series.map(asApplied)].sort(
+    (a, b) => b.monthlyAmount - a.monthlyAmount || a.name.localeCompare(b.name)
   )
-  const series = applyOverrides(detected, overrides)
   return {
     series,
     ...summarizeRecurring(series),

@@ -42,7 +42,8 @@ import { isCardPaymentDescription } from './card-payment'
  */
 
 export type RecurringSource = 'bank' | 'card'
-export type Cadence = 'weekly' | 'monthly' | 'yearly'
+/** `bimonthly` (every two months) is only used by manual series (ENG-71); the detector never looks for it */
+export type Cadence = 'weekly' | 'monthly' | 'bimonthly' | 'yearly'
 
 export interface RecurringTransaction {
   id: string
@@ -112,11 +113,16 @@ export interface RecurringOptions {
   toleranceAbs?: number
   /** cadences to look for, default monthly + yearly. Weekly is opt-in: cafés and P2P transfers look weekly too. */
   cadences?: Cadence[]
+  /**
+   * Transaction ids that already belong to a manual series (ENG-71). They still count
+   * toward each account's data range (for `active` / `isNew`), but are never chained.
+   */
+  exclude?: ReadonlySet<string>
 }
 
-type Tolerance = { minOccurrences: number; tolerancePct: number; toleranceAbs: number }
+export type Tolerance = { minOccurrences: number; tolerancePct: number; toleranceAbs: number }
 
-interface CadenceSpec {
+export interface CadenceSpec {
   cadence: Cadence
   days: number
   /** allowed deviation from a whole number of cycles, in days */
@@ -128,8 +134,13 @@ interface CadenceSpec {
 const CADENCES: CadenceSpec[] = [
   { cadence: 'weekly', days: 7, tol: 2, maxGapCycles: 2, perMonth: 52 / 12 },
   { cadence: 'monthly', days: 30.44, tol: 6, maxGapCycles: 2, perMonth: 1 },
+  { cadence: 'bimonthly', days: 60.88, tol: 8, maxGapCycles: 2, perMonth: 1 / 2 },
   { cadence: 'yearly', days: 365.25, tol: 20, maxGapCycles: 2, perMonth: 1 / 12 },
 ]
+
+export function cadenceSpec(cadence: Cadence): CadenceSpec {
+  return CADENCES.find(c => c.cadence === cadence)!
+}
 
 const MIN_COVERAGE = 2 / 3
 const MAX_PRICE_JUMP = 1.5
@@ -157,7 +168,7 @@ export function normalizeMerchant(s: string): string {
   return cleanTokens(s).join(' ').toLowerCase()
 }
 
-function displayName(s: string) {
+export function displayName(s: string) {
   const cleaned = cleanTokens(s).join(' ')
   return cleaned || s.trim()
 }
@@ -169,7 +180,7 @@ export { isCardPaymentDescription }
 const DAY = 86_400_000
 
 /** days since epoch for the calendar date */
-function toDay(d: Date | string): number {
+export function toDay(d: Date | string): number {
   if (typeof d === 'string') {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d)
     if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]) / DAY
@@ -178,14 +189,14 @@ function toDay(d: Date | string): number {
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY
 }
 
-function fmt(day: number) {
+export function fmt(day: number) {
   return new Date(day * DAY).toISOString().slice(0, 10)
 }
 
-function addCycles(day: number, spec: CadenceSpec, n: number) {
+export function addCycles(day: number, spec: CadenceSpec, n: number) {
   if (spec.cadence === 'weekly') return day + 7 * n
   const d = new Date(day * DAY)
-  const months = spec.cadence === 'monthly' ? n : 12 * n
+  const months = (spec.cadence === 'monthly' ? 1 : spec.cadence === 'bimonthly' ? 2 : 12) * n
   const y = d.getUTCFullYear()
   const m = d.getUTCMonth() + months
   const lastOfMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
@@ -194,7 +205,7 @@ function addCycles(day: number, spec: CadenceSpec, n: number) {
 
 // ---------- helpers ----------
 
-function median(xs: number[]) {
+export function median(xs: number[]) {
   const s = [...xs].sort((a, b) => a - b)
   const mid = s.length >> 1
   const v = s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
@@ -224,7 +235,7 @@ interface Chain {
   cycles: number
 }
 
-function withinTolerance(amount: number, level: number, o: Tolerance) {
+export function withinTolerance(amount: number, level: number, o: Tolerance) {
   return Math.abs(amount - level) <= Math.max(level * o.tolerancePct, o.toleranceAbs)
 }
 
@@ -298,7 +309,7 @@ export function detectRecurring(transactions: RecurringTransaction[], options: R
     const acct = accountOf(t.source, t.accountId)
     dataStart.set(acct, Math.min(dataStart.get(acct) ?? Infinity, day))
     dataEnd.set(acct, Math.max(dataEnd.get(acct) ?? -Infinity, day))
-    if (!(t.amount > 0)) continue
+    if (!(t.amount > 0) || options.exclude?.has(t.id)) continue
     const merchant = normalizeMerchant(t.originalDescription ?? t.description)
     if (!merchant) continue
     const baseKey = [t.source, t.accountId ?? '', merchant].join('|')

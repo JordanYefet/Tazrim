@@ -9,13 +9,16 @@ import { prisma } from './client'
 const WIPE_ORDER = {
   UnusualDismissal: 1,
   RecurringSeriesOverride: 2,
-  TransactionAlias: 3,
-  Category: 4,
-  ImportProfile: 5,
-  UploadHistory: 6,
-  BankTransaction: 7,
-  CreditCardTransaction: 8,
-  Account: 9,
+  // members before their series (FK)
+  ManualRecurringMember: 3,
+  ManualRecurringSeries: 4,
+  TransactionAlias: 5,
+  Category: 6,
+  ImportProfile: 7,
+  UploadHistory: 8,
+  BankTransaction: 9,
+  CreditCardTransaction: 10,
+  Account: 11,
 } satisfies Record<Prisma.ModelName, number>
 
 export type WipeTable = keyof typeof WIPE_ORDER

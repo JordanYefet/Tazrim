@@ -27,7 +27,7 @@ model Account {
   /// ENG-69: a Leumi or Max account imports through its linked ImportProfile
   /// instead of the built-in parser. Ignored for providers without one.
   customImport           Boolean                 @default(false)
-  archived              Boolean                 @default(false)
+  archived               Boolean                 @default(false)
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]
   creditCardTransactions CreditCardTransaction[]
@@ -126,6 +126,49 @@ model RecurringSeriesOverride {
   updatedAt   DateTime         @updatedAt
 
   @@index([baseKey])
+}
+
+/// A recurring series the user defined by hand (ENG-71): a rule on one account,
+/// matched against all of its transactions on every read (lib/insights/manual-recurring.ts).
+/// No FK to Account, like RecurringSeriesOverride; deleteAccount removes the rows.
+model ManualRecurringSeries {
+  id        String                  @id @default(uuid())
+  accountId String
+  /// "bank" or "card", from the account kind when it was created
+  source    String
+  name      String
+  /// monthly, bimonthly or yearly
+  cadence   String
+  /// normalizePattern() of the description; "" = attached transactions only
+  pattern   String                  @default("")
+  /// optional day-of-month window, inclusive; may wrap (28..3). Both set or both null.
+  dayFrom   Int?
+  dayTo     Int?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  members   ManualRecurringMember[]
+
+  @@index([accountId])
+}
+
+/// A transaction attached to, or detached from, a manual series by hand. Spans both
+/// transaction tables (the series' source says which), so there is no FK to it; an
+/// orphan is harmless and never matches.
+model ManualRecurringMember {
+  id            String                @id @default(uuid())
+  seriesId      String
+  series        ManualRecurringSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  transactionId String
+  /// ATTACHED: always in the series. DETACHED: never, even when the rule matches.
+  mode          ManualMemberMode
+
+  @@unique([seriesId, transactionId])
+  @@index([transactionId])
+}
+
+enum ManualMemberMode {
+  ATTACHED
+  DETACHED
 }
 
 enum RecurringStatus {

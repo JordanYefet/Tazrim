@@ -326,7 +326,7 @@ export type DeleteAccountResult =
 
 /**
  * Deletes an account with its transactions, upload history, recurring-series
- * overrides and unusual-transaction dismissals, in one DB transaction.
+ * overrides, manual recurring series and unusual-transaction dismissals, in one DB transaction.
  *
  * An account that has transactions is only deleted when `confirmName` equals
  * its display name (the UI makes the user type it). The last account of a kind
@@ -366,6 +366,8 @@ export async function deleteAccount(id: string, opts: { confirmName?: unknown } 
         ],
       },
     })
+    // Manual recurring series (ENG-71) store the account id; their members go with them (FK cascade)
+    const manual = await tx.manualRecurringSeries.deleteMany({ where: { accountId: id } })
     const bank = await tx.bankTransaction.deleteMany({ where: { accountId: id } })
     const cards = await tx.creditCardTransaction.deleteMany({ where: { accountId: id } })
     const uploads = await tx.uploadHistory.deleteMany({ where: { accountId: id } })
@@ -379,7 +381,7 @@ export async function deleteAccount(id: string, opts: { confirmName?: unknown } 
         bankTransactions: bank.count,
         creditCardTransactions: cards.count,
         uploads: uploads.count,
-        recurringOverrides: overrides.count,
+        recurringOverrides: overrides.count + manual.count,
         unusualDismissals: bankDismissals + cardDismissals,
       },
     }

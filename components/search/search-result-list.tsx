@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { Building2, CreditCard, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -37,10 +38,12 @@ interface Props {
   compact?: boolean
   /** Prefix for row ids, for aria-activedescendant */
   idPrefix?: string
+  /** Per-row control beside the link (e.g. mark as recurring); not inside the link */
+  actions?: (result: SearchResult) => ReactNode
 }
 
 /** Search hits: description, date, account, category chip and signed amount; each row links to its account page. */
-export function SearchResultList({ results, terms, activeIndex, onNavigate, onHover, compact, idPrefix = 'search-result' }: Props) {
+export function SearchResultList({ results, terms, activeIndex, onNavigate, onHover, compact, idPrefix = 'search-result', actions }: Props) {
   return (
     <ul className="flex flex-col divide-y divide-border/60" role={activeIndex !== undefined ? 'listbox' : undefined}>
       {results.map((r, i) => {
@@ -52,6 +55,7 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
             id={`${idPrefix}-${i}`}
             role={activeIndex !== undefined ? 'option' : undefined}
             aria-selected={activeIndex !== undefined ? activeIndex === i : undefined}
+            className={actions ? 'flex items-start gap-1' : undefined}
           >
             <Link
               href={transactionHref(r)}
@@ -60,6 +64,7 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
               tabIndex={activeIndex !== undefined ? -1 : undefined}
               className={cn(
                 'flex items-start gap-3 rounded-lg px-2 transition-colors hover:bg-muted/70',
+                actions && 'min-w-0 flex-1',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 compact ? 'py-2' : 'py-3',
                 activeIndex === i && 'bg-muted',
@@ -116,6 +121,7 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                 {`${income ? '+' : ''}${formatCurrency(Math.abs(r.amount))}`}
               </span>
             </Link>
+            {actions && <div className={cn('shrink-0', compact ? 'pt-2' : 'pt-3')}>{actions(r)}</div>}
           </li>
         )
       })}

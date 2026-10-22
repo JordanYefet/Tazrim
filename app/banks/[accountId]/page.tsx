@@ -11,6 +11,7 @@ import { getAccount } from '@/lib/db/accounts'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
+import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { accountHref } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, monthHasData, type BankMonthly } from '@/lib/insights/account-overview'
 import { monthName, periodLabel } from '@/lib/utils/date'
@@ -29,7 +30,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
-  const [txs, monthly, unusual, [latest], trend] = await Promise.all([
+  const [txs, monthly, insights, [latest], trend] = await Promise.all([
     getBankTransactions({
       accountId,
       year: Number(year),
@@ -42,9 +43,11 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
     getBankMonthlySummary(Number(year), accountId),
     // Flags for the whole year, so rows loaded with "load more" get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
-    getRecurringSeries().then(r =>
-      getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } })
-    ),
+    // and the table marks rows that are already recurring (ENG-71)
+    getRecurringSeries().then(async r => ({
+      flags: await getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } }),
+      recurring: recurringNameMap(r.series, accountId),
+    })),
     // The hero's balance: the newest row of the period, whatever the table filters
     getBankTransactions({ accountId, year: Number(year), month, take: 1 }),
     getBankBalanceTrend(accountId, Number(year), month),
@@ -54,7 +57,8 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
     latest: latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined,
     trend: trend.map(p => p.balance),
     transactions: asJson(txs),
-    unusual: unusual.bank,
+    unusual: insights.flags.bank,
+    recurring: insights.recurring,
     bankSummary: monthly as BankMonthly,
   }
 }
@@ -73,7 +77,7 @@ export default async function BankAccountPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, bankSummary, unusual, latest, trend } = await getBankData(account.id, params)
+  const { transactions, bankSummary, unusual, recurring, latest, trend } = await getBankData(account.id, params)
 
   const { income, expense, averageExpense } = bankPeriodTotals(bankSummary, month)
 
@@ -156,6 +160,7 @@ export default async function BankAccountPage({
           hasMore={hasMore}
           fetchParams={hasMore ? fetchSp.toString() : undefined}
           unusual={unusual}
+          recurring={recurring}
         />
       )}
     </div>

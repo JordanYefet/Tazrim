@@ -6,6 +6,7 @@ import { Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage } from '@/lib/search/query'
 import { SearchResultList } from './search-result-list'
+import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import { SearchEmptyState, SearchNoResults } from './search-states'
 
 interface AccountOption {
@@ -274,7 +275,16 @@ function Results({ initial, queryString, terms }: { initial: SearchPage; querySt
         {initial.total === 1 ? 'תוצאה אחת' : `${initial.total} תוצאות`}
         {initial.total > results.length ? ` · מוצגות ${results.length}` : ''}
       </p>
-      <SearchResultList results={results} terms={terms} />
+      <SearchResultList
+        results={results}
+        terms={terms}
+        // Mark as recurring (ENG-71): expenses only; the slot keeps the amounts aligned
+        actions={r => (
+          <span className="flex h-8 w-7 items-center justify-center">
+            {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} />}
+          </span>
+        )}
+      />
       {cursor && (
         <div className="px-2 pt-2">
           <button

@@ -3,6 +3,7 @@
  * recurring series, and splits the result into the sections the UI shows. Pure.
  */
 import { recurringMonthlyTotal, type RecurringSeries } from './recurring'
+import type { ManualInfo, ManualRecurringSeries } from './manual-recurring'
 
 export type RecurringStatusValue = 'confirmed' | 'dismissed'
 
@@ -19,6 +20,13 @@ export interface AppliedSeries extends RecurringSeries {
   detectedName: string
   /** key of the override row that matched (may differ from `key` after a base-key fallback) */
   overrideKey: string | null
+  /** set on a series the user defined by hand (ENG-71); overrides never apply to it */
+  manual?: ManualInfo
+}
+
+/** A manual series in the same shape as a detected one with its overrides applied */
+export function asApplied(s: ManualRecurringSeries): AppliedSeries {
+  return { ...s, detectedName: s.name, status: null, overrideKey: null }
 }
 
 /**
@@ -89,4 +97,17 @@ export function summarizeRecurring(series: AppliedSeries[]): RecurringSummary {
  */
 export function recurringTransactionIds(series: AppliedSeries[]): Set<string> {
   return new Set(series.filter(s => s.status !== 'dismissed').flatMap(s => s.transactionIds))
+}
+
+/**
+ * Transaction id → name of the kept series it belongs to, for one account: lets a
+ * transaction table show which rows are already recurring (ENG-71).
+ */
+export function recurringNameMap(series: AppliedSeries[], accountId: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const s of series) {
+    if (s.status === 'dismissed' || s.accountId !== accountId) continue
+    for (const id of s.transactionIds) out[id] = s.name
+  }
+  return out
 }
