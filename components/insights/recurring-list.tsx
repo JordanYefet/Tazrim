@@ -27,6 +27,7 @@ interface Props {
 const CADENCE_LABEL: Record<Cadence, string> = {
   weekly: 'שבועי',
   monthly: 'חודשי',
+  bimonthly: 'דו-חודשי',
   yearly: 'שנתי',
 }
 

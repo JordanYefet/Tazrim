@@ -23,6 +23,9 @@ const SEED = `
   INSERT INTO "RecurringSeriesOverride" ("id","key","baseKey","accountId","status","createdAt","updatedAt") VALUES
     ('r1','card|acct_test_card|fake shop|7','card|acct_test_card|fake shop','acct_test_card','CONFIRMED',1893456000000,1893456000000);
   INSERT INTO "UnusualDismissal" ("id","source","transactionId","createdAt") VALUES ('d1','card','c1',1893456000000);
+  INSERT INTO "ManualRecurringSeries" ("id","accountId","source","name","cadence","pattern","createdAt","updatedAt") VALUES
+    ('ms1','acct_test_card','card','Fake series','monthly','fake shop',1893456000000,1893456000000);
+  INSERT INTO "ManualRecurringMember" ("id","seriesId","transactionId","mode") VALUES ('mm1','ms1','c1','ATTACHED');
   INSERT INTO "ImportProfile" ("id","name","accountKind","provider","mapping","headerSignature","accountId","createdAt","updatedAt") VALUES
     ('p1','Fake mapping','BANK','fakebank','{}','sig','acct_leumi',1893456000000,1893456000000);
 `

@@ -3,6 +3,7 @@
  * recurring series, and splits the result into the sections the UI shows. Pure.
  */
 import { recurringMonthlyTotal, type RecurringSeries } from './recurring'
+import type { ManualInfo, ManualRecurringSeries } from './manual-recurring'
 
 export type RecurringStatusValue = 'confirmed' | 'dismissed'
 
@@ -19,6 +20,13 @@ export interface AppliedSeries extends RecurringSeries {
   detectedName: string
   /** key of the override row that matched (may differ from `key` after a base-key fallback) */
   overrideKey: string | null
+  /** set on a series the user defined by hand (ENG-71); overrides never apply to it */
+  manual?: ManualInfo
+}
+
+/** A manual series in the same shape as a detected one with its overrides applied */
+export function asApplied(s: ManualRecurringSeries): AppliedSeries {
+  return { ...s, detectedName: s.name, status: null, overrideKey: null }
 }
 
 /**
