@@ -10,6 +10,7 @@
  * sizes (thousands of rows) that is a few ms, so no new index or migration.
  */
 import { prisma } from './client'
+import { manualLabels } from './manual-recurring'
 import {
   buildBankWhere,
   buildCardWhere,
@@ -104,6 +105,12 @@ export async function searchTransactions(filters: SearchFilters): Promise<Search
   ].sort(compareResults)
 
   const results = merged.slice(0, filters.limit)
+  // Rows a manual recurring series holds carry its name (ENG-71)
+  const labels = results.length ? await manualLabels([...new Set(results.map(r => r.accountId))]) : new Map<string, string>()
+  for (const r of results) {
+    const label = labels.get(r.id)
+    if (label) r.recurringLabel = label
+  }
   const last = results[results.length - 1]
   const nextCursor =
     merged.length > filters.limit && last

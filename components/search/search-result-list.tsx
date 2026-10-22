@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { Building2, CreditCard, EyeOff } from 'lucide-react'
+import { Building2, CreditCard, EyeOff, Repeat } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/currency'
 import { highlightParts, transactionHref, type SearchResult } from '@/lib/search/query'
@@ -91,6 +91,12 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                   {r.category && (
                     <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
                       {r.category}
+                    </span>
+                  )}
+                  {r.recurringLabel && (
+                    <span className="inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/15">
+                      <Repeat className="h-3 w-3 shrink-0" aria-hidden />
+                      <span className="truncate">{r.recurringLabel}</span>
                     </span>
                   )}
                   {r.ignored && (

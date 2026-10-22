@@ -223,6 +223,14 @@ describe('amount ranges through the API', () => {
     expect(new Set(labels.values())).toEqual(new Set(['גן ילדים', 'שיק אחר', 'Power']))
     expect([...labels.values()].filter(v => v === 'גן ילדים')).toHaveLength(10)
 
+    // search results carry the label, computed from the rule
+    const { searchTransactions } = await import('../search')
+    const { parseSearchParams } = await import('@/lib/search/query')
+    const found = await searchTransactions(parseSearchParams(new URLSearchParams({ q: 'שיק' })))
+    const labelOf = (amount: number) => found.results.filter(r => r.amount === amount).map(r => r.recurringLabel)
+    expect(new Set(labelOf(4000))).toEqual(new Set(['גן ילדים']))
+    expect(labelOf(750)).toEqual(['שיק אחר'])
+
     const { id } = await a.json()
     expect((await one.PATCH(json({ amountMin: null, amountMax: null }, 'PATCH'), ctx(id))).status).toBe(204)
     const after = (await recurring.getRecurringSeries()).series.find(s => s.name === 'גן ילדים')!

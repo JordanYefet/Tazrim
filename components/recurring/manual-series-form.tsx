@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/date'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import type { ManualCadence } from '@/lib/insights/manual-recurring'
+import { rangeAround, type ManualCadence } from '@/lib/insights/manual-recurring'
 
 /** Everything a manual series is made of, as the form edits it */
 export interface ManualDraft {
@@ -17,6 +17,9 @@ export interface ManualDraft {
   pattern: string
   dayFrom: number | null
   dayTo: number | null
+  /** optional amount range in ₪, inclusive; either end may be open */
+  amountMin: number | null
+  amountMax: number | null
   attachedIds: string[]
   detachedIds: string[]
 }
@@ -92,6 +95,16 @@ export function RecurringSheet({
 
 const without = (ids: string[], id: string) => ids.filter(x => x !== id)
 
+const fmtAmount = (n: number | null) => (n == null ? '' : String(n))
+
+/** '' -> null (open end); a number -> it; anything else -> undefined (keep the last valid value) */
+function parseAmount(text: string): number | null | undefined {
+  const t = text.replace(/[₪,\s]/g, '')
+  if (!t) return null
+  const n = Number(t)
+  return Number.isFinite(n) && n >= 0 ? n : undefined
+}
+
 /**
  * Name, cadence and rule of a manual series, with the matching transactions shown
  * live before saving. Creates (no `seriesId`) or edits; refreshes the page when done.
@@ -101,6 +114,7 @@ export function ManualSeriesForm({
   seriesId,
   initial,
   dayHint,
+  amountHint,
   replaceOverrideKeys,
   onDone,
   onCancel,
@@ -110,6 +124,8 @@ export function ManualSeriesForm({
   initial: ManualDraft
   /** day of month to start a new window around (the marked transaction's day) */
   dayHint?: number
+  /** amount to start a range around (the marked row's, or the series' current one) */
+  amountHint?: number
   /** override keys of a detected series this one takes over */
   replaceOverrideKeys?: string[]
   onDone: () => void
@@ -124,12 +140,15 @@ export function ManualSeriesForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const windowOn = draft.dayFrom != null && draft.dayTo != null
+  // The amount fields keep what is typed (a half-typed number); the draft gets numbers
+  const [amountText, setAmountText] = useState({ min: fmtAmount(initial.amountMin), max: fmtAmount(initial.amountMax) })
+  const [rangeOn, setRangeOn] = useState(initial.amountMin != null || initial.amountMax != null)
   const set = (patch: Partial<ManualDraft>) => setDraft(d => ({ ...d, ...patch }))
 
   // Live preview: debounced, the latest request wins
   const seq = useRef(0)
-  const { cadence, pattern, dayFrom, dayTo, attachedIds, detachedIds } = draft
-  const previewKey = JSON.stringify({ cadence, pattern, dayFrom, dayTo, attachedIds, detachedIds })
+  const { cadence, pattern, dayFrom, dayTo, amountMin, amountMax, attachedIds, detachedIds } = draft
+  const previewKey = JSON.stringify({ cadence, pattern, dayFrom, dayTo, amountMin, amountMax, attachedIds, detachedIds })
   useEffect(() => {
     const n = ++seq.current
     setLoading(true)
@@ -162,6 +181,20 @@ export function ManualSeriesForm({
     set({ dayFrom: Math.max(1, d - 3), dayTo: Math.min(31, d + 3) })
   }
 
+  function setRange(r: { amountMin: number | null; amountMax: number | null } | null) {
+    setRangeOn(!!r)
+    setAmountText({ min: fmtAmount(r?.amountMin ?? null), max: fmtAmount(r?.amountMax ?? null) })
+    set({ amountMin: r?.amountMin ?? null, amountMax: r?.amountMax ?? null })
+  }
+
+  function typeAmount(end: 'min' | 'max', text: string) {
+    setAmountText(t => ({ ...t, [end]: text }))
+    const n = parseAmount(text)
+    if (n !== undefined) set(end === 'min' ? { amountMin: n } : { amountMax: n })
+  }
+
+  const rangeInvalid = rangeOn && amountMin != null && amountMax != null && amountMin > amountMax
+
   const dayValue = (v: string) => {
     const n = Math.round(Number(v))
     return Number.isFinite(n) ? Math.min(31, Math.max(1, n)) : 1
@@ -169,6 +202,7 @@ export function ManualSeriesForm({
 
   async function save() {
     if (!draft.name.trim()) return setError('צריך לתת שם')
+    if (rangeInvalid) return setError('הסכום המינימלי גדול מהמקסימלי')
     setSaving(true)
     setError(null)
     const res = await fetch(seriesId ? `/api/recurring/manual/${seriesId}` : '/api/recurring/manual', {
@@ -299,6 +333,69 @@ export function ManualSeriesForm({
               <span className="text-muted-foreground">בחודש</span>
             </span>
           )}
+        </div>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={rangeOn}
+                onChange={e => setRange(e.target.checked ? (amountHint ? rangeAround(amountHint, 25) : { amountMin: null, amountMax: null }) : null)}
+              />
+              רק בסכומים
+            </label>
+            {rangeOn && (
+              <span className="flex items-center gap-2 text-sm">
+                <input
+                  aria-label="מסכום"
+                  inputMode="decimal"
+                  placeholder="ללא"
+                  className={cn(input, 'h-9 w-24 text-center tabular-nums', rangeInvalid && 'border-destructive')}
+                  value={amountText.min}
+                  onChange={e => typeAmount('min', e.target.value)}
+                />
+                <span className="text-muted-foreground">עד</span>
+                <input
+                  aria-label="עד סכום"
+                  inputMode="decimal"
+                  placeholder="ללא"
+                  className={cn(input, 'h-9 w-24 text-center tabular-nums', rangeInvalid && 'border-destructive')}
+                  value={amountText.max}
+                  onChange={e => typeAmount('max', e.target.value)}
+                />
+                <span className="text-muted-foreground">₪</span>
+              </span>
+            )}
+          </div>
+          {amountHint ? (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-muted-foreground">
+                סביב <span className="tabular-nums">{formatCurrency(amountHint)}</span>:
+              </span>
+              {[10, 25, 50].map(pct => {
+                const r = rangeAround(amountHint, pct)
+                const on = rangeOn && amountMin === r.amountMin && amountMax === r.amountMax
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setRange(r)}
+                    className={cn(
+                      'rounded-md px-2 py-1 font-medium tabular-nums transition-[background-color,color,transform] duration-quick ease-ui active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      on ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground shadow-e1 hover:bg-muted'
+                    )}
+                  >
+                    ±{pct}%
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+          <p className="text-xs text-muted-foreground text-pretty">
+            טווח סכומים מפריד בין חיובים עם אותו תיאור, למשל שני סוגי שיקים. כדאי שיהיה רחב מספיק לשינוי מחיר צפוי.
+          </p>
         </div>
       </div>
 

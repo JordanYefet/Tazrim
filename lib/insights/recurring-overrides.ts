@@ -99,15 +99,22 @@ export function recurringTransactionIds(series: AppliedSeries[]): Set<string> {
   return new Set(series.filter(s => s.status !== 'dismissed').flatMap(s => s.transactionIds))
 }
 
+/** The recurring series a transaction row is in, as a table shows it (ENG-71) */
+export interface RowSeries {
+  name: string
+  /** a manual series: the row shows its name as a label */
+  manual: boolean
+}
+
 /**
- * Transaction id → name of the kept series it belongs to, for one account: lets a
- * transaction table show which rows are already recurring (ENG-71).
+ * Transaction id → the kept series it belongs to, for one account: lets a transaction
+ * table show which rows are already recurring, and label the manual ones (ENG-71).
  */
-export function recurringNameMap(series: AppliedSeries[], accountId: string): Record<string, string> {
-  const out: Record<string, string> = {}
+export function recurringNameMap(series: AppliedSeries[], accountId: string): Record<string, RowSeries> {
+  const out: Record<string, RowSeries> = {}
   for (const s of series) {
     if (s.status === 'dismissed' || s.accountId !== accountId) continue
-    for (const id of s.transactionIds) out[id] = s.name
+    for (const id of s.transactionIds) out[id] = { name: s.name, manual: !!s.manual }
   }
   return out
 }
