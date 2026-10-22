@@ -1,10 +1,11 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-import { monthName } from '@/lib/utils/date'
+import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
+import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
@@ -20,8 +21,6 @@ interface Props {
   selectedMonth?: number
   /** One bank account; omitted on the /banks overview (every account) */
   accountId?: string
-  /** Number of months (from January) to plot */
-  monthCount?: number
   subtitle?: string
 }
 
@@ -33,6 +32,7 @@ const LEGEND = [
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  if (isEmptyMonthPayload(payload)) return <EmptyMonthTooltip label={label} />
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-1">{label}</p>
@@ -47,7 +47,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 12, subtitle }: Props) {
+function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -61,17 +61,15 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
   // Entrance on the shared page beat (ENG-67)
   const anim = useChartAnimation()
 
-  const rows = data
-    .filter(d => d.month <= monthCount)
-    .map(d => ({
-      month: d.month,
-      name: monthName(d.month),
-      'הכנסות': d.income,
-      'הוצאות': d.expense,
-    }))
+  // January to December; months without income or expenses are empty slots (ENG-70)
+  const byMonth = new Map(data.map(d => [d.month, d]))
+  const rows = yearChartRows(['הכנסות', 'הוצאות'] as const, (m, key) =>
+    key === 'הכנסות' ? byMonth.get(m)?.income : byMonth.get(m)?.expense
+  )
 
-  function handleClick(entry: { month: number }) {
-    router.push(withQueryString(accountPath('BANK', accountId), toggleMonthQuery(params.toString(), entry.month)), {
+  function handleClick(month: number | undefined) {
+    if (!month) return
+    router.push(withQueryString(accountPath('BANK', accountId), toggleMonthQuery(params.toString(), month)), {
       scroll: false,
     })
   }
@@ -90,7 +88,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
           <BarChart
             data={chartData}
             margin={axes.margin}
-            onClick={e => e?.activePayload && handleClick(e.activePayload[0].payload)}
+            onClick={e => handleClick(clickedMonth(e))}
             barGap={2}
             style={{ cursor: 'pointer' }}
           >
@@ -102,7 +100,8 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, monthCount = 
               interval={axes.monthInterval(chartData.length)}
             />
             <YAxis {...axes.yAxis} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
+            <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={42} />} />
+            <Tooltip filterNull={false} content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             <Bar {...anim} dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
               {chartData.map(entry => (
                 <Cell

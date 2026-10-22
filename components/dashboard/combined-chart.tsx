@@ -1,8 +1,9 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
-import { monthName } from '@/lib/utils/date'
+import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
+import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
@@ -17,8 +18,6 @@ interface Props {
   maxSummary: Record<number, number>
   /** Card name for the legend: the card's name, or a generic one with several cards */
   cardsName?: string
-  /** Number of months (from January) to plot */
-  monthCount?: number
   selectedMonth?: number
 }
 
@@ -42,6 +41,7 @@ function seriesFor(cardsName: string) {
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  if (isEmptyMonthPayload(payload)) return <EmptyMonthTooltip label={label} />
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-1">{label}</p>
@@ -56,7 +56,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', monthCount = 12, selectedMonth }: Props) {
+function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', selectedMonth }: Props) {
   const SERIES = seriesFor(cardsName)
   const ccKey = SERIES[2].key
   const router = useRouter()
@@ -68,20 +68,16 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
   // Entrance on the shared page beat (ENG-67)
   const anim = useChartAnimation()
 
-  const rows = Array.from({ length: monthCount }, (_, i) => {
-    const m = i + 1
-    const bank = bankSummary[m] ?? { income: 0, expense: 0 }
-    return {
-      month: m,
-      name: monthName(m),
-      'הכנסות בנק': bank.income,
-      'הוצאות בנק': bank.expense,
-      [ccKey]: maxSummary[m] ?? 0,
-    }
-  })
+  // January to December; months with no bank or card values are empty slots (ENG-70)
+  const rows = yearChartRows(
+    SERIES.map(s => s.key),
+    (m, key) =>
+      key === 'הכנסות בנק' ? bankSummary[m]?.income : key === 'הוצאות בנק' ? bankSummary[m]?.expense : maxSummary[m]
+  )
 
-  function handleClick(entry: { month: number }) {
-    router.push(withQueryString('/', toggleMonthQuery(params.toString(), entry.month)), { scroll: false })
+  function handleClick(month: number | undefined) {
+    if (!month) return
+    router.push(withQueryString('/', toggleMonthQuery(params.toString(), month)), { scroll: false })
   }
 
   const chartData = useStableData(rows)
@@ -109,7 +105,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
             data={chartData}
             margin={axes.margin}
             barGap={2}
-            onClick={e => e?.activePayload && handleClick(e.activePayload[0].payload)}
+            onClick={e => handleClick(clickedMonth(e))}
             style={{ cursor: 'pointer' }}
           >
             <CartesianGrid vertical={false} stroke={c.grid} strokeDasharray="3 4" />
@@ -120,7 +116,8 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', mon
               interval={axes.monthInterval(chartData.length)}
             />
             <YAxis {...axes.yAxis} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
+            <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={58} />} />
+            <Tooltip filterNull={false} content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             {SERIES.map(s => (
               <Bar {...anim} key={s.key} dataKey={s.key} fill={c[s.color]} radius={[3, 3, 0, 0]} maxBarSize={18}>
                 {chartData.map(d => (

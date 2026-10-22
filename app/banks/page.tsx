@@ -11,7 +11,6 @@ import { accountHref } from '@/lib/accounts/routes'
 import {
   bankPeriodTotals,
   lastMonthWithData,
-  plottedMonthCount,
   shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
@@ -45,7 +44,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const combined = sumBankMonthly(perAccount.map(a => a.monthly))
   const totals = bankPeriodTotals(combined, month)
   const chartData = Object.entries(combined).map(([m, d]) => ({ month: Number(m), ...d }))
-  const monthCount = plottedMonthCount(Number(year), lastMonthWithData(combined))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
 
@@ -78,7 +76,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               <IncomeExpenseChart
                 data={chartData}
                 selectedMonth={month}
-                monthCount={monthCount}
                 subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
               />
             </>

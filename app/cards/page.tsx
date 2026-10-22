@@ -12,7 +12,6 @@ import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import {
   cardPeriodTotals,
   lastMonthWithData,
-  plottedMonthCount,
   shareOf,
   sumCardMonthly,
 } from '@/lib/insights/account-overview'
@@ -52,7 +51,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const { average } = cardPeriodTotals(combined, month)
   const total = perCard.reduce((s, c) => s + c.total, 0)
   const count = perCard.reduce((s, c) => s + c.count, 0)
-  const monthCount = plottedMonthCount(Number(year), lastMonthWithData(combined))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
 
@@ -119,7 +117,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             <MonthlySpendingChart
               series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
               selectedMonth={month}
-              monthCount={monthCount}
               subtitle={several ? 'כל הכרטיסים, לפי כרטיס · לחיצה על חודש מסננת' : undefined}
             />
           </>

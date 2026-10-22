@@ -14,7 +14,7 @@ import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { rankCategories } from '@/lib/insights/category-insights'
-import { lastMonthWithData, monthlyAverage, plottedMonthCount } from '@/lib/insights/account-overview'
+import { lastMonthWithData, monthlyAverage } from '@/lib/insights/account-overview'
 import { accountHref } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -96,7 +96,7 @@ export default async function CardAccountPage({
     ? (categoryStats[params.category]?.count ?? 0)
     : Object.values(categoryStats).reduce((s, v) => s + v.count, 0)
 
-  // Yearly average over months with charges (same months the chart shows); with a
+  // Yearly average over months with charges (not all 12 the chart shows); with a
   // category filter, that category's yearly total over the same months (as the
   // category page's table averages it). Always shown, so a month can be compared.
   const averageMonthly = monthlyAverage(
@@ -106,7 +106,6 @@ export default async function CardAccountPage({
 
   // Same category colors on every chart, ranked by yearly spend
   const categoryColors = categoryColorMap(rankCategories(categoryMonthly))
-  const monthCount = plottedMonthCount(Number(year), lastMonthWithData(monthly))
 
   const fetchSp = new URLSearchParams({ year })
   if (params.search) fetchSp.set('search', params.search)
@@ -161,7 +160,6 @@ export default async function CardAccountPage({
               accountId={account.id}
               series={[{ key: account.id, label: account.displayName, color: seriesColor(account.color, 'var(--chart-cc)'), data: monthly }]}
               selectedMonth={month}
-              monthCount={monthCount}
             />
             <CategoryDonut
               accountId={account.id}

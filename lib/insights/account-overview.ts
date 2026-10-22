@@ -98,12 +98,6 @@ export function lastMonthWithData(monthly: BankMonthly | CardMonthly): number {
   return last
 }
 
-/** How many months (from January) a chart plots: past years all 12, otherwise up to now or the last data. */
-export function plottedMonthCount(year: number, lastDataMonth: number, now = new Date()): number {
-  if (year < now.getFullYear()) return 12
-  return Math.max(year === now.getFullYear() ? now.getMonth() + 1 : 1, lastDataMonth)
-}
-
 /**
  * A balance trend for the bank account element's sparkline (ENG-57): the
  * balance after the last row of each month, oldest month first, up to and

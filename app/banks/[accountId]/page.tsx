@@ -12,7 +12,7 @@ import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { accountHref } from '@/lib/accounts/routes'
-import { bankPeriodTotals, lastMonthWithData, plottedMonthCount, type BankMonthly } from '@/lib/insights/account-overview'
+import { bankPeriodTotals, lastMonthWithData, type BankMonthly } from '@/lib/insights/account-overview'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
 
@@ -82,7 +82,6 @@ export default async function BankAccountPage({
     income: d.income,
     expense: d.expense,
   }))
-  const monthCount = plottedMonthCount(Number(year), lastMonthWithData(bankSummary))
 
   const balancePoints = transactions.map((tx: { date: string; balance: number }) => ({
     date: tx.date,
@@ -141,7 +140,7 @@ export default async function BankAccountPage({
         <>
           {/* Same 5/7 split as the summary row above, so the edges line up */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} monthCount={monthCount} />
+            <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} />
             <BalanceChart data={balancePoints} />
           </div>
         </>
