@@ -4,7 +4,6 @@ import { CategoryMonthTable } from '@/components/cards/category-month-table'
 import { EmptyState } from '@/components/accounts/page-parts'
 import { categoryTransactionsHref } from '@/lib/accounts/category-links'
 import { latestMonthWithData, rankCategories, type CategoryMonthly } from '@/lib/insights/category-insights'
-import { plottedMonthCount } from '@/lib/insights/account-overview'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 
 /**
@@ -54,7 +53,6 @@ export function CategoryAnalysis({
         monthly={monthly}
         ranked={ranked}
         colors={colors}
-        monthCount={plottedMonthCount(Number(year), lastMonth)}
         selectedMonth={month}
       />
       <CategoryMonthTable

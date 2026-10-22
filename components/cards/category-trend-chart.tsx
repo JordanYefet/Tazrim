@@ -1,12 +1,13 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { useTheme } from 'next-themes'
-import { monthName } from '@/lib/utils/date'
+import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
+import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
@@ -27,12 +28,12 @@ interface Props {
   /** Categories ordered by yearly spend */
   ranked: string[]
   colors: Record<string, string>
-  monthCount: number
   selectedMonth?: number
 }
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  if (isEmptyMonthPayload(payload)) return <EmptyMonthTooltip label={label} />
   const rows = payload.filter((p: any) => p.value > 0).sort((a: any, b: any) => b.value - a.value)
   const total = rows.reduce((s: number, p: any) => s + p.value, 0)
   return (
@@ -53,7 +54,7 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, colors, monthCount, selectedMonth }: Props) {
+function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, colors, selectedMonth }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -69,16 +70,14 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
   const rest = ranked.filter(c => !series.includes(c))
   const keys = rest.length ? [...series, OTHER] : series
 
-  const rows = Array.from({ length: monthCount }, (_, i) => {
-    const m = i + 1
-    const row: Record<string, number | string> = { month: m, name: monthName(m) }
-    for (const c of series) row[c] = monthly[c]?.[m] ?? 0
-    if (rest.length) row[OTHER] = rest.reduce((s, c) => s + (monthly[c]?.[m] ?? 0), 0)
-    return row
-  })
+  // January to December; months without charges are empty slots (ENG-70)
+  const rows = yearChartRows(keys, (m, key) =>
+    key === OTHER ? rest.reduce((s, c) => s + (monthly[c]?.[m] ?? 0), 0) : monthly[key]?.[m]
+  )
 
   // A month click stays on this page and toggles the month
-  function selectMonth(m: number) {
+  function selectMonth(m: number | undefined) {
+    if (!m) return
     const sp = new URLSearchParams(params.toString())
     if (selectedMonth === m) sp.delete('month')
     else sp.set('month', String(m))
@@ -99,18 +98,18 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
           <BarChart
             data={chartData}
             margin={axes.margin}
-            onClick={e => e?.activePayload && selectMonth(e.activePayload[0].payload.month)}
+            onClick={e => selectMonth(clickedMonth(e))}
             style={{ cursor: 'pointer' }}
           >
             <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 4" />
             <XAxis
               dataKey="name"
               {...axes.xAxis}
-              tickFormatter={axes.monthTick}
-              interval={axes.monthInterval(chartData.length)}
+              {...axes.monthAxis(chartData.length, selectedMonth)}
             />
             <YAxis {...axes.yAxis} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
+            <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={32} />} />
+            <Tooltip filterNull={false} content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             {keys.map((key, i) => (
               <Bar {...anim}
                 key={key}

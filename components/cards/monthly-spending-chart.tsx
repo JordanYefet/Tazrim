@@ -1,10 +1,11 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-import { monthName } from '@/lib/utils/date'
+import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
+import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
@@ -29,14 +30,13 @@ interface Props {
   selectedMonth?: number
   /** One card; omitted on the /cards overview */
   accountId?: string
-  /** Number of months (from January) to plot */
-  monthCount?: number
   title?: string
   subtitle?: string
 }
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  if (isEmptyMonthPayload(payload)) return <EmptyMonthTooltip label={label} />
   const rows = payload.filter((p: any) => p.value > 0)
   const total = rows.reduce((s: number, p: any) => s + p.value, 0)
   return (
@@ -67,7 +67,6 @@ function MonthlySpendingChartInner({
   series,
   selectedMonth,
   accountId,
-  monthCount = 12,
   title = 'חיובים חודשיים',
   subtitle = 'לחיצה על חודש מסננת',
 }: Props) {
@@ -82,16 +81,16 @@ function MonthlySpendingChartInner({
   // Entrance on the shared page beat (ENG-67)
   const anim = useChartAnimation()
 
-  const rows = Array.from({ length: monthCount }, (_, i) => {
-    const m = i + 1
-    const row: Record<string, number | string> = { month: m, name: monthName(m) }
-    for (const s of series) row[s.key] = s.data[String(m)] ?? 0
-    return row
-  })
+  // January to December; months without charges are empty slots (ENG-70)
+  const rows = yearChartRows(
+    series.map(s => s.key),
+    (m, key) => series.find(s => s.key === key)?.data[String(m)]
+  )
 
-  function handleClick(entry: { month: number }) {
+  function handleClick(month: number | undefined) {
+    if (!month) return
     router.push(
-      withQueryString(accountPath('CREDIT_CARD', accountId), toggleMonthQuery(params.toString(), entry.month)),
+      withQueryString(accountPath('CREDIT_CARD', accountId), toggleMonthQuery(params.toString(), month)),
       { scroll: false }
     )
   }
@@ -110,18 +109,18 @@ function MonthlySpendingChartInner({
           <BarChart
             data={chartData}
             margin={axes.margin}
-            onClick={e => e?.activePayload && handleClick(e.activePayload[0].payload)}
+            onClick={e => handleClick(clickedMonth(e))}
             style={{ cursor: 'pointer' }}
           >
             <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 4" />
             <XAxis
               dataKey="name"
               {...axes.xAxis}
-              tickFormatter={axes.monthTick}
-              interval={axes.monthInterval(chartData.length)}
+              {...axes.monthAxis(chartData.length, selectedMonth)}
             />
             <YAxis {...axes.yAxis} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
+            <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={28} />} />
+            <Tooltip filterNull={false} content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
             {series.map((s, i) => (
               <Bar {...anim}
                 key={s.key}

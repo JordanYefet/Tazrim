@@ -8,7 +8,6 @@ import {
   lastMonthWithData,
   monthEndBalances,
   monthlyAverage,
-  plottedMonthCount,
   shareOf,
   sumBankMonthly,
   sumCardMonthly,
@@ -128,24 +127,6 @@ describe('lastMonthWithData', () => {
     expect(lastMonthWithData(bank({ 2: [1, 0], 5: [0, 1] }))).toBe(5)
     expect(lastMonthWithData(card({ 7: 10 }))).toBe(7)
     expect(lastMonthWithData(emptyCardMonthly())).toBe(0)
-  })
-})
-
-describe('plottedMonthCount', () => {
-  const now = new Date(2026, 3, 15) // April 2026
-
-  it('plots all 12 months of a past year', () => {
-    expect(plottedMonthCount(2025, 2, now)).toBe(12)
-  })
-
-  it('stops at the current month this year, unless data goes further', () => {
-    expect(plottedMonthCount(2026, 2, now)).toBe(4)
-    expect(plottedMonthCount(2026, 6, now)).toBe(6)
-  })
-
-  it('plots up to the last data month in a future year', () => {
-    expect(plottedMonthCount(2027, 0, now)).toBe(1)
-    expect(plottedMonthCount(2027, 3, now)).toBe(3)
   })
 })
 

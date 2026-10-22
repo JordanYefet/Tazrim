@@ -17,7 +17,7 @@ import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/l
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
 import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
-import { monthlyAverage } from '@/lib/insights/account-overview'
+import { monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 import { withResolvedPeriod } from '@/lib/period-server'
 import { PeriodSync } from '@/components/layout/period-context'
@@ -103,18 +103,6 @@ export default async function DashboardPage({
     Object.values(bank).some(m => m.income > 0 || m.expense > 0) ||
     Object.values(cards).some(v => v > 0)
 
-  // Don't plot months that haven't happened yet; past years show all 12
-  const now = new Date()
-  const lastDataMonth = Math.max(
-    0,
-    ...Object.entries(bank).filter(([, m]) => m.income > 0 || m.expense > 0).map(([k]) => Number(k)),
-    ...Object.entries(cards).filter(([, v]) => v > 0).map(([k]) => Number(k))
-  )
-  const monthCount =
-    Number(year) < now.getFullYear()
-      ? 12
-      : Math.max(Number(year) === now.getFullYear() ? now.getMonth() + 1 : 1, lastDataMonth)
-
   const query = new URLSearchParams({ year, ...(month ? { month: String(month) } : {}) }).toString()
 
   // Category-insight links open the filtered card, the only card, or the default MAX card
@@ -139,6 +127,7 @@ export default async function DashboardPage({
             ccTotal={ccTotal}
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
+            monthHasData={!!month && (monthHasData(bank, month) || monthHasData(cards, month))}
             query={query}
             bankHint={bankHint}
             cardHint={cardHint}
@@ -148,12 +137,11 @@ export default async function DashboardPage({
             bankSummary={bank}
             maxSummary={cards}
             cardsName={cardsName}
-            monthCount={monthCount}
             selectedMonth={month}
           />
           {/* Every row shares the summary's 5/7 split, so the edges line up */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <CCMonthlyChart data={cards} series={cardSeries} monthCount={monthCount} selectedMonth={month} />
+            <CCMonthlyChart data={cards} series={cardSeries} selectedMonth={month} />
             <CategoryInsights
               insights={insights}
               month={insightMonth}

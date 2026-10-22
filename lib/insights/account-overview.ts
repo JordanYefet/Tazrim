@@ -62,6 +62,14 @@ export function averageDelta(value: number, average: number): number | null {
 }
 
 /**
+ * The selected month's badge against the average: null (no badge) for a month
+ * without data yet, which would otherwise read as "-100%" (ENG-70).
+ */
+export function monthAverageDelta(value: number, average: number, monthHasData: boolean): number | null {
+  return monthHasData ? averageDelta(value, average) : null
+}
+
+/**
  * Income, expense and net for the selected month (or the whole year), and the
  * yearly average expense (always the whole year, so a month can be compared
  * with it). Bank-only: card charges are already inside these expenses.
@@ -87,21 +95,17 @@ export function shareOf(part: number, whole: number): number {
   return whole > 0 ? part / whole : 0
 }
 
+/** Whether a month has any bank or card value; the bar charts draw a month without as an empty slot (ENG-70). */
+export function monthHasData(monthly: BankMonthly | CardMonthly, month: number): boolean {
+  const v = at(monthly as Record<number, unknown>, month)
+  return typeof v === 'number' ? v > 0 : !!v && ((v as { income: number }).income > 0 || (v as { expense: number }).expense > 0)
+}
+
 /** Latest month (1-12) with any bank or card value, 0 when there is none. */
 export function lastMonthWithData(monthly: BankMonthly | CardMonthly): number {
   let last = 0
-  for (const m of MONTHS) {
-    const v = at(monthly as Record<number, unknown>, m)
-    const has = typeof v === 'number' ? v > 0 : !!v && ((v as { income: number }).income > 0 || (v as { expense: number }).expense > 0)
-    if (has) last = m
-  }
+  for (const m of MONTHS) if (monthHasData(monthly, m)) last = m
   return last
-}
-
-/** How many months (from January) a chart plots: past years all 12, otherwise up to now or the last data. */
-export function plottedMonthCount(year: number, lastDataMonth: number, now = new Date()): number {
-  if (year < now.getFullYear()) return 12
-  return Math.max(year === now.getFullYear() ? now.getMonth() + 1 : 1, lastDataMonth)
 }
 
 /**

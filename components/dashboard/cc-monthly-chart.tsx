@@ -19,8 +19,6 @@ interface Props {
   data: Record<number, number>
   /** Per-card series for the tooltip split; only passed with 2+ cards */
   series?: CardSeries[]
-  /** Number of months (from January) to plot */
-  monthCount?: number
   selectedMonth?: number
 }
 
@@ -48,7 +46,7 @@ function CustomTooltip({ active, payload, label, series }: any) {
   )
 }
 
-function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: Props) {
+function CCMonthlyChartInner({ data, series, selectedMonth }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -61,8 +59,8 @@ function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: P
   const anim = useChartAnimation()
   const gridColor = isDark ? '#283040' : '#e2e8ed'
 
-  // Months without an uploaded statement are gaps, not ₪0
-  const chartData = Array.from({ length: monthCount }, (_, i) => ({
+  // January to December (ENG-70); months without an uploaded statement are gaps, not ₪0
+  const chartData = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     name: monthName(i + 1),
     'חיובי מקס': data[i + 1] ? data[i + 1] : null,
@@ -90,8 +88,7 @@ function CCMonthlyChartInner({ data, series, monthCount = 12, selectedMonth }: P
             <XAxis
               dataKey="name"
               {...axes.xAxis}
-              tickFormatter={axes.monthTick}
-              interval={axes.monthInterval(chartData.length)}
+              {...axes.monthAxis(chartData.length, selectedMonth)}
             />
             <YAxis {...axes.yAxis} />
             <Tooltip content={<CustomTooltip series={series} />} cursor={{ stroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />
