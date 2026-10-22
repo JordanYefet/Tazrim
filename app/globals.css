@@ -1056,54 +1056,54 @@ html {
 .acct-bank[data-ink='dark'] .acct-bank__name.is-placeholder { color: rgb(var(--acct-ink-dark) / 0.6); }
 
 /* ── Glass (ENG-66, rebuilt in ENG-72) ──────────────────────────────────
-   A clear glass element over the page background. The face itself carries
-   an almost clear tint, the backdrop recipe of the chosen background and a
-   soft contact shadow; components/glass/glass-surface.tsx fills it with the
-   material (.glass): on large elements a WebGL slab that refracts the page's
-   lines (lib/glass/renderer.ts, the face then gets data-glass-gl), elsewhere
-   the CSS lens of the mockup: the lines redrawn inside, magnified, bent
-   further at the rim, a faint prism edge and highlights. Text keeps a faint
-   halo. A web approximation of glass, not Apple's material. */
+   Frosted acrylic over the page background: what is behind is blurred
+   strongly and tinted milky, with a thin bright rim (brightest top left) and
+   a soft shadow. A soft glow in the background palette's colours sits under
+   each glass element and reaches a little past it (lib/glass/glow.ts; the
+   halo outside is a coloured shadow of the face, data-glass-glow).
+   components/glass/glass-surface.tsx fills the face: on large elements a
+   WebGL slab (lib/glass/renderer.ts; the face then gets data-glass-gl),
+   elsewhere the same look in CSS. Text keeps a faint halo. A web
+   approximation of frosted glass, not Apple's material. */
+:root { --glow-a: #4f46e5; --glow-b: #d946ef; }
+html[data-bg-palette='ocean'] { --glow-a: #0369a1; --glow-b: #0d9488; }
+html[data-bg-palette='grey'] { --glow-a: #334155; --glow-b: #64748b; }
+
 .acct-face[data-glass] {
   --glass-ink: var(--acct-ink-dark);
-  --glass-halo: 0 0 6px rgb(255 255 255 / 0.75), 0 1px 1px rgb(255 255 255 / 0.4);
+  --glass-halo: 0 0 5px rgb(255 255 255 / 0.6);
+  --glass-shadow:
+    0 18px 40px -18px rgb(15 23 42 / 0.28),
+    0 2px 6px rgb(15 23 42 / 0.06),
+    0 0 0 1px rgb(15 23 42 / 0.06);
+  --glass-glow-shadow: 0 0 0 transparent;
   color: rgb(var(--glass-ink));
-  background-color: rgb(255 255 255 / 0.06);
+  background-color: rgb(255 255 255 / 0.04);
   border-color: transparent;
-  -webkit-backdrop-filter: blur(3px) saturate(170%) brightness(1.04);
-  backdrop-filter: blur(3px) saturate(170%) brightness(1.04);
-  box-shadow:
-    0 18px 40px -18px rgb(15 23 42 / 0.22),
-    0 2px 6px rgb(15 23 42 / 0.05),
-    0 0 0 1px rgb(15 23 42 / 0.05);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+  box-shadow: var(--glass-glow-shadow), var(--glass-shadow);
 }
 .dark .acct-face[data-glass] {
   --glass-ink: 255 255 255;
-  --glass-halo: 0 0 6px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
-  background-color: rgb(255 255 255 / 0.03);
-  box-shadow:
+  --glass-halo: 0 0 5px rgb(0 0 0 / 0.45);
+  --glass-shadow:
     0 24px 48px -16px rgb(0 0 0 / 0.6),
-    0 0 0 1px rgb(255 255 255 / 0.08);
+    0 0 0 1px rgb(255 255 255 / 0.1);
+  background-color: rgb(30 41 59 / 0.06);
 }
-/* Ribbons: the Ribbons mockup's frost (no lines to bend) */
-html[data-bg='ribbons'] .acct-face[data-glass] {
-  background-color: rgb(255 255 255 / 0.28);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
+/* The glow just outside the element: soft colour peeking out top left and bottom right */
+.acct-face[data-glass][data-glass-glow='halo'] {
+  --glass-glow-shadow:
+    -26px -18px 56px -12px color-mix(in srgb, var(--glow-a) 42%, transparent),
+    30px 22px 60px -12px color-mix(in srgb, var(--glow-b) 36%, transparent);
 }
-html.dark[data-bg='ribbons'] .acct-face[data-glass] { background-color: rgb(255 255 255 / 0.1); }
-/* The plain backdrop: the tab bar's recipe (.glass-pill) */
-html[data-bg='plain'] .acct-face[data-glass] {
-  background-color: rgb(248 250 252 / 0.06);
-  -webkit-backdrop-filter: blur(12px) saturate(200%) brightness(1.06);
-  backdrop-filter: blur(12px) saturate(200%) brightness(1.06);
+.dark .acct-face[data-glass][data-glass-glow='halo'] {
+  --glass-glow-shadow:
+    -26px -18px 56px -12px color-mix(in srgb, var(--glow-a) 55%, transparent),
+    30px 22px 60px -12px color-mix(in srgb, var(--glow-b) 48%, transparent);
 }
-html.dark[data-bg='plain'] .acct-face[data-glass] {
-  background-color: rgb(20 26 38 / 0.18);
-  -webkit-backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
-  backdrop-filter: blur(12px) saturate(180%) brightness(0.9);
-}
-/* The WebGL slab draws everything behind the text itself */
+/* The WebGL slab draws the frost itself */
 .acct-face[data-glass][data-glass-gl] {
   background-color: transparent;
   -webkit-backdrop-filter: none;
@@ -1125,43 +1125,36 @@ html.dark[data-bg='plain'] .acct-face[data-glass] {
   border-radius: inherit;
 }
 .glass__gl { display: block; width: 100%; height: 100%; }
-.glass__lines { width: 100%; height: 100%; filter: blur(1.2px); }
-.glass__edge {
-  -webkit-mask-image: radial-gradient(ellipse 66% 60% at 50% 50%, transparent 55%, #000 100%);
-  mask-image: radial-gradient(ellipse 66% 60% at 50% 50%, transparent 55%, #000 100%);
-}
-.glass__edge > svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: blur(2px); }
-html:not([data-bg='lines']) .glass__lines,
-html:not([data-bg='lines']) .glass__edge { display: none; }
-/* A faint prism along the rim */
-.glass__prism {
-  padding: 1.5px;
-  background: conic-gradient(from 200deg, rgb(255 0 128 / 0.9), rgb(255 170 0 / 0.9), rgb(0 200 255 / 0.9), rgb(140 80 255 / 0.9), rgb(255 0 128 / 0.9));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  opacity: 0.28;
-}
-.dark .glass__prism { opacity: 0.35; }
-/* Light: a bright top-left corner, a softer opposite one, a rim of light */
-.glass__sheen {
+/* The page's lines redrawn inside and frosted (for glass on opaque surfaces) */
+.glass__lines { width: 100%; height: 100%; filter: blur(14px); }
+html:not([data-bg='lines']) .glass__lines { display: none; }
+.glass__glow { opacity: 0.4; }
+.dark .glass__glow { opacity: 0.55; }
+/* Milky tint and a faint sheen from the top left */
+.glass__tint {
   background:
-    linear-gradient(135deg, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0) 30%),
-    linear-gradient(315deg, rgb(255 255 255 / 0.35) 0%, rgb(255 255 255 / 0) 26%);
-  box-shadow:
-    inset 0 1px 0 #fff,
-    inset 1px 0 0 rgb(255 255 255 / 0.7),
-    inset 0 -1px 0 rgb(15 23 42 / 0.08),
-    inset -1px 0 0 rgb(15 23 42 / 0.05);
+    linear-gradient(135deg, rgb(255 255 255 / 0.16) 0%, rgb(255 255 255 / 0) 45%),
+    rgb(255 255 255 / 0.15);
 }
-.dark .glass__sheen {
+.dark .glass__tint {
   background:
-    linear-gradient(135deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0) 32%),
-    linear-gradient(315deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0) 30%);
+    linear-gradient(135deg, rgb(255 255 255 / 0.05) 0%, rgb(255 255 255 / 0) 45%),
+    rgb(30 41 59 / 0.3);
+}
+/* A thin bright rim, brightest along the top-left edges */
+.glass__rim {
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
-    inset 1px 0 0 rgb(255 255 255 / 0.1),
-    inset 0 -1px 0 rgb(0 0 0 / 0.3);
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 1px 0 0 rgb(255 255 255 / 0.6),
+    inset 0 -1px 0 rgb(255 255 255 / 0.25),
+    inset -1px 0 0 rgb(255 255 255 / 0.2);
+}
+.dark .glass__rim {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.32),
+    inset 1px 0 0 rgb(255 255 255 / 0.2),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset -1px 0 0 rgb(255 255 255 / 0.06);
 }
 
 /* The card: text follows the theme, with the halo */
@@ -1187,9 +1180,9 @@ html:not([data-bg='lines']) .glass__edge { display: none; }
 .acct-bank[data-glass] .acct-bank__name.is-placeholder { color: rgb(var(--glass-ink) / 0.6); }
 .acct-bank[data-glass] .acct-bank__spark { color: var(--acct-glass); }
 
-/* Mini faces: the same lens, small */
+/* Mini faces: the same frost, small (they sit on opaque surfaces) */
 .acct-mini[data-glass] {
-  background: rgb(255 255 255 / 0.35);
+  background: rgb(255 255 255 / 0.3);
   box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.1), 0 1px 2px hsl(var(--shadow-color) / 0.18);
 }
 .acct-mini[data-glass] .acct-mini__mark { color: rgb(var(--acct-ink-dark)); }
@@ -1198,7 +1191,7 @@ html:not([data-bg='lines']) .glass__edge { display: none; }
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
 }
 .dark .acct-mini[data-glass] .acct-mini__mark { color: #fff; }
-.acct-mini[data-glass] .glass__lines { filter: none; }
+.acct-mini[data-glass] .glass__lines { filter: blur(3px); }
 
 /* Reduced transparency / more contrast: an opaque surface, no lens */
 @media (prefers-reduced-transparency: reduce) {

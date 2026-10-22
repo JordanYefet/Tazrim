@@ -1,51 +1,34 @@
 /*
- * Geometry of the glass slab (ENG-72). The WebGL shader
- * (lib/glass/renderer.ts) does the same maths per pixel; these TypeScript
- * twins choose its parameters and are unit-tested, so the optics can be
- * checked without a GPU.
+ * Geometry of the frosted glass (ENG-72, round 2). Pure helpers, shared by
+ * the WebGL renderer (lib/glass/renderer.ts), its runtime
+ * (components/glass/glass-runtime.ts) and the tests.
  *
- * The slab: a flat plate the shape of the element (a rounded rectangle with
- * the element's radius), `thickness` px thick, with a rounded bevel `bevel`
- * px wide along its edges, floating `lift` px above the page. Seen from
- * straight above, a ray refracts into the top face, crosses the glass,
- * refracts out of the flat bottom and lands on the page. Where the top is
- * flat the ray goes straight through (a faint dome gives a slight
- * magnification); on the bevel it bends strongly toward the middle.
+ * The look: frosted acrylic. What is behind the element is blurred strongly
+ * (FROST_BLUR, about CSS blur(16px)), tinted milky, with a thin edge (a
+ * RIM_BEVEL px bevel that bends the frost a little, never sampling outside
+ * the element) and a 1-2px bright rim, brightest along the top-left edges.
  */
 
-export interface SlabParams {
-  /** Corner radius, px */
-  radius: number
-  /** Width of the rounded bevel along the edge, px */
-  bevel: number
-  /** Glass thickness at the flat top, px */
-  thickness: number
-  /** Height of the slab's underside above the page, px */
-  lift: number
-}
+/** Strength of the frost, as the standard deviation of a CSS blur(), in CSS px. Tunable. */
+export const FROST_BLUR = 16
 
-/** How much the flat middle magnifies (a faint dome on the top face). */
-export const MAGNIFICATION = 0.04
+/** Width of the thin bevel along the edge, CSS px */
+export const RIM_BEVEL = 4
 
-/**
- * The dome's tilt per px from the centre that shifts what is seen by
- * MAGNIFICATION × the distance from the centre: a ray tilted by a small
- * angle a lands a·(1 − 1/n)·(thickness + n·lift) px away.
- */
-export function domeTilt(p: SlabParams, ior: number, magnification = MAGNIFICATION): number {
-  const reach = (1 - 1 / ior) * (p.thickness + ior * p.lift)
-  return magnification / Math.max(1, reach)
-}
+/** How far the bevel bends the frost toward the middle at the very edge, CSS px */
+export const RIM_BEND = 3
 
-/** Parameters for an element of this size: the bevel and depth grow with it, within limits. */
-export function slabParams(width: number, height: number, radius: number): SlabParams {
-  const short = Math.max(1, Math.min(width, height))
-  return {
-    radius: Math.min(radius, short / 2),
-    bevel: Math.min(28, Math.max(6, short * 0.11)),
-    thickness: Math.min(24, Math.max(6, short * 0.09)),
-    lift: Math.min(14, Math.max(4, short * 0.05)),
-  }
+/** The blur runs at this many texels per CSS px (the result is smooth, so a quarter is plenty). */
+export const BLUR_TEXELS_PER_PX = 0.25
+
+/** Extra room around the element the texture covers, so it is reused while the page scrolls a little. */
+export const REGION_SLACK = { x: 32, y: 240 } as const
+
+export interface Rect {
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 /**
@@ -76,80 +59,83 @@ export function roundedRectDistance(x: number, y: number, hw: number, hh: number
   return outside + Math.min(Math.max(qx, qy), 0) - r
 }
 
-/**
- * Height of the slab's top at inset `e` (distance in from the edge) and the
- * slope dh/de: a quarter-round bevel that meets the flat top smoothly. The
- * slope is capped just short of vertical so the rim stays finite.
- */
-export function bevelProfile(e: number, p: SlabParams): { height: number; slope: number } {
-  if (e >= p.bevel) return { height: p.thickness, slope: 0 }
-  const s = Math.min(0.985, Math.max(0, 1 - e / p.bevel))
-  const root = Math.sqrt(1 - s * s)
-  return { height: p.thickness * root, slope: (p.thickness * s) / (p.bevel * root) }
+/** The blur must see this far past the element: three standard deviations. */
+export function frostMargin(blur = FROST_BLUR): number {
+  return Math.ceil(blur * 3)
 }
 
-type Vec3 = [number, number, number]
-
-const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-const normalize = (a: Vec3): Vec3 => {
-  const l = Math.hypot(a[0], a[1], a[2]) || 1
-  return [a[0] / l, a[1] / l, a[2] / l]
+/** Whether `outer` contains `inner` entirely. */
+export function covers(outer: Rect, inner: Rect): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  )
 }
 
-/** GLSL's refract(): null on total internal reflection. */
-export function refract(i: Vec3, n: Vec3, eta: number): Vec3 | null {
-  const cosi = dot(n, i)
-  const k = 1 - eta * eta * (1 - cosi * cosi)
-  if (k < 0) return null
-  const f = eta * cosi + Math.sqrt(k)
-  return [eta * i[0] - f * n[0], eta * i[1] - f * n[1], eta * i[2] - f * n[2]]
+/** What the frost needs to see of the page for an element at `box` (viewport CSS px). */
+export function neededRegion(box: Rect, blur = FROST_BLUR): Rect {
+  const m = frostMargin(blur)
+  return { x: box.x - m, y: box.y - m, width: box.width + 2 * m, height: box.height + 2 * m }
 }
 
 /**
- * Where on the page a straight-down view ray lands after crossing the slab,
- * as an offset (px) from the point right below. `outward` is the unit vector
- * toward the nearest edge at this point; `fromCentre` the point's offset (px)
- * from the centre (for the dome).
+ * The region to paint for an element: what it needs plus some slack (the
+ * page mostly scrolls vertically), so small scrolls reuse the texture.
  */
-export function slabDisplacement(
+export function paintRegion(box: Rect, blur = FROST_BLUR, slack = REGION_SLACK): Rect {
+  const n = neededRegion(box, blur)
+  return { x: n.x - slack.x, y: n.y - slack.y, width: n.width + 2 * slack.x, height: n.height + 2 * slack.y }
+}
+
+/**
+ * Texels per CSS px for the painted region: the device pixel ratio (up to 3,
+ * so a phone's background is as sharp as the page), shrunk only if the
+ * region would pass the GPU's texture limit.
+ */
+export function paintScale(region: Rect, devicePixelRatio: number, maxTextureSize: number): number {
+  const want = Math.min(3, Math.max(1, devicePixelRatio || 1))
+  const fit = Math.min(maxTextureSize / region.width, maxTextureSize / region.height)
+  return Math.max(0.25, Math.min(want, fit))
+}
+
+/**
+ * Normalised Gaussian weights for a separable blur with this standard
+ * deviation (in texels), from the centre tap outward (3σ each side).
+ */
+export function gaussianWeights(sigma: number): number[] {
+  const s = Math.max(0.5, sigma)
+  const radius = Math.ceil(3 * s)
+  const w: number[] = []
+  for (let i = 0; i <= radius; i++) w.push(Math.exp(-(i * i) / (2 * s * s)))
+  const total = w[0] + 2 * w.slice(1).reduce((a, b) => a + b, 0)
+  return w.map(x => x / total)
+}
+
+/**
+ * How far the thin bevel bends the frost toward the middle at inset `e`
+ * (px in from the edge): RIM_BEND at the edge, easing to 0 at RIM_BEVEL.
+ */
+export function rimBend(e: number, bevel = RIM_BEVEL, bend = RIM_BEND): number {
+  if (e >= bevel || bevel <= 0) return 0
+  const t = 1 - Math.max(0, e) / bevel
+  return bend * t * t
+}
+
+/**
+ * Where the frost is sampled for a point of the element (local CSS px), bent
+ * at the rim and clamped inside the element, so the edge never shows the
+ * page beyond it.
+ */
+export function rimSample(
+  local: { x: number; y: number },
+  inward: { x: number; y: number },
   e: number,
-  outward: [number, number],
-  fromCentre: [number, number],
-  p: SlabParams,
-  ior: number
-): [number, number] {
-  const { height, slope } = bevelProfile(e, p)
-  // Top surface normal: the bevel tilts it outward, the dome a little too
-  const tilt = domeTilt(p, ior)
-  const gx = slope * outward[0] + tilt * fromCentre[0]
-  const gy = slope * outward[1] + tilt * fromCentre[1]
-  const n = normalize([gx, gy, 1])
-  const down: Vec3 = [0, 0, -1]
-  const inside = refract(down, n, 1 / ior) ?? down
-  const t1 = -height / Math.min(-0.05, inside[2])
-  // Out through the flat underside (its normal faces up, against the ray)
-  const out = refract(normalize(inside), [0, 0, 1], ior)
-  const exit = out ?? normalize(inside)
-  const t2 = -p.lift / Math.min(-0.05, exit[2])
-  return [inside[0] * t1 + exit[0] * t2, inside[1] * t1 + exit[1] * t2]
-}
-
-/**
- * The region of the viewport the background texture covers: the viewport
- * plus a margin (rays near the edge sample a little outside it), at a scale
- * that keeps it within the GPU's texture limit.
- */
-export function textureRegion(
-  viewportWidth: number,
-  viewportHeight: number,
-  devicePixelRatio: number,
-  maxTextureSize: number,
-  margin = 48
-): { x: number; y: number; width: number; height: number; scale: number } {
-  const width = viewportWidth + margin * 2
-  const height = viewportHeight + margin * 2
-  let scale = Math.min(1.5, Math.max(1, devicePixelRatio))
-  const fit = Math.min(maxTextureSize / width, maxTextureSize / height)
-  if (scale > fit) scale = fit
-  return { x: -margin, y: -margin, width, height, scale }
+  size: { width: number; height: number }
+): { x: number; y: number } {
+  const b = rimBend(e)
+  const x = local.x + inward.x * b
+  const y = local.y + inward.y * b
+  return { x: Math.min(size.width - 1, Math.max(1, x)), y: Math.min(size.height - 1, Math.max(1, y)) }
 }
