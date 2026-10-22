@@ -12,7 +12,7 @@
  * that browser.
  */
 
-export const GLASS_GLOW = true
+export const GLASS_GLOW = false
 
 export const GLOW_OVERRIDE_KEY = 'tazrim:glass-glow'
 
