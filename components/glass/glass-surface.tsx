@@ -11,8 +11,9 @@ import { trackGlass } from './glass-bakery'
  *
  *   baked   large elements (a hero, the front wallet card, the add / edit
  *           preview): a liquid-glass lens computed once into a canvas
- *           (lib/glass/bake.ts, scheduled by ./glass-bakery.ts). Until the
- *           first bake, and as its base, the static look below.
+ *           (lib/glass/bake.ts, scheduled and cached by ./glass-bakery.ts;
+ *           `glassId` names the account, so its bakes are found again).
+ *           Until the first bake, and as its base, the static look below.
  *   static  everything else: a light tint, a thin rim and an inner
  *           highlight in CSS. No blur, no backdrop-filter.
  *   solid   reduced transparency / more contrast: the stylesheet gives the
@@ -54,7 +55,7 @@ const getPrefs = () => {
 }
 const getServer = () => SERVER
 
-export function GlassSurface({ baked = false }: { baked?: boolean }) {
+export function GlassSurface({ baked = false, glassId }: { baked?: boolean; glassId?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const p = useSyncExternalStore(subscribe, getPrefs, getServer)
@@ -65,8 +66,8 @@ export function GlassSurface({ baked = false }: { baked?: boolean }) {
     const host = ref.current?.parentElement
     const canvas = canvasRef.current
     if (renderer !== 'baked' || !host || !canvas) return
-    return trackGlass(host, canvas, () => setReady(true))
-  }, [renderer])
+    return trackGlass(host, canvas, glassId, () => setReady(true))
+  }, [renderer, glassId])
 
   return (
     <span ref={ref} aria-hidden className="glass" data-renderer={renderer}>

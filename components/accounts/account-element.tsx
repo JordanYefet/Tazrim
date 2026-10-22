@@ -162,6 +162,8 @@ export interface PaymentCardProps {
   amountVisible?: boolean
   /** Glass faces (ENG-72): the baked liquid-glass lens, for large cards only (others get the static look) */
   glassBaked?: boolean
+  /** Names the glass (the account), so its bakes are cached across pages */
+  glassId?: string
   className?: string
 }
 
@@ -180,6 +182,7 @@ export function PaymentCard({
   amount,
   amountVisible = false,
   glassBaked = false,
+  glassId,
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
@@ -205,7 +208,7 @@ export function PaymentCard({
         : { role: 'img', 'aria-label': cardLabel({ provider, name: shownName, lastFour, network }) })}
     >
       {face.glass ? (
-        <GlassSurface baked={glassBaked} />
+        <GlassSurface baked={glassBaked} glassId={glassId} />
       ) : (
         <>
           <span aria-hidden className="acct-card__field" />
