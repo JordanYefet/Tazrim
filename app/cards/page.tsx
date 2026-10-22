@@ -12,6 +12,7 @@ import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import {
   cardPeriodTotals,
   lastMonthWithData,
+  monthHasData,
   shareOf,
   sumCardMonthly,
 } from '@/lib/insights/account-overview'
@@ -113,6 +114,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               count={count}
               average={average}
               monthLabel={month ? monthName(month) : undefined}
+              monthHasData={!!month && monthHasData(combined, month)}
             />
             <MonthlySpendingChart
               series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}

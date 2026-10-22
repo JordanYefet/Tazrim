@@ -3,7 +3,7 @@ import { ChevronLeft } from 'lucide-react'
 import { RollingNumber, type RollingFormat } from '@/components/ui/rolling-number'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
-import { averageDelta } from '@/lib/insights/account-overview'
+import { monthAverageDelta } from '@/lib/insights/account-overview'
 
 export type Tone = 'income' | 'expense' | 'cc' | 'neutral'
 
@@ -38,12 +38,13 @@ export interface MonthCompare {
 export function averageStat(
   def: Omit<StatDef, 'value' | 'compare' | 'hasCompareSlot'>,
   average: number,
-  month?: { label: string; value: number }
+  /** `hasData: false`: the month has no data yet, so no chip (not "-100%") */
+  month?: { label: string; value: number; hasData?: boolean }
 ): StatDef {
   return {
     ...def,
     value: average,
-    compare: month && { ...month, delta: averageDelta(month.value, average) },
+    compare: month && { label: month.label, value: month.value, delta: monthAverageDelta(month.value, average, month.hasData ?? true) },
     hasCompareSlot: true,
   }
 }
@@ -85,6 +86,8 @@ interface Props {
   averageExpense: number
   /** The selected month's name, to compare its expense with the average */
   monthLabel?: string
+  /** Whether the selected month has any data; without, the average gets no comparison chip */
+  monthHasData?: boolean
   /** Current year/month query string, carried over to drill-down links */
   query: string
   /** Bank account name, or a count when there are several */
@@ -258,6 +261,7 @@ export function DashboardSummaryCards({
   ccTotal,
   averageExpense,
   monthLabel,
+  monthHasData = true,
   query,
   bankHint,
   cardHint,
@@ -279,7 +283,7 @@ export function DashboardSummaryCards({
     averageStat(
       { label: 'ממוצע חודשי', tone: 'neutral', href: `/banks${qs}`, hint: 'הוצאות בנק' },
       averageExpense,
-      monthLabel ? { label: monthLabel, value: bankExpense } : undefined
+      monthLabel ? { label: monthLabel, value: bankExpense, hasData: monthHasData } : undefined
     ),
   ]
 

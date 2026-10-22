@@ -17,7 +17,7 @@ import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/l
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
 import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
 import { accountPath } from '@/lib/accounts/routes'
-import { monthlyAverage } from '@/lib/insights/account-overview'
+import { monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 import { withResolvedPeriod } from '@/lib/period-server'
 import { PeriodSync } from '@/components/layout/period-context'
@@ -127,6 +127,7 @@ export default async function DashboardPage({
             ccTotal={ccTotal}
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
+            monthHasData={!!month && (monthHasData(bank, month) || monthHasData(cards, month))}
             query={query}
             bankHint={bankHint}
             cardHint={cardHint}

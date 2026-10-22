@@ -12,7 +12,7 @@ import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { accountHref } from '@/lib/accounts/routes'
-import { bankPeriodTotals, lastMonthWithData, type BankMonthly } from '@/lib/insights/account-overview'
+import { bankPeriodTotals, lastMonthWithData, monthHasData, type BankMonthly } from '@/lib/insights/account-overview'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
 
@@ -125,6 +125,7 @@ export default async function BankAccountPage({
             expense={expense}
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
+            monthHasData={!!month && monthHasData(bankSummary, month)}
           />
         ) : (
           <EmptyState

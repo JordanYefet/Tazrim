@@ -11,6 +11,7 @@ import { accountHref } from '@/lib/accounts/routes'
 import {
   bankPeriodTotals,
   lastMonthWithData,
+  monthHasData,
   shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
@@ -72,6 +73,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
                 expense={totals.expense}
                 averageExpense={totals.averageExpense}
                 monthLabel={month ? monthName(month) : undefined}
+                monthHasData={!!month && monthHasData(combined, month)}
               />
               <IncomeExpenseChart
                 data={chartData}

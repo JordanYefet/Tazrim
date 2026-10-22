@@ -5,6 +5,8 @@ import {
   cardPeriodTotals,
   emptyBankMonthly,
   emptyCardMonthly,
+  monthAverageDelta,
+  monthHasData,
   monthlyAverage,
   type BankMonthly,
   type CardMonthly,
@@ -79,5 +81,24 @@ describe('averages over a partial year (ENG-70)', () => {
   it('bankPeriodTotals averageExpense ignores the empty months, also with an empty month selected', () => {
     expect(bankPeriodTotals(bank).averageExpense).toBe(400)
     expect(bankPeriodTotals(bank, 12)).toEqual({ income: 0, expense: 0, net: 0, averageExpense: 400 })
+  })
+})
+
+// A month without data yet gets no "vs. average" badge instead of "-100%"
+describe('month vs. average badge (ENG-70)', () => {
+  it('knows which months have data', () => {
+    expect(monthHasData(card, 2)).toBe(true)
+    expect(monthHasData(card, 12)).toBe(false)
+    expect(monthHasData(bank, 3)).toBe(true) // expenses only
+    expect(monthHasData(bank, 12)).toBe(false)
+  })
+
+  it('no badge for a month without data', () => {
+    expect(monthAverageDelta(0, 600, monthHasData(card, 12))).toBeNull()
+  })
+
+  it('months with data keep the badge, a real ₪0 included', () => {
+    expect(monthAverageDelta(900, 600, monthHasData(card, 3))).toBeCloseTo(0.5)
+    expect(monthAverageDelta(0, 400, true)).toBe(-1)
   })
 })

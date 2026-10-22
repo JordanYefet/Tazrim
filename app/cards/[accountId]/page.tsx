@@ -14,7 +14,7 @@ import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { rankCategories } from '@/lib/insights/category-insights'
-import { lastMonthWithData, monthlyAverage } from '@/lib/insights/account-overview'
+import { lastMonthWithData, monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { accountHref } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -140,7 +140,9 @@ export default async function CardAccountPage({
               value={total}
               label={params.category ? `חיובים · ${params.category}` : 'סה״כ חיובים'}
             />
-            <CardStatTiles total={total} count={count} average={averageMonthly} monthLabel={month ? monthName(month) : undefined} />
+            <CardStatTiles total={total} count={count} average={averageMonthly} monthLabel={month ? monthName(month) : undefined}
+              monthHasData={!!month && monthHasData(monthly, month)}
+            />
           </>
         ) : (
           <EmptyState
