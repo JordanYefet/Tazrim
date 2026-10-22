@@ -4,6 +4,7 @@ import { mappingKindOf } from '@/lib/import/mapping'
 import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
 import { parseNewKind } from '@/components/accounts/account-kinds'
 import { ThemeSelector } from '@/components/layout/theme-selector'
+import { BackgroundSettings } from '@/components/settings/background-settings'
 import { ImportProfilesManager } from '@/components/settings/import-profiles-manager'
 import { listImportProfiles } from '@/lib/db/import-profiles'
 import { toProfileView } from '@/lib/import/profile-view'
@@ -59,6 +60,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
           <ThemeSelector />
         </div>
+        <BackgroundSettings />
       </section>
 
       <section id="accounts" aria-label="ניהול חשבונות">

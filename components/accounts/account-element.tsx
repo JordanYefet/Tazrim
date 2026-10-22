@@ -8,6 +8,7 @@ import { NetworkMark } from './network-mark'
 import { DigitStrip, RollingNumber } from '@/components/ui/rolling-number'
 import { MOTION } from '@/lib/motion'
 import { formatDate } from '@/lib/utils/date'
+import { GlassSurface } from '@/components/glass/glass-surface'
 
 /*
  * The account elements (ENG-56 / ENG-57): a payment card in ISO proportions
@@ -159,6 +160,8 @@ export interface PaymentCardProps {
   amount?: { value: number; label: string } | null
   /** Fades the band in (after the card has settled) and out (before it leaves) */
   amountVisible?: boolean
+  /** Glass faces (ENG-72): the WebGL slab instead of the CSS lens, for large cards only */
+  glassWebGL?: boolean
   className?: string
 }
 
@@ -176,6 +179,7 @@ export function PaymentCard({
   decorative = false,
   amount,
   amountVisible = false,
+  glassWebGL = false,
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
@@ -200,17 +204,23 @@ export function PaymentCard({
         ? { 'aria-hidden': true }
         : { role: 'img', 'aria-label': cardLabel({ provider, name: shownName, lastFour, network }) })}
     >
-      <span aria-hidden className="acct-card__field" />
-      {!knownIssuer && !face.glass && <span aria-hidden className="acct-card__frost" />}
-      {pattern && (
-        <span aria-hidden className="acct-card__pattern">
-          {[0, 1, 2].map(row => (
-            <span key={row}>{`${pattern} `.repeat(6)}</span>
-          ))}
-        </span>
+      {face.glass ? (
+        <GlassSurface webgl={glassWebGL} />
+      ) : (
+        <>
+          <span aria-hidden className="acct-card__field" />
+          {!knownIssuer && <span aria-hidden className="acct-card__frost" />}
+          {pattern && (
+            <span aria-hidden className="acct-card__pattern">
+              {[0, 1, 2].map(row => (
+                <span key={row}>{`${pattern} `.repeat(6)}</span>
+              ))}
+            </span>
+          )}
+          <span aria-hidden className="acct-material acct-material--grain" />
+          <span aria-hidden className="acct-card__rim" />
+        </>
       )}
-      <span aria-hidden className="acct-material acct-material--grain" />
-      <span aria-hidden className="acct-card__rim" />
       <span aria-hidden className="acct-material acct-material--light" />
       <div className="acct-card__content">
         <div className="acct-card__row">
@@ -269,18 +279,28 @@ export function AccountMini({
   if (kind === 'BANK') {
     return (
       <span aria-hidden className={cn('acct-mini acct-mini--bank acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
-        <span className="acct-mini__band">
-          <span className="acct-material acct-material--base" />
-          <span className="acct-material acct-material--sheen" />
-        </span>
+        {face.glass ? (
+          <GlassSurface rim={false} />
+        ) : (
+          <span className="acct-mini__band">
+            <span className="acct-material acct-material--base" />
+            <span className="acct-material acct-material--sheen" />
+          </span>
+        )}
         <span className="acct-mini__line" />
       </span>
     )
   }
   return (
     <span aria-hidden dir="ltr" className={cn('acct-mini acct-mini--card acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
-      <span className="acct-card__field" />
-      <span className="acct-card__rim" />
+      {face.glass ? (
+        <GlassSurface rim={false} />
+      ) : (
+        <>
+          <span className="acct-card__field" />
+          <span className="acct-card__rim" />
+        </>
+      )}
       {network && (
         <span className="acct-mini__mark">
           <NetworkMark network={network} />
@@ -345,6 +365,8 @@ export interface BankElementProps {
   trend?: number[]
   hero?: boolean
   tilt?: boolean
+  /** Glass faces (ENG-72): the WebGL slab instead of the CSS lens; on by default for the hero */
+  glassWebGL?: boolean
   /** Inside a link: a plain box without its own label (its text is read as part of the link) */
   plain?: boolean
   className?: string
@@ -386,6 +408,7 @@ export function BankElement({
   trend = [],
   hero = false,
   tilt = false,
+  glassWebGL = hero,
   plain = false,
   className,
   children,
@@ -406,8 +429,9 @@ export function BankElement({
       {...faceData(face)}
       aria-label={plain ? undefined : `חשבון בנק${bank ? ` ${bank}` : ''}, ${shownName}`}
     >
+      {face.glass && <GlassSurface webgl={glassWebGL} />}
       <div className="acct-bank__band">
-        <Material />
+        {!face.glass && <Material />}
         {bank && bank !== shownName && <p className="acct-bank__bank">{bank}</p>}
         <p className={cn('acct-bank__name', !name.trim() && 'is-placeholder')}>
           <bdi>{shownName}</bdi>
