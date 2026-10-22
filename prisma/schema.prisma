@@ -144,6 +144,9 @@ model ManualRecurringSeries {
   /// optional day-of-month window, inclusive; may wrap (28..3). Both set or both null.
   dayFrom   Int?
   dayTo     Int?
+  /// optional amount range in ₪, inclusive; either end may be null (open) (ENG-71 follow-up)
+  amountMin Float?
+  amountMax Float?
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
   members   ManualRecurringMember[]

@@ -3,7 +3,7 @@ import { createManualSeries, parseManualInput, type ManualSeriesInput } from '@/
 
 /**
  * POST /api/recurring/manual (ENG-71)
- * { accountId, name, cadence: 'monthly' | 'bimonthly' | 'yearly', pattern?, dayFrom?, dayTo?,
+ * { accountId, name, cadence: 'monthly' | 'bimonthly' | 'yearly', pattern?, dayFrom?, dayTo?, amountMin?, amountMax?,
  *   attachedIds?, detachedIds?, replaceOverrideKeys? } → 201 { id }
  * `replaceOverrideKeys`: override keys of a detected series this one takes over.
  */
@@ -19,6 +19,8 @@ export async function POST(req: Request) {
     pattern: parsed.value.pattern ?? '',
     dayFrom: parsed.value.dayFrom ?? null,
     dayTo: parsed.value.dayTo ?? null,
+    amountMin: parsed.value.amountMin ?? null,
+    amountMax: parsed.value.amountMax ?? null,
     attachedIds: parsed.value.attachedIds ?? [],
     detachedIds: parsed.value.detachedIds ?? [],
   }

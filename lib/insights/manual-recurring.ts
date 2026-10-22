@@ -6,6 +6,10 @@
  *   as cheque numbers, are ignored). A transaction matches when its normalized description
  *   contains the pattern as whole words. Empty = no rule, explicit attachments only.
  * - `dayFrom` / `dayTo`: an optional day-of-month window (inclusive, may wrap: 28..3).
+ * - `amountMin` / `amountMax`: an optional amount range in ₪ (inclusive, either end may be
+ *   open). It tells apart charges with the same description, e.g. two kinds of cheques;
+ *   make it wide enough to cover a price change you expect.
+ *   Explicit attachments ignore the whole rule, range included.
  * - `attachedIds` / `detachedIds`: transactions added or removed by hand.
  *
  * There is no amount tolerance: every matching expense belongs to the series, and a
@@ -42,6 +46,8 @@ export interface ManualRule {
   pattern: string
   dayFrom: number | null
   dayTo: number | null
+  amountMin: number | null
+  amountMax: number | null
 }
 
 export interface ManualSeriesDef extends ManualRule {
@@ -98,13 +104,30 @@ export function inDayWindow(dayOfMonth: number, from: number | null, to: number 
   return from <= to ? dayOfMonth >= from && dayOfMonth <= to : dayOfMonth >= from || dayOfMonth <= to
 }
 
+/** amount inside the range (inclusive); a missing end is open */
+export function inAmountRange(amount: number, min: number | null, max: number | null): boolean {
+  return (min == null || amount >= min - 0.005) && (max == null || amount <= max + 0.005)
+}
+
+/** A range is valid when each end is absent or a non-negative number, and min <= max */
+export function validAmountRange(min: unknown, max: unknown): boolean {
+  const ok = (v: unknown) => v == null || (typeof v === 'number' && Number.isFinite(v) && v >= 0)
+  if (!ok(min) || !ok(max)) return false
+  return min == null || max == null || (min as number) <= (max as number)
+}
+
+/** The range "this amount ± pct%", rounded outward to whole shekels */
+export function rangeAround(amount: number, pct: number): { amountMin: number; amountMax: number } {
+  return { amountMin: Math.floor(amount * (1 - pct / 100)), amountMax: Math.ceil(amount * (1 + pct / 100)) }
+}
+
 const dayOfMonth = (d: Date | string) => new Date(toDay(d) * 86_400_000).getUTCDate()
 
 /** Does the rule (not attachments) take this transaction? Expenses only. */
 export function matchesRule(t: RecurringTransaction, rule: ManualRule): boolean {
   if (!(t.amount > 0) || !rule.pattern) return false
   const text = descriptionMatches(t.originalDescription ?? t.description, rule.pattern) || descriptionMatches(t.description, rule.pattern)
-  return text && inDayWindow(dayOfMonth(t.date), rule.dayFrom, rule.dayTo)
+  return text && inDayWindow(dayOfMonth(t.date), rule.dayFrom, rule.dayTo) && inAmountRange(t.amount, rule.amountMin, rule.amountMax)
 }
 
 function belongsTo(def: ManualSeriesDef, t: RecurringTransaction) {
@@ -215,6 +238,8 @@ export function buildManualSeries(def: ManualSeriesDef, members: RecurringTransa
       pattern: def.pattern,
       dayFrom: def.dayFrom,
       dayTo: def.dayTo,
+      amountMin: def.amountMin,
+      amountMax: def.amountMax,
       attachedIds: def.attachedIds,
       detachedIds: def.detachedIds,
     },

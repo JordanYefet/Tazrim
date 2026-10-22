@@ -85,7 +85,7 @@ describe('manual recurring series', () => {
   it('previews the matches live, before saving', async () => {
     const [first] = await idsOf(`originalDescription LIKE 'שיק 555%'`)
     const res = await preview.POST(
-      json({ accountId: 'acct_leumi', cadence: 'monthly', pattern: 'שיק', dayFrom: 1, dayTo: 6, attachedIds: [first], detachedIds: [] })
+      json({ accountId: 'acct_leumi', cadence: 'monthly', pattern: 'שיק', dayFrom: 1, dayTo: 6, amountMin: null, amountMax: null, attachedIds: [first], detachedIds: [] })
     )
     const p = await res.json()
     expect(p.occurrences).toBe(10)
@@ -106,7 +106,7 @@ describe('manual recurring series', () => {
     const r = await recurring.getRecurringSeries()
     const s = r.series.find(x => x.manual)!
     expect(s).toMatchObject({ name: 'גן ילדים', occurrences: 10, latestAmount: 4000, active: true, nextDate: '2030-11-03' })
-    expect(s.manual).toEqual({ id: seriesId, pattern: 'שיק', dayFrom: 1, dayTo: 6, attachedIds: [first], detachedIds: [] })
+    expect(s.manual).toEqual({ id: seriesId, pattern: 'שיק', dayFrom: 1, dayTo: 6, amountMin: null, amountMax: null, attachedIds: [first], detachedIds: [] })
     expect(r.series.filter(x => x.detectedName === 'שיק' && !x.manual)).toEqual([])
     expect(r.subscriptions.map(x => x.key)).toContain(s.key)
     // both detected levels were counted before; now one series at the current level
@@ -181,7 +181,7 @@ describe('manual recurring series', () => {
     await recurring.renameRecurring({ key: 'bank|acct_leumi|fake power co|monthly', baseKey: 'bank|acct_leumi|fake power co' }, 'Old name')
     const result = await manual.createManualSeries(
       'acct_leumi',
-      { name: 'Power', cadence: 'monthly', pattern: 'fake power co', dayFrom: null, dayTo: null, attachedIds: [], detachedIds: [] },
+      { name: 'Power', cadence: 'monthly', pattern: 'fake power co', dayFrom: null, dayTo: null, amountMin: null, amountMax: null, attachedIds: [], detachedIds: [] },
       { replaceOverrideKeys: ['bank|acct_leumi|fake power co|monthly'] }
     )
     expect(result.status).toBe('ok')
@@ -190,7 +190,7 @@ describe('manual recurring series', () => {
 
   it('deleting the account deletes its manual series and their members', async () => {
     const r = await manual.createManualSeries('acct_fake_bank2', {
-      name: 'Gym', cadence: 'monthly', pattern: 'fake gym', dayFrom: null, dayTo: null,
+      name: 'Gym', cadence: 'monthly', pattern: 'fake gym', dayFrom: null, dayTo: null, amountMin: null, amountMax: null,
       attachedIds: await idsOf(`accountId = 'acct_fake_bank2'`), detachedIds: [],
     })
     expect(r.status).toBe('ok')
@@ -198,6 +198,35 @@ describe('manual recurring series', () => {
     expect(del.status).toBe('deleted')
     expect(db.query(`SELECT accountId FROM ManualRecurringSeries`)).toEqual([{ accountId: 'acct_leumi' }])
     expect(db.query(`SELECT * FROM ManualRecurringMember`)).toEqual([])
+  })
+})
+
+describe('amount ranges through the API', () => {
+  it('validates the range, and two series with one description stay apart', async () => {
+    const bad = await create.POST(json({ accountId: 'acct_leumi', name: 'x', cadence: 'monthly', pattern: 'שיק', amountMin: 500, amountMax: 100 }))
+    expect(bad.status).toBe(400)
+    const a = await create.POST(json({ accountId: 'acct_leumi', name: 'גן ילדים', cadence: 'monthly', pattern: 'שיק', amountMin: 1800, amountMax: 4500 }))
+    const b = await create.POST(json({ accountId: 'acct_leumi', name: 'שיק אחר', cadence: 'monthly', pattern: 'שיק', amountMin: 500, amountMax: 1000 }))
+    expect([a.status, b.status]).toEqual([201, 201])
+    const r = await recurring.getRecurringSeries()
+    const kinder = r.series.find(s => s.name === 'גן ילדים')!
+    const other = r.series.find(s => s.name === 'שיק אחר')!
+    expect(kinder.occurrences).toBe(10)
+    expect(kinder.manual).toMatchObject({ amountMin: 1800, amountMax: 4500 })
+    expect(other.occurrences).toBe(1)
+    expect(other.latestAmount).toBe(750)
+
+    const p = await (await preview.POST(json({ accountId: 'acct_leumi', cadence: 'monthly', pattern: 'שיק', amountMin: 700, amountMax: 800 }))).json()
+    expect(p.rows.map((x: { state: string; from?: string }) => [x.state, x.from])).toEqual([['other', 'שיק אחר']])
+
+    const labels = await manual.manualLabels(['acct_leumi'])
+    expect(new Set(labels.values())).toEqual(new Set(['גן ילדים', 'שיק אחר', 'Power']))
+    expect([...labels.values()].filter(v => v === 'גן ילדים')).toHaveLength(10)
+
+    const { id } = await a.json()
+    expect((await one.PATCH(json({ amountMin: null, amountMax: null }, 'PATCH'), ctx(id))).status).toBe(204)
+    const after = (await recurring.getRecurringSeries()).series.find(s => s.name === 'גן ילדים')!
+    expect(after.manual).toMatchObject({ amountMin: null, amountMax: null })
   })
 })
 
@@ -223,6 +252,31 @@ describe(`${MIGRATION} migration`, () => {
 
       t.applyMigration(MIGRATION)
       expect(t.query(`SELECT count(*) AS n FROM "ManualRecurringSeries"`)).toEqual([{ n: 0 }])
+    } finally {
+      t.cleanup()
+    }
+  })
+})
+
+const RANGE = '20261022010000_manual_recurring_amount_range'
+
+describe(`${RANGE} migration`, () => {
+  it('adds nullable amountMin / amountMax, and down.sql removes them with the series intact', () => {
+    const t = createTestDb({ before: RANGE })
+    try {
+      const cols = () => t.query<{ name: string }>(`SELECT name FROM pragma_table_info('ManualRecurringSeries') ORDER BY cid`).map(c => c.name)
+      t.exec(`INSERT INTO "ManualRecurringSeries" ("id","accountId","source","name","cadence","pattern","updatedAt") VALUES ('s1','acct_leumi','bank','Fake','monthly','שיק',1900000000000);`)
+      const before = { cols: cols(), rows: t.query(`SELECT * FROM "ManualRecurringSeries"`) }
+      t.applyMigration(RANGE)
+      expect(cols()).toEqual([...before.cols, 'amountMax', 'amountMin'])
+      expect(t.query(`SELECT amountMin, amountMax FROM "ManualRecurringSeries"`)).toEqual([{ amountMin: null, amountMax: null }])
+      t.exec(`UPDATE "ManualRecurringSeries" SET "amountMin" = 1800, "amountMax" = 4500;`)
+      t.applyDown(RANGE)
+      expect(cols()).toEqual(before.cols)
+      expect(t.query(`SELECT * FROM "ManualRecurringSeries"`)).toEqual(before.rows)
+      expect(t.query(`SELECT migration_name FROM "_prisma_migrations" WHERE migration_name = '${RANGE}'`)).toEqual([])
+      t.applyMigration(RANGE)
+      expect(cols()).toContain('amountMin')
     } finally {
       t.cleanup()
     }

@@ -4,7 +4,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 
 /**
  * POST /api/recurring/manual/preview (ENG-71): what a rule would match, before saving.
- * { accountId, seriesId?, cadence, pattern, dayFrom, dayTo, attachedIds, detachedIds }
+ * { accountId, seriesId?, cadence, pattern, dayFrom, dayTo, amountMin, amountMax, attachedIds, detachedIds }
  */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null)
@@ -32,6 +32,8 @@ export async function POST(req: Request) {
       pattern: v.pattern ?? '',
       dayFrom: v.dayFrom ?? null,
       dayTo: v.dayTo ?? null,
+      amountMin: v.amountMin ?? null,
+      amountMax: v.amountMax ?? null,
       attachedIds: v.attachedIds ?? [],
       detachedIds: v.detachedIds ?? [],
     },
