@@ -99,7 +99,7 @@ describe('the cheque whose amount doubles', () => {
     expect(s.active).toBe(true)
     expect(s.nextDate).toBe('2030-11-03')
     expect(s.key).toBe('manual|m1')
-    expect(s.manual).toEqual({ id: 'm1', pattern: 'שיק', dayFrom: null, dayTo: null })
+    expect(s.manual).toEqual({ id: 'm1', pattern: 'שיק', dayFrom: null, dayTo: null, attachedIds: [], detachedIds: [] })
   })
 
   it('the detector alone misses it (3-digit cheque numbers make every month a different merchant)', () => {
@@ -126,6 +126,17 @@ describe('the cheque whose amount doubles', () => {
     const rows = cheques().slice(0, 6)
     rows[3] = { ...rows[3], amount: 2600 }
     expect(priceLevels(rows.map((r, i) => ({ day: i * 30, amount: r.amount }))).priceIncrease).toBeNull()
+  })
+
+  it('an unrelated cheque in the middle does not hide the doubling', () => {
+    const rows = [...cheques(), tx('other', '2030-05-20', 1250, 'שיק 991')]
+    const s = resolveManualSeries([def()], rows).series[0]
+    expect(s.priceIncrease).toEqual({ from: 2000, to: 4000, since: '2030-07-03' })
+  })
+
+  it('the latest charge alone is enough to show a new level', () => {
+    const rows = cheques().slice(0, 7)
+    expect(resolveManualSeries([def()], rows).series[0].priceIncrease).toEqual({ from: 2000, to: 4000, since: '2030-07-03' })
   })
 })
 

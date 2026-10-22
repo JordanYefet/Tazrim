@@ -20,6 +20,10 @@ function actionsFor(s: RecurringListItem) {
       status={a.status}
       name={a.name}
       detectedName={a.detectedName}
+      cadence={a.cadence}
+      merchant={a.merchant}
+      transactionIds={a.transactionIds}
+      manual={a.manual}
     />
   )
 }
@@ -52,6 +56,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
         <h1 className="text-2xl font-semibold tracking-tight">חיובים קבועים</h1>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">
           חיובים שחוזרים בסכום דומה כל חודש. אשרו את מה שנכון, הסתירו את מה שלא, ושנו שם כדי שיהיה ברור.
+          חיוב שלא זוהה אפשר לסמן מכל תנועה, גם כשהסכום שלו משתנה.
         </p>
       </div>
 

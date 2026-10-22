@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils/cn'
 import { UnusualBadge } from '@/components/insights/unusual-badge'
 import type { UnusualFlag } from '@/lib/insights/unusual'
 import { accountPath } from '@/lib/accounts/routes'
+import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 
 interface BankTx {
   id: string
@@ -28,6 +29,7 @@ export function BankTransactionsTable({
   hasMore: initialHasMore,
   fetchParams,
   unusual = {},
+  recurring = {},
 }: {
   /** The bank account these rows belong to */
   accountId: string
@@ -37,6 +39,8 @@ export function BankTransactionsTable({
   fetchParams?: string
   /** Unusual-transaction flags by transaction id */
   unusual?: Record<string, UnusualFlag[]>
+  /** Name of the recurring series each transaction is in, by id (ENG-71) */
+  recurring?: Record<string, string>
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -194,11 +198,15 @@ export function BankTransactionsTable({
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 px-4 text-center">
+                  <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                    {/* Mark as recurring (ENG-71): expenses only */}
+                    {!tx.ignored && tx.debit > 0 && (
+                      <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]} className="me-0.5 align-middle" />
+                    )}
                     <button
                       onClick={() => toggleIgnored(tx)}
                       aria-label={tx.ignored ? 'בטל התעלמות' : 'התעלם מעסקה'}
-                      className="p-1 rounded-md hover:bg-muted transition-colors"
+                      className="p-1 rounded-md hover:bg-muted transition-colors align-middle"
                     >
                       {tx.ignored
                         ? <Eye className="h-3.5 w-3.5 text-primary" />

@@ -106,7 +106,7 @@ describe('manual recurring series', () => {
     const r = await recurring.getRecurringSeries()
     const s = r.series.find(x => x.manual)!
     expect(s).toMatchObject({ name: 'גן ילדים', occurrences: 10, latestAmount: 4000, active: true, nextDate: '2030-11-03' })
-    expect(s.manual).toEqual({ id: seriesId, pattern: 'שיק', dayFrom: 1, dayTo: 6 })
+    expect(s.manual).toEqual({ id: seriesId, pattern: 'שיק', dayFrom: 1, dayTo: 6, attachedIds: [first], detachedIds: [] })
     expect(r.series.filter(x => x.detectedName === 'שיק' && !x.manual)).toEqual([])
     expect(r.subscriptions.map(x => x.key)).toContain(s.key)
     // both detected levels were counted before; now one series at the current level

@@ -4,10 +4,13 @@ import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 import type { Cadence, RecurringSeries } from '@/lib/insights/recurring'
+import type { ManualInfo } from '@/lib/insights/manual-recurring'
 
 export type RecurringListItem = RecurringSeries & {
   status?: 'confirmed' | 'dismissed' | null
   detectedName?: string
+  /** a series the user defined by hand (ENG-71) */
+  manual?: ManualInfo
 }
 
 interface Props {
@@ -66,12 +69,23 @@ function Row({ s, actions, accountNames }: { s: RecurringListItem; actions?: Pro
               התייקר
             </span>
           )}
+          {s.manual && (
+            <span className={cn(badge, 'bg-muted text-muted-foreground')} title="חיוב קבוע שהוגדר ידנית">
+              ידני
+            </span>
+          )}
           {s.isInstallment && <span className={cn(badge, 'bg-muted text-muted-foreground')}>תשלומים</span>}
-          {!s.active && <span className={cn(badge, 'bg-muted text-muted-foreground')}>הופסק?</span>}
+          {!s.active && s.occurrences > 0 && <span className={cn(badge, 'bg-muted text-muted-foreground')}>הופסק?</span>}
         </div>
         <p className="text-xs text-muted-foreground tabular-nums">
-          {CADENCE_LABEL[s.cadence]} · {s.occurrences} חיובים · אחרון {formatDate(s.lastDate)}
-          {s.active && <> · הבא בערך {formatDate(s.nextDate)}</>}
+          {s.occurrences > 0 ? (
+            <>
+              {CADENCE_LABEL[s.cadence]} · {s.occurrences} חיובים · אחרון {formatDate(s.lastDate)}
+              {s.active && <> · הבא בערך {formatDate(s.nextDate)}</>}
+            </>
+          ) : (
+            <>{CADENCE_LABEL[s.cadence]} · אין תנועות תואמות</>
+          )}
           {account && <> · {account}</>}
         </p>
       </div>

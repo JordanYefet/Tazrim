@@ -31,6 +31,7 @@ export async function GET(req: Request) {
         latestAmount: s.latestAmount,
         occurrences: s.occurrences,
         manualId: s.manual?.id ?? null,
+        manual: s.manual ?? null,
       }
     : null
   const manualSeries = overview.series

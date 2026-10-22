@@ -98,3 +98,16 @@ export function summarizeRecurring(series: AppliedSeries[]): RecurringSummary {
 export function recurringTransactionIds(series: AppliedSeries[]): Set<string> {
   return new Set(series.filter(s => s.status !== 'dismissed').flatMap(s => s.transactionIds))
 }
+
+/**
+ * Transaction id → name of the kept series it belongs to, for one account: lets a
+ * transaction table show which rows are already recurring (ENG-71).
+ */
+export function recurringNameMap(series: AppliedSeries[], accountId: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const s of series) {
+    if (s.status === 'dismissed' || s.accountId !== accountId) continue
+    for (const id of s.transactionIds) out[id] = s.name
+  }
+  return out
+}

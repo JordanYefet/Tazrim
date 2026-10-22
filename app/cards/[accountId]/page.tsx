@@ -13,6 +13,7 @@ import { getCategories } from '@/lib/db/categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
+import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { lastMonthWithData, monthlyAverage, plottedMonthCount } from '@/lib/insights/account-overview'
 import { accountHref } from '@/lib/accounts/routes'
@@ -35,7 +36,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/cards/[accountId]/transactions (first page of 50 unless a month is selected)
-  const [txs, monthly, categoryRows, unusual, stats, categoryMonthly] = await Promise.all([
+  const [txs, monthly, categoryRows, insights, stats, categoryMonthly] = await Promise.all([
     getCCTransactions({
       accountId,
       year: Number(year),
@@ -50,9 +51,11 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     getCategories(),
     // Flags for the whole year (every account's history as baseline), so "load more" rows get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
-    getRecurringSeries().then(r =>
-      getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } })
-    ),
+    // and the table marks rows that are already recurring (ENG-71)
+    getRecurringSeries().then(async r => ({
+      flags: await getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } }),
+      recurring: recurringNameMap(r.series, accountId),
+    })),
     getCCCategoryStats(accountId, Number(year), month),
     getCCCategoryMonthly(accountId, Number(year)),
   ])
@@ -68,7 +71,8 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     categoryStats: stats,
     categories: asJson(categoryRows),
     categoryMonthly,
-    unusual: unusual.card,
+    unusual: insights.flags.card,
+    recurring: insights.recurring,
   }
 }
 
@@ -86,7 +90,7 @@ export default async function CardAccountPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, unusual } =
+  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, unusual, recurring } =
     await getCardData(account.id, params)
 
   const total = params.category
@@ -185,6 +189,7 @@ export default async function CardAccountPage({
             hasMore={hasMore}
             fetchParams={hasMore ? fetchSp.toString() : undefined}
             unusual={unusual}
+            recurring={recurring}
           />
         )}
       </div>

@@ -54,8 +54,11 @@ export interface ManualSeriesDef extends ManualRule {
   detachedIds: string[]
 }
 
+/** What the editor needs to reopen a series: its rule and its hand-made membership */
 export interface ManualInfo extends ManualRule {
   id: string
+  attachedIds: string[]
+  detachedIds: string[]
 }
 
 export interface ManualRecurringSeries extends RecurringSeries {
@@ -151,7 +154,11 @@ export function priceLevels(rows: { day: number; amount: number }[]): Levels {
   for (let i = 1; i < rows.length; i++) {
     const start = starts[starts.length - 1]
     const level = median(rows.slice(start, i).map(r => r.amount))
-    if (!withinTolerance(rows[i].amount, level, LEVEL_TOLERANCE) && i - start >= MIN_RUN_BEFORE_LEVEL) starts.push(i)
+    if (withinTolerance(rows[i].amount, level, LEVEL_TOLERANCE) || i - start < MIN_RUN_BEFORE_LEVEL) continue
+    // A change sticks when the next charge agrees with it (or it is the latest charge);
+    // one odd charge between two normal ones stays in the current level
+    const next = rows[i + 1]
+    if (!next || withinTolerance(next.amount, rows[i].amount, LEVEL_TOLERANCE)) starts.push(i)
   }
   const cur = starts[starts.length - 1]
   const latestAmount = median(rows.slice(cur).map(r => r.amount))
@@ -203,7 +210,14 @@ export function buildManualSeries(def: ManualSeriesDef, members: RecurringTransa
     isCardPayment: false,
     isInstallment: false,
     transactionIds: rows.map(r => r.id),
-    manual: { id: def.id, pattern: def.pattern, dayFrom: def.dayFrom, dayTo: def.dayTo },
+    manual: {
+      id: def.id,
+      pattern: def.pattern,
+      dayFrom: def.dayFrom,
+      dayTo: def.dayTo,
+      attachedIds: def.attachedIds,
+      detachedIds: def.detachedIds,
+    },
   }
 }
 
