@@ -27,22 +27,6 @@ export const PAGE_COLOR = {
   ribbons: { light: '#eef2f7', dark: '#05060f' },
 } as const
 
-function hexRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16)
-  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
-}
-
-/**
- * The page colour under the pattern (0-1 RGB) and how much stronger the
- * pattern reads through glass: the lines 1.6× (the mockup's lens), the soft
- * ribbons and the plain backdrop as they are.
- */
-export function glassBase(setting: BackgroundSetting, dark: boolean): { page: [number, number, number]; contrast: number } {
-  if (setting.kind === 'lines') return { page: hexRgb(dark ? PAGE_COLOR.lines.dark : PAGE_COLOR.lines.light), contrast: 1.6 }
-  if (setting.kind === 'ribbons') return { page: hexRgb(dark ? PAGE_COLOR.ribbons.dark : PAGE_COLOR.ribbons.light), contrast: 1 }
-  return { page: dark ? [0.07, 0.09, 0.12] : [0.95, 0.96, 0.97], contrast: 1 }
-}
-
 let paths: Path2D[] | null = null
 function tilePaths(): Path2D[] {
   if (!paths) paths = LINES_TILE.map(p => new Path2D(p.d))

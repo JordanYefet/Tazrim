@@ -3,7 +3,10 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { decideGlassRenderer, type GlassRenderer } from '@/lib/glass/policy'
 import { GlassGL } from '@/lib/glass/renderer'
-import { LensInstance, SlabInstance, getPrefs, getServerPrefs, glassSlots, register, subscribePrefs } from './glass-runtime'
+import { glowGradients } from '@/lib/glass/glow'
+import { LensInstance, SlabInstance, getPrefs, getServerPrefs, glassSlots, glowEnabled, register, subscribePrefs } from './glass-runtime'
+
+const GLOW_STYLE = { backgroundImage: glowGradients() }
 
 /*
  * The glass material of an account element (Account.color = "glass", ENG-72).
@@ -13,25 +16,42 @@ import { LensInstance, SlabInstance, getPrefs, getServerPrefs, glassSlots, regis
  *
  *   webgl  large elements that ask for it, while a WebGL slot is free: the
  *          refracting slab (lib/glass/renderer.ts) on a canvas
- *   css    everywhere else, and the fallback: the lens of the mockup, the
- *          page's lines redrawn inside (magnified, more so at the rim), a
- *          faint prism rim and highlights
+ *   css    everywhere else, and the fallback: the same frosted look in CSS
+ *          (backdrop blur, the page's lines redrawn inside and blurred, the
+ *          glow, a milky tint and a thin rim)
  *   solid  reduced transparency / more contrast: hidden; the stylesheet gives
  *          the face an opaque surface
  *
+ * The colour glow behind glass (lib/glass/glow.ts) is drawn inside the
+ * element and, as a coloured halo, just outside it (`halo`; off for the mini
+ * faces in lists).
+ *
  * The server renders the CSS version; WebGL takes over after mount.
  */
-export function GlassSurface({ webgl = false, rim = true }: { webgl?: boolean; rim?: boolean }) {
+export function GlassSurface({ webgl = false, halo = true }: { webgl?: boolean; halo?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null)
   const linesRef = useRef<SVGSVGElement>(null)
-  const edgeRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const id = useId()
   const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getServerPrefs)
   const [mounted, setMounted] = useState(false)
   const [hasSlot, setHasSlot] = useState(false)
   const [failed, setFailed] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const [glow, setGlow] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    setGlow(glowEnabled())
+  }, [])
+
+  // The halo outside the element is the face's own (coloured) shadow
+  useEffect(() => {
+    const host = ref.current?.parentElement
+    if (!host || !glow) return
+    host.dataset.glassGlow = halo ? 'halo' : 'inside'
+    return () => {
+      delete host.dataset.glassGlow
+    }
+  }, [glow, halo])
 
   // Ask for a WebGL slot only when it could be used
   const canUseGL = mounted && webgl && prefs.webgl2 && !prefs.reducedTransparency && !prefs.moreContrast && !failed
@@ -58,7 +78,7 @@ export function GlassSurface({ webgl = false, rim = true }: { webgl?: boolean; r
     const host = ref.current?.parentElement
     const lines = linesRef.current
     if (renderer !== 'css' || !host || !lines) return
-    const lens = new LensInstance(host, lines, edgeRef.current)
+    const lens = new LensInstance(host, lines)
     const unregister = register(lens)
     return () => {
       unregister()
@@ -101,13 +121,9 @@ export function GlassSurface({ webgl = false, rim = true }: { webgl?: boolean; r
       ) : (
         <>
           <svg ref={linesRef} className="glass__lines" width="100%" height="100%" />
-          {rim && (
-            <span className="glass__edge">
-              <svg ref={edgeRef} width="100%" height="100%" />
-            </span>
-          )}
-          <span className="glass__prism" />
-          <span className="glass__sheen" />
+          {glow && <span className="glass__glow" style={GLOW_STYLE} />}
+          <span className="glass__tint" />
+          <span className="glass__rim" />
         </>
       )}
     </span>

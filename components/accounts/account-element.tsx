@@ -280,7 +280,7 @@ export function AccountMini({
     return (
       <span aria-hidden className={cn('acct-mini acct-mini--bank acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
         {face.glass ? (
-          <GlassSurface rim={false} />
+          <GlassSurface halo={false} />
         ) : (
           <span className="acct-mini__band">
             <span className="acct-material acct-material--base" />
@@ -294,7 +294,7 @@ export function AccountMini({
   return (
     <span aria-hidden dir="ltr" className={cn('acct-mini acct-mini--card acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
       {face.glass ? (
-        <GlassSurface rim={false} />
+        <GlassSurface halo={false} />
       ) : (
         <>
           <span className="acct-card__field" />

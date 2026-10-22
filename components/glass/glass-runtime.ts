@@ -1,6 +1,6 @@
 /*
- * The glass runtime (ENG-72), browser only: what the page background is, one
- * painted copy of it for the WebGL slabs, the WebGL slots, and one scheduler
+ * The glass runtime (ENG-72), browser only: what the page background is, the
+ * page painted behind each WebGL glass element, the WebGL slots, and one scheduler
  * that redraws glass only when something changed: mount, resize, scroll, the
  * theme or background setting, or an element moving (the wallet's WAAPI
  * motion, the tilt, an entrance). Changes within a frame are coalesced into
@@ -9,8 +9,9 @@
 
 import { BACKGROUND_PALETTES, DEFAULT_BACKGROUND, clampStrength, type BackgroundKind, type BackgroundPalette, type BackgroundSetting } from '@/lib/background/setting'
 import { TILE_HEIGHT, TILE_WIDTH } from '@/lib/background/lines'
-import { glassBase, paintBackground } from '@/lib/background/paint'
-import { resolveRadius, slabParams, textureRegion } from '@/lib/glass/geometry'
+import { paintBackground } from '@/lib/background/paint'
+import { covers, neededRegion, paintRegion, paintScale, resolveRadius, type Rect } from '@/lib/glass/geometry'
+import { GLOW_BLOBS, GLOW_COLORS, GLOW_OVERRIDE_KEY, GLOW_STRENGTH, glassGlowEnabled } from '@/lib/glass/glow'
 import type { GlassGL } from '@/lib/glass/renderer'
 import { createSlotRegistry, type SlotRegistry } from '@/lib/glass/policy'
 
@@ -101,21 +102,30 @@ export function glassSlots(): SlotRegistry {
   return slots
 }
 
-// ── The painted background, shared by every slab ──────────────────────────
+// ── The glow behind glass ─────────────────────────────────────────────────
 
-let painted: { canvas: HTMLCanvasElement; region: { x: number; y: number; width: number; height: number }; key: string; version: number } | null = null
-let paintVersion = 0
-
-export function backgroundTexture(env: GlassEnv, maxTextureSize: number) {
-  const region = textureRegion(env.viewport.width, env.viewport.height, window.devicePixelRatio || 1, maxTextureSize)
-  const key = `${env.version}|${region.scale}`
-  if (!painted || painted.key !== key) {
-    const canvas = painted?.canvas ?? document.createElement('canvas')
-    paintBackground(canvas, env.setting, env.dark, region, env.viewport)
-    painted = { canvas, region, key, version: ++paintVersion }
+let glowOn: boolean | null = null
+/** GLASS_GLOW, or this browser's override (localStorage "tazrim:glass-glow"). */
+export function glowEnabled(): boolean {
+  if (glowOn === null) {
+    let override: string | null = null
+    try {
+      override = window.localStorage.getItem(GLOW_OVERRIDE_KEY)
+    } catch {
+      // storage blocked: the constant decides
+    }
+    glowOn = glassGlowEnabled(override)
   }
-  return painted
+  return glowOn
 }
+
+function hexRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16)
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+}
+
+// One scratch canvas for painting the page behind a slab before upload
+let scratch: HTMLCanvasElement | null = null
 
 // ── Scheduler ─────────────────────────────────────────────────────────────
 
@@ -238,11 +248,7 @@ export function measureHost(host: HTMLElement, env: GlassEnv): HostBox {
   }
 }
 
-// ── The CSS lens: the background lines redrawn inside, magnified ─────────
-
-/** Magnification of the lens's middle and of its rim layer (the mockup's two viewBoxes). */
-export const LENS_MAGNIFY = 1.1
-export const LENS_EDGE_MAGNIFY = 1.25
+// ── The CSS lens: the background lines redrawn inside, frosted ───────────
 
 function useTile(): SVGUseElement {
   const u = document.createElementNS(SVG_NS, 'use')
@@ -250,55 +256,26 @@ function useTile(): SVGUseElement {
   return u
 }
 
-class LensLayer {
-  readonly group: SVGGElement
+/**
+ * The page's lines redrawn inside the element at their place on screen (the
+ * stylesheet blurs them into frost), so glass on an opaque surface (a mini
+ * face in a list) still shows the background's colour.
+ */
+export class LensInstance implements GlassInstance {
+  private group: SVGGElement
   private uses: SVGUseElement[] = []
-  private magnify: number
-  private opacityFactor: number
-  private opacityCap: number
-  constructor(svg: SVGSVGElement, magnify: number, opacityFactor: number, opacityCap: number) {
-    this.magnify = magnify
-    this.opacityFactor = opacityFactor
-    this.opacityCap = opacityCap
+  private box: HostBox | null = null
+  private lastKey = ''
+  readonly host: HTMLElement
+  constructor(host: HTMLElement, lines: SVGSVGElement) {
+    this.host = host
     this.group = document.createElementNS(SVG_NS, 'g')
     for (let i = 0; i < 4; i++) {
       const u = useTile()
       this.uses.push(u)
       this.group.appendChild(u)
     }
-    svg.appendChild(this.group)
-  }
-  place(box: HostBox, env: GlassEnv) {
-    const m = this.magnify
-    const s = box.scaleX || 1
-    const cx = box.width / 2
-    const cy = box.height / 2
-    // local = centre + m · ((viewport − box) / s − centre)
-    const k = m / s
-    const tx = cx * (1 - m) - (m * box.left) / s
-    const ty = cy * (1 - m) - (m * box.top) / s
-    this.group.setAttribute('transform', `matrix(${k} 0 0 ${k} ${tx.toFixed(2)} ${ty.toFixed(2)})`)
-    this.group.setAttribute('opacity', String(Math.min(this.opacityCap, (env.setting.strength / 100) * this.opacityFactor)))
-    const i0 = Math.floor(box.left / TILE_WIDTH)
-    const j0 = Math.floor(box.top / TILE_HEIGHT)
-    this.uses.forEach((u, n) => {
-      u.setAttribute('x', String((i0 + (n % 2)) * TILE_WIDTH))
-      u.setAttribute('y', String((j0 + (n >> 1)) * TILE_HEIGHT))
-    })
-  }
-  remove() {
-    this.group.remove()
-  }
-}
-
-export class LensInstance implements GlassInstance {
-  private layers: LensLayer[] = []
-  private box: HostBox | null = null
-  private lastKey = ''
-  constructor(readonly host: HTMLElement, lines: SVGSVGElement, edge: SVGSVGElement | null) {
-    // The mockup's strengths: the lines inside 1.6×, the rim 2.2× the page's
-    this.layers.push(new LensLayer(lines, LENS_MAGNIFY, 1.6, 0.6))
-    if (edge) this.layers.push(new LensLayer(edge, LENS_EDGE_MAGNIFY, 2.2, 0.7))
+    lines.appendChild(this.group)
   }
   measure(env: GlassEnv) {
     this.box = env.setting.kind === 'lines' ? measureHost(this.host, env) : null
@@ -309,19 +286,29 @@ export class LensInstance implements GlassInstance {
     const key = `${env.version}|${b.left.toFixed(1)}|${b.top.toFixed(1)}|${b.width}|${b.height}|${b.scaleX.toFixed(4)}`
     if (key === this.lastKey) return
     this.lastKey = key
-    for (const l of this.layers) l.place(b, env)
+    // local = (viewport − box) / scale
+    const k = 1 / (b.scaleX || 1)
+    this.group.setAttribute('transform', `matrix(${k} 0 0 ${k} ${(-b.left * k).toFixed(2)} ${(-b.top * k).toFixed(2)})`)
+    // A frosted copy reads fainter than the crisp lines, so it is drawn a little stronger
+    this.group.setAttribute('opacity', String(Math.min(0.7, (env.setting.strength / 100) * 2.2)))
+    const i0 = Math.floor(b.left / TILE_WIDTH)
+    const j0 = Math.floor(b.top / TILE_HEIGHT)
+    this.uses.forEach((u, n) => {
+      u.setAttribute('x', String((i0 + (n % 2)) * TILE_WIDTH))
+      u.setAttribute('y', String((j0 + (n >> 1)) * TILE_HEIGHT))
+    })
     markFirstDraw('css')
   }
   dispose() {
-    for (const l of this.layers) l.remove()
+    this.group.remove()
   }
 }
 
-// ── The WebGL slab ────────────────────────────────────────────────────────
+// ── The WebGL frosted slab ────────────────────────────────────────────────
 
 export class SlabInstance implements GlassInstance {
   private box: HostBox | null = null
-  private texVersion = -1
+  private painted: { region: Rect; version: number; dpr: number } | null = null
   private lastKey = ''
   private radiusKey = ''
   private radius = 0
@@ -348,28 +335,39 @@ export class SlabInstance implements GlassInstance {
       this.onLost()
       return
     }
-    const tex = backgroundTexture(env, this.gl.maxTextureSize)
+    const onScreen: Rect = { x: b.left, y: b.top, width: b.width * b.scaleX, height: b.height * b.scaleY }
+    const dpr = window.devicePixelRatio || 1
+    // Paint the page behind the element again when the frost no longer covers it
     let changed = false
-    if (tex.version !== this.texVersion) {
-      this.gl.setBackground(tex.canvas, tex.region)
-      this.texVersion = tex.version
+    const p = this.painted
+    if (!p || p.version !== env.version || p.dpr !== dpr || !covers(p.region, neededRegion(onScreen))) {
+      const region = paintRegion(onScreen)
+      const scale = paintScale(region, dpr, this.gl.maxTextureSize)
+      if (!scratch) scratch = document.createElement('canvas')
+      paintBackground(scratch, env.setting, env.dark, { ...region, scale }, env.viewport)
+      this.gl.setBackground(scratch, region)
+      this.painted = { region, version: env.version, dpr }
       changed = true
     }
-    const dpr = Math.min(2, window.devicePixelRatio || 1)
-    const key = `${b.left.toFixed(2)}|${b.top.toFixed(2)}|${b.width}|${b.height}|${b.scaleX.toFixed(4)}|${b.scaleY.toFixed(4)}|${dpr}|${env.dark}`
+    const canvasDpr = Math.min(3, dpr)
+    const glow = glowEnabled()
+    const key = `${b.left.toFixed(2)}|${b.top.toFixed(2)}|${b.width}|${b.height}|${b.scaleX.toFixed(4)}|${b.scaleY.toFixed(4)}|${canvasDpr}|${env.dark}|${glow}`
     if (!changed && key === this.lastKey) return
     this.lastKey = key
+    const colors = GLOW_COLORS[env.setting.palette] ?? GLOW_COLORS['indigo-pink']
     this.gl.render({
       width: b.width,
       height: b.height,
-      dpr,
+      dpr: canvasDpr,
       left: b.left,
       top: b.top,
       scaleX: b.scaleX,
       scaleY: b.scaleY,
-      slab: slabParams(b.width, b.height, this.radius),
+      radius: this.radius,
       dark: env.dark,
-      ...glassBase(env.setting, env.dark),
+      glow: glow
+        ? { strength: env.dark ? GLOW_STRENGTH.dark : GLOW_STRENGTH.light, colors: [hexRgb(colors[0]), hexRgb(colors[1])], blobs: GLOW_BLOBS }
+        : null,
     })
     markFirstDraw('webgl')
   }
