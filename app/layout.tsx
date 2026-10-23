@@ -7,6 +7,8 @@ import { Providers } from './providers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { Header } from '@/components/layout/header'
+import { ReadOnlyGuard } from '@/components/layout/read-only-guard'
+import { isReadOnly } from '@/lib/read-only'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
 import { PeriodProvider } from '@/components/layout/period-context'
 import { getPeriod } from '@/lib/period-server'
@@ -51,6 +53,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // The page background (ENG-72), also from a cookie: the first paint has the right one
   const background = parseBackgroundCookie(jar.get(BACKGROUND_COOKIE)?.value)
 
+  // The public demo (lib/read-only.ts): the app as usual, nothing saved
+  const readOnly = isReadOnly()
+
   return (
     <html
       lang="he"
@@ -71,13 +76,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   initialClosed={parseClosedSections(jar.get(SECTIONS_COOKIE)?.value)}
                 />
                 <div className="flex flex-col flex-1 min-w-0">
-                  <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header /></Suspense>
+                  <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header readOnly={readOnly} /></Suspense>
                   <main className="flex-1 p-4 md:p-6 pb-[calc(5.75rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-6">
                     {children}
                   </main>
                 </div>
               </div>
               <BottomNav />
+              {readOnly && <ReadOnlyGuard />}
             </NavSectionsProvider>
           </PeriodProvider>
           </BackgroundProvider>
