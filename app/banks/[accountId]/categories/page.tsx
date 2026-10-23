@@ -3,7 +3,6 @@ import { PageHeading } from '@/components/accounts/page-parts'
 import { BankCategoryAnalysis } from '@/components/bank/bank-category-analysis'
 import { getAccount } from '@/lib/db/accounts'
 import { getBankCategoryMonthly } from '@/lib/db/bank-categories'
-import { accountHref } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
 
@@ -24,7 +23,6 @@ export default async function BankCategoriesPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const period = { year, ...(month ? { month: String(month) } : {}) }
   const [expense, income] = await Promise.all([
     getBankCategoryMonthly(account.id, Number(year), 'OUT'),
     getBankCategoryMonthly(account.id, Number(year), 'IN'),
@@ -35,7 +33,6 @@ export default async function BankCategoriesPage({
       <PageHeading
         period={{ year: Number(year), month }}
         title="ניתוח לפי קטגוריה"
-        back={{ href: accountHref('BANK', account.id, period), label: account.displayName }}
         badge={account.archived ? 'בארכיון' : undefined}
       />
       <BankCategoryAnalysis

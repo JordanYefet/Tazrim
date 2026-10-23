@@ -11,6 +11,7 @@ import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBa
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { getCategories } from '@/lib/db/categories'
 import { CategoryDonut } from '@/components/cards/category-donut'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { CollapsiblePair } from '@/components/ui/collapsible-pair'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
@@ -22,7 +23,7 @@ import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
-import { accountHref, accountPath } from '@/lib/accounts/routes'
+import { accountPath } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, monthHasData, type BankMonthly } from '@/lib/insights/account-overview'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -156,9 +157,11 @@ export default async function BankAccountPage({
       <PageHeading
         period={{ year: Number(year), month }}
         title={account.displayName}
-        back={{ href: accountHref('BANK', undefined, period), label: 'בנקים' }}
         badge={account.archived ? 'בארכיון' : undefined}
-      />
+      >
+        {/* One analysis page for income and expenses, in the same place as on every account page */}
+        {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(account.id, period)} />}
+      </PageHeading>
 
       {/* Two equal halves: the account and its net balance side by side, and the
           four period tiles (all the same size). Without data, the account and an empty state. */}
@@ -220,7 +223,6 @@ export default async function BankAccountPage({
                 title="הכנסות לפי קטגוריה"
                 tone="income"
                 emptyText="אין הכנסות לתקופה זו"
-                analysisHref={flow === 'IN' ? bankCategoryAnalysisHref(account.id, period) : undefined}
               />
             }
             second={
@@ -230,7 +232,6 @@ export default async function BankAccountPage({
                 stats={expenseStats}
                 selectedCategory={params.category}
                 colors={expenseColors}
-                analysisHref={bankCategoryAnalysisHref(account.id, period)}
                 emptyText="אין הוצאות לתקופה זו"
               />
             }

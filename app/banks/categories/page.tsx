@@ -3,7 +3,6 @@ import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankCategoryAnalysis } from '@/components/bank/bank-category-analysis'
 import { listAccounts } from '@/lib/db/accounts'
 import { getBankCategoryMonthly } from '@/lib/db/bank-categories'
-import { accountHref } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
 
@@ -17,7 +16,6 @@ export default async function AllBanksCategoriesPage({ searchParams }: { searchP
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const period = { year, ...(month ? { month: String(month) } : {}) }
 
   const accounts = await listAccounts({ kind: 'BANK' })
   const ids = accounts.map(a => a.id)
@@ -33,7 +31,6 @@ export default async function AllBanksCategoriesPage({ searchParams }: { searchP
       <PageHeading
         period={{ year: Number(year), month }}
         title={accounts.length > 1 ? `ניתוח לפי קטגוריה · ${accounts.length} חשבונות` : 'ניתוח לפי קטגוריה'}
-        back={{ href: accountHref('BANK', undefined, period), label: 'בנקים' }}
       />
       {accounts.length === 0 ? (
         <EmptyState

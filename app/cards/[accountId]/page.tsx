@@ -3,6 +3,7 @@ import { FileSpreadsheet, Upload } from 'lucide-react'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { CardHeroTotal } from '@/components/cards/card-wallet'
 import { CategoryDonut } from '@/components/cards/category-donut'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
@@ -16,7 +17,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { lastMonthWithData, monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
-import { accountHref, accountPath } from '@/lib/accounts/routes'
+import { accountPath } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName } from '@/lib/utils/date'
@@ -130,9 +131,11 @@ export default async function CardAccountPage({
         <PageHeading
           period={{ year: Number(year), month }}
           title={title}
-          back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
           badge={account.archived ? 'בארכיון' : undefined}
-        />
+        >
+          {/* Same place as on /cards and the bank pages */}
+          {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(account.id, period)} />}
+        </PageHeading>
       </div>
 
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
@@ -173,7 +176,6 @@ export default async function CardAccountPage({
               stats={categoryStats}
               selectedCategory={params.category}
               colors={categoryColors}
-              analysisHref={categoryAnalysisHref(account.id, period)}
             />
           </div>
         )}

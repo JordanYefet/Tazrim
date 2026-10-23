@@ -1,15 +1,14 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { ChevronRight, Settings2, type LucideIcon } from 'lucide-react'
+import { Settings2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { settingsAccountsHref } from '@/lib/accounts/routes'
 import { AccountSwitcher } from './account-switcher'
-import { WalletLink } from '@/components/cards/card-wallet'
 import { PeriodSync } from '@/components/layout/period-context'
 import type { Period } from '@/lib/period'
 
 /**
- * A period page's heading: back link, title, actions. The period is not
+ * A period page's heading: title and actions. The period is not
  * repeated here, the header's pickers show it (ENG-64); the page only reports
  * it, so it is remembered across the app (ENG-63). On /banks* and /cards*
  * phones also get account pills under it.
@@ -17,15 +16,12 @@ import type { Period } from '@/lib/period'
 export function PageHeading({
   period,
   title,
-  back,
   badge,
   children,
 }: {
   /** The period this page shows (resolved from the URL, cookie or default) */
   period: Period
   title: string
-  /** Link up to the overview, shown above the title */
-  back?: { href: string; label: string }
   badge?: string
   /** Actions at the end of the row */
   children?: React.ReactNode
@@ -35,16 +31,6 @@ export function PageHeading({
       <PeriodSync year={period.year} month={period.month} />
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          {back && (
-            <WalletLink
-              wallet={back.href.startsWith('/cards')}
-              href={back.href}
-              className="mb-1 inline-flex items-center gap-0.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden />
-              {back.label}
-            </WalletLink>
-          )}
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             {badge && (

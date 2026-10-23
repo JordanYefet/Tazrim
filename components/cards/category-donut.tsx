@@ -5,7 +5,6 @@ import { useChartAnimation } from '@/hooks/use-chart-animation'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
@@ -35,7 +34,6 @@ function CategoryDonutInner({
   stats,
   selectedCategory,
   colors,
-  analysisHref,
   title = 'הוצאות לפי קטגוריה',
   tone = 'expense',
   emptyText = 'אין חיובים לתקופה זו',
@@ -63,10 +61,7 @@ function CategoryDonutInner({
 
   return (
     <section className={SECTION}>
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <ChartHeader title={title} subtitle="לחיצה על קטגוריה מסננת" className="mb-0" />
-        {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
-      </div>
+      <ChartHeader title={title} subtitle="לחיצה על קטגוריה מסננת" />
       {chartData.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
@@ -144,8 +139,6 @@ interface Props {
   stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
   colors?: Record<string, string>
-  /** Link-button to the category analysis page */
-  analysisHref?: string
   title?: string
   emptyText?: string
   /** Amount colour: spending (cards, bank debits) or income (bank credits) */
