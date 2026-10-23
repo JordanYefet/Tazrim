@@ -204,7 +204,7 @@ export default async function BankAccountPage({
           {/* Two equal halves, like the rows above and below */}
           <div className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
-            <BalanceChart data={balancePoints} flow={flow} />
+            <BalanceChart data={balancePoints} />
           </div>
           {/* Where the money came from (start side) and where it went; a slice filters the table.
               The switch collapses the other side instead of dropping it. */}
