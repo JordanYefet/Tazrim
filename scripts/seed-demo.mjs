@@ -7,7 +7,7 @@
  *   npm run db:demo            -> prisma/demo.db
  *   npm run dev:demo           -> the app on that database
  *
- * Runs the real migrations with the sqlite3 CLI (like lib/db/__tests__/test-db.ts),
+ * Runs the real migrations (with Prisma's SQL runner),
  * then inserts a year of activity up to today: three bank accounts and three
  * cards, each card's bill paid from one of the banks.
  */
@@ -28,17 +28,22 @@ const migrationsDir = path.join(root, 'prisma/migrations')
 
 if (!dataOnly) {
   fs.rmSync(file, { force: true })
-  const exec = sql => execFileSync('sqlite3', ['-bail', file], { input: sql })
-  exec(`CREATE TABLE "_prisma_migrations" (
+  // Every migration in order, plus its row in _prisma_migrations, as one script for
+  // Prisma's own SQL runner (no sqlite3 CLI needed, so this also runs on Vercel)
+  const sql = [`CREATE TABLE "_prisma_migrations" (
     "id" TEXT PRIMARY KEY NOT NULL, "checksum" TEXT NOT NULL, "finished_at" DATETIME,
     "migration_name" TEXT NOT NULL, "logs" TEXT, "rolled_back_at" DATETIME,
     "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
-    "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);`)
+    "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);`]
   for (const name of fs.readdirSync(migrationsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    exec(fs.readFileSync(path.join(migrationsDir, name, 'migration.sql'), 'utf8'))
-    exec(`INSERT INTO "_prisma_migrations" ("id","checksum","migration_name","finished_at","applied_steps_count")
+    sql.push(fs.readFileSync(path.join(migrationsDir, name, 'migration.sql'), 'utf8'))
+    sql.push(`INSERT INTO "_prisma_migrations" ("id","checksum","migration_name","finished_at","applied_steps_count")
           VALUES ('demo-${name}','demo','${name}',CURRENT_TIMESTAMP,1);`)
   }
+  execFileSync(path.join(root, 'node_modules', '.bin', 'prisma'), ['db', 'execute', '--stdin', '--url', `file:${file}`], {
+    input: sql.join('\n'),
+    stdio: ['pipe', 'ignore', 'inherit'],
+  })
 }
 
 // Deterministic, so the demo looks the same on every run

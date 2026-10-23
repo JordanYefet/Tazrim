@@ -71,12 +71,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Build and deploy
+      # Built on Vercel's machines (vercel.json: the demo database, then the app),
+      # so the database engine matches where it runs
+      - name: Deploy
         if: steps.ref.outputs.ref
         env:
           REF: ${{ steps.ref.outputs.ref }}
         run: |
           npm pkg set version="${REF#v}"
-          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
-          npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN"
