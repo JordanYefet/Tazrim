@@ -4,7 +4,7 @@ import { monthBars } from '@/lib/insights/month-bars'
 
 /**
  * A stat tile's mini chart: twelve thin bars, January to December (January on
- * the right: the page is RTL), the highlighted month darker, months after the
+ * the left, as on every chart in the app), the highlighted month darker, months after the
  * latest with data as faint stubs, and an optional dashed average line. Plain
  * divs, no chart library; it fills the height its tile leaves it.
  */
@@ -33,7 +33,8 @@ export function MonthBarsChart({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <p className="text-xs text-muted-foreground">{caption}</p>
-      <div aria-hidden className="flex min-h-14 flex-1 flex-col gap-1">
+      {/* Left to right like every other chart in the app (January on the left), though the page is RTL */}
+      <div aria-hidden dir="ltr" className="flex min-h-14 flex-1 flex-col gap-1">
         <div className="relative flex flex-1 items-end gap-[3px]">
           {bars.map(b => (
             <div
