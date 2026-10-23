@@ -110,9 +110,15 @@ export function pocketTop(stackCount: number): string {
   return `calc(${pocketTopExpr(stackCount)})`
 }
 
-/** Height of the wallet box in a mode (CSS): the open card, or the cards down to the pocket's bottom. */
-export function boxHeight(mode: WalletMode, stackCount: number): string {
-  if (mode.kind === 'open' || stackCount < 1) return `${CARD_HEIGHT_CQW}cqw`
+/**
+ * Height of the wallet box (CSS): the cards down to the pocket's bottom, in
+ * BOTH modes. An open card rises to the top of the same box, so nothing
+ * around the wallet (the figures beside it, the charts below) moves when a
+ * card opens or closes. The stack is always the taller (its front peek plus
+ * the pocket exceed one card). Without a stack (only archived cards): one card.
+ */
+export function boxHeight(_mode: WalletMode, stackCount: number): string {
+  if (stackCount < 1) return `${CARD_HEIGHT_CQW}cqw`
   return `calc(${pocketTopExpr(stackCount)} + ${POCKET_HEIGHT_CQW}cqw)`
 }
 

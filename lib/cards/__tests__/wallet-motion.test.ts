@@ -66,9 +66,11 @@ describe('placements', () => {
 })
 
 describe('boxHeight and pocketTop', () => {
-  it('is one card when open, the strips plus the pocket when stacked', () => {
-    expect(boxHeight({ kind: 'open', id: 'card_a' }, 2)).toBe('63.0841cqw')
+  it('is the strips plus the pocket, open or stacked, so the page around the wallet never moves', () => {
     expect(boxHeight({ kind: 'stack' }, 3)).toBe('calc(2 * max(50px, 13.7cqw) + max(44px, 12cqw) + 61cqw)')
+    expect(boxHeight({ kind: 'open', id: 'card_a' }, 3)).toBe(boxHeight({ kind: 'stack' }, 3))
+    // Only archived cards: no stack, one card's height
+    expect(boxHeight({ kind: 'open', id: 'card_a' }, 0)).toBe('63.0841cqw')
     expect(pocketTop(3)).toBe('calc(2 * max(50px, 13.7cqw) + max(44px, 12cqw))')
   })
 
