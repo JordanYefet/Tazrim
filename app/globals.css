@@ -1202,6 +1202,42 @@ html {
   .acct-face[data-glass] .glass { display: none; }
 }
 
+/* ── Bar glass ───────────────────────────────────────────────────────
+   The top bar and the sidebar in the same material as a glass account
+   face: the light tint, a thin rim and an inner highlight. They sit over
+   moving content, so they also frost what is behind them (one blur, the
+   same on both). */
+.bar-glass {
+  background-color: transparent;
+  background-image:
+    radial-gradient(120% 90% at 100% 0%, rgb(255 255 255 / 0.4), rgb(255 255 255 / 0) 55%),
+    linear-gradient(160deg, rgb(241 245 249 / 0.78), rgb(226 232 240 / 0.62));
+  border-color: rgb(15 23 42 / 0.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95);
+}
+header.bar-glass { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), 0 8px 24px -16px rgb(15 23 42 / 0.28); }
+aside.bar-glass { box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.6), -8px 0 24px -18px rgb(15 23 42 / 0.22); }
+.dark .bar-glass {
+  background-image:
+    radial-gradient(120% 90% at 100% 0%, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0) 55%),
+    linear-gradient(160deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.03)),
+    linear-gradient(rgb(2 6 23 / 0.45), rgb(2 6 23 / 0.45));
+  border-color: rgb(255 255 255 / 0.1);
+}
+.dark header.bar-glass { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.38), 0 12px 28px -18px rgb(0 0 0 / 0.6); }
+.dark aside.bar-glass { box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.2), -12px 0 28px -20px rgb(0 0 0 / 0.6); }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .bar-glass, .dark .bar-glass {
+    background: hsl(var(--card));
+    border-color: hsl(var(--border));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
 /* ── The page background (ENG-72) ──────────────────────────────────────
    Settings → רקע: the plain tonal backdrop, faint looping lines (default)
    or soft ribbons. <html data-bg data-bg-palette> and the tile's URL

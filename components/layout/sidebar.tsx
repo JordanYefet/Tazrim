@@ -241,7 +241,7 @@ export function Sidebar({
       <aside
         data-collapsed={collapsed || undefined}
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 self-start flex-col overflow-hidden border-e bg-card/60 md:flex [@media(prefers-reduced-transparency:reduce)]:bg-card',
+          'sticky top-0 hidden h-screen shrink-0 self-start flex-col overflow-hidden bar-glass border-e md:flex [@media(prefers-reduced-transparency:reduce)]:bg-card',
           WIDTH_MOTION,
           collapsed ? 'w-16' : 'w-56'
         )}
