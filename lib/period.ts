@@ -150,3 +150,13 @@ export function withPeriod(href: string, period: Period): string {
   for (const [k, v] of sp) out.append(k, v)
   return `${path}?${out.toString()}${hash}`
 }
+
+/**
+ * The period one step back (-1) or forward (+1): a month, crossing into the
+ * previous or next year at the ends, or a whole year when all months are shown.
+ */
+export function stepPeriod(period: Period, delta: -1 | 1): Period {
+  if (!period.month) return { year: period.year + delta }
+  const index = period.year * 12 + (period.month - 1) + delta
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 }
+}

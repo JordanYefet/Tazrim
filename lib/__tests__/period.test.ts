@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatPeriodCookie,
+  stepPeriod,
   isPeriodPath,
   parsePeriodCookie,
   periodFromParams,
@@ -141,5 +142,22 @@ describe('withPeriod', () => {
   it('leaves pages without a period alone', () => {
     expect(withPeriod('/settings#accounts', { year: 2029, month: 3 })).toBe('/settings#accounts')
     expect(withPeriod('/upload', { year: 2029 })).toBe('/upload')
+  })
+})
+
+describe('stepPeriod', () => {
+  it('moves one month within the year', () => {
+    expect(stepPeriod({ year: 2026, month: 10 }, 1)).toEqual({ year: 2026, month: 11 })
+    expect(stepPeriod({ year: 2026, month: 10 }, -1)).toEqual({ year: 2026, month: 9 })
+  })
+
+  it('crosses into the next and previous year', () => {
+    expect(stepPeriod({ year: 2025, month: 12 }, 1)).toEqual({ year: 2026, month: 1 })
+    expect(stepPeriod({ year: 2026, month: 1 }, -1)).toEqual({ year: 2025, month: 12 })
+  })
+
+  it('steps a whole year when all months are shown', () => {
+    expect(stepPeriod({ year: 2026 }, 1)).toEqual({ year: 2027 })
+    expect(stepPeriod({ year: 2026 }, -1)).toEqual({ year: 2025 })
   })
 })
