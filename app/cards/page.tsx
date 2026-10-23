@@ -6,7 +6,7 @@ import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { CardStackTotal } from '@/components/cards/card-wallet'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlyCounts, getCCMonthlySummary } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -53,14 +53,9 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
 
   // Every card's categories together, for the donut (colours ranked by the year, as on the analysis page)
   const ids = accounts.map(a => a.id)
-  const [categoryStats, categoryMonthly, monthlyCounts] = ids.length
-    ? await Promise.all([
-        getCCCategoryStats(ids, Number(year), month),
-        getCCCategoryMonthly(ids, Number(year)),
-        // The count tile's monthly bars
-        getCCMonthlyCounts(ids, Number(year)),
-      ])
-    : [{}, {}, {}]
+  const [categoryStats, categoryMonthly] = ids.length
+    ? await Promise.all([getCCCategoryStats(ids, Number(year), month), getCCCategoryMonthly(ids, Number(year))])
+    : [{}, {}]
 
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
   const { average } = cardPeriodTotals(combined, month)
@@ -102,7 +97,8 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
 
       {/* Beside the stack, exactly as tall as it (never taller, so the page below keeps
           its place when a card opens): each card's figures, then the count and the monthly
-          average filling the rest (the same two tiles as on a card's page) */}
+          average filling the rest. No monthly bars in them here: under the card list there
+          is no room for them (a card's page, with the whole half, has them) */}
       <div className={cn('wallet-shell__beside flex flex-col gap-4', hasData && 'wallet-shell__beside--fit')}>
       <ul className="divide-y overflow-hidden rounded-xl surface">
         {perCard.map(c => (
@@ -129,9 +125,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           average={average}
           monthLabel={month ? monthName(month) : undefined}
           monthHasData={!!month && monthHasData(combined, month)}
-          monthlyCounts={monthlyCounts}
-          monthlyTotals={combined}
-          selectedMonth={month}
         />
       )}
       </div>
