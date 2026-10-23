@@ -1030,6 +1030,58 @@ html {
   .wallet-pocket__leather::after { display: none; }
 }
 
+/* ── The bank wallet on /banks and /banks/[id] ──
+   The same wallet and geometry (components/cards/card-wallet.tsx, kind
+   "banks"): each bank element takes a card's proportions, and its band is the
+   strip that shows in the stack, name and bank on one line like a card's top
+   row. The pocket is navy leather; the type and layout are the card wallet's. */
+.wallet[data-kind='banks'] .acct-bank { height: 63.0841cqw; }
+.wallet[data-kind='banks'] .wallet-card__link { border-radius: 18px; }
+.wallet[data-kind='banks'] .acct-bank__band {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+}
+.wallet[data-kind='banks'] .acct-bank__name { min-width: 0; }
+.wallet[data-kind='banks'] .acct-bank__bank { flex-shrink: 0; }
+.wallet[data-kind='banks'] .wallet-pocket {
+  filter:
+    drop-shadow(0 -6px 9px rgb(8 16 32 / 0.34))
+    drop-shadow(0 16px 22px rgb(10 20 40 / 0.3));
+}
+.dark .wallet[data-kind='banks'] .wallet-pocket {
+  filter:
+    drop-shadow(0 -6px 10px rgb(0 0 0 / 0.5))
+    drop-shadow(0 18px 26px rgb(0 0 0 / 0.55));
+}
+.wallet[data-kind='banks'] .wallet-pocket__leather {
+  background:
+    radial-gradient(90% 70% at 25% 12%, rgb(214 228 250 / 0.16), rgb(214 228 250 / 0) 60%),
+    linear-gradient(165deg, #34557f 0%, #22395a 52%, #172840 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  color: #e3ecf8;
+}
+.wallet[data-kind='banks'] .wallet-pocket__leather::before { border-color: rgb(196 214 240 / 0.42); }
+.wallet[data-kind='banks'] .wallet-pocket__deboss {
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.35), 0 1px 0 rgb(214 228 250 / 0.12);
+}
+.wallet[data-kind='banks'] .wallet-pocket__label { color: #d6e3f5; }
+.wallet[data-kind='banks'] .wallet-pocket__currency { color: rgb(227 236 248 / 0.78); }
+.wallet[data-kind='banks'] .wallet-pocket__chip {
+  background: rgb(227 236 248 / 0.08);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 0 rgb(214 228 250 / 0.1);
+}
+.wallet[data-kind='banks'] .wallet-pocket__mark {
+  color: rgb(227 236 248 / 0.36);
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3);
+}
+@media (prefers-contrast: more) {
+  .wallet[data-kind='banks'] .wallet-pocket__leather { color: #ffffff; }
+}
+
 /* ── Account colours (ENG-66) ────────────────────────────────────────────
    Chosen colours, custom colours and glass (lib/accounts/colors.ts). Faces
    made from a light colour carry data-ink="dark": their text turns near-black

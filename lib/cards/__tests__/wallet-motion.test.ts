@@ -22,6 +22,15 @@ const cards = [
 const stackOrder = ['card_b', 'card_a'] // back to front
 
 describe('walletModeFor', () => {
+  it('works on another base (the bank wallet on /banks)', () => {
+    expect(walletModeFor('/banks', cards, '/banks')).toEqual({ kind: 'stack' })
+    expect(walletModeFor(`/banks/${cards[0].id}?year=2030`, cards, '/banks')).toEqual({ kind: 'open', id: cards[0].id })
+    expect(walletModeFor('/banks/categories', cards, '/banks')).toEqual({ kind: 'none' })
+    expect(walletModeFor(`/banks/${cards[0].id}/categories`, cards, '/banks')).toEqual({ kind: 'none' })
+    expect(walletModeFor('/cards', cards, '/banks')).toEqual({ kind: 'none' })
+    expect(walletModeFor('/banksx', cards, '/banks')).toEqual({ kind: 'none' })
+  })
+
   it('is the stack on /cards and one open card on /cards/<id>', () => {
     expect(walletModeFor('/cards', cards)).toEqual({ kind: 'stack' })
     expect(walletModeFor('/cards?year=2030', cards)).toEqual({ kind: 'stack' })

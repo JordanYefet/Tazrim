@@ -6,7 +6,7 @@ import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { BankElement } from '@/components/accounts/account-element'
+import { BankHeroBalance } from '@/components/cards/card-wallet'
 import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { getCategories } from '@/lib/db/categories'
@@ -152,8 +152,12 @@ export default async function BankAccountPage({
   const period = { year, ...(month ? { month: String(month) } : {}) }
   const flow = parseBankFlow(params.flow)
 
+  // The account itself is the open bank element in the wallet (app/banks/layout.tsx);
+  // this page fills the grid around it, as a card's page does
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="contents">
+      <BankHeroBalance accountId={account.id} latest={latest} trend={trend} />
+      <div className="wallet-shell__head">
       <PageHeading
         period={{ year: Number(year), month }}
         title={account.displayName}
@@ -162,24 +166,11 @@ export default async function BankAccountPage({
         {/* One analysis page for income and expenses, in the same place as on every account page */}
         {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(account.id, period)} />}
       </PageHeading>
+      </div>
 
-      {/* Two equal halves: the account and its net balance side by side, and the
-          four period tiles (all the same size). Without data, the account and an empty state. */}
-      <div className="grid items-stretch gap-4 xl:grid-cols-2">
-        <div className={hasData ? 'grid items-stretch gap-4 sm:grid-cols-2' : 'grid'}>
-          <BankElement
-            hero
-            tilt
-            provider={account.provider}
-            name={account.displayName}
-            color="var(--chart-income)"
-            colorChoice={account.color}
-            latest={latest}
-            trend={trend}
-            emptyText="אין תנועות בתקופה"
-          />
-          {hasData && <NetBalance bankIncome={income} bankExpense={expense} format="currencyExact" />}
-        </div>
+      {/* Beside the open account: the net balance over the four period tiles (all the same size) */}
+      <div className="wallet-shell__beside flex flex-col gap-4">
+        {hasData && <NetBalance bankIncome={income} bankExpense={expense} format="currencyExact" />}
         {hasData ? (
           <StatGrid
             uniform
@@ -202,6 +193,7 @@ export default async function BankAccountPage({
         )}
       </div>
 
+      <div className="wallet-shell__rest space-y-6">
       {hasData && (
         <>
           {/* Two equal halves, like the rows above and below */}
@@ -255,6 +247,7 @@ export default async function BankAccountPage({
           flowFilter={<FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />
       )}
+      </div>
     </div>
   )
 }

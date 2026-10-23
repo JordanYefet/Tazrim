@@ -16,7 +16,7 @@ import {
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { PaymentCard } from '@/components/accounts/account-element'
+import { BankElement, PaymentCard } from '@/components/accounts/account-element'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { cardLabel } from '@/lib/accounts/brands'
 import { withQuery } from '@/lib/accounts/routes'
@@ -41,6 +41,8 @@ import {
  * The card wallet (ENG-56). app/cards/layout.tsx mounts it once for /cards and
  * /cards/<id>, so the same card elements stay on screen across the two pages
  * and simply move: the stack on /cards, one card open on a card's page.
+ * app/banks/layout.tsx mounts the same wallet for the bank accounts
+ * (`kind="banks"`): bank elements in a navy pocket on /banks, one open on its page.
  *
  * Motion: the real elements, transform and opacity only, with WAAPI and a
  * spring sampled into a linear() easing (compositor-run, so a busy main
@@ -50,6 +52,11 @@ import {
  * The URL is the source of truth, so browser back / forward animate too.
  * prefers-reduced-motion: every change is instant.
  */
+
+/** What the wallet holds: credit cards (/cards) or bank accounts (/banks) */
+export type WalletKind = 'cards' | 'banks'
+
+const BASE: Record<WalletKind, string> = { cards: '/cards', banks: '/banks' }
 
 export interface WalletCard {
   id: string
@@ -187,6 +194,8 @@ export interface HeroTotal {
   accountId: string
   value: number
   label: string
+  /** A bank account's balance (after the period's latest row) and month-end trend */
+  bank?: { latest?: { balance: number; date: string }; trend: number[] }
 }
 
 const HeroTotalContext = createContext<Dispatch<SetStateAction<HeroTotal | null>>>(() => {})
@@ -201,6 +210,29 @@ export function CardHeroTotal({ accountId, value, label }: HeroTotal) {
   useLayoutEffect(() => {
     set({ accountId, value, label })
   }, [set, accountId, value, label])
+  return null
+}
+
+/**
+ * Rendered by a bank account's page: puts the period's balance and trend on
+ * the open bank element (the wallet in app/banks/layout.tsx), like CardHeroTotal.
+ */
+export function BankHeroBalance({
+  accountId,
+  latest,
+  trend,
+}: {
+  accountId: string
+  latest?: { balance: number; date: string }
+  trend: number[]
+}) {
+  const set = useContext(HeroTotalContext)
+  const key = JSON.stringify([latest, trend])
+  useLayoutEffect(() => {
+    set({ accountId, value: latest?.balance ?? 0, label: '', bank: { latest, trend } })
+    // `key` stands for latest and trend (new arrays on every render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [set, accountId, key])
   return null
 }
 
@@ -219,7 +251,16 @@ export function CardStackTotal({ value }: { value: number }) {
   return null
 }
 
-export function CardWallet({ cards, children }: { cards: WalletCard[]; children: ReactNode }) {
+export function CardWallet({
+  cards,
+  kind = 'cards',
+  children,
+}: {
+  cards: WalletCard[]
+  kind?: WalletKind
+  children: ReactNode
+}) {
+  const base = BASE[kind]
   const pathname = usePathname()
   const router = useRouter()
   const [intent, setIntent] = useState<string | null>(null)
@@ -227,8 +268,8 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
   const [stackTotal, setStackTotal] = useState<number | null>(null)
 
   const info = useMemo(() => cards.map(c => ({ id: c.id, archived: c.archived })), [cards])
-  const routeMode = walletModeFor(pathname, info)
-  const mode = intent ? walletModeFor(intent, info) : routeMode
+  const routeMode = walletModeFor(pathname, info, base)
+  const mode = intent ? walletModeFor(intent, info, base) : routeMode
   // Keep the open card while the stack is shown elsewhere (no flicker on a stray intent)
   const visibleMode: WalletMode = mode.kind === 'none' ? routeMode : mode
 
@@ -254,9 +295,9 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
 
   // Every card's page (and the stack) is one tap away: fetch them ahead
   useEffect(() => {
-    router.prefetch(withQuery('/cards', period))
+    router.prefetch(withQuery(base, period))
     for (const c of cards) router.prefetch(withQuery(c.path, period))
-  }, [router, cards, period])
+  }, [router, cards, period, base])
 
   if (routeMode.kind === 'none') return <>{children}</>
 
@@ -269,6 +310,7 @@ export function CardWallet({ cards, children }: { cards: WalletCard[]; children:
         {/* The box keeps the route's height until the route arrives, so the page
             under it does not jump while the cards are already moving */}
         <Wallet
+          kind={kind}
           cards={cards}
           mode={visibleMode}
           heightMode={routeMode}
@@ -295,6 +337,7 @@ const learnedBoxTop = new Map<string, number>()
 const boxKey = (kind: WalletMode['kind'], width: number) => `${kind}:${Math.round(width)}`
 
 function Wallet({
+  kind,
   cards,
   mode,
   heightMode,
@@ -304,6 +347,7 @@ function Wallet({
   stackTotal,
   setStackTotal,
 }: {
+  kind: WalletKind
   cards: WalletCard[]
   mode: WalletMode
   heightMode: WalletMode
@@ -443,14 +487,14 @@ function Wallet({
     mode.kind === 'open' && heroTotal?.accountId === mode.id && settledId === mode.id ? heroTotal : null
 
   return (
-    <div className="wallet" data-mode={mode.kind}>
+    <div className="wallet" data-mode={mode.kind} data-kind={kind}>
       <div ref={boxRef} className="wallet__box" style={{ height: boxHeight(heightMode, stackOrder.length) }}>
         {cards.map(c => {
           const p = place.get(c.id)!
           const first = initial.get(c.id) ?? p
           const isOpen = mode.kind === 'open' && mode.id === c.id
           const total = isOpen && heroTotal?.accountId === c.id ? heroTotal : null
-          const href = withQuery(isOpen ? '/cards' : c.path, period)
+          const href = withQuery(isOpen ? BASE[kind] : c.path, period)
           return (
             <div
               key={c.id}
@@ -469,11 +513,31 @@ function Wallet({
                 scroll={false}
                 tabIndex={p.hidden ? -1 : undefined}
                 className="wallet-card__link"
-                aria-label={isOpen ? 'כל הכרטיסים' : cardLabel({ provider: c.provider, name: c.name, lastFour: c.lastFour, network: c.network })}
+                aria-label={
+                  kind === 'banks'
+                    ? isOpen ? 'כל החשבונות' : `חשבון ${c.name}`
+                    : isOpen ? 'כל הכרטיסים' : cardLabel({ provider: c.provider, name: c.name, lastFour: c.lastFour, network: c.network })
+                }
                 onClick={e => {
                   if (isPlainClick(e)) announceWalletRoute(href)
                 }}
               >
+                {kind === 'banks' ? (
+                  // Card-shaped in the wallet (CSS); the band is the strip that shows in the stack.
+                  // Open, it shows the balance its page published (nothing until then)
+                  <BankElement
+                    plain
+                    hero
+                    tilt={isOpen}
+                    provider={c.provider}
+                    name={c.name}
+                    color={c.color}
+                    colorChoice={c.colorChoice}
+                    latest={isOpen ? total?.bank?.latest : undefined}
+                    trend={isOpen ? (total?.bank?.trend ?? []) : []}
+                    emptyText={isOpen && total ? 'אין תנועות בתקופה' : ''}
+                  />
+                ) : (
                 <PaymentCard
                   decorative
                   tilt={isOpen}
@@ -488,6 +552,7 @@ function Wallet({
                   color={c.color}
                   colorChoice={c.colorChoice}
                 />
+                )}
               </Link>
             </div>
           )
@@ -508,7 +573,7 @@ function Wallet({
           >
             <div className="wallet-pocket__leather">
               <div className="wallet-pocket__body wallet-pocket__deboss">
-                <p className="wallet-pocket__label">סה״כ חיובים בכל הכרטיסים</p>
+                <p className="wallet-pocket__label">{kind === 'banks' ? 'יתרה בכל החשבונות' : 'סה״כ חיובים בכל הכרטיסים'}</p>
                 {/* Hidden until the page gives the total; on the first visit it rolls up from 0, later from the last total */}
                 <p className="wallet-pocket__total wallet-pocket__totalwrap" data-visible={stackTotal !== null ? '' : undefined}>
                   <span className="wallet-pocket__currency">₪</span>
@@ -517,7 +582,9 @@ function Wallet({
               </div>
               <div className="wallet-pocket__foot wallet-pocket__deboss">
                 <span className="wallet-pocket__chip">
-                  {stackOrder.length === 1 ? 'כרטיס אחד' : `${stackOrder.length} כרטיסים`}
+                  {kind === 'banks'
+                    ? stackOrder.length === 1 ? 'חשבון אחד' : `${stackOrder.length} חשבונות`
+                    : stackOrder.length === 1 ? 'כרטיס אחד' : `${stackOrder.length} כרטיסים`}
                 </span>
                 <span className="wallet-pocket__mark" aria-hidden>
                   תזרים
@@ -527,13 +594,14 @@ function Wallet({
           </div>
         )}
       </div>
-      {heightMode.kind === 'stack' && stackOrder.length > 0 && (
+      {/* Where the cards are paid from: cards only (a bank element carries its own text) */}
+      {kind === 'cards' && heightMode.kind === 'stack' && stackOrder.length > 0 && (
         // Under the pocket: where the cards' charges are paid from (the total is on the leather)
         <p className="wallet__caption" data-visible={stackTotal !== null ? '' : undefined}>
           נגבה מחשבון הבנק, ולכן כבר כלול בהוצאות הבנק
         </p>
       )}
-      {heightMode.kind === 'open' && (
+      {kind === 'cards' && heightMode.kind === 'open' && (
         // Under the open card: its total for screen readers (the face is decorative) and where it is paid from
         <p className="wallet__caption" data-visible={shownTotal ? '' : undefined}>
           {shownTotal && (

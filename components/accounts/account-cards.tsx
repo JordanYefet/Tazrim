@@ -48,24 +48,21 @@ export interface BankAccountSummary {
   trend?: number[]
   /** Share of the combined bank expense (only with several accounts) */
   expenseShare?: number
-  /** The hero look of an account page (balance and trend, no totals): the period totals sit beside it */
-  hero?: boolean
 }
 
 /** /banks tile: the bank account element itself is the link. */
-export function BankAccountCard({ href, name, provider, color, colorChoice, income, expense, latest, trend, expenseShare, hero }: BankAccountSummary) {
+export function BankAccountCard({ href, name, provider, color, colorChoice, income, expense, latest, trend, expenseShare }: BankAccountSummary) {
   return (
     <Link href={href} className={cn('group acct-press block h-full rounded-[18px]', FOCUS)}>
       <BankElement
-        plain={!hero}
-        hero={hero}
+        plain
         tilt
         provider={provider}
         name={name}
         color={color}
         colorChoice={colorChoice}
         latest={latest}
-        totals={hero ? undefined : { income, expense }}
+        totals={{ income, expense }}
         trend={trend}
         className="h-full transition-shadow group-hover:shadow-e3"
       >

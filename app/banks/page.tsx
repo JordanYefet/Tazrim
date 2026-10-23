@@ -11,6 +11,7 @@ import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
+import { CardStackTotal } from '@/components/cards/card-wallet'
 import {
   bankPeriodTotals,
   lastMonthWithData,
@@ -23,7 +24,7 @@ import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
 
-/** Every (non-archived) bank account: combined summary and one card per account. */
+/** Every (non-archived) bank account: the wallet's stack (layout), the combined summary beside it. */
 export default async function BanksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
@@ -50,33 +51,21 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const chartData = Object.entries(combined).map(([m, d]) => ({ month: Number(m), ...d }))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
-  const single = several ? undefined : perAccount[0]
 
-  const accountCard = ({ account, latest, trend, color, totals: t }: (typeof perAccount)[number], hero = false) => (
-    <BankAccountCard
-      hero={hero}
-      key={account.id}
-      href={accountHref('BANK', account.id, period)}
-      name={account.displayName}
-      provider={account.provider}
-      color={color}
-      colorChoice={account.color}
-      trend={trend.map(p => p.balance)}
-      income={t.income}
-      expense={t.expense}
-      latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
-      expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
-    />
+  // On the navy pocket: the balance across the accounts (each one's latest row in the period)
+  const stackBalance = perAccount.reduce((sum, a) => sum + (a.latest?.balance ?? 0), 0)
+
+  const heading = (
+    <PageHeading period={{ year: Number(year), month }} title="בנקים">
+      {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(undefined, period)} />}
+      <ManageAccountsLink />
+    </PageHeading>
   )
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeading period={{ year: Number(year), month }} title="בנקים">
-        {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(undefined, period)} />}
-        <ManageAccountsLink />
-      </PageHeading>
-
-      {accounts.length === 0 ? (
+  if (accounts.length === 0) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        {heading}
         <EmptyState
           icon={Building2}
           title="אין חשבונות בנק"
@@ -86,58 +75,77 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             { href: '/settings#accounts', label: 'ניהול חשבונות' },
           ]}
         />
-      ) : (
-        <>
-          {hasData ? (
-            <>
-              {/* As on an account page: two equal halves, the account and the net balance
-                  side by side, and the four period tiles (all the same size). With several
-                  accounts there is no one card for the hero; they get their own section below. */}
-              <div className="grid items-stretch gap-4 xl:grid-cols-2">
-                <div className={single ? 'grid items-stretch gap-4 sm:grid-cols-2' : 'grid'}>
-                  {single && accountCard(single, true)}
-                  <NetBalance bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
-                </div>
-                <StatGrid
-                  uniform
-                  stats={bankStats({
-                    income: totals.income,
-                    expense: totals.expense,
-                    averageExpense: totals.averageExpense,
-                    averageIncome: totals.averageIncome,
-                    monthLabel: month ? monthName(month) : undefined,
-                    monthHasData: !!month && monthHasData(combined, month),
-                  })}
-                />
-              </div>
-              <IncomeExpenseChart
-                data={chartData}
-                selectedMonth={month}
-                subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
-              />
-            </>
-          ) : (
-            <EmptyState
-              icon={FileSpreadsheet}
-              title={`אין תנועות בנק לשנת ${year}`}
-              text="העלה קובץ תנועות מהבנק כדי לראות כאן את התזרים החודשי."
-              actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
-            />
-          )}
+      </div>
+    )
+  }
 
-          {/* One account with data is already in the hero row */}
-          {(several || !hasData) && (
+  // The accounts themselves are the wallet in app/banks/layout.tsx; this page
+  // fills the grid around it, as /cards does (components/cards/card-wallet.tsx, .wallet-shell)
+  return (
+    <div className="contents">
+      <div className="wallet-shell__head">{heading}</div>
+      <CardStackTotal value={stackBalance} />
+
+      {/* Beside the wallet: the net balance over the four period tiles (all the same size) */}
+      <div className="wallet-shell__beside flex flex-col gap-4">
+        {hasData ? (
+          <>
+            <NetBalance bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
+            <StatGrid
+              uniform
+              stats={bankStats({
+                income: totals.income,
+                expense: totals.expense,
+                averageExpense: totals.averageExpense,
+                averageIncome: totals.averageIncome,
+                monthLabel: month ? monthName(month) : undefined,
+                monthHasData: !!month && monthHasData(combined, month),
+              })}
+            />
+          </>
+        ) : (
+          <EmptyState
+            icon={FileSpreadsheet}
+            title={`אין תנועות בנק לשנת ${year}`}
+            text="העלה קובץ תנועות מהבנק כדי לראות כאן את התזרים החודשי."
+            actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+          />
+        )}
+      </div>
+
+      <div className="wallet-shell__rest space-y-6">
+        {hasData && (
+          <IncomeExpenseChart
+            data={chartData}
+            selectedMonth={month}
+            subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
+          />
+        )}
+
+        {/* Several accounts: each one's period figures (one account's are the tiles above) */}
+        {several && (
           <section aria-labelledby="bank-accounts" className="space-y-3">
-            <h2 id="bank-accounts" className="text-base font-semibold">
-              {several ? `החשבונות (${accounts.length})` : 'החשבון'}
-            </h2>
+            <h2 id="bank-accounts" className="text-base font-semibold">{`החשבונות (${accounts.length})`}</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {perAccount.map(a => accountCard(a))}
+              {perAccount.map(({ account, latest, trend, color, totals: t }) => (
+                <BankAccountCard
+                  key={account.id}
+                  href={accountHref('BANK', account.id, period)}
+                  name={account.displayName}
+                  provider={account.provider}
+                  color={color}
+                  colorChoice={account.color}
+                  trend={trend.map(p => p.balance)}
+                  income={t.income}
+                  expense={t.expense}
+                  latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
+                  expenseShare={shareOf(t.expense, totals.expense)}
+                />
+              ))}
             </div>
           </section>
-          )}
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }

@@ -30,11 +30,15 @@ export interface WalletCardInfo {
   archived: boolean
 }
 
-/** Which state a path puts the wallet in: the stack on /cards, one card open on /cards/<id>. */
-export function walletModeFor(path: string, cards: WalletCardInfo[]): WalletMode {
+/**
+ * Which state a path puts the wallet in: the stack on the overview (`base`,
+ * /cards or /banks), one card open on <base>/<id>.
+ */
+export function walletModeFor(path: string, cards: WalletCardInfo[], base = '/cards'): WalletMode {
   const clean = path.split(/[?#]/)[0].replace(/\/$/, '') || '/'
-  if (clean === '/cards') return cards.some(c => !c.archived) ? { kind: 'stack' } : { kind: 'none' }
-  const m = clean.match(/^\/cards\/([^/]+)$/)
+  if (clean === base) return cards.some(c => !c.archived) ? { kind: 'stack' } : { kind: 'none' }
+  if (!clean.startsWith(`${base}/`)) return { kind: 'none' }
+  const m = clean.slice(base.length).match(/^\/([^/]+)$/)
   if (!m) return { kind: 'none' }
   let id = m[1]
   try {
