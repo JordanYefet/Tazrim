@@ -82,6 +82,8 @@ const CARD_MERCHANTS = {
     ['פיצה על האש', 'מסעדות, קפה וברים', 60, 180, 2],
     ['חנות בגדים לדוגמה', 'אופנה', 120, 450, 1],
     ['ספרים ועוד', 'פנאי, בידור וספורט', 45, 140, 1],
+    // Small buys here are the history that makes the big one below stand out as unusual
+    ['חנות אלקטרוניקה', 'מוצרי חשמל', 40, 160, 1],
   ],
 }
 // Per card: [merchant, category, amount, day of month]

@@ -1,10 +1,18 @@
 # תזרים
 
+[![CI](https://github.com/JordanYefet/Tazrim/actions/workflows/ci.yml/badge.svg)](https://github.com/JordanYefet/Tazrim/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JordanYefet/Tazrim)](https://github.com/JordanYefet/Tazrim/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Tazrim** is a self-hosted personal finance dashboard for Israeli households. It reads the transaction exports of Israeli banks and credit-card companies and turns them into a clear monthly cash-flow picture: income, expenses, categories, recurring charges and unusual transactions. The interface is in Hebrew, everything runs on your own machine and your data never leaves it. Free and open source under the MIT license.
+
+**Live demo** (read-only, made-up data): <https://tazrim-demo.vercel.app> · **Docker image:** `ghcr.io/jordanyefet/tazrim`
 
 אפליקציה אישית למעקב אחרי התזרים החודשי: מעלים קבצי תנועות מהבנק ופירוטי חיובים מחברות האשראי, ומקבלים תמונה ברורה של הכנסות, הוצאות, קטגוריות, חיובים קבועים ותנועות חריגות.
 
 הכול רץ מקומית על המחשב שלכם. הנתונים נשמרים בקובץ SQLite אחד (`prisma/tazrim.db`) ולא נשלחים לשום שירות חיצוני.
+
+> **רוצים לנסות בלי להתקין?** ב[דמו החי](https://tazrim-demo.vercel.app) יש שנה של נתונים מומצאים בשלושה חשבונות בנק ושלושה כרטיסי אשראי. הוא לקריאה בלבד: אפשר ללחוץ על הכול, ושום שינוי לא נשמר.
 
 > כל צילומי המסך כאן צולמו על נתוני דמו מומצאים (`npm run db:demo`).
 
@@ -31,7 +39,7 @@
 
 - [Node.js](https://nodejs.org/) גרסה 20 ומעלה (כולל npm)
 - Git
-- ‏`sqlite3` (שורת פקודה): נדרש רק למצב הדמו ולבדיקות. ב-macOS הוא מותקן מראש.
+- ‏`sqlite3` (שורת פקודה): נדרש רק להרצת הבדיקות. ב-macOS הוא מותקן מראש.
 
 ### שלבים
 
@@ -66,19 +74,25 @@ npm start        # http://localhost:3000
 
 ## הרצה עם Docker
 
-אין צורך ב-Node.js, ב-Git או בהתקנות נוספות, רק ב-Docker. בסיס הנתונים נשמר ב-volume של Docker על המחשב שלכם, ולא בתוך הקונטיינר.
+אין צורך ב-Node.js, ב-Git או בקוד עצמו, רק ב-Docker וקובץ אחד. האפליקציה מגיעה כאימג' מוכן (`ghcr.io/jordanyefet/tazrim`, למעבדי Intel/AMD ו-ARM, כולל Mac עם Apple Silicon ו-Raspberry Pi). בסיס הנתונים נשמר ב-volume של Docker על המחשב שלכם, ולא בתוך הקונטיינר.
 
 ### התקנה והפעלה
 
 1. מתקינים את [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows או macOS) או את Docker Engine (Linux), ומפעילים אותו.
-2. מורידים את הקוד, [כקובץ ZIP](https://github.com/JordanYefet/Tazrim/archive/refs/heads/main.zip) או עם `git clone https://github.com/JordanYefet/Tazrim.git`, ונכנסים לתיקייה בטרמינל.
-3. מריצים:
+2. יוצרים תיקייה ומורידים אליה את [`docker-compose.yml`](https://raw.githubusercontent.com/JordanYefet/Tazrim/main/docker-compose.yml) (בדפדפן: קליק ימני ← שמירה בשם), או בטרמינל:
+
+```bash
+mkdir tazrim && cd tazrim
+curl -O https://raw.githubusercontent.com/JordanYefet/Tazrim/main/docker-compose.yml
+```
+
+3. מריצים בתיקייה:
 
 ```bash
 docker compose up -d
 ```
 
-בפעם הראשונה בונים את האפליקציה, וזה לוקח כמה דקות. אחר כך פותחים בדפדפן את <http://localhost:3000>.
+בפעם הראשונה Docker מוריד את האימג', וזה לוקח דקה או שתיים. אחר כך פותחים בדפדפן את <http://localhost:3000>.
 כשהקונטיינר עולה הוא יוצר את בסיס הנתונים (ובהמשך מעדכן את המבנה שלו), וחוזר לפעול לבד אחרי הפעלה מחדש של המחשב או של Docker.
 
 עצירה: `docker compose stop`. הפעלה מחדש: `docker compose start`.
@@ -91,16 +105,27 @@ docker compose up -d
 TAZRIM_PORT=3005 docker compose up -d     # http://localhost:3005
 ```
 
-כדי שזה יישמר (וגם ב-Windows, שבו התחביר הזה לא עובד), יוצרים בתיקייה קובץ `.env` עם השורה `TAZRIM_PORT=3005`, ומריצים רק `docker compose up -d`. כך אפשר לקבוע גם את `TAZRIM_DEMO=1` שבהמשך.
+כדי שזה יישמר (וגם ב-Windows, שבו התחביר הזה לא עובד), יוצרים בתיקייה קובץ `.env` עם השורה `TAZRIM_PORT=3005`, ומריצים רק `docker compose up -d`. כך אפשר לקבוע גם את `TAZRIM_DEMO=1` שבהמשך, ואת `TAZRIM_VERSION=1.0.0` כדי להישאר על גרסה מסוימת במקום האחרונה.
 
 ### עדכון לגרסה חדשה
 
 ```bash
-git pull                       # או מורידים ZIP חדש ופורסים לאותה תיקייה
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-הנתונים נשארים ב-volume, ומבנה בסיס הנתונים מתעדכן אוטומטית בעלייה. כדאי לגבות לפני כל עדכון.
+הנתונים נשארים ב-volume, ומבנה בסיס הנתונים מתעדכן אוטומטית בעלייה. כדאי לגבות לפני כל עדכון. מה השתנה בכל גרסה: [Releases](https://github.com/JordanYefet/Tazrim/releases).
+
+### בנייה מהקוד
+
+מי שמעדיף לבנות את האימג' בעצמו (למשל כדי לנסות שינויים בקוד), מוריד את הקוד ומריץ בתיקייה שלו:
+
+```bash
+docker build -t ghcr.io/jordanyefet/tazrim:latest .
+docker compose up -d
+```
+
+`docker compose pull` מחליף אחר כך את האימג' הזה בגרסה שפורסמה.
 
 ### גיבוי ושחזור
 
@@ -208,7 +233,7 @@ Chrome ו-Edge מתקינים כאפליקציה רק בחיבור מאובטח:
 
 לוח הבקרה מרכז את השנה: מאזן נטו, הכנסות, הוצאות, חיובי כרטיסים, שינויים בהוצאות לפי קטגוריה, חיובים קבועים ותנועות חריגות.
 
-- **בחירת שנה וחודש:** בבוררים שבראש העמוד.
+- **בחירת תקופה:** במרכז הסרגל העליון. החצים עוברים לחודש הקודם או הבא (או לשנה, כשמוצגת שנה שלמה), ולחיצה על התקופה עצמה פותחת את כל החודשים של השנה, עם "כל השנה".
 - **לחיצה על עמודה בגרף** מסננת את כל הדף לאותו חודש. לחיצה נוספת מבטלת את הסינון.
 
 ![לוח בקרה מסונן לחודש אחד](docs/screenshots/dashboard-month.png)
@@ -272,7 +297,7 @@ Chrome ו-Edge מתקינים כאפליקציה רק בחיבור מאובטח:
 cp prisma/tazrim.db ~/Backups/tazrim-$(date +%Y%m%d).db
 ```
 
-**עדכון לגרסה חדשה:**
+**עדכון לגרסה חדשה:** הגרסה המותקנת מופיעה בדף **אודות**, ומה השתנה בכל גרסה מופיע ב-[Releases](https://github.com/JordanYefet/Tazrim/releases). הענף `release` מצביע תמיד על הגרסה האחרונה שפורסמה, ו-`main` על הפיתוח השוטף. כדי להישאר על גרסאות שפורסמו, עוברים פעם אחת ל-`release` (`git checkout release`), ומעדכנים כך:
 
 ```bash
 git pull
@@ -298,6 +323,10 @@ npx prisma migrate deploy   # מעדכן את מבנה בסיס הנתונים, 
 | `npm run build` | בנייה לסביבת ייצור |
 | `npm run db:studio` | עיון בבסיס הנתונים דרך Prisma Studio |
 
+**CI וגרסאות:** כל Pull Request ל-`main` עובר ב-GitHub Actions בדיקת טיפוסים, את כל הבדיקות ובנייה (`.github/workflows/ci.yml`). גרסה חדשה מפרסמים ידנית: **Actions ← Release ← Run workflow** ומקלידים מספר גרסה. התהליך מעדכן את הענף `release` (עם commit של מספר הגרסה), בונה ומפרסם את האימג' ב-GHCR, ויוצר את התג ואת ה-Release ב-GitHub. Vercel בונה מהענף `release` את הדמו החי, שמתעדכן גם פעם בשבוע (`demo.yml`) כדי שנתוני הדמו יגיעו עד השבוע הנוכחי.
+
+**מצב קריאה בלבד:** עם `TAZRIM_READ_ONLY=1` השרת דוחה כל שינוי בנתונים, והממשק מסביר את זה כשמנסים לשמור. כך רץ הדמו החי.
+
 **טכנולוגיות:** Next.js 15 (App Router), React 19, TypeScript, Prisma עם SQLite, Tailwind CSS, Recharts.
 
 **מבנה עיקרי:**
@@ -308,6 +337,7 @@ components/   רכיבי ממשק לפי אזור (dashboard, cards, bank, searc
 lib/          לוגיקה: parsers לקבצים, db לשאילתות, insights לזיהוי חיובים קבועים וחריגים
 prisma/       סכמה ומיגרציות (בסיס הנתונים עצמו לא נשמר ב-Git)
 scripts/      סקריפט נתוני הדמו
+.github/      תהליכי GitHub Actions: CI, Release, Demo
 docs/         מסמכי תכנון וצילומי מסך
 ```
 
