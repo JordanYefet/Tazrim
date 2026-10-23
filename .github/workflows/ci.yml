@@ -1,0 +1,50 @@
+# Checks: types, tests and a production build.
+# Runs on every pull request into main (the ruleset on main requires it) and on
+# pushes to main; the Release workflow runs it first too.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Same major as the Docker image (Dockerfile: node:22-bookworm-slim)
+          node-version: 22
+          cache: npm
+
+      # The database tests build their schema with the sqlite3 CLI (lib/db/__tests__/test-db.ts)
+      - name: sqlite3 CLI
+        run: command -v sqlite3 || (sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3)
+
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+
+      - name: Types
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1

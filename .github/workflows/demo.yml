@@ -1,0 +1,82 @@
+# The live read-only demo on Vercel, built from a release.
+#
+# - after every release (called by release.yml with that release's tag)
+# - every Monday, from the latest release, so the demo's year of made-up data
+#   (built at deploy time, scripts/seed-demo.mjs) runs up to the current week
+# - by hand: Actions -> Demo -> Run workflow
+#
+# Needs the VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID secrets; without
+# them it says so and does nothing, so releases work before the demo exists.
+name: Demo
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: The release tag to deploy
+        required: true
+        type: string
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Vercel secrets
+        id: secrets
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No Vercel secrets yet: the demo was not deployed"
+          fi
+
+      - name: Which release
+        if: steps.secrets.outputs.ok
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+        run: |
+          if [ -z "$REF" ]; then
+            REF=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          fi
+          if [ -z "$REF" ]; then
+            echo "::notice::No release yet: nothing to deploy"; exit 0
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.ref.outputs.ref
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+
+      - uses: actions/setup-node@v4
+        if: steps.ref.outputs.ref
+        with:
+          node-version: 22
+
+      - name: Build and deploy
+        if: steps.ref.outputs.ref
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          npm pkg set version="${REF#v}"
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
