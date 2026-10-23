@@ -12,7 +12,6 @@ import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBa
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { getCategories } from '@/lib/db/categories'
 import { CategoryDonut } from '@/components/cards/category-donut'
-import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { CollapsiblePair } from '@/components/ui/collapsible-pair'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
@@ -161,12 +160,10 @@ export default async function BankAccountPage({
       <div className="wallet-shell__head">
       <PageHeading
         period={{ year: Number(year), month }}
-        title={account.displayName}
+        // The account's name is on its element in the wallet: the page keeps the section's title
+        title="בנקים"
         badge={account.archived ? 'בארכיון' : undefined}
-      >
-        {/* One analysis page for income and expenses, in the same place as on every account page */}
-        {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(account.id, period)} />}
-      </PageHeading>
+      />
       </div>
 
       {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
@@ -200,7 +197,7 @@ export default async function BankAccountPage({
           {/* Two equal halves, like the rows above and below */}
           <div className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
-            <BalanceChart data={balancePoints} />
+            <BalanceChart data={balancePoints} analysisHref={bankCategoryAnalysisHref(account.id, period)} />
           </div>
           {/* Where the money came from (start side) and where it went; a slice filters the table.
               The switch collapses the other side instead of dropping it. */}

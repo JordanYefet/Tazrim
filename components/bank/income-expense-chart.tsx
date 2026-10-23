@@ -84,13 +84,14 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flo
   const chartData = useStableData(rows)
 
   return (
-    <section className={SECTION}>
+    <section className={`${SECTION} flex flex-col`}>
       <ChartHeader
         title={flow === 'IN' ? 'הכנסות' : flow === 'OUT' ? 'הוצאות' : 'הכנסות מול הוצאות'}
         subtitle={subtitle ?? 'לחיצה על חודש מסננת'}
         legend={LEGEND.filter((_, i) => (i === 0 ? showIncome : showExpense))}
       />
-      <div className="h-48 sm:h-64 md:h-72">
+      {/* Fills the card: as tall as a taller neighbour in its row (a long category legend), never shorter than this */}
+      <div className="min-h-48 flex-1 sm:min-h-64 md:min-h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}

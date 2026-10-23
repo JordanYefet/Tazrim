@@ -6,12 +6,13 @@ import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankAccountCard } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { BalanceChart } from '@/components/bank/balance-chart'
+import { combinedBalance } from '@/lib/insights/combined-balance'
 import { BANK_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
-import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { CardStackTotal } from '@/components/cards/card-wallet'
 import {
   bankPeriodTotals,
@@ -35,14 +36,15 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const accounts = await listAccounts({ kind: 'BANK' })
   const perAccount = await Promise.all(
     accounts.map(async (account, i) => {
-      const [monthly, [latest], trend] = await Promise.all([
+      const [monthly, [latest], trend, balancePoints] = await Promise.all([
         getBankMonthlySummary(Number(year), account.id),
         // newest row in the period: its balance is the account's balance then
         getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
         getBankBalanceTrend(account.id, Number(year), month),
+        getBankBalancePoints(account.id, Number(year), month),
       ])
       const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
-      return { account, monthly, latest, trend, color, totals: bankPeriodTotals(monthly, month) }
+      return { account, monthly, latest, trend, balancePoints, color, totals: bankPeriodTotals(monthly, month) }
     })
   )
 
@@ -58,7 +60,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
 
   const heading = (
     <PageHeading period={{ year: Number(year), month }} title="בנקים">
-      {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(undefined, period)} />}
       <ManageAccountsLink />
     </PageHeading>
   )
@@ -115,12 +116,21 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
       </div>
 
       <div className="wallet-shell__rest space-y-6">
+        {/* The same pair as on an account's page: income vs. expenses, and the balance
+            (every account's together) with the category analysis link */}
         {hasData && (
-          <IncomeExpenseChart
-            data={chartData}
-            selectedMonth={month}
-            subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
-          />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <IncomeExpenseChart
+              data={chartData}
+              selectedMonth={month}
+              subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
+            />
+            <BalanceChart
+              data={combinedBalance(perAccount.map(a => a.balancePoints))}
+              subtitle={several ? 'כל החשבונות יחד · כל התנועות בתקופה' : undefined}
+              analysisHref={bankCategoryAnalysisHref(undefined, period)}
+            />
+          </div>
         )}
 
         {/* Several accounts: each one's period figures (one account's are the tiles above) */}

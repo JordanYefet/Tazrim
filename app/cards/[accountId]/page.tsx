@@ -3,7 +3,6 @@ import { FileSpreadsheet, Upload } from 'lucide-react'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { CardHeroTotal } from '@/components/cards/card-wallet'
 import { CategoryDonut } from '@/components/cards/category-donut'
-import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
@@ -121,7 +120,6 @@ export default async function CardAccountPage({
 
   const hasData = lastMonthWithData(monthly) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
-  const title = account.cardLastFour ? `${account.displayName} ·${account.cardLastFour}` : account.displayName
 
   // The card itself is the wallet in app/cards/layout.tsx (open on this page);
   // this page fills the grid around it (components/cards/card-wallet.tsx)
@@ -130,12 +128,10 @@ export default async function CardAccountPage({
       <div className="wallet-shell__head">
         <PageHeading
           period={{ year: Number(year), month }}
-          title={title}
+          // The card's name is on the card in the wallet: the page keeps the section's title
+          title="כרטיסי אשראי"
           badge={account.archived ? 'בארכיון' : undefined}
-        >
-          {/* Same place as on /cards and the bank pages */}
-          {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(account.id, period)} />}
-        </PageHeading>
+        />
       </div>
 
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
@@ -176,6 +172,7 @@ export default async function CardAccountPage({
               stats={categoryStats}
               selectedCategory={params.category}
               colors={categoryColors}
+              analysisHref={categoryAnalysisHref(account.id, period)}
             />
           </div>
         )}
