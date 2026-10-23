@@ -2,12 +2,14 @@
 #
 # Another port:   TAZRIM_PORT=3005 docker compose up -d   (or put TAZRIM_PORT=3005 in a .env file)
 # Demo data:      TAZRIM_DEMO=1 docker compose up -d      (only fills an empty database)
+# Update:         docker compose pull && docker compose up -d
 #
 # All data is in the "tazrim-data" volume on this machine (/data/tazrim.db inside the container).
 services:
   tazrim:
-    build: .
-    image: tazrim:latest
+    # The published image (amd64 + arm64); TAZRIM_VERSION=1.0.0 pins a version.
+    # To build it yourself instead: docker build -t ghcr.io/jordanyefet/tazrim:latest .
+    image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
     ports:
       - "${TAZRIM_PORT:-3000}:3000"
     environment:
