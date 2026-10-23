@@ -1,4 +1,4 @@
-import { averageStat, NetBalance, StatGrid, type StatDef } from '@/components/dashboard/summary-cards'
+import { averageStat, type StatDef } from '@/components/dashboard/summary-cards'
 
 interface Props {
   income: number
@@ -30,17 +30,4 @@ export function bankStats({ income, expense, averageExpense, averageIncome, mont
       monthLabel ? { label: monthLabel, value: expense, hasData: monthHasData } : undefined
     ),
   ]
-}
-
-/**
- * Hero net balance plus quieter tiles, as on the dashboard. Bank expenses
- * already include the card payment, so nothing is added for card charges.
- */
-export function BankSummaryCards(props: Props) {
-  return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <NetBalance bankIncome={props.income} bankExpense={props.expense} format="currencyExact" />
-      <StatGrid stats={bankStats(props)} />
-    </div>
-  )
 }

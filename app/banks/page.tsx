@@ -1,5 +1,6 @@
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
-import { BankSummaryCards } from '@/components/bank/bank-summary-cards'
+import { bankStats } from '@/components/bank/bank-summary-cards'
+import { NetBalance, StatGrid } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankAccountCard } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
@@ -49,6 +50,24 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const chartData = Object.entries(combined).map(([m, d]) => ({ month: Number(m), ...d }))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
+  const single = several ? undefined : perAccount[0]
+
+  const accountCard = ({ account, latest, trend, color, totals: t }: (typeof perAccount)[number], hero = false) => (
+    <BankAccountCard
+      hero={hero}
+      key={account.id}
+      href={accountHref('BANK', account.id, period)}
+      name={account.displayName}
+      provider={account.provider}
+      color={color}
+      colorChoice={account.color}
+      trend={trend.map(p => p.balance)}
+      income={t.income}
+      expense={t.expense}
+      latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
+      expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
+    />
+  )
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -71,14 +90,26 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         <>
           {hasData ? (
             <>
-              <BankSummaryCards
-                income={totals.income}
-                expense={totals.expense}
-                averageExpense={totals.averageExpense}
-                averageIncome={totals.averageIncome}
-                monthLabel={month ? monthName(month) : undefined}
-                monthHasData={!!month && monthHasData(combined, month)}
-              />
+              {/* As on an account page: two equal halves, the account and the net balance
+                  side by side, and the four period tiles (all the same size). With several
+                  accounts there is no one card for the hero; they get their own section below. */}
+              <div className="grid items-stretch gap-4 xl:grid-cols-2">
+                <div className={single ? 'grid items-stretch gap-4 sm:grid-cols-2' : 'grid'}>
+                  {single && accountCard(single, true)}
+                  <NetBalance bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
+                </div>
+                <StatGrid
+                  uniform
+                  stats={bankStats({
+                    income: totals.income,
+                    expense: totals.expense,
+                    averageExpense: totals.averageExpense,
+                    averageIncome: totals.averageIncome,
+                    monthLabel: month ? monthName(month) : undefined,
+                    monthHasData: !!month && monthHasData(combined, month),
+                  })}
+                />
+              </div>
               <IncomeExpenseChart
                 data={chartData}
                 selectedMonth={month}
@@ -94,28 +125,17 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             />
           )}
 
+          {/* One account with data is already in the hero row */}
+          {(several || !hasData) && (
           <section aria-labelledby="bank-accounts" className="space-y-3">
             <h2 id="bank-accounts" className="text-base font-semibold">
               {several ? `החשבונות (${accounts.length})` : 'החשבון'}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {perAccount.map(({ account, latest, trend, color, totals: t }) => (
-                <BankAccountCard
-                  key={account.id}
-                  href={accountHref('BANK', account.id, period)}
-                  name={account.displayName}
-                  provider={account.provider}
-                  color={color}
-                  colorChoice={account.color}
-                  trend={trend.map(p => p.balance)}
-                  income={t.income}
-                  expense={t.expense}
-                  latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
-                  expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
-                />
-              ))}
+              {perAccount.map(a => accountCard(a))}
             </div>
           </section>
+          )}
         </>
       )}
     </div>
