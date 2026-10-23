@@ -6,8 +6,8 @@ import type { CategoryMonthly } from '@/lib/insights/category-insights'
 interface Props {
   /** Page a month click filters (the category page itself) */
   basePath: string
-  /** Where each category goes: the card's transactions filtered to it */
-  categoryHrefs: Record<string, string>
+  /** Where each category goes: its transactions (a category without one is plain text) */
+  categoryHrefs: Record<string, string | undefined>
   monthly: CategoryMonthly
   /** Categories ordered by yearly spend */
   ranked: string[]
@@ -16,11 +16,23 @@ interface Props {
   lastMonth: number
   year: string
   selectedMonth?: number
+  /** What a month "with data" holds, for the average's note */
+  unit?: string
 }
 
 const fmt = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 })
 
-export function CategoryMonthTable({ basePath, categoryHrefs, monthly, ranked, colors, lastMonth, year, selectedMonth }: Props) {
+export function CategoryMonthTable({
+  basePath,
+  categoryHrefs,
+  monthly,
+  ranked,
+  colors,
+  lastMonth,
+  year,
+  selectedMonth,
+  unit = 'חיובים',
+}: Props) {
   const months = Array.from({ length: lastMonth }, (_, i) => i + 1)
   const monthTotals = months.map(m => ranked.reduce((s, c) => s + (monthly[c]?.[m] ?? 0), 0))
   // Average over months that have any card data, so a missing upload doesn't drag it down
@@ -43,7 +55,7 @@ export function CategoryMonthTable({ basePath, categoryHrefs, monthly, ranked, c
       <div className="p-4 pb-3 sm:p-6 sm:pb-4">
         <h3 className="text-base font-semibold">פירוט לפי קטגוריה וחודש</h3>
         <p className="text-sm text-muted-foreground">
-          סכומים בש״ח · ממוצע מחושב על {activeMonths} חודשים עם חיובים · חודש מסנן, קטגוריה פותחת את העסקאות שלה
+          סכומים בש״ח · ממוצע מחושב על {activeMonths} חודשים עם {unit} · חודש מסנן, קטגוריה פותחת את העסקאות שלה
         </p>
       </div>
 
@@ -78,13 +90,20 @@ export function CategoryMonthTable({ basePath, categoryHrefs, monthly, ranked, c
               return (
                 <tr key={c} className="border-b last:border-b-0">
                   <th scope="row" className={cn(stickyCol, 'p-0 font-normal')}>
-                    <Link
-                      href={categoryHrefs[c]}
-                      className="flex max-w-[9.5rem] items-center gap-2 px-3 py-2 text-start hover:underline sm:max-w-none"
-                    >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[c] }} aria-hidden />
-                      <span className="truncate">{c}</span>
-                    </Link>
+                    {categoryHrefs[c] ? (
+                      <Link
+                        href={categoryHrefs[c]}
+                        className="flex max-w-[9.5rem] items-center gap-2 px-3 py-2 text-start hover:underline sm:max-w-none"
+                      >
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[c] }} aria-hidden />
+                        <span className="truncate">{c}</span>
+                      </Link>
+                    ) : (
+                      <span className="flex max-w-[9.5rem] items-center gap-2 px-3 py-2 text-start sm:max-w-none">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[c] }} aria-hidden />
+                        <span className="truncate">{c}</span>
+                      </span>
+                    )}
                   </th>
                   {values.map((v, i) => (
                     <td key={i} className={cn(cell, monthCol(months[i]), v === 0 && 'text-muted-foreground/50')}>

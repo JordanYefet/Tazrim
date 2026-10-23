@@ -3,8 +3,7 @@ import { CategoryAnalysis } from '@/components/cards/category-analysis'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
-import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
@@ -17,7 +16,6 @@ export default async function AllCardsCategoriesPage({ searchParams }: { searchP
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const period = { year, ...(month ? { month: String(month) } : {}) }
 
   const accounts = await listAccounts({ kind: 'CREDIT_CARD' })
   const ids = accounts.map(a => a.id)
@@ -28,7 +26,6 @@ export default async function AllCardsCategoriesPage({ searchParams }: { searchP
       <PageHeading
         period={{ year: Number(year), month }}
         title={accounts.length > 1 ? `ניתוח לפי קטגוריה · ${accounts.length} כרטיסים` : 'ניתוח לפי קטגוריה'}
-        back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
       />
       {accounts.length === 0 ? (
         <EmptyState
@@ -42,7 +39,7 @@ export default async function AllCardsCategoriesPage({ searchParams }: { searchP
         />
       ) : (
         <CategoryAnalysis
-          cardIds={ids}
+          categoryHref={category => categoryTransactionsHref({ cardIds: ids, category, year, month })}
           monthly={monthly}
           year={year}
           month={month}

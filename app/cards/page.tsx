@@ -1,5 +1,5 @@
 import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
-import { CardSummaryCards } from '@/components/cards/card-summary-cards'
+import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { CardStackTotal } from '@/components/cards/card-wallet'
@@ -87,8 +87,10 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       {/* The total across the cards goes on the wallet's leather pocket (the count lives there too) */}
       <CardStackTotal value={total} />
 
-      {/* Each card's figures, beside the stack: as tall as the stack on wide screens */}
-      <ul className="wallet-shell__beside self-start divide-y overflow-hidden rounded-xl surface lg:flex lg:flex-col lg:self-stretch">
+      {/* Beside the stack, as tall as it: each card's figures, then the count and the
+          monthly average stretched to fill (the same two tiles as on a card's page) */}
+      <div className="wallet-shell__beside flex flex-col gap-4">
+      <ul className="divide-y overflow-hidden rounded-xl surface">
         {perCard.map(c => (
           <CardSummaryRow
             key={c.account.id}
@@ -105,17 +107,21 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           />
         ))}
       </ul>
+      {hasData && (
+        <CardStatTiles
+          className="flex-1"
+          total={total}
+          count={count}
+          average={average}
+          monthLabel={month ? monthName(month) : undefined}
+          monthHasData={!!month && monthHasData(combined, month)}
+        />
+      )}
+      </div>
 
       <div className="wallet-shell__rest space-y-6">
         {hasData ? (
           <>
-            <CardSummaryCards
-              total={total}
-              count={count}
-              average={average}
-              monthLabel={month ? monthName(month) : undefined}
-              monthHasData={!!month && monthHasData(combined, month)}
-            />
             <MonthlySpendingChart
               series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
               selectedMonth={month}

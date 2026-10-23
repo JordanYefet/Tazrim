@@ -22,13 +22,14 @@ const OTHER = 'אחר'
 interface Props {
   /** Page a month click filters (the category page itself) */
   basePath: string
-  /** Where each category chip goes: the card's transactions filtered to it */
-  categoryHrefs: Record<string, string>
+  /** Where each category chip goes: its transactions (none = a plain chip) */
+  categoryHrefs: Record<string, string | undefined>
   monthly: CategoryMonthly
   /** Categories ordered by yearly spend */
   ranked: string[]
   colors: Record<string, string>
   selectedMonth?: number
+  title?: string
 }
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -54,7 +55,15 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, colors, selectedMonth }: Props) {
+function CategoryTrendChartInner({
+  basePath,
+  categoryHrefs,
+  monthly,
+  ranked,
+  colors,
+  selectedMonth,
+  title = 'הוצאות לפי קטגוריה לאורך השנה',
+}: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -91,7 +100,7 @@ function CategoryTrendChartInner({ basePath, categoryHrefs, monthly, ranked, col
 
   return (
     <section className={SECTION}>
-      <ChartHeader title="הוצאות לפי קטגוריה לאורך השנה" subtitle="לחיצה על חודש מסננת · קטגוריה פותחת את העסקאות שלה" />
+      <ChartHeader title={title} subtitle="לחיצה על חודש מסננת · קטגוריה פותחת את העסקאות שלה" />
 
       <div className="h-56 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">

@@ -1,18 +1,30 @@
 import { notFound } from 'next/navigation'
+import { cn } from '@/lib/utils/cn'
 import { FileSpreadsheet, Upload } from 'lucide-react'
-import { BankSummaryCards } from '@/components/bank/bank-summary-cards'
+import { bankStats } from '@/components/bank/bank-summary-cards'
+import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { BankElement } from '@/components/accounts/account-element'
-import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { BankHeroBalance } from '@/components/cards/card-wallet'
+import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
+import { getCategories } from '@/lib/db/categories'
+import { CategoryDonut } from '@/components/cards/category-donut'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
+import { CollapsiblePair } from '@/components/ui/collapsible-pair'
+import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
+import { rankCategories } from '@/lib/insights/category-insights'
+import { categoryColorMap } from '@/lib/utils/category-colors'
 import { getAccount } from '@/lib/db/accounts'
+import { FlowFilter } from '@/components/bank/flow-filter'
+import { parseBankFlow } from '@/lib/insights/bank-categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
-import { accountHref } from '@/lib/accounts/routes'
+import { accountPath } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, monthHasData, type BankMonthly } from '@/lib/insights/account-overview'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -22,6 +34,9 @@ interface SearchParams {
   month?: string
   search?: string
   merchant?: string
+  category?: string
+  /** in = income only, out = expenses only */
+  flow?: string
   showIgnored?: string
 }
 
@@ -30,13 +45,15 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
-  const [txs, monthly, insights, [latest], trend] = await Promise.all([
+  const [txs, monthly, insights, [latest], trend, balancePoints, categories] = await Promise.all([
     getBankTransactions({
       accountId,
       year: Number(year),
       month,
       search: params.search,
       merchant: params.merchant,
+      category: params.category,
+      direction: parseBankFlow(params.flow),
       showIgnored: params.showIgnored === 'true',
       take: month ? undefined : 50,
     }),
@@ -51,17 +68,39 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
     // The hero's balance: the newest row of the period, whatever the table filters
     getBankTransactions({ accountId, year: Number(year), month, take: 1 }),
     getBankBalanceTrend(accountId, Number(year), month),
+    // The balance chart: every row of the period, whatever the table filters
+    getBankBalancePoints(accountId, Number(year), month),
+    // The donuts (period) and their colours (ranked by the year, like the card pages)
+    Promise.all([
+      getBankCategoryStats(accountId, Number(year), month, 'OUT'),
+      getBankCategoryStats(accountId, Number(year), month, 'IN'),
+      getBankCategoryMonthly(accountId, Number(year), 'OUT'),
+      getBankCategoryMonthly(accountId, Number(year), 'IN'),
+      getCategories('EXPENSE'),
+      getCategories('INCOME'),
+    ]),
   ])
+  const [expenseStats, incomeStats, expenseMonthly, incomeMonthly, expenseCategories, incomeCategories] = categories
 
   return {
     latest: latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined,
     trend: trend.map(p => p.balance),
+    balancePoints,
     transactions: asJson(txs),
     unusual: insights.flags.bank,
     recurring: insights.recurring,
     bankSummary: monthly as BankMonthly,
+    expenseStats,
+    incomeStats,
+    expenseColors: categoryColorMap(rankCategories(expenseMonthly)),
+    incomeColors: categoryColorMap(rankCategories(incomeMonthly)),
+    expenseCategories: asJson(expenseCategories),
+    incomeCategories: asJson(incomeCategories),
   }
 }
+
+const totalsOf = (stats: Record<string, { total: number }>) =>
+  Object.fromEntries(Object.entries(stats).map(([k, v]) => [k, v.total]))
 
 export default async function BankAccountPage({
   params: routeParams,
@@ -77,9 +116,23 @@ export default async function BankAccountPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, bankSummary, unusual, recurring, latest, trend } = await getBankData(account.id, params)
+  const {
+    transactions,
+    bankSummary,
+    unusual,
+    recurring,
+    latest,
+    trend,
+    balancePoints,
+    expenseStats,
+    incomeStats,
+    expenseColors,
+    incomeColors,
+    expenseCategories,
+    incomeCategories,
+  } = await getBankData(account.id, params)
 
-  const { income, expense, averageExpense } = bankPeriodTotals(bankSummary, month)
+  const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month)
 
   const chartData = Object.entries(bankSummary).map(([m, d]) => ({
     month: Number(m),
@@ -87,49 +140,49 @@ export default async function BankAccountPage({
     expense: d.expense,
   }))
 
-  const balancePoints = transactions.map((tx: { date: string; balance: number }) => ({
-    date: tx.date,
-    balance: tx.balance,
-  }))
 
   const fetchSp = new URLSearchParams({ year })
   if (params.search) fetchSp.set('search', params.search)
   if (params.merchant) fetchSp.set('merchant', params.merchant)
+  if (params.category) fetchSp.set('category', params.category)
+  if (params.flow) fetchSp.set('flow', params.flow)
   if (params.showIgnored) fetchSp.set('showIgnored', params.showIgnored)
   const hasMore = !month && transactions.length >= 50
 
   const hasData = lastMonthWithData(bankSummary) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
+  const flow = parseBankFlow(params.flow)
 
+  // The account itself is the open bank element in the wallet (app/banks/layout.tsx);
+  // this page fills the grid around it, as a card's page does
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="contents">
+      <BankHeroBalance accountId={account.id} latest={latest} trend={trend} />
+      <div className="wallet-shell__head">
       <PageHeading
         period={{ year: Number(year), month }}
         title={account.displayName}
-        back={{ href: accountHref('BANK', undefined, period), label: 'בנקים' }}
         badge={account.archived ? 'בארכיון' : undefined}
-      />
+      >
+        {/* One analysis page for income and expenses, in the same place as on every account page */}
+        {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(account.id, period)} />}
+      </PageHeading>
+      </div>
 
-      {/* The account itself is the page's hero, next to the period totals on wide screens */}
-      <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
-        <BankElement
-          hero
-          tilt
-          provider={account.provider}
-          name={account.displayName}
-          color="var(--chart-income)"
-          colorChoice={account.color}
-          latest={latest}
-          trend={trend}
-          emptyText="אין תנועות בתקופה"
-        />
+      {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
+      <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
+        {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currencyExact" />}
         {hasData ? (
-          <BankSummaryCards
-            income={income}
-            expense={expense}
-            averageExpense={averageExpense}
-            monthLabel={month ? monthName(month) : undefined}
-            monthHasData={!!month && monthHasData(bankSummary, month)}
+          <StatPanel
+            className="min-h-0 flex-1"
+            stats={bankStats({
+              income,
+              expense,
+              averageExpense,
+              averageIncome,
+              monthLabel: month ? monthName(month) : undefined,
+              monthHasData: !!month && monthHasData(bankSummary, month),
+            })}
           />
         ) : (
           <EmptyState
@@ -141,19 +194,47 @@ export default async function BankAccountPage({
         )}
       </div>
 
+      <div className="wallet-shell__rest space-y-6">
       {hasData && (
         <>
-          {/* Same 5/7 split as the summary row above, so the edges line up */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} />
+          {/* Two equal halves, like the rows above and below */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
             <BalanceChart data={balancePoints} />
           </div>
+          {/* Where the money came from (start side) and where it went; a slice filters the table.
+              The switch collapses the other side instead of dropping it. */}
+          <CollapsiblePair
+            show={flow === 'IN' ? 'first' : flow === 'OUT' ? 'second' : 'both'}
+            first={
+              <CategoryDonut
+                pagePath={accountPath('BANK', account.id)}
+                data={totalsOf(incomeStats)}
+                stats={incomeStats}
+                selectedCategory={params.category}
+                colors={incomeColors}
+                title="הכנסות לפי קטגוריה"
+                tone="income"
+                emptyText="אין הכנסות לתקופה זו"
+              />
+            }
+            second={
+              <CategoryDonut
+                pagePath={accountPath('BANK', account.id)}
+                data={totalsOf(expenseStats)}
+                stats={expenseStats}
+                selectedCategory={params.category}
+                colors={expenseColors}
+                emptyText="אין הוצאות לתקופה זו"
+              />
+            }
+          />
         </>
       )}
 
-      {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (
+      {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
         <BankTransactionsTable
-          key={[params.merchant, params.month, params.year, params.showIgnored].join('|')}
+          key={[params.merchant, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
           accountId={account.id}
           transactions={transactions}
           showIgnored={params.showIgnored === 'true'}
@@ -161,8 +242,13 @@ export default async function BankAccountPage({
           fetchParams={hasMore ? fetchSp.toString() : undefined}
           unusual={unusual}
           recurring={recurring}
+          expenseCategories={expenseCategories}
+          incomeCategories={incomeCategories}
+          activeCategory={params.category}
+          flowFilter={<FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />
       )}
+      </div>
     </div>
   )
 }

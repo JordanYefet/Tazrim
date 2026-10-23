@@ -55,8 +55,8 @@ export function AccountSwitcher() {
       <ul ref={listRef} className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5">
         {pills.map(p => (
           <li key={p.key} className="shrink-0">
+            {/* Both sections have a wallet (cards and banks): a tap moves it at once */}
             <WalletLink
-              wallet={item.key === 'cards'}
               ref={p.current ? activeRef : undefined}
               href={withPeriod(p.href, period)}
               aria-current={p.current ? 'page' : undefined}

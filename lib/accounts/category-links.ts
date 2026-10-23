@@ -1,11 +1,28 @@
 import { accountHref, accountPath, withQuery, type QueryInput } from './routes'
+import { isRealCategory } from '@/lib/insights/bank-categories'
 
 /** The category analysis page: one card's (`/cards/<id>/categories`) or every card's (`/cards/categories`). */
 export function categoryAnalysisHref(cardId: string | undefined, params?: QueryInput): string {
   return withQuery(`${accountPath('CREDIT_CARD', cardId)}/categories`, params)
 }
 
+/** The bank category analysis page: one account's (`/banks/<id>/categories`) or every bank account's. */
+export function bankCategoryAnalysisHref(accountId: string | undefined, params?: QueryInput): string {
+  return withQuery(`${accountPath('BANK', accountId)}/categories`, params)
+}
+
 const pad = (n: number) => String(n).padStart(2, '0')
+
+/** A search of these accounts for one category over the period (bank rows by date, card rows by purchase date). */
+function categorySearchHref(accountIds: string[], category: string, year: string, month?: number): string {
+  const y = Number(year)
+  const sp = new URLSearchParams()
+  sp.set('from', month ? `${year}-${pad(month)}-01` : `${year}-01-01`)
+  sp.set('to', month ? `${year}-${pad(month)}-${pad(new Date(y, month, 0).getDate())}` : `${year}-12-31`)
+  for (const id of accountIds) sp.append('account', id)
+  sp.set('category', category)
+  return `/search?${sp}`
+}
 
 /**
  * Where a category link goes: with one card, that card's page filtered to the
@@ -26,11 +43,42 @@ export function categoryTransactionsHref({
   if (cardIds.length === 1) {
     return accountHref('CREDIT_CARD', cardIds[0], { year, ...(month ? { month: String(month) } : {}), category })
   }
-  const y = Number(year)
-  const sp = new URLSearchParams()
-  sp.set('from', month ? `${year}-${pad(month)}-01` : `${year}-01-01`)
-  sp.set('to', month ? `${year}-${pad(month)}-${pad(new Date(y, month, 0).getDate())}` : `${year}-12-31`)
-  for (const id of cardIds) sp.append('account', id)
-  sp.set('category', category)
-  return `/search?${sp}`
+  return categorySearchHref(cardIds, category, year, month)
+}
+
+/**
+ * The bank side of categoryTransactionsHref: one account's page filtered to the
+ * category (the uncategorized and card-payment buckets too), or a search of
+ * several accounts, which only knows real categories (a bucket gets no link).
+ */
+export function bankCategoryTransactionsHref({
+  accountIds,
+  category,
+  year,
+  month,
+}: {
+  accountIds: string[]
+  category: string
+  year: string
+  month?: number
+}): string | undefined {
+  if (accountIds.length === 1) {
+    return accountHref('BANK', accountIds[0], { year, ...(month ? { month: String(month) } : {}), category })
+  }
+  return isRealCategory(category) ? categorySearchHref(accountIds, category, year, month) : undefined
+}
+
+/** Bank and card accounts together (the overview): a search of all of them, real categories only. */
+export function combinedCategoryTransactionsHref({
+  accountIds,
+  category,
+  year,
+  month,
+}: {
+  accountIds: string[]
+  category: string
+  year: string
+  month?: number
+}): string | undefined {
+  return isRealCategory(category) ? categorySearchHref(accountIds, category, year, month) : undefined
 }

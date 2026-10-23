@@ -679,33 +679,9 @@ html {
   font-weight: 500;
   color: rgb(255 255 255 / 0.82);
 }
-/* Under the open card: where its charges are paid from */
-.wallet__caption {
-  margin-top: 0.625rem;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: hsl(var(--muted-foreground));
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--ease-ui);
-}
-.wallet__caption[data-visible] { opacity: 1; }
-/* Wide screens: the caption hangs under the card inside the row gap, so the
-   tiles beside the card align with the card's own edges */
-@media (min-width: 1024px) {
-  .wallet { position: relative; }
-  .wallet__caption {
-    position: absolute;
-    inset-inline: 0;
-    top: 100%;
-    margin-top: 0.375rem;
-    line-height: 1rem;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .acct-card__amount,
-  .acct-card__amount[data-visible],
-  .wallet__caption,
-  .wallet__caption[data-visible] { transition: none; transform: none; }
+  .acct-card__amount[data-visible] { transition: none; transform: none; }
 }
 
 /* ── The bank account ── */
@@ -849,7 +825,9 @@ html {
 
    Shell grid, shared by both pages so the wallet keeps its place:
      phone   head / wallet / beside / rest, one column
-     lg      head spans both columns; wallet (23rem) | beside; rest spans
+     lg      head spans both columns; wallet | beside in equal halves; rest spans
+   The wallet keeps its own width (23rem at most), centred in its half; the
+   beside half is as tall as the wallet (its content stretches to fill it).
    The wallet column is the card's width in both modes, so moving a card
    is a pure translate. Pages render <div class="contents"> with the
    wallet-shell__head / __beside / __rest blocks. */
@@ -860,16 +838,18 @@ html {
   row-gap: 1.5rem;
 }
 .wallet-shell__head { grid-row: 1; min-width: 0; }
-.wallet-shell__wallet { grid-row: 2; min-width: 0; }
+.wallet-shell__wallet { grid-row: 2; min-width: 0; width: 100%; max-width: 23rem; justify-self: center; }
 .wallet-shell__beside { grid-row: 3; min-width: 0; }
 .wallet-shell__rest { grid-row: 4; min-width: 0; }
 @media (min-width: 1024px) {
-  .wallet-shell { grid-template-columns: minmax(0, 23rem) minmax(0, 1fr); }
+  .wallet-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wallet-shell__head { grid-column: 1 / -1; }
   .wallet-shell__wallet { grid-column: 1; grid-row: 2; }
   .wallet-shell__beside { grid-column: 2; grid-row: 2; }
-  /* A little more room: the wallet's caption hangs in the row gap above */
-  .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; margin-top: 0.5rem; }
+  .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; }
+  /* The bank pages: the figures take the wallet's height and never make the row
+     taller (no contribution to the row; stretched to it), so the halves end level */
+  .wallet-shell__beside--fit { height: 0; min-height: 100%; }
 }
 /* A page's own content eases in when it arrives (the wallet is already there) */
 .wallet-shell__beside,
@@ -1028,6 +1008,58 @@ html {
 @media (prefers-contrast: more) {
   .wallet-pocket__leather { color: #2e1405; }
   .wallet-pocket__leather::after { display: none; }
+}
+
+/* ── The bank wallet on /banks and /banks/[id] ──
+   The same wallet and geometry (components/cards/card-wallet.tsx, kind
+   "banks"): each bank element takes a card's proportions, and its band is the
+   strip that shows in the stack, name and bank on one line like a card's top
+   row. The pocket is navy leather; the type and layout are the card wallet's. */
+.wallet[data-kind='banks'] .acct-bank { height: 63.0841cqw; }
+.wallet[data-kind='banks'] .wallet-card__link { border-radius: 18px; }
+.wallet[data-kind='banks'] .acct-bank__band {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+}
+.wallet[data-kind='banks'] .acct-bank__name { min-width: 0; }
+.wallet[data-kind='banks'] .acct-bank__bank { flex-shrink: 0; }
+.wallet[data-kind='banks'] .wallet-pocket {
+  filter:
+    drop-shadow(0 -6px 9px rgb(8 16 32 / 0.34))
+    drop-shadow(0 16px 22px rgb(10 20 40 / 0.3));
+}
+.dark .wallet[data-kind='banks'] .wallet-pocket {
+  filter:
+    drop-shadow(0 -6px 10px rgb(0 0 0 / 0.5))
+    drop-shadow(0 18px 26px rgb(0 0 0 / 0.55));
+}
+.wallet[data-kind='banks'] .wallet-pocket__leather {
+  background:
+    radial-gradient(90% 70% at 25% 12%, rgb(214 228 250 / 0.16), rgb(214 228 250 / 0) 60%),
+    linear-gradient(165deg, #34557f 0%, #22395a 52%, #172840 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  color: #e3ecf8;
+}
+.wallet[data-kind='banks'] .wallet-pocket__leather::before { border-color: rgb(196 214 240 / 0.42); }
+.wallet[data-kind='banks'] .wallet-pocket__deboss {
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.35), 0 1px 0 rgb(214 228 250 / 0.12);
+}
+.wallet[data-kind='banks'] .wallet-pocket__label { color: #d6e3f5; }
+.wallet[data-kind='banks'] .wallet-pocket__currency { color: rgb(227 236 248 / 0.78); }
+.wallet[data-kind='banks'] .wallet-pocket__chip {
+  background: rgb(227 236 248 / 0.08);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 0 rgb(214 228 250 / 0.1);
+}
+.wallet[data-kind='banks'] .wallet-pocket__mark {
+  color: rgb(227 236 248 / 0.36);
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3);
+}
+@media (prefers-contrast: more) {
+  .wallet[data-kind='banks'] .wallet-pocket__leather { color: #ffffff; }
 }
 
 /* ── Account colours (ENG-66) ────────────────────────────────────────────

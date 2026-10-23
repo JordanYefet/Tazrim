@@ -48,6 +48,11 @@ model BankTransaction {
   credit              Float    @default(0)
   balance             Float
   note                String   @default("")
+  /// A Category name (expense for debits, income for credits); null = uncategorized.
+  /// Card-payment rows never get one (lib/insights/bank-categories.ts).
+  category            String?
+  /// Set on this row by hand, so a BankCategoryRule never overwrites it
+  categoryManual      Boolean  @default(false)
   ignored             Boolean  @default(false)
   sourceFile          String
 
@@ -104,10 +109,31 @@ model UploadHistory {
   @@index([accountId, fileName])
 }
 
+/// Expense categories are shared by cards and bank debits; income ones are for bank credits.
 model Category {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id        String       @id @default(uuid())
+  name      String       @unique
+  kind      CategoryKind @default(EXPENSE)
+  createdAt DateTime     @default(now())
+}
+
+enum CategoryKind {
+  EXPENSE
+  INCOME
+}
+
+/// "Every <description> row going <direction> is <category>", for the bank
+/// accounts of one provider. Applied on import and when the rule is saved, to
+/// rows whose category was not set by hand.
+model BankCategoryRule {
+  id                  String @id @default(uuid())
+  provider            String
+  originalDescription String
+  /// OUT = debits, IN = credits: the same description can be both
+  direction           String
+  category            String
+
+  @@unique([provider, originalDescription, direction])
 }
 
 /// A user decision about a detected recurring series (lib/insights/recurring.ts).

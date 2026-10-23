@@ -3,6 +3,8 @@ import { prisma, type Db } from './client'
 import type { ParsedBankTransaction } from '../parsers/types'
 import { accountWhere, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
+import { getBankCategoryRules, ruleCategoryFor } from './bank-categories'
+import { bankRowCategory, type BankDirection } from '../insights/bank-categories'
 import { localDay } from '../upload/card-dedupe'
 import { monthEndBalances } from '../insights/account-overview'
 
@@ -28,6 +30,7 @@ export async function upsertBankTransactions(
 ): Promise<{ created: number; skipped: number; skippedRows: SkippedBankRow[] }> {
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
   const aliasMap = await getAliasMap(account.provider, db)
+  const rules = await getBankCategoryRules(account.provider, db)
 
   let created = 0
   let skipped = 0
@@ -55,12 +58,15 @@ export async function upsertBankTransactions(
       continue
     }
 
+    const description = aliasMap.get(tx.originalDescription) ?? tx.originalDescription
     await db.bankTransaction.create({
       data: {
         accountId,
         date: tx.date,
         originalDescription: tx.originalDescription,
-        description: aliasMap.get(tx.originalDescription) ?? tx.originalDescription,
+        description,
+        // A category rule saved for this description and direction
+        category: ruleCategoryFor(rules, { ...tx, description }),
         debit: tx.debit,
         credit: tx.credit,
         balance: tx.balance,
@@ -81,6 +87,10 @@ export async function getBankTransactions(params: {
   year?: number
   search?: string
   merchant?: string
+  /** A category, or the uncategorized / card-payment bucket (lib/insights/bank-categories) */
+  category?: string
+  /** Only credits (IN) or only debits (OUT) */
+  direction?: BankDirection
   showIgnored?: boolean
   take?: number
   skip?: number
@@ -105,6 +115,18 @@ export async function getBankTransactions(params: {
 
   if (!params.showIgnored) {
     where.ignored = false
+  }
+
+  if (params.direction === 'IN') where.credit = { gt: 0 }
+  if (params.direction === 'OUT') where.debit = { gt: 0 }
+
+  if (params.category) {
+    // The buckets depend on the card-payment patterns, so the category is
+    // matched in JS over the period's rows (hundreds a year), then paged
+    const rows = await prisma.bankTransaction.findMany({ where, orderBy: { date: 'desc' } })
+    const matching = rows.filter(r => bankRowCategory(r) === params.category)
+    const start = params.skip ?? 0
+    return matching.slice(start, params.take !== undefined ? start + params.take : undefined)
   }
 
   return prisma.bankTransaction.findMany({
@@ -134,6 +156,27 @@ export async function getBankBalanceTrend(accountId: string, year: number, until
     select: { date: true, balance: true },
   })
   return monthEndBalances(rows, untilMonth)
+}
+
+/**
+ * Every balance one account reported in the period (a year, or one month),
+ * newest first, for the balance chart. Independent of the table's filters:
+ * the balance belongs to the account, not to the rows shown. Ignored rows
+ * still carry the bank's running balance, so they count.
+ */
+export async function getBankBalancePoints(accountId: string, year: number, month?: number) {
+  const rows = await prisma.bankTransaction.findMany({
+    where: {
+      accountId,
+      date: {
+        gte: new Date(year, month ? month - 1 : 0, 1),
+        lte: month ? new Date(year, month, 0, 23, 59, 59) : new Date(year, 12, 0, 23, 59, 59),
+      },
+    },
+    orderBy: { date: 'desc' },
+    select: { date: true, balance: true },
+  })
+  return rows.map(r => ({ date: r.date.toISOString(), balance: r.balance }))
 }
 
 /** Monthly income/expense; `accountId` omitted = every bank account. */

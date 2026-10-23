@@ -1,5 +1,7 @@
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
-import { BankSummaryCards } from '@/components/bank/bank-summary-cards'
+import { cn } from '@/lib/utils/cn'
+import { bankStats } from '@/components/bank/bank-summary-cards'
+import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankAccountCard } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
@@ -8,6 +10,9 @@ import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from 
 import { BANK_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref } from '@/lib/accounts/routes'
+import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
+import { CardStackTotal } from '@/components/cards/card-wallet'
 import {
   bankPeriodTotals,
   lastMonthWithData,
@@ -20,7 +25,7 @@ import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
 
-/** Every (non-archived) bank account: combined summary and one card per account. */
+/** Every (non-archived) bank account: the wallet's stack (layout), the combined summary beside it. */
 export default async function BanksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
@@ -48,13 +53,20 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeading period={{ year: Number(year), month }} title="בנקים">
-        <ManageAccountsLink />
-      </PageHeading>
+  // On the navy pocket: the balance across the accounts (each one's latest row in the period)
+  const stackBalance = perAccount.reduce((sum, a) => sum + (a.latest?.balance ?? 0), 0)
 
-      {accounts.length === 0 ? (
+  const heading = (
+    <PageHeading period={{ year: Number(year), month }} title="בנקים">
+      {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(undefined, period)} />}
+      <ManageAccountsLink />
+    </PageHeading>
+  )
+
+  if (accounts.length === 0) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        {heading}
         <EmptyState
           icon={Building2}
           title="אין חשבונות בנק"
@@ -64,36 +76,57 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             { href: '/settings#accounts', label: 'ניהול חשבונות' },
           ]}
         />
-      ) : (
-        <>
-          {hasData ? (
-            <>
-              <BankSummaryCards
-                income={totals.income}
-                expense={totals.expense}
-                averageExpense={totals.averageExpense}
-                monthLabel={month ? monthName(month) : undefined}
-                monthHasData={!!month && monthHasData(combined, month)}
-              />
-              <IncomeExpenseChart
-                data={chartData}
-                selectedMonth={month}
-                subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
-              />
-            </>
-          ) : (
-            <EmptyState
-              icon={FileSpreadsheet}
-              title={`אין תנועות בנק לשנת ${year}`}
-              text="העלה קובץ תנועות מהבנק כדי לראות כאן את התזרים החודשי."
-              actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
-            />
-          )}
+      </div>
+    )
+  }
 
+  // The accounts themselves are the wallet in app/banks/layout.tsx; this page
+  // fills the grid around it, as /cards does (components/cards/card-wallet.tsx, .wallet-shell)
+  return (
+    <div className="contents">
+      <div className="wallet-shell__head">{heading}</div>
+      <CardStackTotal value={stackBalance} />
+
+      {/* Beside the wallet, as tall as it: the net balance over the four period figures in one card */}
+      <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
+        {hasData ? (
+          <>
+            <NetBalance compact bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
+            <StatPanel
+              className="min-h-0 flex-1"
+              stats={bankStats({
+                income: totals.income,
+                expense: totals.expense,
+                averageExpense: totals.averageExpense,
+                averageIncome: totals.averageIncome,
+                monthLabel: month ? monthName(month) : undefined,
+                monthHasData: !!month && monthHasData(combined, month),
+              })}
+            />
+          </>
+        ) : (
+          <EmptyState
+            icon={FileSpreadsheet}
+            title={`אין תנועות בנק לשנת ${year}`}
+            text="העלה קובץ תנועות מהבנק כדי לראות כאן את התזרים החודשי."
+            actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+          />
+        )}
+      </div>
+
+      <div className="wallet-shell__rest space-y-6">
+        {hasData && (
+          <IncomeExpenseChart
+            data={chartData}
+            selectedMonth={month}
+            subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
+          />
+        )}
+
+        {/* Several accounts: each one's period figures (one account's are the tiles above) */}
+        {several && (
           <section aria-labelledby="bank-accounts" className="space-y-3">
-            <h2 id="bank-accounts" className="text-base font-semibold">
-              {several ? `החשבונות (${accounts.length})` : 'החשבון'}
-            </h2>
+            <h2 id="bank-accounts" className="text-base font-semibold">{`החשבונות (${accounts.length})`}</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {perAccount.map(({ account, latest, trend, color, totals: t }) => (
                 <BankAccountCard
@@ -107,13 +140,13 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
                   income={t.income}
                   expense={t.expense}
                   latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
-                  expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
+                  expenseShare={shareOf(t.expense, totals.expense)}
                 />
               ))}
             </div>
           </section>
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }

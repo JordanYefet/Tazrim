@@ -80,7 +80,7 @@ describe('averages over a partial year (ENG-70)', () => {
 
   it('bankPeriodTotals averageExpense ignores the empty months, also with an empty month selected', () => {
     expect(bankPeriodTotals(bank).averageExpense).toBe(400)
-    expect(bankPeriodTotals(bank, 12)).toEqual({ income: 0, expense: 0, net: 0, averageExpense: 400 })
+    expect(bankPeriodTotals(bank, 12)).toMatchObject({ income: 0, expense: 0, net: 0, averageExpense: 400 })
   })
 })
 

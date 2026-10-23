@@ -9,6 +9,7 @@ import {
   springEasing,
   springResponseFor,
   stripPx,
+  translateYOf,
   walletModeFor,
 } from '../wallet-motion'
 import { MOTION } from '@/lib/motion'
@@ -22,6 +23,15 @@ const cards = [
 const stackOrder = ['card_b', 'card_a'] // back to front
 
 describe('walletModeFor', () => {
+  it('works on another base (the bank wallet on /banks)', () => {
+    expect(walletModeFor('/banks', cards, '/banks')).toEqual({ kind: 'stack' })
+    expect(walletModeFor(`/banks/${cards[0].id}?year=2030`, cards, '/banks')).toEqual({ kind: 'open', id: cards[0].id })
+    expect(walletModeFor('/banks/categories', cards, '/banks')).toEqual({ kind: 'none' })
+    expect(walletModeFor(`/banks/${cards[0].id}/categories`, cards, '/banks')).toEqual({ kind: 'none' })
+    expect(walletModeFor('/cards', cards, '/banks')).toEqual({ kind: 'none' })
+    expect(walletModeFor('/banksx', cards, '/banks')).toEqual({ kind: 'none' })
+  })
+
   it('is the stack on /cards and one open card on /cards/<id>', () => {
     expect(walletModeFor('/cards', cards)).toEqual({ kind: 'stack' })
     expect(walletModeFor('/cards?year=2030', cards)).toEqual({ kind: 'stack' })
@@ -56,9 +66,11 @@ describe('placements', () => {
 })
 
 describe('boxHeight and pocketTop', () => {
-  it('is one card when open, the strips plus the pocket when stacked', () => {
-    expect(boxHeight({ kind: 'open', id: 'card_a' }, 2)).toBe('63.0841cqw')
+  it('is the strips plus the pocket, open or stacked, so the page around the wallet never moves', () => {
     expect(boxHeight({ kind: 'stack' }, 3)).toBe('calc(2 * max(50px, 13.7cqw) + max(44px, 12cqw) + 61cqw)')
+    expect(boxHeight({ kind: 'open', id: 'card_a' }, 3)).toBe(boxHeight({ kind: 'stack' }, 3))
+    // Only archived cards: no stack, one card's height
+    expect(boxHeight({ kind: 'open', id: 'card_a' }, 0)).toBe('63.0841cqw')
     expect(pocketTop(3)).toBe('calc(2 * max(50px, 13.7cqw) + max(44px, 12cqw))')
   })
 
@@ -126,5 +138,18 @@ describe('predictCardPlacement (ENG-72: baking glass ahead)', () => {
   it('a card not in the stack has no stack place', () => {
     expect(predictCardPlacement({ kind: 'stack' }, 'archived', order, box)).toBeNull()
     expect(predictCardPlacement({ kind: 'none' }, 'front', order, box)).toBeNull()
+  })
+})
+
+describe('translateYOf (carrying the cards across a move of the wallet box)', () => {
+  it('reads the vertical part of a computed translate', () => {
+    expect(translateYOf('none')).toBe(0)
+    expect(translateYOf('')).toBe(0)
+    expect(translateYOf(undefined)).toBe(0)
+    // One value is x only
+    expect(translateYOf('12px')).toBe(0)
+    expect(translateYOf('0px 40px')).toBe(40)
+    expect(translateYOf('0px -12.5px')).toBe(-12.5)
+    expect(translateYOf('3px -7px 0px')).toBe(-7)
   })
 })

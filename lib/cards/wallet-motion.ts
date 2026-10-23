@@ -30,11 +30,15 @@ export interface WalletCardInfo {
   archived: boolean
 }
 
-/** Which state a path puts the wallet in: the stack on /cards, one card open on /cards/<id>. */
-export function walletModeFor(path: string, cards: WalletCardInfo[]): WalletMode {
+/**
+ * Which state a path puts the wallet in: the stack on the overview (`base`,
+ * /cards or /banks), one card open on <base>/<id>.
+ */
+export function walletModeFor(path: string, cards: WalletCardInfo[], base = '/cards'): WalletMode {
   const clean = path.split(/[?#]/)[0].replace(/\/$/, '') || '/'
-  if (clean === '/cards') return cards.some(c => !c.archived) ? { kind: 'stack' } : { kind: 'none' }
-  const m = clean.match(/^\/cards\/([^/]+)$/)
+  if (clean === base) return cards.some(c => !c.archived) ? { kind: 'stack' } : { kind: 'none' }
+  if (!clean.startsWith(`${base}/`)) return { kind: 'none' }
+  const m = clean.slice(base.length).match(/^\/([^/]+)$/)
   if (!m) return { kind: 'none' }
   let id = m[1]
   try {
@@ -106,9 +110,15 @@ export function pocketTop(stackCount: number): string {
   return `calc(${pocketTopExpr(stackCount)})`
 }
 
-/** Height of the wallet box in a mode (CSS): the open card, or the cards down to the pocket's bottom. */
-export function boxHeight(mode: WalletMode, stackCount: number): string {
-  if (mode.kind === 'open' || stackCount < 1) return `${CARD_HEIGHT_CQW}cqw`
+/**
+ * Height of the wallet box (CSS): the cards down to the pocket's bottom, in
+ * BOTH modes. An open card rises to the top of the same box, so nothing
+ * around the wallet (the figures beside it, the charts below) moves when a
+ * card opens or closes. The stack is always the taller (its front peek plus
+ * the pocket exceed one card). Without a stack (only archived cards): one card.
+ */
+export function boxHeight(_mode: WalletMode, stackCount: number): string {
+  if (stackCount < 1) return `${CARD_HEIGHT_CQW}cqw`
   return `calc(${pocketTopExpr(stackCount)} + ${POCKET_HEIGHT_CQW}cqw)`
 }
 
@@ -181,4 +191,16 @@ export function predictCardPlacement(
     scaleX: s,
     scaleY: s,
   }
+}
+
+/**
+ * The vertical part of a computed CSS `translate` ('none', '12px', '0px 40px'
+ * or '0px 40px 0px'), in px. The wallet carries its cards across a move of
+ * the wallet box on the page with `translate` (components/cards/card-wallet.tsx).
+ */
+export function translateYOf(computed: string | null | undefined): number {
+  if (!computed || computed === 'none') return 0
+  const parts = computed.trim().split(/\s+/)
+  const y = parts.length > 1 ? parseFloat(parts[1]) : 0
+  return Number.isFinite(y) ? y : 0
 }

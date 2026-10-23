@@ -3,6 +3,7 @@ import { FileSpreadsheet, Upload } from 'lucide-react'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { CardHeroTotal } from '@/components/cards/card-wallet'
 import { CategoryDonut } from '@/components/cards/category-donut'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
@@ -16,7 +17,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { lastMonthWithData, monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
-import { accountHref } from '@/lib/accounts/routes'
+import { accountPath } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName } from '@/lib/utils/date'
@@ -48,7 +49,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
       take: month ? undefined : 50,
     }),
     getCCMonthlySummary(accountId, Number(year)),
-    getCategories(),
+    getCategories('EXPENSE'),
     // Flags for the whole year (every account's history as baseline), so "load more" rows get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
     // and the table marks rows that are already recurring (ENG-71)
@@ -130,9 +131,11 @@ export default async function CardAccountPage({
         <PageHeading
           period={{ year: Number(year), month }}
           title={title}
-          back={{ href: accountHref('CREDIT_CARD', undefined, period), label: 'כרטיסי אשראי' }}
           badge={account.archived ? 'בארכיון' : undefined}
-        />
+        >
+          {/* Same place as on /cards and the bank pages */}
+          {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(account.id, period)} />}
+        </PageHeading>
       </div>
 
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
@@ -161,19 +164,18 @@ export default async function CardAccountPage({
       <div className="wallet-shell__rest space-y-6">
         {hasData && (
           /* Monthly bar chart + category donut side by side on large screens */
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div className="grid gap-4 lg:grid-cols-2">
             <MonthlySpendingChart
               accountId={account.id}
               series={[{ key: account.id, label: account.displayName, color: seriesColor(account.color, 'var(--chart-cc)'), data: monthly }]}
               selectedMonth={month}
             />
             <CategoryDonut
-              accountId={account.id}
+              pagePath={accountPath('CREDIT_CARD', account.id)}
               data={categoryTotals}
               stats={categoryStats}
               selectedCategory={params.category}
               colors={categoryColors}
-              analysisHref={categoryAnalysisHref(account.id, period)}
             />
           </div>
         )}

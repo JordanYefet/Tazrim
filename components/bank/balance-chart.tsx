@@ -15,7 +15,7 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="text-muted-foreground text-xs mb-0.5">{label}</p>
-      <p className="text-[hsl(var(--income))] font-semibold tabular-nums">{formatCurrency(payload[0].value)}</p>
+      <p className="font-semibold tabular-nums text-foreground">{formatCurrency(payload[0].value)}</p>
     </div>
   )
 }
@@ -23,7 +23,8 @@ function CustomTooltip({ active, payload, label }: any) {
 export function BalanceChart({ data }: { data: TxPoint[] }) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
-  const strokeColor = isDark ? 'var(--chart-income, #3aad76)' : 'var(--chart-income, #2e8a5e)'
+  // Light blue, like the balance sparkline on the account element
+  const strokeColor = 'var(--chart-1)'
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
@@ -37,7 +38,7 @@ export function BalanceChart({ data }: { data: TxPoint[] }) {
 
   return (
     <section className={SECTION}>
-      <ChartHeader title="יתרת חשבון לאורך זמן" subtitle="לפי התנועות שבטבלה" />
+      <ChartHeader title="יתרת חשבון לאורך זמן" subtitle="כל התנועות בתקופה" />
       <div className="h-48 sm:h-64 md:h-72">
         {chartData.length === 0 ? (
           <p className="flex h-full items-center justify-center text-sm text-muted-foreground">אין תנועות לתקופה זו</p>

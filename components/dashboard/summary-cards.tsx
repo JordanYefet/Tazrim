@@ -32,6 +32,8 @@ export interface MonthCompare {
   value: number
   /** (value - average) / average, null when there is no average */
   delta: number | null
+  /** Above the average is good news (income), so up is green and down red */
+  upIsGood?: boolean
 }
 
 /** The yearly average tile; with a month selected a chip shows that month against the average. */
@@ -39,12 +41,18 @@ export function averageStat(
   def: Omit<StatDef, 'value' | 'compare' | 'hasCompareSlot'>,
   average: number,
   /** `hasData: false`: the month has no data yet, so no chip (not "-100%") */
-  month?: { label: string; value: number; hasData?: boolean }
+  month?: { label: string; value: number; hasData?: boolean },
+  opts: { upIsGood?: boolean } = {}
 ): StatDef {
   return {
     ...def,
     value: average,
-    compare: month && { label: month.label, value: month.value, delta: monthAverageDelta(month.value, average, month.hasData ?? true) },
+    compare: month && {
+      label: month.label,
+      value: month.value,
+      delta: monthAverageDelta(month.value, average, month.hasData ?? true),
+      upIsGood: opts.upIsGood,
+    },
     hasCompareSlot: true,
   }
 }
@@ -57,17 +65,20 @@ const pct = new Intl.NumberFormat('he-IL', { style: 'percent', maximumFractionDi
  * already has its tile, so only the percentage is shown, and the tile keeps
  * its size whether or not a month is selected.
  */
-function DeltaChip({ label, delta }: MonthCompare) {
+function DeltaChip({ label, delta, upIsGood }: MonthCompare) {
   if (delta === null) return null
   const up = Math.round(delta * 100) > 0
   const down = Math.round(delta * 100) < 0
   const relation = up ? 'מעל הממוצע' : down ? 'מתחת לממוצע' : 'כמו הממוצע'
+  // Spending above the average is bad news; income above it is good
+  const bad = upIsGood ? down : up
+  const good = upIsGood ? up : down
   return (
     <span
       className={cn(
         'shrink-0 self-center rounded px-1.5 py-0.5 text-xs font-medium tabular-nums',
-        up && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
-        down && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
+        bad && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
+        good && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
         !up && !down && 'bg-muted text-muted-foreground'
       )}
       title={`${label} ${relation}`}
@@ -105,12 +116,26 @@ export const DOT: Record<Tone, string> = {
   neutral: 'bg-muted-foreground',
 }
 
-export function StatTile({ label, value, tone, href, hint, format, split, compare, hasCompareSlot, wide }: StatDef & { wide?: boolean }) {
+export function StatTile({
+  label,
+  value,
+  tone,
+  href,
+  hint,
+  format,
+  split,
+  compare,
+  hasCompareSlot,
+  wide,
+  bare,
+}: StatDef & { wide?: boolean; /** A cell of a StatPanel: no card of its own */ bare?: boolean }) {
   const body = (
     <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className={cn('h-2 w-2 rounded-full shrink-0', DOT[tone])} aria-hidden />
-        <span className="font-medium">{label}</span>
+        <span className={cn('font-medium', bare && 'whitespace-nowrap')}>{label}</span>
+        {/* A panel cell keeps one line of label: its hint follows it where there is room */}
+        {bare && hint && <span className="hidden truncate text-xs xl:inline">· {hint}</span>}
         {href && (
           <ChevronLeft
             className="ms-auto h-4 w-4 opacity-0 transition-all duration-fast group-hover:opacity-100 group-hover:-translate-x-0.5"
@@ -125,14 +150,16 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
               'min-w-0 font-semibold tracking-tight tabular-nums text-foreground',
               // agorot, or a comparison chip beside the figure, make the line longer:
               // keep it on one line in half-width phone tiles
-              format === 'currencyExact' || hasCompareSlot ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
+              bare
+                ? 'whitespace-nowrap text-lg leading-tight sm:text-xl'
+                : format === 'currencyExact' || hasCompareSlot ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
             )}
           >
             <RollingNumber value={value} format={format} />
           </p>
           {compare && <DeltaChip {...compare} />}
         </div>
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+        {hint && !bare && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         {split && split.length > 1 && (
           <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
             {split.map(s => (
@@ -148,10 +175,9 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
   )
   // Values sit right under the label (not pushed to the bottom), so they line up
   // across a row even when one tile has an extra hint or comparison line
-  const base = cn(
-    'group relative flex flex-col gap-3 rounded-xl surface-raised p-4',
-    wide && 'col-span-2'
-  )
+  const base = bare
+    ? 'group relative flex h-full flex-col justify-center gap-0.5 px-4 py-1'
+    : cn('group relative flex flex-col gap-3 rounded-xl surface-raised p-4', wide && 'col-span-2')
   if (!href) return <div className={base}>{body}</div>
   return (
     <Link
@@ -169,9 +195,34 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
 }
 
 /** Two-column tile grid; an odd last tile spans both columns. */
-export function StatGrid({ stats }: { stats: StatDef[] }) {
+/**
+ * Several figures in ONE card, two per row with hairlines between them: no
+ * gaps between tiles, so it fits beside the wallet with the net balance
+ * (the bank pages). Rows share the card's height evenly.
+ */
+export function StatPanel({ stats, className }: { stats: StatDef[]; className?: string }) {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className={cn('grid auto-rows-fr grid-cols-2 overflow-hidden rounded-xl surface-raised', className)}>
+      {stats.map((s, i) => (
+        <div
+          key={s.label}
+          className={cn(
+            'flex min-w-0 flex-col',
+            i % 2 === 0 && 'border-e',
+            i < stats.length - 2 && 'border-b'
+          )}
+        >
+          <StatTile {...s} bare />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** `uniform`: every row as tall as the tallest, so all tiles are the same size */
+export function StatGrid({ stats, uniform, className }: { stats: StatDef[]; uniform?: boolean; className?: string }) {
+  return (
+    <div className={cn('grid grid-cols-2 gap-4', uniform && 'auto-rows-fr', className)}>
       {stats.map((s, i) => (
         <StatTile key={s.label} {...s} wide={stats.length % 2 === 1 && i === stats.length - 1} />
       ))}
@@ -188,7 +239,12 @@ export function NetBalance({
   bankIncome,
   bankExpense,
   format,
-}: Pick<Props, 'bankIncome' | 'bankExpense'> & { format?: RollingFormat }) {
+  compact = false,
+}: Pick<Props, 'bankIncome' | 'bankExpense'> & {
+  format?: RollingFormat
+  /** Beside the wallet (the bank pages): tighter, so it and the figures fit the wallet's height */
+  compact?: boolean
+}) {
   const outflow = bankExpense
   const net = bankIncome - outflow
   const scale = Math.max(bankIncome, outflow)
@@ -198,19 +254,36 @@ export function NetBalance({
   return (
     <section
       aria-label="מאזן נטו"
-      className="flex flex-col justify-between gap-6 rounded-xl surface-hero p-4 sm:p-6"
+      className={cn(
+        'flex flex-col justify-between rounded-xl surface-hero p-4',
+        compact ? 'gap-3 py-3 sm:px-5' : 'gap-6 sm:p-6'
+      )}
     >
       <div>
-        <p className="text-sm font-medium text-muted-foreground">מאזן נטו</p>
+        <p className="text-sm font-medium text-muted-foreground">
+          מאזן נטו
+          {/* Compact: the share left joins the label line (no line of its own) */}
+          {compact && bankIncome > 0 && (
+            <span className="font-normal">
+              {' · '}
+              {positive ? (
+                <>נשאר <RollingNumber value={Math.round(100 - spentPct)} format="percent" /> מההכנסות</>
+              ) : (
+                <>ההוצאות גבוהות ב־<RollingNumber value={Math.round(spentPct - 100)} format="percent" /></>
+              )}
+            </span>
+          )}
+        </p>
         <p
           className={cn(
-            'mt-1 text-4xl font-semibold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none',
+            'mt-1 font-semibold tracking-tight tabular-nums',
+            compact ? 'text-3xl leading-none' : 'text-4xl sm:text-[2.75rem] sm:leading-none',
             positive ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'
           )}
         >
           <RollingNumber value={net} format={format} />
         </p>
-        {bankIncome > 0 && (
+        {bankIncome > 0 && !compact && (
           <p className="mt-2 text-sm text-muted-foreground">
             {positive ? (
               <>נשאר <RollingNumber value={Math.round(100 - spentPct)} format="percent" /> מההכנסות</>
@@ -237,7 +310,7 @@ export function NetBalance({
               />
             )}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className={cn('flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground', compact && 'sr-only')}>
             <span className="flex items-center gap-1.5">
               <span className={cn('h-2 w-2 rounded-full', DOT.expense)} aria-hidden />
               הוצאות (כולל חיובי כרטיס)
