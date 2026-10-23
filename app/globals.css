@@ -1202,6 +1202,13 @@ html {
   .acct-face[data-glass] .glass { display: none; }
 }
 
+/* Read-only mode's notice (components/layout/read-only-guard.tsx): rises in, fades out */
+.read-only-notice { animation: read-only-notice var(--motion-base) var(--ease-ui); }
+@keyframes read-only-notice { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  .read-only-notice { animation: none; }
+}
+
 /* ── Bar glass ───────────────────────────────────────────────────────
    The top bar and the sidebar in the same material as a glass account
    face: the light tint, a thin rim and an inner highlight. They sit over

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils/cn'
 import { isPeriodPath, periodQuery, type Period } from '@/lib/period'
 import { useCurrentPeriod, useRememberPeriod } from './period-context'
 import { PeriodPicker } from './period-picker'
+import { ReadOnlyBadge } from './read-only-guard'
 
 /**
  * Sticky, translucent header: the period picker in the middle, search at the end. It slides
@@ -15,7 +16,7 @@ import { PeriodPicker } from './period-picker'
  * (transform only). It stays put while focus is inside it and under
  * reduced motion.
  */
-export function Header() {
+export function Header({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -49,8 +50,9 @@ export function Header() {
           'motion-reduce:!translate-y-0 motion-reduce:transition-none'
         )}
       >
-        {/* Empty start column, as wide as the end one, so the period sits in the middle */}
-        <div aria-hidden />
+        {/* The start column is as wide as the end one, so the period sits in the middle;
+            in read-only mode (the demo) it says so */}
+        <div className="flex min-w-0 items-center">{readOnly && <ReadOnlyBadge />}</div>
         <PeriodPicker period={{ year: current.year, month: current.month }} onChange={update} />
 
         <div className="flex items-center justify-end gap-2">
