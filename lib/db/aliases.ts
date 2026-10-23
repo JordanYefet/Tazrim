@@ -37,6 +37,15 @@ export async function getAliasMap(provider: string, db: Db = prisma): Promise<Ma
   return new Map(aliases.map(a => [a.originalName, a.displayName]))
 }
 
+/** originalName -> the rule's display name and category, for one provider's rules (card imports). */
+export async function getCardRules(
+  provider: string,
+  db: Db = prisma
+): Promise<Map<string, { displayName: string; categoryOverride: string | null }>> {
+  const aliases = await db.transactionAlias.findMany({ where: { provider } })
+  return new Map(aliases.map(a => [a.originalName, { displayName: a.displayName, categoryOverride: a.categoryOverride }]))
+}
+
 export async function upsertAlias(params: AliasInput) {
   return prisma.transactionAlias.upsert({
     where: { provider_originalName: { provider: params.provider, originalName: params.originalName } },

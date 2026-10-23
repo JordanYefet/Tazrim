@@ -135,3 +135,25 @@ describe('card import de-duplication', () => {
     })
   })
 })
+
+describe('merchant rules on import', () => {
+  beforeEach(() => db.exec(`DELETE FROM "TransactionAlias"`))
+
+  it("gives new rows the rule's name and category", async () => {
+    db.exec(`INSERT INTO "TransactionAlias" ("id","provider","originalName","displayName","categoryOverride") VALUES
+      ('r1', 'max', 'FAKE CAFE', 'Fake Cafe', 'Coffee'),
+      ('r2', 'max', 'FAKE STREAMING', 'Fake Streaming', NULL),
+      ('r3', 'leumi', 'FAKE FURNITURE', 'Fake Furniture', 'Elsewhere')`)
+    await cards.upsertCCTransactions(statement(2), 'max-2.xlsx', 'acct_max')
+    const rows = db.query<{ originalMerchantName: string; merchantName: string; categoryOverride: string | null }>(
+      `SELECT originalMerchantName, merchantName, categoryOverride FROM "CreditCardTransaction" ORDER BY originalMerchantName`
+    )
+    expect(rows).toEqual([
+      { originalMerchantName: 'FAKE CAFE', merchantName: 'Fake Cafe', categoryOverride: 'Coffee' },
+      // Another provider's rule does not apply
+      { originalMerchantName: 'FAKE FURNITURE', merchantName: 'FAKE FURNITURE', categoryOverride: null },
+      // A rule without a category only renames
+      { originalMerchantName: 'FAKE STREAMING', merchantName: 'Fake Streaming', categoryOverride: null },
+    ])
+  })
+})
