@@ -31,13 +31,16 @@ export function CollapsiblePair({
         visible ? 'opacity-100' : 'opacity-0'
       )}
     >
-      {node}
+      {/* The content keeps its side-by-side width (half the row, cqw of the pair): a
+          collapsing column clips its card instead of re-wrapping it taller, which
+          would stretch the row and leave a gap under the other card */}
+      <div className="lg:min-w-[calc(50cqw-0.5rem)]">{node}</div>
     </div>
   )
   return (
     <div
       className={cn(
-        'grid transition-[grid-template-columns,grid-template-rows,gap] duration-base ease-ui motion-reduce:transition-none',
+        'grid [container-type:inline-size] transition-[grid-template-columns,grid-template-rows,gap] duration-base ease-ui motion-reduce:transition-none',
         TRACKS[show]
       )}
     >
