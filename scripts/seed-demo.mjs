@@ -7,7 +7,7 @@
  *   npm run db:demo            -> prisma/demo.db
  *   npm run dev:demo           -> the app on that database
  *
- * Runs the real migrations with the sqlite3 CLI (like lib/db/__tests__/test-db.ts),
+ * Runs the real migrations (with Prisma's SQL runner),
  * then inserts a year of activity up to today: three bank accounts and three
  * cards, each card's bill paid from one of the banks.
  */
@@ -28,17 +28,22 @@ const migrationsDir = path.join(root, 'prisma/migrations')
 
 if (!dataOnly) {
   fs.rmSync(file, { force: true })
-  const exec = sql => execFileSync('sqlite3', ['-bail', file], { input: sql })
-  exec(`CREATE TABLE "_prisma_migrations" (
+  // Every migration in order, plus its row in _prisma_migrations, as one script for
+  // Prisma's own SQL runner (no sqlite3 CLI needed, so this also runs on Vercel)
+  const sql = [`CREATE TABLE "_prisma_migrations" (
     "id" TEXT PRIMARY KEY NOT NULL, "checksum" TEXT NOT NULL, "finished_at" DATETIME,
     "migration_name" TEXT NOT NULL, "logs" TEXT, "rolled_back_at" DATETIME,
     "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
-    "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);`)
+    "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);`]
   for (const name of fs.readdirSync(migrationsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    exec(fs.readFileSync(path.join(migrationsDir, name, 'migration.sql'), 'utf8'))
-    exec(`INSERT INTO "_prisma_migrations" ("id","checksum","migration_name","finished_at","applied_steps_count")
+    sql.push(fs.readFileSync(path.join(migrationsDir, name, 'migration.sql'), 'utf8'))
+    sql.push(`INSERT INTO "_prisma_migrations" ("id","checksum","migration_name","finished_at","applied_steps_count")
           VALUES ('demo-${name}','demo','${name}',CURRENT_TIMESTAMP,1);`)
   }
+  execFileSync(path.join(root, 'node_modules', '.bin', 'prisma'), ['db', 'execute', '--stdin', '--url', `file:${file}`], {
+    input: sql.join('\n'),
+    stdio: ['pipe', 'ignore', 'inherit'],
+  })
 }
 
 // Deterministic, so the demo looks the same on every run
@@ -87,6 +92,31 @@ const CARD_FIXED = {
     ['אפליקציית מוזיקה', 'פנאי, בידור וספורט', 21.9, 7],
   ],
   acct_isracard: [['חדר כושר שכונתי', 'פנאי, בידור וספורט', 229, 1]],
+}
+
+// Bank rows: description -> category, by direction (card payments get none:
+// their charges are already categorised on the card). Category names are unique
+// across kinds, hence the two transfer names.
+const BANK_CATEGORIES = {
+  OUT: {
+    'שכר דירה': 'דיור',
+    'חברת החשמל': 'חשבונות הבית',
+    'ארנונה': 'חשבונות הבית',
+    'ועד בית': 'חשבונות הבית',
+    'תאגיד המים': 'חשבונות הבית',
+    'גן ילדים לדוגמה': 'חינוך וילדים',
+    'ביטוח רכב': 'ביטוח',
+    'העברה לחיסכון': 'חיסכון',
+    'העברה לחשבון לאומי': 'העברה לחשבון אחר',
+  },
+  IN: {
+    'משכורת - חברה לדוגמה בע"מ': 'משכורת',
+    'משכורת - חברה נוספת בע"מ': 'משכורת',
+    'החזר מס': 'החזרים',
+    'ריבית זכות': 'ריבית',
+    'העברה מחשבון הפועלים': 'העברה מחשבון אחר',
+    'העברה מחשבון לאומי': 'העברה מחשבון אחר',
+  },
 }
 
 const today = new Date()
@@ -174,6 +204,7 @@ const bankRows = BANKS.flatMap(b => {
         debit: e.debit,
         credit: e.credit,
         balance,
+        category: BANK_CATEGORIES[e.debit > 0 ? 'OUT' : 'IN'][e.description] ?? null,
         sourceFile: `demo-${b.provider}.xlsx`,
       }
     })
@@ -197,6 +228,20 @@ for (const c of CARDS) {
     create: { id: c.id, kind: 'CREDIT_CARD', provider: c.provider, displayName: c.displayName, ...fields },
   })
 }
+// The categories in use, and a rule per bank description (as categorising a row "for every row like it" makes)
+const expense = new Set([...cardRows.map(r => r.category), ...Object.values(BANK_CATEGORIES.OUT)])
+const income = new Set(Object.values(BANK_CATEGORIES.IN))
+for (const [names, kind] of [[expense, 'EXPENSE'], [income, 'INCOME']])
+  for (const name of names) await prisma.category.upsert({ where: { name }, update: {}, create: { name, kind } })
+const providerOf = Object.fromEntries(BANKS.map(b => [b.id, b.provider]))
+const rules = new Map()
+for (const r of bankRows) {
+  if (!r.category) continue
+  const direction = r.debit > 0 ? 'OUT' : 'IN'
+  const provider = providerOf[r.accountId]
+  rules.set(`${provider}|${r.originalDescription}|${direction}`, { provider, originalDescription: r.originalDescription, direction, category: r.category })
+}
+await prisma.bankCategoryRule.createMany({ data: [...rules.values()] })
 await prisma.bankTransaction.createMany({ data: bankRows })
 await prisma.creditCardTransaction.createMany({ data: cardRows })
 await prisma.uploadHistory.createMany({

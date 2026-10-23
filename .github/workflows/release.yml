@@ -1,0 +1,142 @@
+# A release, on demand: Actions -> Release -> Run workflow (on main), type the version.
+#
+#   1. the CI checks on main
+#   2. the release commit: the `release` branch is reset to main plus one commit,
+#      "Release v<version>", that sets package.json's version (the About page
+#      shows it); main itself never gets a bot commit
+#   3. the Docker image (amd64 + arm64) from that commit to ghcr.io/<owner>/tazrim
+#      as <version>, <major>.<minor> and latest
+#   4. then, only once the image is pushed: the `release` branch and the tag
+#      v<version> go up, and the GitHub release is created (notes from the merged PRs)
+#
+# Vercel builds the live demo from the `release` branch through its GitHub
+# link (vercel.json allows that branch only), so each release updates the demo.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, without the v (e.g. 1.0.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        name: Version and branch
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are made from main (this run is on $GITHUB_REF)"; exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$VERSION' is not a version like 1.0.0"; exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION already exists"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: CI
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Release commit and Docker image
+    needs: [validate, check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B release "$GITHUB_SHA"
+          npm pkg set version="$VERSION"
+          git commit -am "Release v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+
+      - name: Image name
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tazrim" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}},value=v${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ env.VERSION }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=Tazrim
+            org.opencontainers.image.licenses=MIT
+
+      # From the working tree: the release commit, with its version
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Only now that the image exists: a failed build leaves no tag behind, so the run can be repeated
+      - name: Push the release branch and tag
+        run: git push --force origin release "refs/tags/v$VERSION"
+
+  release:
+    name: GitHub release
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tazrim"
+          gh release create "v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "v$VERSION" \
+            --generate-notes \
+            --notes "Docker image: \`$image:$VERSION\` (also \`latest\`)"

@@ -19,6 +19,7 @@ prisma/*.backup.db
 *.csv
 
 # Local tooling state
+.vercel/
 .worktrees/
 .claude/worktrees/
 .claude/settings.local.json
