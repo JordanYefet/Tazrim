@@ -1,9 +1,10 @@
 # A release, on demand: Actions -> Release -> Run workflow (on main), type the version.
 #
 #   1. the CI checks on main
-#   2. the release commit: the `release` branch is reset to main plus one commit,
-#      "Release v<version>", that sets package.json's version (the About page
-#      shows it); main itself never gets a bot commit
+#   2. the release commit: main is merged into the `release` branch, then one
+#      commit, "Release v<version>", sets package.json's version (the About page
+#      shows it); main itself never gets a bot commit, and `release` only moves
+#      forward (no force push), so it can be protected
 #   3. the Docker image (amd64 + arm64) from that commit to ghcr.io/<owner>/tazrim
 #      as <version>, <major>.<minor> and latest
 #   4. then, only once the image is pushed: the `release` branch and the tag
@@ -71,12 +72,21 @@ jobs:
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Release commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B release "$GITHUB_SHA"
+          if git ls-remote --exit-code --heads origin release >/dev/null; then
+            git checkout -B release origin/release
+            # release differs from main only by its version commits, which the next
+            # line sets again, so main wins any conflict
+            git merge --no-ff -X theirs "$GITHUB_SHA" -m "Merge main for v$VERSION"
+          else
+            git checkout -B release "$GITHUB_SHA"
+          fi
           npm pkg set version="$VERSION"
           git commit -am "Release v$VERSION"
           git tag -a "v$VERSION" -m "v$VERSION"
@@ -119,7 +129,7 @@ jobs:
 
       # Only now that the image exists: a failed build leaves no tag behind, so the run can be repeated
       - name: Push the release branch and tag
-        run: git push --force origin release "refs/tags/v$VERSION"
+        run: git push origin release "refs/tags/v$VERSION"
 
   release:
     name: GitHub release
