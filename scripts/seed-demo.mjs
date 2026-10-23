@@ -89,6 +89,31 @@ const CARD_FIXED = {
   acct_isracard: [['חדר כושר שכונתי', 'פנאי, בידור וספורט', 229, 1]],
 }
 
+// Bank rows: description -> category, by direction (card payments get none:
+// their charges are already categorised on the card). Category names are unique
+// across kinds, hence the two transfer names.
+const BANK_CATEGORIES = {
+  OUT: {
+    'שכר דירה': 'דיור',
+    'חברת החשמל': 'חשבונות הבית',
+    'ארנונה': 'חשבונות הבית',
+    'ועד בית': 'חשבונות הבית',
+    'תאגיד המים': 'חשבונות הבית',
+    'גן ילדים לדוגמה': 'חינוך וילדים',
+    'ביטוח רכב': 'ביטוח',
+    'העברה לחיסכון': 'חיסכון',
+    'העברה לחשבון לאומי': 'העברה לחשבון אחר',
+  },
+  IN: {
+    'משכורת - חברה לדוגמה בע"מ': 'משכורת',
+    'משכורת - חברה נוספת בע"מ': 'משכורת',
+    'החזר מס': 'החזרים',
+    'ריבית זכות': 'ריבית',
+    'העברה מחשבון הפועלים': 'העברה מחשבון אחר',
+    'העברה מחשבון לאומי': 'העברה מחשבון אחר',
+  },
+}
+
 const today = new Date()
 const year = today.getFullYear()
 const lastMonth = today.getMonth() + 1
@@ -174,6 +199,7 @@ const bankRows = BANKS.flatMap(b => {
         debit: e.debit,
         credit: e.credit,
         balance,
+        category: BANK_CATEGORIES[e.debit > 0 ? 'OUT' : 'IN'][e.description] ?? null,
         sourceFile: `demo-${b.provider}.xlsx`,
       }
     })
@@ -197,6 +223,20 @@ for (const c of CARDS) {
     create: { id: c.id, kind: 'CREDIT_CARD', provider: c.provider, displayName: c.displayName, ...fields },
   })
 }
+// The categories in use, and a rule per bank description (as categorising a row "for every row like it" makes)
+const expense = new Set([...cardRows.map(r => r.category), ...Object.values(BANK_CATEGORIES.OUT)])
+const income = new Set(Object.values(BANK_CATEGORIES.IN))
+for (const [names, kind] of [[expense, 'EXPENSE'], [income, 'INCOME']])
+  for (const name of names) await prisma.category.upsert({ where: { name }, update: {}, create: { name, kind } })
+const providerOf = Object.fromEntries(BANKS.map(b => [b.id, b.provider]))
+const rules = new Map()
+for (const r of bankRows) {
+  if (!r.category) continue
+  const direction = r.debit > 0 ? 'OUT' : 'IN'
+  const provider = providerOf[r.accountId]
+  rules.set(`${provider}|${r.originalDescription}|${direction}`, { provider, originalDescription: r.originalDescription, direction, category: r.category })
+}
+await prisma.bankCategoryRule.createMany({ data: [...rules.values()] })
 await prisma.bankTransaction.createMany({ data: bankRows })
 await prisma.creditCardTransaction.createMany({ data: cardRows })
 await prisma.uploadHistory.createMany({
