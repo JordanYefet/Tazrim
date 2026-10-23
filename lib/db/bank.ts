@@ -158,6 +158,27 @@ export async function getBankBalanceTrend(accountId: string, year: number, until
   return monthEndBalances(rows, untilMonth)
 }
 
+/**
+ * Every balance one account reported in the period (a year, or one month),
+ * newest first, for the balance chart. Independent of the table's filters:
+ * the balance belongs to the account, not to the rows shown. Ignored rows
+ * still carry the bank's running balance, so they count.
+ */
+export async function getBankBalancePoints(accountId: string, year: number, month?: number) {
+  const rows = await prisma.bankTransaction.findMany({
+    where: {
+      accountId,
+      date: {
+        gte: new Date(year, month ? month - 1 : 0, 1),
+        lte: month ? new Date(year, month, 0, 23, 59, 59) : new Date(year, 12, 0, 23, 59, 59),
+      },
+    },
+    orderBy: { date: 'desc' },
+    select: { date: true, balance: true },
+  })
+  return rows.map(r => ({ date: r.date.toISOString(), balance: r.balance }))
+}
+
 /** Monthly income/expense; `accountId` omitted = every bank account. */
 export async function getBankMonthlySummary(year: number, accountId?: AccountFilter) {
   const txs = await prisma.bankTransaction.findMany({

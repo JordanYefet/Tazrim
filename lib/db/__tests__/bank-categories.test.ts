@@ -158,6 +158,14 @@ describe('bank category totals', () => {
     expect(await of('ללא קטגוריה', { skip: 1, take: 1 })).toEqual([])
   })
 
+  it("the balance chart's points are every row of the period, ignored ones too, newest first", async () => {
+    await seed()
+    db.exec(`UPDATE "BankTransaction" SET ignored = 1 WHERE accountId = 'acct_leumi' AND credit > 0`)
+    const points = await bank.getBankBalancePoints('acct_leumi', 2030, 2)
+    expect(points.map(p => new Date(p.date).getDate())).toEqual([3, 2, 1])
+    expect(await bank.getBankBalancePoints('acct_leumi', 2030, 3)).toEqual([])
+  })
+
   it('getBankTransactions keeps only income or only expenses', async () => {
     await seed()
     const days = async (direction: 'IN' | 'OUT') =>

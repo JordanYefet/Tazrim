@@ -6,7 +6,7 @@ import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankElement } from '@/components/accounts/account-element'
-import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { getCategories } from '@/lib/db/categories'
 import { CategoryDonut } from '@/components/cards/category-donut'
@@ -41,7 +41,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
-  const [txs, monthly, insights, [latest], trend, categories] = await Promise.all([
+  const [txs, monthly, insights, [latest], trend, balancePoints, categories] = await Promise.all([
     getBankTransactions({
       accountId,
       year: Number(year),
@@ -64,6 +64,8 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
     // The hero's balance: the newest row of the period, whatever the table filters
     getBankTransactions({ accountId, year: Number(year), month, take: 1 }),
     getBankBalanceTrend(accountId, Number(year), month),
+    // The balance chart: every row of the period, whatever the table filters
+    getBankBalancePoints(accountId, Number(year), month),
     // The donuts (period) and their colours (ranked by the year, like the card pages)
     Promise.all([
       getBankCategoryStats(accountId, Number(year), month, 'OUT'),
@@ -79,6 +81,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   return {
     latest: latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined,
     trend: trend.map(p => p.balance),
+    balancePoints,
     transactions: asJson(txs),
     unusual: insights.flags.bank,
     recurring: insights.recurring,
@@ -116,6 +119,7 @@ export default async function BankAccountPage({
     recurring,
     latest,
     trend,
+    balancePoints,
     expenseStats,
     incomeStats,
     expenseColors,
@@ -132,10 +136,6 @@ export default async function BankAccountPage({
     expense: d.expense,
   }))
 
-  const balancePoints = transactions.map((tx: { date: string; balance: number }) => ({
-    date: tx.date,
-    balance: tx.balance,
-  }))
 
   const fetchSp = new URLSearchParams({ year })
   if (params.search) fetchSp.set('search', params.search)

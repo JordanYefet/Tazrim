@@ -37,7 +37,7 @@ export function BalanceChart({ data }: { data: TxPoint[] }) {
 
   return (
     <section className={SECTION}>
-      <ChartHeader title="יתרת חשבון לאורך זמן" subtitle="לפי התנועות שבטבלה" />
+      <ChartHeader title="יתרת חשבון לאורך זמן" subtitle="כל התנועות בתקופה" />
       <div className="h-48 sm:h-64 md:h-72">
         {chartData.length === 0 ? (
           <p className="flex h-full items-center justify-center text-sm text-muted-foreground">אין תנועות לתקופה זו</p>
