@@ -9,6 +9,7 @@ import {
   springEasing,
   springResponseFor,
   stripPx,
+  translateYOf,
   walletModeFor,
 } from '../wallet-motion'
 import { MOTION } from '@/lib/motion'
@@ -135,5 +136,18 @@ describe('predictCardPlacement (ENG-72: baking glass ahead)', () => {
   it('a card not in the stack has no stack place', () => {
     expect(predictCardPlacement({ kind: 'stack' }, 'archived', order, box)).toBeNull()
     expect(predictCardPlacement({ kind: 'none' }, 'front', order, box)).toBeNull()
+  })
+})
+
+describe('translateYOf (carrying the cards across a move of the wallet box)', () => {
+  it('reads the vertical part of a computed translate', () => {
+    expect(translateYOf('none')).toBe(0)
+    expect(translateYOf('')).toBe(0)
+    expect(translateYOf(undefined)).toBe(0)
+    // One value is x only
+    expect(translateYOf('12px')).toBe(0)
+    expect(translateYOf('0px 40px')).toBe(40)
+    expect(translateYOf('0px -12.5px')).toBe(-12.5)
+    expect(translateYOf('3px -7px 0px')).toBe(-7)
   })
 })

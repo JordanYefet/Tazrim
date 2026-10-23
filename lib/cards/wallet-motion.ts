@@ -186,3 +186,15 @@ export function predictCardPlacement(
     scaleY: s,
   }
 }
+
+/**
+ * The vertical part of a computed CSS `translate` ('none', '12px', '0px 40px'
+ * or '0px 40px 0px'), in px. The wallet carries its cards across a move of
+ * the wallet box on the page with `translate` (components/cards/card-wallet.tsx).
+ */
+export function translateYOf(computed: string | null | undefined): number {
+  if (!computed || computed === 'none') return 0
+  const parts = computed.trim().split(/\s+/)
+  const y = parts.length > 1 ? parseFloat(parts[1]) : 0
+  return Number.isFinite(y) ? y : 0
+}

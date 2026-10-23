@@ -32,6 +32,7 @@ import {
   predictCardPlacement,
   springEasing,
   springResponseFor,
+  translateYOf,
   walletModeFor,
   type CardPlacement,
   type WalletMode,
@@ -143,24 +144,26 @@ export function WalletLink({
   )
 }
 
-/** Current vertical offset of an element's transform, in px (0 for none). */
-function currentY(el: HTMLElement): number {
-  const t = getComputedStyle(el).transform
-  if (!t || t === 'none') return 0
-  return new DOMMatrixReadOnly(t).m42
+/** The `translate` that carries a card across a move of the wallet box on the page, in px (see shiftCard). */
+function currentShift(el: HTMLElement): number {
+  return translateYOf(getComputedStyle(el).translate)
 }
 
-function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fromY?: number }): Animation | null {
+function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number }): Animation | null {
   const cs = getComputedStyle(el)
-  const from = opts.fromY !== undefined ? `translate3d(0, ${opts.fromY}px, 0)` : cs.transform === 'none' ? 'translate3d(0, 0, 0)' : cs.transform
+  // Starts where the card is on screen: its transform, plus any carry (shiftCard)
+  // folded in, so moving it again mid-carry never jumps
+  const from = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform)
+  from.m42 += currentShift(el)
   const fromOpacity = cs.opacity
   for (const a of el.getAnimations()) a.cancel()
+  el.style.translate = ''
   el.style.transform = to.transform
   el.style.opacity = String(to.opacity)
   // Glass on a moving card (ENG-72): its baked bitmap travels with it; it is baked again once the card settles
   requestGlassBake()
   if (prefersReducedMotion()) return null
-  el.style.willChange = 'transform, opacity'
+  el.style.willChange = 'transform, opacity, translate'
   // A card appearing or leaving finishes its fade in the first 30% of the
   // motion: half-transparent cards would show the stacked cards through
   // each other. The transform runs the whole spring.
@@ -168,12 +171,12 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fr
   const anim = el.animate(
     fades
       ? [
-          { transform: from, opacity: fromOpacity },
+          { transform: from.toString(), opacity: fromOpacity },
           { opacity: String(to.opacity), offset: 0.3 },
           { transform: to.transform, opacity: String(to.opacity) },
         ]
       : [
-          { transform: from, opacity: fromOpacity },
+          { transform: from.toString(), opacity: fromOpacity },
           { transform: to.transform, opacity: String(to.opacity) },
         ],
     {
@@ -187,6 +190,49 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number; fr
     if (!el.getAnimations().length) el.style.willChange = ''
   })
   return anim
+}
+
+const SHIFT_ID = 'wallet-shift'
+/** Each running carry's offsets (px), so a foreseen box move can carry it on */
+const shifts = new WeakMap<Animation, { from: number; to: number }>()
+
+/**
+ * Carries a card (or the pocket) across a move of the wallet box on the page,
+ * with `translate` (applied outside the transform), so the card's own motion
+ * keeps running untouched: no restart, no lost scale. `by` is how far the box
+ * just moved (the card is held where it was on screen); `to` is where the
+ * carry rests: 0 (its place in the box), or, ahead of a box move about to
+ * happen, that move. Eases on the wallet's spring.
+ */
+function shiftCard(el: HTMLElement, { by = 0, to = 0 }: { by?: number; to?: number }) {
+  // Where the carry is on screen now, before its resting value changes
+  const from = currentShift(el) - by
+  el.style.translate = Math.abs(to) < 0.5 ? '' : `0 ${to}px`
+  const running = el.getAnimations().find(a => a.id === SHIFT_ID)
+  const range = running && shifts.get(running)
+  // The box moved as foreseen (the carry ahead was heading for this): the
+  // same carry runs on in the box's new place, at the same speed (no hitch)
+  if (by && running && range && Math.abs(range.to - by - to) < 1 && running.effect instanceof KeyframeEffect) {
+    const next = { from: range.from - by, to }
+    running.effect.setKeyframes([{ translate: `0 ${next.from}px` }, { translate: `0 ${next.to}px` }])
+    shifts.set(running, next)
+    return
+  }
+  running?.cancel()
+  if (Math.abs(from - to) < 0.5) return
+  requestGlassBake()
+  if (prefersReducedMotion()) return
+  el.style.willChange = 'transform, opacity, translate'
+  const anim = el.animate([{ translate: `0 ${from}px` }, { translate: `0 ${to}px` }], {
+    id: SHIFT_ID,
+    duration: SPRING.duration,
+    easing: supportsLinearEasing() ? SPRING.easing : FALLBACK_EASING,
+    fill: 'backwards',
+  })
+  shifts.set(anim, { from, to })
+  anim.addEventListener('finish', () => {
+    if (!el.getAnimations().length) el.style.willChange = ''
+  })
 }
 
 /** The open card's period total, published by its page (the layout gets no search params). */
@@ -438,7 +484,20 @@ function Wallet({
       const to = place.get(c.id)
       if (el && to) moveCard(el, to, {})
     }
-  }, [mode, place, stackOrder, cards])
+    // Ahead of the route (a tap): if the box is known to sit elsewhere in the
+    // new mode (the pages' headings differ), the cards head straight for their
+    // place there; when the route arrives and the box moves, the carry is
+    // already there (the effect below), so there is no second motion
+    const box = boxRef.current
+    if (box && heightMode.kind !== mode.kind && !prefersReducedMotion()) {
+      const r = box.getBoundingClientRect()
+      const learned = learnedBoxTop.get(boxKey(mode.kind, r.width))
+      const ahead = learned === undefined ? 0 : learned - (r.top + window.scrollY)
+      if (Math.abs(ahead) >= 0.5) {
+        for (const el of [pocketRef.current, ...elements.current.values()]) if (el) shiftCard(el, { to: ahead })
+      }
+    }
+  }, [mode, place, stackOrder, cards, heightMode.kind])
 
   // The wallet itself moved on the page (the new page's heading is taller or
   // shorter): carry the cards across so they don't jump, then let them settle
@@ -450,19 +509,11 @@ function Wallet({
     lastTop.current = top
     // The route has caught up: this is where the box sits in this mode
     if (heightMode.kind === mode.kind) learnedBoxTop.set(boxKey(mode.kind, box.getBoundingClientRect().width), top)
-    if (prevTop === null || Math.abs(top - prevTop) < 0.5 || prefersReducedMotion()) return
-    const shift = top - prevTop
-    if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), { fromY: currentY(pocketRef.current) - shift })
-    for (const [id, el] of elements.current) {
-      const to = place.get(id)
-      if (!to) continue
-      const anim = moveCard(el, to, { fromY: currentY(el) - shift })
-      // This replaces the open card's running motion, so it now says when the card has settled
-      if (mode.kind === 'open' && id === mode.id) {
-        const openId = mode.id
-        whenLanding(anim, () => setSettledId(openId))
-      }
-    }
+    if (prevTop === null || Math.abs(top - prevTop) < 0.5) return
+    // Hold every card where it is on screen and let the carry ease out; their
+    // own motion (if any) runs on untouched
+    const by = top - prevTop
+    for (const el of [pocketRef.current, ...elements.current.values()]) if (el) shiftCard(el, { by })
   })
 
   // Bake every glass card's stack and open places in idle time (cached, so only once)
