@@ -6,8 +6,22 @@ import { FileSpreadsheet, Upload } from 'lucide-react'
 import { monthName } from '@/lib/utils/date'
 import { CategoryInsights } from '@/components/dashboard/category-insights'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
+import { getBankCategoryMonthly } from '@/lib/db/bank-categories'
+import { mergeCategoryMonthly } from '@/lib/insights/bank-categories'
+import {
+  insightsScopeOptions,
+  resolveInsightsScope,
+  scopeAccounts,
+  scopeParam,
+  type InsightsScope,
+} from '@/lib/insights/insights-scope'
+import {
+  bankCategoryTransactionsHref,
+  categoryTransactionsHref,
+  combinedCategoryTransactionsHref,
+} from '@/lib/accounts/category-links'
 import { asJson, getYearSummary } from '@/lib/db/summary'
-import { bankMonthTotal, cardBreakdown, cardLabel, monthTotal, resolveCardParam } from '@/lib/utils/year-summary'
+import { bankMonthTotal, cardBreakdown, cardLabel, monthTotal } from '@/lib/utils/year-summary'
 import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { RecurringCard } from '@/components/dashboard/recurring-card'
@@ -15,8 +29,6 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { UnusualCard } from '@/components/dashboard/unusual-card'
 import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
-import { getDefaultAccount, PROVIDERS } from '@/lib/db/accounts'
-import { accountPath } from '@/lib/accounts/routes'
 import { monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -36,20 +48,21 @@ export default async function DashboardPage({
   // Every total covers the active (non-archived) accounts; archived ones keep their data
   const summary = await getYearSummary(Number(year))
   const activeCards = summary.accounts.cards
-  // Optional ?card=<accountId> narrows the category insights to one card
-  const cardFilter = resolveCardParam(params.card, activeCards)
-  const activeIds = [...summary.accounts.bank, ...activeCards]
+  const activeBanks = summary.accounts.bank
+  const activeIds = [...activeBanks, ...activeCards]
+  // Category insights: bank and cards together, or ?card=bank|cards|<card id> (lib/insights/insights-scope)
+  const sources = { bankIds: activeBanks, cardIds: activeCards }
+  const scope = resolveInsightsScope(params.card, sources)
 
-  const [categoryMonthly, allCardsCategoryMonthly, recurring, latest, defaultCard] = await Promise.all([
-    getCCCategoryMonthly(cardFilter ?? activeCards, Number(year)),
-    // Colors follow the all-cards ranking, so they don't shift when filtering
-    cardFilter ? getCCCategoryMonthly(activeCards, Number(year)) : null,
+  const [allCategoryMonthly, recurring, latest] = await Promise.all([
+    // Every source, as one year: the colors follow its ranking, so they don't shift when filtering
+    scopedCategoryMonthly({ kind: 'all' }, sources, Number(year)),
     // as of the latest statements, not the selected period
     getRecurringSeries({ accountId: activeIds }),
     latestTransactionDate(),
-    // fallback card page for the category-insight links
-    getDefaultAccount('CREDIT_CARD', PROVIDERS.MAX),
   ])
+  const categoryMonthly =
+    scope.kind === 'all' ? allCategoryMonthly : await scopedCategoryMonthly(scope, sources, Number(year))
 
   // Unusual transactions: the selected month, a past year, or the 90 days up to
   // the latest upload. Bank and card rows from every active account; the bank's card
@@ -71,7 +84,12 @@ export default async function DashboardPage({
   // Compare the selected month (or the latest month with card data) to earlier months
   const insightMonth = month ?? latestMonthWithData(categoryMonthly)
   const insights = insightMonth ? computeCategoryInsights(categoryMonthly, insightMonth) : null
-  const categoryColors = categoryColorMap(rankCategories(allCardsCategoryMonthly ?? categoryMonthly))
+  const categoryColors = categoryColorMap(rankCategories(allCategoryMonthly))
+  const insightHrefs = insights
+    ? Object.fromEntries(
+        insights.items.map(i => [i.category, scopedCategoryHref(scope, sources, i.category, year, insights.month)])
+      )
+    : {}
 
   const { income: bankIncome, expense: bankExpense } = bankMonthTotal(bank, month)
   const ccTotal = monthTotal(cards, month)
@@ -91,8 +109,10 @@ export default async function DashboardPage({
   const bankHint = banks.length === 1 ? accountName(banks[0]) : banks.length > 1 ? `${banks.length} חשבונות` : 'בנק'
   const cardHint = multiCard ? `${activeCards.length} כרטיסים` : cardsName
   const cardSplit = multiCard ? cardBreakdown(summary, month).map(c => ({ label: cardLabel(c), value: c.total })) : undefined
-  const cardOptions = multiCard ? activeCards.map(id => ({ id, label: cardLabel(summary.byAccount[id]) })) : []
-  const insightsCardName = cardFilter ? cardLabel(summary.byAccount[cardFilter]) : cardsName
+  const scopeOptions = insightsScopeOptions({
+    hasBank: activeBanks.length > 0,
+    cards: activeCards.map(id => ({ id, label: cardLabel(summary.byAccount[id]) })),
+  })
 
   // Bank expenses already include the monthly card payment, so card charges
   // are a breakdown of that money — never add them on top.
@@ -104,9 +124,6 @@ export default async function DashboardPage({
     Object.values(cards).some(v => v > 0)
 
   const query = new URLSearchParams({ year, ...(month ? { month: String(month) } : {}) }).toString()
-
-  // Category-insight links open the filtered card, the only card, or the default MAX card
-  const insightsCardId = cardFilter ?? (activeCards.length === 1 ? activeCards[0] : defaultCard?.id)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -145,13 +162,11 @@ export default async function DashboardPage({
             <CategoryInsights
               insights={insights}
               month={insightMonth}
-              year={year}
               colors={categoryColors}
-              cardsName={insightsCardName}
-              cardOptions={cardOptions}
-              selectedCard={cardFilter}
+              options={scopeOptions}
+              selected={scopeParam(scope)}
               query={query}
-              cardPath={accountPath('CREDIT_CARD', insightsCardId)}
+              hrefs={insightHrefs}
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -185,4 +200,29 @@ function EmptyState({ year }: { year: string }) {
       </Link>
     </section>
   )
+}
+
+type Sources = { bankIds: string[]; cardIds: string[] }
+
+/**
+ * category -> month spending of a scope: card charges by billing month, bank
+ * debits by date. The bank's card payment is left out: the card charges are
+ * its breakdown, so counting both would count that money twice.
+ */
+async function scopedCategoryMonthly(scope: InsightsScope, sources: Sources, year: number) {
+  const { bankIds, cardIds } = scopeAccounts(scope, sources)
+  const [cards, bank] = await Promise.all([
+    cardIds.length ? getCCCategoryMonthly(cardIds, year) : {},
+    bankIds.length ? getBankCategoryMonthly(bankIds, year, 'OUT', { cardPayments: 'exclude' }) : {},
+  ])
+  return mergeCategoryMonthly(cards, bank)
+}
+
+/** Where an insight's category opens its transactions in that month */
+function scopedCategoryHref(scope: InsightsScope, sources: Sources, category: string, year: string, month: number) {
+  const { bankIds, cardIds } = scopeAccounts(scope, sources)
+  const period = { category, year, month }
+  if (!bankIds.length) return categoryTransactionsHref({ cardIds, ...period })
+  if (!cardIds.length) return bankCategoryTransactionsHref({ accountIds: bankIds, ...period })
+  return combinedCategoryTransactionsHref({ accountIds: [...bankIds, ...cardIds], ...period })
 }

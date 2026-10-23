@@ -206,8 +206,8 @@ describe('buildBankWhere', () => {
     expect(buildBankWhere(f)!.AND).toContainEqual({ accountId: { in: ['a1', 'a2'] } })
   })
 
-  it('a category filter leaves bank rows out (they have no category)', () => {
-    expect(buildBankWhere(parseSearchParams({ category: 'Food' }))).toBeNull()
+  it('a category filter matches the bank rows set to it', () => {
+    expect(buildBankWhere(parseSearchParams({ category: 'Food' }))!.AND).toContainEqual({ category: { in: ['Food'] } })
   })
 
   it('cursor: same source continues by id, the other source by date', () => {

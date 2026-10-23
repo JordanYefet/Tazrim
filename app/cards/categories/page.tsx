@@ -4,7 +4,7 @@ import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
 import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
@@ -42,7 +42,7 @@ export default async function AllCardsCategoriesPage({ searchParams }: { searchP
         />
       ) : (
         <CategoryAnalysis
-          cardIds={ids}
+          categoryHref={category => categoryTransactionsHref({ cardIds: ids, category, year, month })}
           monthly={monthly}
           year={year}
           month={month}

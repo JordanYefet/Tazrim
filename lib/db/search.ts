@@ -82,6 +82,7 @@ export async function searchTransactions(filters: SearchFilters): Promise<Search
         description: tx.description,
         ...(tx.originalDescription !== tx.description ? { originalDescription: tx.originalDescription } : {}),
         amount: tx.debit - tx.credit,
+        ...(tx.category ? { category: tx.category } : {}),
         ...(tx.note ? { note: tx.note } : {}),
         ignored: tx.ignored,
       })
@@ -120,12 +121,15 @@ export async function searchTransactions(filters: SearchFilters): Promise<Search
   return { results, nextCursor, total: bankTotal + cardTotal }
 }
 
-/** Every category a card row currently has (override first), sorted, for the filter. */
+/** Every category a card row (override first) or a bank row currently has, sorted, for the filter. */
 export async function listSearchCategories(): Promise<string[]> {
-  const rows = await prisma.creditCardTransaction.findMany({
-    select: { category: true, categoryOverride: true },
-    distinct: ['category', 'categoryOverride'],
-  })
-  const set = new Set(rows.map(r => r.categoryOverride ?? r.category).filter(Boolean))
+  const [rows, bankRows] = await Promise.all([
+    prisma.creditCardTransaction.findMany({
+      select: { category: true, categoryOverride: true },
+      distinct: ['category', 'categoryOverride'],
+    }),
+    prisma.bankTransaction.findMany({ where: { category: { not: null } }, select: { category: true }, distinct: ['category'] }),
+  ])
+  const set = new Set([...rows.map(r => r.categoryOverride ?? r.category), ...bankRows.map(r => r.category!)].filter(Boolean))
   return [...set].sort((a, b) => a.localeCompare(b, 'he'))
 }

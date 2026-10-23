@@ -3,6 +3,8 @@ import { prisma, type Db } from './client'
 import type { ParsedBankTransaction } from '../parsers/types'
 import { accountWhere, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
+import { getBankCategoryRules, ruleCategoryFor } from './bank-categories'
+import { bankRowCategory } from '../insights/bank-categories'
 import { localDay } from '../upload/card-dedupe'
 import { monthEndBalances } from '../insights/account-overview'
 
@@ -28,6 +30,7 @@ export async function upsertBankTransactions(
 ): Promise<{ created: number; skipped: number; skippedRows: SkippedBankRow[] }> {
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
   const aliasMap = await getAliasMap(account.provider, db)
+  const rules = await getBankCategoryRules(account.provider, db)
 
   let created = 0
   let skipped = 0
@@ -55,12 +58,15 @@ export async function upsertBankTransactions(
       continue
     }
 
+    const description = aliasMap.get(tx.originalDescription) ?? tx.originalDescription
     await db.bankTransaction.create({
       data: {
         accountId,
         date: tx.date,
         originalDescription: tx.originalDescription,
-        description: aliasMap.get(tx.originalDescription) ?? tx.originalDescription,
+        description,
+        // A category rule saved for this description and direction
+        category: ruleCategoryFor(rules, { ...tx, description }),
         debit: tx.debit,
         credit: tx.credit,
         balance: tx.balance,
@@ -81,6 +87,8 @@ export async function getBankTransactions(params: {
   year?: number
   search?: string
   merchant?: string
+  /** A category, or the uncategorized / card-payment bucket (lib/insights/bank-categories) */
+  category?: string
   showIgnored?: boolean
   take?: number
   skip?: number
@@ -105,6 +113,15 @@ export async function getBankTransactions(params: {
 
   if (!params.showIgnored) {
     where.ignored = false
+  }
+
+  if (params.category) {
+    // The buckets depend on the card-payment patterns, so the category is
+    // matched in JS over the period's rows (hundreds a year), then paged
+    const rows = await prisma.bankTransaction.findMany({ where, orderBy: { date: 'desc' } })
+    const matching = rows.filter(r => bankRowCategory(r) === params.category)
+    const start = params.skip ?? 0
+    return matching.slice(start, params.take !== undefined ? start + params.take : undefined)
   }
 
   return prisma.bankTransaction.findMany({

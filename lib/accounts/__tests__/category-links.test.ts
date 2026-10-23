@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { categoryAnalysisHref, categoryTransactionsHref } from '../category-links'
+import {
+  bankCategoryAnalysisHref,
+  bankCategoryTransactionsHref,
+  categoryAnalysisHref,
+  categoryTransactionsHref,
+  combinedCategoryTransactionsHref,
+} from '../category-links'
+import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED } from '@/lib/insights/bank-categories'
 
 // Made-up ids and categories only
 describe('categoryAnalysisHref', () => {
@@ -28,5 +35,32 @@ describe('categoryTransactionsHref', () => {
     expect(
       categoryTransactionsHref({ cardIds: ['acct_a', 'acct_b'], category: 'Test food', year: '2024', month: 2 })
     ).toBe('/search?from=2024-02-01&to=2024-02-29&account=acct_a&account=acct_b&category=Test+food')
+  })
+})
+
+describe('bank category links', () => {
+  it('opens the bank category page, one account or all', () => {
+    expect(bankCategoryAnalysisHref('acct_test_bank', { year: '2025' })).toBe('/banks/acct_test_bank/categories?year=2025')
+    expect(bankCategoryAnalysisHref(undefined, { year: '2025', month: '2' })).toBe('/banks/categories?year=2025&month=2')
+  })
+
+  it("filters one account's page, buckets included", () => {
+    expect(bankCategoryTransactionsHref({ accountIds: ['acct_a'], category: 'Test rent', year: '2025', month: 4 })).toBe(
+      '/banks/acct_a?year=2025&month=4&category=Test+rent'
+    )
+    expect(bankCategoryTransactionsHref({ accountIds: ['acct_a'], category: UNCATEGORIZED, year: '2025' })).toBe(
+      `/banks/acct_a?year=2025&category=${encodeURIComponent(UNCATEGORIZED).replace(/%20/g, '+')}`
+    )
+  })
+
+  it('searches several accounts for a real category; a bucket gets no link', () => {
+    expect(bankCategoryTransactionsHref({ accountIds: ['acct_a', 'acct_b'], category: 'Test rent', year: '2025' })).toBe(
+      '/search?from=2025-01-01&to=2025-12-31&account=acct_a&account=acct_b&category=Test+rent'
+    )
+    expect(bankCategoryTransactionsHref({ accountIds: ['acct_a', 'acct_b'], category: CARD_PAYMENT_CATEGORY, year: '2025' })).toBeUndefined()
+    expect(combinedCategoryTransactionsHref({ accountIds: ['acct_a', 'acct_c'], category: 'Test food', year: '2025', month: 1 })).toBe(
+      '/search?from=2025-01-01&to=2025-01-31&account=acct_a&account=acct_c&category=Test+food'
+    )
+    expect(combinedCategoryTransactionsHref({ accountIds: ['acct_a'], category: UNCATEGORIZED, year: '2025' })).toBeUndefined()
   })
 })

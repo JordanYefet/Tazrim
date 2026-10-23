@@ -18,6 +18,7 @@ const SEED = `
   INSERT INTO "CreditCardTransaction" ("id","accountId","transactionDate","billingDate","originalMerchantName","merchantName","category","chargedAmount","originalAmount","originalCurrency","cardLastFour","transactionType") VALUES
     ('c1','acct_test_card',1893456000000,1893456000000,'Fake Shop','Fake Shop','cat',7,7,'ILS','0000','regular');
   INSERT INTO "TransactionAlias" ("id","provider","originalName","displayName") VALUES ('a1','max','Fake Shop','Shop');
+  INSERT INTO "BankCategoryRule" ("id","provider","originalDescription","direction","category") VALUES ('bcr1','leumi','Fake Employer','IN','Fake income');
   INSERT INTO "UploadHistory" ("id","accountId","fileName","uploadedAt","recordCount") VALUES ('u1','acct_leumi','fake.xlsx',1893456000000,1);
   INSERT INTO "Category" ("id","name","createdAt") VALUES ('cat1','Fake category',1893456000000);
   INSERT INTO "RecurringSeriesOverride" ("id","key","baseKey","accountId","status","createdAt","updatedAt") VALUES

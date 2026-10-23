@@ -4,7 +4,7 @@ import { PageHeading } from '@/components/accounts/page-parts'
 import { getAccount } from '@/lib/db/accounts'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
 import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams { year?: string; month?: string }
@@ -37,7 +37,7 @@ export default async function CardCategoriesPage({
         badge={account.archived ? 'בארכיון' : undefined}
       />
       <CategoryAnalysis
-        cardIds={[account.id]}
+        categoryHref={category => categoryTransactionsHref({ cardIds: [account.id], category, year, month })}
         monthly={monthly}
         year={year}
         month={month}

@@ -8,37 +8,38 @@ import { Suspense } from 'react'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
-import { accountPath } from '@/lib/accounts/routes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 
 // CSS vars (defined per theme in globals.css) so SSR and client markup match
 const COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
 
-function CustomTooltip({ active, payload }: any) {
+type Tone = 'expense' | 'income'
+const TONE_TEXT: Record<Tone, string> = {
+  expense: 'text-[hsl(var(--expense))]',
+  income: 'text-[hsl(var(--income))]',
+}
+
+function CustomTooltip({ active, payload, tone = 'expense' }: any) {
   if (!active || !payload?.length) return null
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{payload[0].name}</p>
-      <p className="text-[hsl(var(--expense))] font-medium">{formatCurrency(payload[0].value)}</p>
+      <p className={`${TONE_TEXT[tone as Tone]} font-medium`}>{formatCurrency(payload[0].value)}</p>
     </div>
   )
 }
 
 function CategoryDonutInner({
-  accountId,
+  pagePath,
   data,
   stats,
   selectedCategory,
   colors,
   analysisHref,
-}: {
-  accountId: string
-  data: Record<string, number>
-  stats?: Record<string, { total: number; count: number }>
-  selectedCategory?: string
-  colors?: Record<string, string>
-  analysisHref?: string
-}) {
+  title = 'הוצאות לפי קטגוריה',
+  tone = 'expense',
+  emptyText = 'אין חיובים לתקופה זו',
+}: Props) {
   const router = useRouter()
   const params = useSearchParams()
   // Entrance on the shared page beat (ENG-67)
@@ -57,17 +58,17 @@ function CategoryDonutInner({
     } else {
       sp.set('category', entry.name)
     }
-    router.push(`${accountPath('CREDIT_CARD', accountId)}?${sp.toString()}`, { scroll: false })
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
   return (
     <section className={SECTION}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <ChartHeader title="הוצאות לפי קטגוריה" subtitle="לחיצה על קטגוריה מסננת" className="mb-0" />
+        <ChartHeader title={title} subtitle="לחיצה על קטגוריה מסננת" className="mb-0" />
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
       </div>
       {chartData.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">אין חיובים לתקופה זו</p>
+        <p className="py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="h-52 w-52 flex-shrink-0">
@@ -91,7 +92,7 @@ function CategoryDonutInner({
                   />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip tone={tone} />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -124,7 +125,7 @@ function CategoryDonutInner({
                 <RollingNumber
                   value={entry.value}
                   format="currencyExact"
-                  className="whitespace-nowrap text-end text-xs font-medium tabular-nums text-[hsl(var(--expense))]"
+                  className={`whitespace-nowrap text-end text-xs font-medium tabular-nums ${TONE_TEXT[tone]}`}
                 />
               </button>
             )
@@ -136,32 +137,25 @@ function CategoryDonutInner({
   )
 }
 
-export function CategoryDonut({
-  accountId,
-  data,
-  stats,
-  selectedCategory,
-  colors,
-  analysisHref,
-}: {
-  accountId: string
+interface Props {
+  /** The page the donut sits on: a category click filters it with `?category=` */
+  pagePath: string
   data: Record<string, number>
   stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
   colors?: Record<string, string>
   /** Link-button to the category analysis page */
   analysisHref?: string
-}) {
+  title?: string
+  emptyText?: string
+  /** Amount colour: spending (cards, bank debits) or income (bank credits) */
+  tone?: Tone
+}
+
+export function CategoryDonut(props: Props) {
   return (
     <Suspense fallback={<div className={`${SECTION} h-64`} />}>
-      <CategoryDonutInner
-        accountId={accountId}
-        data={data}
-        stats={stats}
-        selectedCategory={selectedCategory}
-        colors={colors}
-        analysisHref={analysisHref}
-      />
+      <CategoryDonutInner {...props} />
     </Suspense>
   )
 }

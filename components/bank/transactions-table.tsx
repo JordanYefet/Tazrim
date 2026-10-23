@@ -11,17 +11,26 @@ import type { UnusualFlag } from '@/lib/insights/unusual'
 import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
+import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 
 interface BankTx {
   id: string
   date: string
+  originalDescription: string
   description: string
   debit: number
   credit: number
   balance: number
   note: string
+  category: string | null
+  categoryManual: boolean
   ignored: boolean
 }
+
+interface Category { id: string; name: string }
+
+/** A category picked on a row, waiting for "this row" or "every such row" */
+interface PendingCategory { id: string; category: string | null }
 
 export function BankTransactionsTable({
   accountId,
@@ -31,10 +40,19 @@ export function BankTransactionsTable({
   fetchParams,
   unusual = {},
   recurring = {},
+  expenseCategories = [],
+  incomeCategories = [],
+  activeCategory,
 }: {
   /** The bank account these rows belong to */
   accountId: string
   transactions: BankTx[]
+  /** Picked from on debits */
+  expenseCategories?: Category[]
+  /** Picked from on credits */
+  incomeCategories?: Category[]
+  /** The `?category=` filter in effect */
+  activeCategory?: string
   showIgnored?: boolean
   hasMore?: boolean
   fetchParams?: string
@@ -49,6 +67,8 @@ export function BankTransactionsTable({
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editing, setEditing] = useState<{ id: string; field: 'note'; value: string } | null>(null)
+  const [pending, setPending] = useState<PendingCategory | null>(null)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
 
@@ -73,6 +93,30 @@ export function BankTransactionsTable({
       prev.map(t => t.id === editing.id ? { ...t, [editing.field]: editing.value } : t)
     )
     setEditing(null)
+  }
+
+  async function saveCategory(scope: 'row' | 'rule') {
+    if (!pending) return
+    const { id, category } = pending
+    const res = await fetch(`/api/bank/transactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, categoryScope: scope }),
+    })
+    setPending(null)
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    // The rule also covers rows of this description on other pages and accounts; these are the loaded ones
+    const { updatedIds } = (await res.json()) as { updatedIds: string[] }
+    const changed = new Set(updatedIds)
+    setTransactions(prev =>
+      prev.map(t =>
+        changed.has(t.id) ? { ...t, category, categoryManual: scope === 'row' && t.id === id } : t
+      )
+    )
   }
 
   async function toggleIgnored(tx: BankTx) {
@@ -101,6 +145,12 @@ export function BankTransactionsTable({
     router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
+  function clearCategory() {
+    const sp = new URLSearchParams(params.toString())
+    sp.delete('category')
+    router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
+  }
+
   function toggleShowIgnored() {
     const sp = new URLSearchParams(params.toString())
     if (showIgnored) {
@@ -115,15 +165,25 @@ export function BankTransactionsTable({
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        {activeMerchant ? (
-          <div className="flex items-center gap-2 text-sm">
+        {activeMerchant || activeCategory ? (
+          <div className="flex items-center gap-2 text-sm flex-wrap">
             <span className="text-muted-foreground text-xs">מסנן:</span>
-            <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
-              {activeMerchant}
-              <button onClick={clearMerchant} aria-label="הסר מסנן" className="hover:text-primary/70 transition-colors">
-                <X className="h-3 w-3" />
-              </button>
-            </span>
+            {activeMerchant && (
+              <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
+                {activeMerchant}
+                <button onClick={clearMerchant} aria-label="הסר מסנן" className="hover:text-primary/70 transition-colors">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {activeCategory && (
+              <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
+                {activeCategory}
+                <button onClick={clearCategory} aria-label="הסר מסנן קטגוריה" className="hover:text-primary/70 transition-colors">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
           </div>
         ) : <div />}
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
@@ -137,13 +197,15 @@ export function BankTransactionsTable({
         </label>
       </div>
 
+      {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
+
       {/* Table */}
       <div className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                {['תאריך', 'תיאור', 'חובה', 'זכות', 'יתרה', 'הערה', ''].map((h, i) => (
+                {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -181,6 +243,16 @@ export function BankTransactionsTable({
                         <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]?.name} className="ms-1 align-middle sm:hidden" />
                       )
                     )}
+                  </td>
+                  <td className="py-2.5 px-4 min-w-[140px] align-top">
+                    <CategoryCell
+                      tx={tx}
+                      categories={directionOf(tx) === 'OUT' ? expenseCategories : incomeCategories}
+                      pending={pending?.id === tx.id ? pending : null}
+                      onPick={category => setPending({ id: tx.id, category })}
+                      onSave={saveCategory}
+                      onCancel={() => setPending(null)}
+                    />
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
                     {tx.debit > 0 ? formatCurrency(tx.debit) : ''}
@@ -242,6 +314,75 @@ export function BankTransactionsTable({
             className="px-5 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium"
           >
             {loadingMore ? 'טוען...' : 'טען עוד'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A row's category: a picker of the row's kind (expense for debits, income
+ * for credits), then a choice of this row only or every row with the same
+ * description in the same direction (a rule, also applied to future imports).
+ * The card payment has none: its breakdown is the card's own categories.
+ */
+function CategoryCell({
+  tx,
+  categories,
+  pending,
+  onPick,
+  onSave,
+  onCancel,
+}: {
+  tx: BankTx
+  categories: Category[]
+  pending: PendingCategory | null
+  onPick: (category: string | null) => void
+  onSave: (scope: 'row' | 'rule') => void
+  onCancel: () => void
+}) {
+  if (isCardPaymentRow(tx)) {
+    return <span className="text-xs text-muted-foreground" title="הפירוט לפי קטגוריה נמצא בכרטיס">{CARD_PAYMENT_CATEGORY}</span>
+  }
+  if (tx.ignored) {
+    return <span className="line-through text-muted-foreground text-xs">{tx.category ?? ''}</span>
+  }
+  const value = pending ? pending.category : tx.category
+  // A category the list no longer has (renamed or deleted) still shows
+  const missing = tx.category && !categories.some(c => c.name === tx.category)
+  const direction = directionOf(tx) === 'OUT' ? 'היוצאות' : 'הנכנסות'
+  return (
+    <div className="space-y-1.5">
+      <select
+        className={cn('text-xs', !value && 'text-muted-foreground')}
+        value={value ?? ''}
+        aria-label="קטגוריה"
+        onChange={e => onPick(e.target.value || null)}
+      >
+        <option value="">{UNCATEGORIZED}</option>
+        {missing && <option value={tx.category!}>{tx.category}</option>}
+        {categories.map(c => (
+          <option key={c.id} value={c.name}>{c.name}</option>
+        ))}
+      </select>
+      {pending && (
+        <div className="flex flex-wrap items-center gap-1 text-xs">
+          <button
+            onClick={() => onSave('row')}
+            className="rounded-md border px-2 py-0.5 hover:bg-muted transition-colors"
+          >
+            רק תנועה זו
+          </button>
+          <button
+            onClick={() => onSave('rule')}
+            className="max-w-[16rem] truncate rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/20 transition-colors"
+            title="גם לתנועות שיועלו בהמשך"
+          >
+            כל התנועות {direction} <bdi>{tx.originalDescription}</bdi>
+          </button>
+          <button onClick={onCancel} aria-label="ביטול" className="p-0.5 text-muted-foreground hover:text-foreground">
+            <X className="h-3 w-3" />
           </button>
         </div>
       )}

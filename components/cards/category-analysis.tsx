@@ -2,36 +2,43 @@ import { PieChart, Upload } from 'lucide-react'
 import { CategoryTrendChart } from '@/components/cards/category-trend-chart'
 import { CategoryMonthTable } from '@/components/cards/category-month-table'
 import { EmptyState } from '@/components/accounts/page-parts'
-import { categoryTransactionsHref } from '@/lib/accounts/category-links'
 import { latestMonthWithData, rankCategories, type CategoryMonthly } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 
 /**
- * The stacked category chart and the category × month table, for one card or
- * several. Month clicks stay on `basePath`; category links open the card's
- * transactions filtered to that category (a search when there are several cards).
+ * The stacked category chart and the category × month table, for cards or
+ * bank rows. Month clicks stay on `basePath`; category links go where
+ * `categoryHref` says (lib/accounts/category-links), none for a bucket that
+ * has no transactions page.
  */
 export function CategoryAnalysis({
-  cardIds,
   monthly,
   year,
   month,
   basePath,
+  categoryHref,
   emptyText,
+  emptyTitle = `אין חיובים לשנת ${year}`,
+  chartTitle,
+  unit,
 }: {
-  cardIds: string[]
   monthly: CategoryMonthly
   year: string
   month?: number
   basePath: string
+  categoryHref: (category: string) => string | undefined
   emptyText: string
+  emptyTitle?: string
+  chartTitle?: string
+  /** What a month "with data" holds (default: charges) */
+  unit?: string
 }) {
   const lastMonth = latestMonthWithData(monthly)
   if (!lastMonth) {
     return (
       <EmptyState
         icon={PieChart}
-        title={`אין חיובים לשנת ${year}`}
+        title={emptyTitle}
         text={emptyText}
         actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
       />
@@ -42,7 +49,7 @@ export function CategoryAnalysis({
   const ranked = rankCategories(monthly)
   const colors = categoryColorMap(ranked)
   const categoryHrefs = Object.fromEntries(
-    ranked.map(c => [c, categoryTransactionsHref({ cardIds, category: c, year, month })])
+    ranked.map(c => [c, categoryHref(c)])
   )
 
   return (
@@ -54,6 +61,7 @@ export function CategoryAnalysis({
         ranked={ranked}
         colors={colors}
         selectedMonth={month}
+        title={chartTitle}
       />
       <CategoryMonthTable
         basePath={basePath}
@@ -64,6 +72,7 @@ export function CategoryAnalysis({
         lastMonth={lastMonth}
         year={year}
         selectedMonth={month}
+        unit={unit}
       />
     </>
   )

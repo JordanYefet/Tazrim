@@ -4,23 +4,21 @@ import { RollingNumber } from '@/components/ui/rolling-number'
 import { monthName } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 import type { CategoryInsight, CategoryInsights as Insights } from '@/lib/insights/category-insights'
+import type { ScopeOption } from '@/lib/insights/insights-scope'
 
 interface Props {
   insights: Insights | null
-  /** The month being compared (selected, or latest with card data) */
+  /** The month being compared (selected, or latest with data) */
   month: number | null
-  year: string
   colors: Record<string, string>
-  /** Name used in the empty states: the card's name, or a generic one with several cards */
-  cardsName?: string
-  /** Active cards; the filter is shown only when there are 2 or more */
-  cardOptions?: { id: string; label: string }[]
-  /** The `?card=` filter in effect (undefined = all cards) */
-  selectedCard?: string
+  /** Filter chips (bank, cards…); none when there is one source (lib/insights/insights-scope) */
+  options?: ScopeOption[]
+  /** The `?card=` value in effect (undefined = all) */
+  selected?: string
   /** Current year/month query string, for the filter links */
   query?: string
-  /** Card page the category links open (the card the insights are about) */
-  cardPath?: string
+  /** Where each category opens its transactions; none = not a link (e.g. uncategorized bank rows) */
+  hrefs?: Record<string, string | undefined>
 }
 
 function baselineLabel(months: number[]) {
@@ -65,17 +63,16 @@ function Badge({ item }: { item: CategoryInsight }) {
   )
 }
 
-function CardFilter({ options, selected, query }: { options: { id: string; label: string }[]; selected?: string; query: string }) {
-  const items = [{ id: undefined as string | undefined, label: 'כל הכרטיסים' }, ...options]
+function ScopeFilter({ options, selected, query }: { options: ScopeOption[]; selected?: string; query: string }) {
   return (
-    <nav aria-label="סינון לפי כרטיס" className="mb-4 flex flex-wrap gap-1.5">
-      {items.map(o => {
+    <nav aria-label="סינון לפי חשבון" className="mb-4 flex flex-wrap gap-1.5">
+      {options.map(o => {
         const sp = new URLSearchParams(query)
-        if (o.id) sp.set('card', o.id)
-        const active = o.id === selected
+        if (o.value) sp.set('card', o.value)
+        const active = o.value === selected
         return (
           <Link
-            key={o.id ?? 'all'}
+            key={o.value ?? 'all'}
             href={`/?${sp}`}
             scroll={false}
             aria-current={active ? 'true' : undefined}
@@ -98,29 +95,27 @@ function CardFilter({ options, selected, query }: { options: { id: string; label
 export function CategoryInsights({
   insights,
   month,
-  year,
   colors,
-  cardsName = 'מקס',
-  cardOptions = [],
-  selectedCard,
+  options = [],
+  selected,
   query = '',
-  cardPath = '/cards',
+  hrefs = {},
 }: Props) {
   return (
     <section className="flex flex-col rounded-xl surface p-4 sm:p-6">
-      <h3 className="font-semibold text-base">שינויים בהוצאות בכרטיס</h3>
+      <h3 className="font-semibold text-base">שינויים בהוצאות לפי קטגוריה</h3>
       <p className="text-sm text-muted-foreground mb-4">
         {insights
           ? `${monthName(insights.month)} מול הממוצע של ${baselineLabel(insights.baselineMonths)}`
           : 'השוואה של החודש לחודשים הקודמים'}
       </p>
-      {cardOptions.length > 1 && <CardFilter options={cardOptions} selected={selectedCard} query={query} />}
+      {options.length > 1 && <ScopeFilter options={options} selected={selected} query={query} />}
 
       {!insights ? (
         <p className="my-auto py-6 text-center text-sm text-muted-foreground text-pretty">
           {month
-            ? `אין מספיק נתונים להשוואה של ${monthName(month)}. צריך חיובי ${cardsName} גם לפחות לשני חודשים קודמים.`
-            : `עדיין אין חיובי ${cardsName} לשנה זו.`}
+            ? `אין מספיק נתונים להשוואה של ${monthName(month)}. צריך הוצאות גם לפחות בשני חודשים קודמים.`
+            : 'עדיין אין הוצאות לשנה זו.'}
         </p>
       ) : insights.items.length === 0 ? (
         <p className="my-auto py-6 text-center text-sm text-muted-foreground">
@@ -129,13 +124,10 @@ export function CategoryInsights({
       ) : (
         <ul className="-mx-2 flex flex-col">
           {insights.items.map(item => {
-            const sp = new URLSearchParams({ year, month: String(insights.month), category: item.category })
-            return (
-              <li key={item.category}>
-                <Link
-                  href={`${cardPath}?${sp}`}
-                  className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
+            const href = hrefs[item.category]
+            const row = 'flex items-center gap-3 rounded-lg px-2 py-2.5'
+            const content = (
+              <>
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: colors[item.category] }}
@@ -156,7 +148,20 @@ export function CategoryInsights({
                   </span>
                   <RollingNumber value={item.current} className="text-sm font-semibold" />
                   <Badge item={item} />
-                </Link>
+              </>
+            )
+            return (
+              <li key={item.category}>
+                {href ? (
+                  <Link
+                    href={href}
+                    className={cn(row, 'transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div className={row}>{content}</div>
+                )}
               </li>
             )
           })}

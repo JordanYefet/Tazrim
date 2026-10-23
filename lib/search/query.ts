@@ -36,7 +36,7 @@ export interface SearchResult {
   /** The raw name from the statement, only when it differs from `description` */
   originalDescription?: string
   amount: number
-  /** Card rows only: the override when set, else the statement category */
+  /** Card rows: the override when set, else the statement category. Bank rows: theirs, when set */
   category?: string
   note?: string
   ignored: boolean
@@ -354,15 +354,16 @@ const bankAmount = (r: AmountRange) => ({
 })
 
 /**
- * Where for BankTransaction, or null when the filters rule bank rows out
- * (a category filter: bank rows have no category).
+ * Where for BankTransaction. Never null now that bank rows carry categories
+ * (a category filter matches the rows set to one of them); the type keeps
+ * room for filters that rule bank rows out.
  */
 export function buildBankWhere(
   f: SearchFilters,
   aliasMatches?: AliasMatch[][]
 ): Prisma.BankTransactionWhereInput | null {
-  if (f.categories?.length) return null
   const and: object[] = []
+  if (f.categories?.length) and.push({ category: { in: f.categories } })
   if (f.accountIds?.length) and.push({ accountId: { in: f.accountIds } })
   if (!f.includeIgnored) and.push({ ignored: false })
   const dates = dayRange(f)

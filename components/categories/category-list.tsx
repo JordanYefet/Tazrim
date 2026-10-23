@@ -7,7 +7,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface Category { id: string; name: string }
 
-export function CategoryList({ initial }: { initial: Category[] }) {
+/** The categories of one kind: expense ones (cards and bank debits) or income ones (bank credits). */
+export function CategoryList({ initial, kind = 'EXPENSE' }: { initial: Category[]; kind?: 'EXPENSE' | 'INCOME' }) {
   const [categories, setCategories] = useState(initial)
   const [newName, setNewName] = useState('')
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null)
@@ -19,7 +20,7 @@ export function CategoryList({ initial }: { initial: Category[] }) {
     const res = await fetch('/api/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim() }),
+      body: JSON.stringify({ name: newName.trim(), kind }),
     })
     if (!res.ok) { setError('שם כבר קיים'); return }
     const cat = await res.json()
@@ -55,7 +56,7 @@ export function CategoryList({ initial }: { initial: Category[] }) {
         <div className="flex gap-2">
           <input
             className="border rounded-lg px-3 py-2 text-sm bg-background flex-1 focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="שם קטגוריה חדשה"
+            placeholder={kind === 'INCOME' ? 'שם קטגוריית הכנסה חדשה' : 'שם קטגוריה חדשה'}
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') add() }}

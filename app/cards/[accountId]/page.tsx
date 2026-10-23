@@ -16,7 +16,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { lastMonthWithData, monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
-import { accountHref } from '@/lib/accounts/routes'
+import { accountHref, accountPath } from '@/lib/accounts/routes'
 import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName } from '@/lib/utils/date'
@@ -48,7 +48,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
       take: month ? undefined : 50,
     }),
     getCCMonthlySummary(accountId, Number(year)),
-    getCategories(),
+    getCategories('EXPENSE'),
     // Flags for the whole year (every account's history as baseline), so "load more" rows get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
     // and the table marks rows that are already recurring (ENG-71)
@@ -168,7 +168,7 @@ export default async function CardAccountPage({
               selectedMonth={month}
             />
             <CategoryDonut
-              accountId={account.id}
+              pagePath={accountPath('CREDIT_CARD', account.id)}
               data={categoryTotals}
               stats={categoryStats}
               selectedCategory={params.category}

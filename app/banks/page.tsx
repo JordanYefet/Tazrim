@@ -8,6 +8,8 @@ import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from 
 import { BANK_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref } from '@/lib/accounts/routes'
+import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import {
   bankPeriodTotals,
   lastMonthWithData,
@@ -51,6 +53,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading period={{ year: Number(year), month }} title="בנקים">
+        {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(undefined, period)} />}
         <ManageAccountsLink />
       </PageHeading>
 

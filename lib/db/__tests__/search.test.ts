@@ -67,7 +67,7 @@ beforeAll(async () => {
   prisma = (await import('../client')).prisma
 
   T.salary = await bank('acct_leumi', '2030-02-01', 'Fake Payroll Ltd', { credit: 1200 })
-  T.rent = await bank('acct_leumi', '2030-02-03', 'Fake Landlord', { debit: 120, note: 'rent for the blue flat' })
+  T.rent = await bank('acct_leumi', '2030-02-03', 'Fake Landlord', { debit: 120, note: 'rent for the blue flat', category: 'Fake Housing' })
   T.bank2 = await bank('acct_bank2', '2031-05-10', 'קפה דמיוני', { debit: 33.5 })
   T.bankIgnored = await bank('acct_bank2', '2031-06-01', 'Fake Ignored Transfer', { debit: 77, ignored: true })
   T.aliased = await bank('acct_leumi', '2031-01-15', 'RAW BANK CODE 12', {
@@ -152,10 +152,13 @@ describe('searchTransactions', () => {
     expect(await ids({ q: 'fake', from: '2030-03-01', to: '2030-03-04' })).toEqual([T.cafe])
     expect(await ids({ q: 'cafe', account: 'acct_card2' })).toEqual([T.cafe2031])
     expect(await ids({ q: 'fake', account: ['acct_leumi', 'acct_bank2'] })).toEqual([T.rent, T.salary])
-    // category uses the override when there is one; bank rows have no category
+    // category uses the override when there is one
     const food = await run({ category: 'Food' })
     expect(food.results.map(r => r.id)).toEqual([T.override, T.cafe2031])
     expect(food.results.map(r => r.category)).toEqual(['Food', 'Food'])
+    // bank rows match their own category
+    const housing = await run({ category: 'Fake Housing' })
+    expect(housing.results.map(r => [r.id, r.category])).toEqual([[T.rent, 'Fake Housing']])
   })
 
   it('ignored rows only with the toggle', async () => {
@@ -200,7 +203,7 @@ describe('searchTransactions', () => {
 describe('listSearchCategories', () => {
   it('distinct effective categories, sorted', async () => {
     const cats = await search.listSearchCategories()
-    expect(cats).toEqual(expect.arrayContaining(['Food', 'מסעדות']))
+    expect(cats).toEqual(expect.arrayContaining(['Food', 'מסעדות', 'Fake Housing']))
     expect(new Set(cats).size).toBe(cats.length)
   })
 })
