@@ -156,8 +156,8 @@ export default async function DashboardPage({
             cardsName={cardsName}
             selectedMonth={month}
           />
-          {/* Every row shares the summary's 5/7 split, so the edges line up */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          {/* Two equal halves in every row, as on /banks and /cards, so the edges line up */}
+          <div className="grid gap-4 lg:grid-cols-2">
             <CCMonthlyChart data={cards} series={cardSeries} selectedMonth={month} />
             <CategoryInsights
               insights={insights}
@@ -169,7 +169,7 @@ export default async function DashboardPage({
               hrefs={insightHrefs}
             />
           </div>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div className="grid gap-4 lg:grid-cols-2">
             <RecurringCard series={recurring.subscriptions} total={recurring.total} />
             <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
           </div>

@@ -366,7 +366,7 @@ export function DashboardSummaryCards({
   ]
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    <div className="grid gap-4 lg:grid-cols-2">
       <NetBalance bankIncome={bankIncome} bankExpense={bankExpense} />
       <StatGrid stats={stats} />
     </div>
