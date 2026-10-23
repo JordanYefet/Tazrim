@@ -1305,3 +1305,9 @@ html[data-bg='ribbons'] body { background-size: 100% auto; background-repeat: re
 @media (prefers-reduced-motion: reduce) {
   .color-swatch__dot, .color-swatch::after { transition: none; }
 }
+
+/* A line the income / expenses switch hides fades as it sinks (bank account
+   page). Opacity only, so it stays on under reduced motion, like the bars above. */
+.chart-series-fade .recharts-line-curve {
+  transition: stroke-opacity var(--motion-base) var(--ease-ui);
+}

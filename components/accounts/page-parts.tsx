@@ -78,6 +78,8 @@ export interface LegendItem {
   label: string
   /** Any CSS color; use a CSS var so server and client markup match */
   color: string
+  /** A dashed line swatch (a dashed series) instead of a dot */
+  dashed?: boolean
 }
 
 /** The dashboard's chart header: title and subtitle, legend at the end. */
@@ -102,7 +104,11 @@ export function ChartHeader({
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {legend.map(item => (
             <li key={item.label} className="flex items-center gap-1.5">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} aria-hidden />
+              {item.dashed ? (
+                <span className="w-3.5 shrink-0 border-t-2 border-dashed" style={{ borderColor: item.color }} aria-hidden />
+              ) : (
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} aria-hidden />
+              )}
               {item.label}
             </li>
           ))}

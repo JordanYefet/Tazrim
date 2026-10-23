@@ -32,13 +32,13 @@ const LEGEND = [
   { label: 'הוצאות', color: 'var(--chart-expense)' },
 ]
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label, hidden }: any) {
   if (!active || !payload?.length) return null
   if (isEmptyMonthPayload(payload)) return <EmptyMonthTooltip label={label} />
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.filter((p: any) => p.dataKey !== hidden).map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.fill }} />
           <span className="text-muted-foreground">{p.name}:</span>
@@ -70,6 +70,9 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flo
   const rows = yearChartRows(['הכנסות', 'הוצאות'] as const, (m, key) =>
     key === 'הכנסות' ? byMonth.get(m)?.income : byMonth.get(m)?.expense
   )
+  // The switch's other side sinks to zero (still mounted, so it animates out and back)
+  const hidden = !showIncome ? 'הכנסות' : !showExpense ? 'הוצאות' : undefined
+  if (hidden) for (const r of rows) if (!r.empty) (r as Record<string, unknown>)[hidden] = 0
 
   function handleClick(month: number | undefined) {
     if (!month) return
@@ -104,27 +107,23 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flo
             />
             <YAxis {...axes.yAxis} />
             <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={42} />} />
-            <Tooltip filterNull={false} content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
-            {showIncome && (
-              <Bar {...anim} dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
-                {chartData.map(entry => (
-                  <Cell
-                    key={entry.month}
-                    fillOpacity={!selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
-                  />
-                ))}
-              </Bar>
-            )}
-            {showExpense && (
-              <Bar {...anim} dataKey="הוצאות" fill={expenseColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
-                {chartData.map(entry => (
-                  <Cell
-                    key={entry.month}
-                    fillOpacity={!selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
-                  />
-                ))}
-              </Bar>
-            )}
+            <Tooltip filterNull={false} content={<CustomTooltip hidden={hidden} />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
+            <Bar {...anim} dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
+              {chartData.map(entry => (
+                <Cell
+                  key={entry.month}
+                  fillOpacity={!showIncome ? 0 : !selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
+                />
+              ))}
+            </Bar>
+            <Bar {...anim} dataKey="הוצאות" fill={expenseColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
+              {chartData.map(entry => (
+                <Cell
+                  key={entry.month}
+                  fillOpacity={!showExpense ? 0 : !selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>

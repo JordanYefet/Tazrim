@@ -180,9 +180,10 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
 }
 
 /** Two-column tile grid; an odd last tile spans both columns. */
-export function StatGrid({ stats }: { stats: StatDef[] }) {
+/** `uniform`: every row as tall as the tallest, so all tiles are the same size */
+export function StatGrid({ stats, uniform }: { stats: StatDef[]; uniform?: boolean }) {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className={cn('grid grid-cols-2 gap-4', uniform && 'auto-rows-fr')}>
       {stats.map((s, i) => (
         <StatTile key={s.label} {...s} wide={stats.length % 2 === 1 && i === stats.length - 1} />
       ))}

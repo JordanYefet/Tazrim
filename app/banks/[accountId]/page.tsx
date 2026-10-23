@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { FileSpreadsheet, Upload } from 'lucide-react'
-import { BankSummaryCards } from '@/components/bank/bank-summary-cards'
+import { bankStats } from '@/components/bank/bank-summary-cards'
+import { NetBalance, StatGrid } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
@@ -10,6 +11,7 @@ import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBa
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { getCategories } from '@/lib/db/categories'
 import { CategoryDonut } from '@/components/cards/category-donut'
+import { CollapsiblePair } from '@/components/ui/collapsible-pair'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -158,27 +160,34 @@ export default async function BankAccountPage({
         badge={account.archived ? 'בארכיון' : undefined}
       />
 
-      {/* The account itself is the page's hero, next to the period totals on wide screens */}
-      <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
-        <BankElement
-          hero
-          tilt
-          provider={account.provider}
-          name={account.displayName}
-          color="var(--chart-income)"
-          colorChoice={account.color}
-          latest={latest}
-          trend={trend}
-          emptyText="אין תנועות בתקופה"
-        />
+      {/* Two equal halves: the account and its net balance side by side, and the
+          four period tiles (all the same size). Without data, the account and an empty state. */}
+      <div className="grid items-stretch gap-4 xl:grid-cols-2">
+        <div className={hasData ? 'grid items-stretch gap-4 sm:grid-cols-2' : 'grid'}>
+          <BankElement
+            hero
+            tilt
+            provider={account.provider}
+            name={account.displayName}
+            color="var(--chart-income)"
+            colorChoice={account.color}
+            latest={latest}
+            trend={trend}
+            emptyText="אין תנועות בתקופה"
+          />
+          {hasData && <NetBalance bankIncome={income} bankExpense={expense} format="currencyExact" />}
+        </div>
         {hasData ? (
-          <BankSummaryCards
-            income={income}
-            expense={expense}
-            averageExpense={averageExpense}
-            averageIncome={averageIncome}
-            monthLabel={month ? monthName(month) : undefined}
-            monthHasData={!!month && monthHasData(bankSummary, month)}
+          <StatGrid
+            uniform
+            stats={bankStats({
+              income,
+              expense,
+              averageExpense,
+              averageIncome,
+              monthLabel: month ? monthName(month) : undefined,
+              monthHasData: !!month && monthHasData(bankSummary, month),
+            })}
           />
         ) : (
           <EmptyState
@@ -192,38 +201,40 @@ export default async function BankAccountPage({
 
       {hasData && (
         <>
-          {/* Same 5/7 split as the summary row above, so the edges line up */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          {/* Two equal halves, like the rows above and below */}
+          <div className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
-            <BalanceChart data={balancePoints} />
+            <BalanceChart data={balancePoints} flow={flow} />
           </div>
-          {/* Where the money went and where it came from; a slice filters the table */}
-          <div className={flow ? 'grid gap-4' : 'grid gap-4 lg:grid-cols-2'}>
-            {flow !== 'IN' && (
-            <CategoryDonut
-              pagePath={accountPath('BANK', account.id)}
-              data={totalsOf(expenseStats)}
-              stats={expenseStats}
-              selectedCategory={params.category}
-              colors={expenseColors}
-              analysisHref={bankCategoryAnalysisHref(account.id, period)}
-              emptyText="אין הוצאות לתקופה זו"
-            />
-            )}
-            {flow !== 'OUT' && (
-            <CategoryDonut
-              pagePath={accountPath('BANK', account.id)}
-              data={totalsOf(incomeStats)}
-              stats={incomeStats}
-              selectedCategory={params.category}
-              colors={incomeColors}
-              title="הכנסות לפי קטגוריה"
-              tone="income"
-              emptyText="אין הכנסות לתקופה זו"
-              analysisHref={flow === 'IN' ? bankCategoryAnalysisHref(account.id, period) : undefined}
-            />
-            )}
-          </div>
+          {/* Where the money came from (start side) and where it went; a slice filters the table.
+              The switch collapses the other side instead of dropping it. */}
+          <CollapsiblePair
+            show={flow === 'IN' ? 'first' : flow === 'OUT' ? 'second' : 'both'}
+            first={
+              <CategoryDonut
+                pagePath={accountPath('BANK', account.id)}
+                data={totalsOf(incomeStats)}
+                stats={incomeStats}
+                selectedCategory={params.category}
+                colors={incomeColors}
+                title="הכנסות לפי קטגוריה"
+                tone="income"
+                emptyText="אין הכנסות לתקופה זו"
+                analysisHref={flow === 'IN' ? bankCategoryAnalysisHref(account.id, period) : undefined}
+              />
+            }
+            second={
+              <CategoryDonut
+                pagePath={accountPath('BANK', account.id)}
+                data={totalsOf(expenseStats)}
+                stats={expenseStats}
+                selectedCategory={params.category}
+                colors={expenseColors}
+                analysisHref={bankCategoryAnalysisHref(account.id, period)}
+                emptyText="אין הוצאות לתקופה זו"
+              />
+            }
+          />
         </>
       )}
 
