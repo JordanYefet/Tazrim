@@ -154,7 +154,7 @@ export default async function BankAccountPage({
       <PageHeading
         period={{ year: Number(year), month }}
         title={account.displayName}
-        back={{ href: accountHref('BANK', undefined, { ...period, flow: params.flow }), label: 'בנקים' }}
+        back={{ href: accountHref('BANK', undefined, period), label: 'בנקים' }}
         badge={account.archived ? 'בארכיון' : undefined}
       />
 

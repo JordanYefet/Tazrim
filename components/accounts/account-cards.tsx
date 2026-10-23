@@ -48,12 +48,10 @@ export interface BankAccountSummary {
   trend?: number[]
   /** Share of the combined bank expense (only with several accounts) */
   expenseShare?: number
-  /** The page's income / expenses filter: only that total (and share) shows */
-  flow?: 'IN' | 'OUT'
 }
 
 /** /banks tile: the bank account element itself is the link. */
-export function BankAccountCard({ href, name, provider, color, colorChoice, income, expense, latest, trend, expenseShare, flow }: BankAccountSummary) {
+export function BankAccountCard({ href, name, provider, color, colorChoice, income, expense, latest, trend, expenseShare }: BankAccountSummary) {
   return (
     <Link href={href} className={cn('group acct-press block h-full rounded-[18px]', FOCUS)}>
       <BankElement
@@ -64,11 +62,11 @@ export function BankAccountCard({ href, name, provider, color, colorChoice, inco
         color={color}
         colorChoice={colorChoice}
         latest={latest}
-        totals={{ income: flow === 'OUT' ? undefined : income, expense: flow === 'IN' ? undefined : expense }}
+        totals={{ income, expense }}
         trend={trend}
         className="h-full transition-shadow group-hover:shadow-e3"
       >
-        {expenseShare !== undefined && flow !== 'IN' && (
+        {expenseShare !== undefined && (
           <ShareMeter share={expenseShare} color="hsl(var(--expense))" label="מההוצאות בכל החשבונות" />
         )}
         <Footer label="לפירוט החשבון" />
