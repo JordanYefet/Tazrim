@@ -164,7 +164,7 @@ export default async function CardAccountPage({
       <div className="wallet-shell__rest space-y-6">
         {hasData && (
           /* Monthly bar chart + category donut side by side on large screens */
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div className="grid gap-4 lg:grid-cols-2">
             <MonthlySpendingChart
               accountId={account.id}
               series={[{ key: account.id, label: account.displayName, color: seriesColor(account.color, 'var(--chart-cc)'), data: monthly }]}

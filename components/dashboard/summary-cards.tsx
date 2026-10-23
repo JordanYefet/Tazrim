@@ -116,7 +116,19 @@ export const DOT: Record<Tone, string> = {
   neutral: 'bg-muted-foreground',
 }
 
-export function StatTile({ label, value, tone, href, hint, format, split, compare, hasCompareSlot, wide }: StatDef & { wide?: boolean }) {
+export function StatTile({
+  label,
+  value,
+  tone,
+  href,
+  hint,
+  format,
+  split,
+  compare,
+  hasCompareSlot,
+  wide,
+  bare,
+}: StatDef & { wide?: boolean; /** A cell of a StatPanel: no card of its own */ bare?: boolean }) {
   const body = (
     <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -159,10 +171,9 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
   )
   // Values sit right under the label (not pushed to the bottom), so they line up
   // across a row even when one tile has an extra hint or comparison line
-  const base = cn(
-    'group relative flex flex-col gap-3 rounded-xl surface-raised p-4',
-    wide && 'col-span-2'
-  )
+  const base = bare
+    ? 'group relative flex flex-col justify-center gap-1.5 px-4 py-3'
+    : cn('group relative flex flex-col gap-3 rounded-xl surface-raised p-4', wide && 'col-span-2')
   if (!href) return <div className={base}>{body}</div>
   return (
     <Link
@@ -180,10 +191,34 @@ export function StatTile({ label, value, tone, href, hint, format, split, compar
 }
 
 /** Two-column tile grid; an odd last tile spans both columns. */
-/** `uniform`: every row as tall as the tallest, so all tiles are the same size */
-export function StatGrid({ stats, uniform }: { stats: StatDef[]; uniform?: boolean }) {
+/**
+ * Several figures in ONE card, two per row with hairlines between them: no
+ * gaps between tiles, so it fits beside the wallet with the net balance
+ * (the bank pages). Rows share the card's height evenly.
+ */
+export function StatPanel({ stats, className }: { stats: StatDef[]; className?: string }) {
   return (
-    <div className={cn('grid grid-cols-2 gap-4', uniform && 'auto-rows-fr')}>
+    <div className={cn('grid auto-rows-fr grid-cols-2 overflow-hidden rounded-xl surface-raised', className)}>
+      {stats.map((s, i) => (
+        <div
+          key={s.label}
+          className={cn(
+            'flex min-w-0 flex-col',
+            i % 2 === 0 && 'border-e',
+            i < stats.length - 2 && 'border-b'
+          )}
+        >
+          <StatTile {...s} bare />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** `uniform`: every row as tall as the tallest, so all tiles are the same size */
+export function StatGrid({ stats, uniform, className }: { stats: StatDef[]; uniform?: boolean; className?: string }) {
+  return (
+    <div className={cn('grid grid-cols-2 gap-4', uniform && 'auto-rows-fr', className)}>
       {stats.map((s, i) => (
         <StatTile key={s.label} {...s} wide={stats.length % 2 === 1 && i === stats.length - 1} />
       ))}
@@ -200,7 +235,12 @@ export function NetBalance({
   bankIncome,
   bankExpense,
   format,
-}: Pick<Props, 'bankIncome' | 'bankExpense'> & { format?: RollingFormat }) {
+  compact = false,
+}: Pick<Props, 'bankIncome' | 'bankExpense'> & {
+  format?: RollingFormat
+  /** Beside the wallet (the bank pages): tighter, so it and the figures fit the wallet's height */
+  compact?: boolean
+}) {
   const outflow = bankExpense
   const net = bankIncome - outflow
   const scale = Math.max(bankIncome, outflow)
@@ -210,13 +250,17 @@ export function NetBalance({
   return (
     <section
       aria-label="מאזן נטו"
-      className="flex flex-col justify-between gap-6 rounded-xl surface-hero p-4 sm:p-6"
+      className={cn(
+        'flex flex-col justify-between rounded-xl surface-hero p-4',
+        compact ? 'gap-3 sm:px-5 sm:py-4' : 'gap-6 sm:p-6'
+      )}
     >
       <div>
         <p className="text-sm font-medium text-muted-foreground">מאזן נטו</p>
         <p
           className={cn(
-            'mt-1 text-4xl font-semibold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none',
+            'mt-1 font-semibold tracking-tight tabular-nums',
+            compact ? 'text-3xl sm:text-4xl sm:leading-none' : 'text-4xl sm:text-[2.75rem] sm:leading-none',
             positive ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'
           )}
         >

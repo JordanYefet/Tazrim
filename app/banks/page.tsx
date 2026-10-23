@@ -1,6 +1,6 @@
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
 import { bankStats } from '@/components/bank/bank-summary-cards'
-import { NetBalance, StatGrid } from '@/components/dashboard/summary-cards'
+import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankAccountCard } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
@@ -86,13 +86,13 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
       <div className="wallet-shell__head">{heading}</div>
       <CardStackTotal value={stackBalance} />
 
-      {/* Beside the wallet: the net balance over the four period tiles (all the same size) */}
+      {/* Beside the wallet, as tall as it: the net balance over the four period figures in one card */}
       <div className="wallet-shell__beside flex flex-col gap-4">
         {hasData ? (
           <>
-            <NetBalance bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
-            <StatGrid
-              uniform
+            <NetBalance compact bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
+            <StatPanel
+              className="flex-1"
               stats={bankStats({
                 income: totals.income,
                 expense: totals.expense,

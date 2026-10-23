@@ -679,33 +679,9 @@ html {
   font-weight: 500;
   color: rgb(255 255 255 / 0.82);
 }
-/* Under the open card: where its charges are paid from */
-.wallet__caption {
-  margin-top: 0.625rem;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: hsl(var(--muted-foreground));
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--ease-ui);
-}
-.wallet__caption[data-visible] { opacity: 1; }
-/* Wide screens: the caption hangs under the card inside the row gap, so the
-   tiles beside the card align with the card's own edges */
-@media (min-width: 1024px) {
-  .wallet { position: relative; }
-  .wallet__caption {
-    position: absolute;
-    inset-inline: 0;
-    top: 100%;
-    margin-top: 0.375rem;
-    line-height: 1rem;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .acct-card__amount,
-  .acct-card__amount[data-visible],
-  .wallet__caption,
-  .wallet__caption[data-visible] { transition: none; transform: none; }
+  .acct-card__amount[data-visible] { transition: none; transform: none; }
 }
 
 /* ── The bank account ── */
@@ -849,7 +825,9 @@ html {
 
    Shell grid, shared by both pages so the wallet keeps its place:
      phone   head / wallet / beside / rest, one column
-     lg      head spans both columns; wallet (23rem) | beside; rest spans
+     lg      head spans both columns; wallet | beside in equal halves; rest spans
+   The wallet keeps its own width (23rem at most), centred in its half; the
+   beside half is as tall as the wallet (its content stretches to fill it).
    The wallet column is the card's width in both modes, so moving a card
    is a pure translate. Pages render <div class="contents"> with the
    wallet-shell__head / __beside / __rest blocks. */
@@ -860,16 +838,15 @@ html {
   row-gap: 1.5rem;
 }
 .wallet-shell__head { grid-row: 1; min-width: 0; }
-.wallet-shell__wallet { grid-row: 2; min-width: 0; }
+.wallet-shell__wallet { grid-row: 2; min-width: 0; width: 100%; max-width: 23rem; justify-self: center; }
 .wallet-shell__beside { grid-row: 3; min-width: 0; }
 .wallet-shell__rest { grid-row: 4; min-width: 0; }
 @media (min-width: 1024px) {
-  .wallet-shell { grid-template-columns: minmax(0, 23rem) minmax(0, 1fr); }
+  .wallet-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wallet-shell__head { grid-column: 1 / -1; }
   .wallet-shell__wallet { grid-column: 1; grid-row: 2; }
   .wallet-shell__beside { grid-column: 2; grid-row: 2; }
-  /* A little more room: the wallet's caption hangs in the row gap above */
-  .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; margin-top: 0.5rem; }
+  .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; }
 }
 /* A page's own content eases in when it arrives (the wallet is already there) */
 .wallet-shell__beside,

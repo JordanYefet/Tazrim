@@ -1,4 +1,4 @@
-import { averageStat, StatGrid, StatTile, type StatDef } from '@/components/dashboard/summary-cards'
+import { averageStat, StatGrid, type StatDef } from '@/components/dashboard/summary-cards'
 
 interface Props {
   total: number
@@ -23,26 +23,13 @@ function cardStats({ total, count, average, monthLabel, monthHasData = true }: P
 }
 
 /**
- * A card's page (ENG-56): the total sits on the card itself, so only the
- * count and the monthly average remain, as tiles beside it.
+ * The count and the monthly average, beside the wallet: on a card's page (the
+ * total sits on the card) and on /cards under the card list (the total is on
+ * the pocket). `className` sizes the pair (flex-1 fills the wallet's height).
  */
-export function CardStatTiles(props: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel' | 'monthHasData'>) {
-  return <StatGrid stats={cardStats(props)} />
-}
-
-/**
- * /cards: the total across the cards is on the wallet's leather pocket (with
- * the "paid from the bank" caption under it), so only the count and the
- * monthly average remain. A pair on phones; on wide screens they follow the
- * wallet shell's columns (count under the wallet, average under the list),
- * so the row lines up with the stack and the list above it.
- */
-export function CardSummaryCards(props: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel' | 'monthHasData'>) {
-  return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)]">
-      {cardStats(props).map(s => (
-        <StatTile key={s.label} {...s} />
-      ))}
-    </div>
-  )
+export function CardStatTiles({
+  className,
+  ...props
+}: Pick<Props, 'total' | 'count' | 'average' | 'monthLabel' | 'monthHasData'> & { className?: string }) {
+  return <StatGrid className={className} stats={cardStats(props)} />
 }

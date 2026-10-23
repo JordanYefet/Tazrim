@@ -594,22 +594,11 @@ function Wallet({
           </div>
         )}
       </div>
-      {/* Where the cards are paid from: cards only (a bank element carries its own text) */}
-      {kind === 'cards' && heightMode.kind === 'stack' && stackOrder.length > 0 && (
-        // Under the pocket: where the cards' charges are paid from (the total is on the leather)
-        <p className="wallet__caption" data-visible={stackTotal !== null ? '' : undefined}>
-          נגבה מחשבון הבנק, ולכן כבר כלול בהוצאות הבנק
-        </p>
-      )}
-      {kind === 'cards' && heightMode.kind === 'open' && (
-        // Under the open card: its total for screen readers (the face is decorative) and where it is paid from
-        <p className="wallet__caption" data-visible={shownTotal ? '' : undefined}>
-          {shownTotal && (
-            <span className="sr-only">
-              {shownTotal.label}: {shownTotal.value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}.{' '}
-            </span>
-          )}
-          נגבה מחשבון הבנק, ולכן כבר כלול בהוצאות הבנק
+      {/* The open card's total for screen readers (its face is decorative). No caption
+          under the wallet: the pages beside it carry the text, on cards and banks alike */}
+      {shownTotal && kind === 'cards' && (
+        <p className="sr-only">
+          {shownTotal.label}: {shownTotal.value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}
         </p>
       )}
     </div>

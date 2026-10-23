@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { bankStats } from '@/components/bank/bank-summary-cards'
-import { NetBalance, StatGrid } from '@/components/dashboard/summary-cards'
+import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
@@ -168,12 +168,12 @@ export default async function BankAccountPage({
       </PageHeading>
       </div>
 
-      {/* Beside the open account: the net balance over the four period tiles (all the same size) */}
+      {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
       <div className="wallet-shell__beside flex flex-col gap-4">
-        {hasData && <NetBalance bankIncome={income} bankExpense={expense} format="currencyExact" />}
+        {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currencyExact" />}
         {hasData ? (
-          <StatGrid
-            uniform
+          <StatPanel
+            className="flex-1"
             stats={bankStats({
               income,
               expense,
