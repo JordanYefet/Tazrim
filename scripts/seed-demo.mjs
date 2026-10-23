@@ -8,7 +8,8 @@
  *   npm run dev:demo           -> the app on that database
  *
  * Runs the real migrations with the sqlite3 CLI (like lib/db/__tests__/test-db.ts),
- * then inserts a year of bank and card activity up to today.
+ * then inserts a year of activity up to today: three bank accounts and three
+ * cards, each card's bill paid from one of the banks.
  */
 import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
@@ -46,29 +47,47 @@ const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 429496
 const between = (lo, hi) => Math.round((lo + rand() * (hi - lo)) * 100) / 100
 const pick = list => list[Math.floor(rand() * list.length)]
 
-const BANK = 'acct_leumi' // created by the add_account migration
-const CARD = 'acct_max'
-const CARD_LAST_FOUR = '1234'
+// Leumi and Max are created by the add_account migration; the others here
+const BANKS = [
+  { id: 'acct_leumi', provider: 'leumi', displayName: 'בנק לאומי', opening: 12500 },
+  { id: 'acct_hapoalim', provider: 'hapoalim', displayName: 'חשבון אישי', opening: 6800 },
+  { id: 'acct_discount', provider: 'discount', displayName: 'חיסכון', opening: 24000 },
+]
+// Each card's bill is paid from one bank, on its billing day, under a name the
+// app recognises as that company's payment (lib/insights/card-payment.ts)
+const CARDS = [
+  { id: 'acct_max', provider: 'max', displayName: 'מקס', lastFour: '1234', network: 'mastercard', bank: 'acct_leumi', billingDay: 10, payment: 'מקס איט פיננסים' },
+  { id: 'acct_cal', provider: 'cal', displayName: 'כאל', lastFour: '5678', network: 'visa', bank: 'acct_leumi', billingDay: 2, payment: 'כרטיסי אשראי לישראל' },
+  { id: 'acct_isracard', provider: 'isracard', displayName: 'ישראכרט', lastFour: '9012', network: 'isracard', bank: 'acct_hapoalim', billingDay: 15, payment: 'ישראכרט' },
+]
 
-// [merchant, category, min, max, times per month]
-const CARD_MERCHANTS = [
-  ['סופר השכונה', 'מזון וצריכה', 90, 520, 6],
-  ['מכולת הפינה', 'מזון וצריכה', 25, 140, 4],
-  ['קפה בוקר טוב', 'מסעדות, קפה וברים', 18, 65, 5],
-  ['פיצה על האש', 'מסעדות, קפה וברים', 60, 180, 2],
-  ['דלק בדרך', 'תחבורה ורכבים', 180, 360, 2],
-  ['חניון העיר', 'תחבורה ורכבים', 12, 40, 3],
-  ['בית מרקחת השכונתי', 'רפואה ובתי מרקחת', 30, 160, 1],
-  ['חנות בגדים לדוגמה', 'אופנה', 120, 450, 1],
-  ['ספרים ועוד', 'פנאי, בידור וספורט', 45, 140, 1],
-]
-// [merchant, category, amount, day of month]
-const CARD_FIXED = [
-  ['שירות סטרימינג', 'פנאי, בידור וספורט', 49.9, 3],
-  ['אפליקציית מוזיקה', 'פנאי, בידור וספורט', 21.9, 7],
-  ['חדר כושר שכונתי', 'פנאי, בידור וספורט', 229, 1],
-  ['חברת סלולר', 'שירותי תקשורת', 59, 12],
-]
+// Per card: [merchant, category, min, max, times per month]
+const CARD_MERCHANTS = {
+  acct_max: [
+    ['סופר השכונה', 'מזון וצריכה', 90, 520, 6],
+    ['מכולת הפינה', 'מזון וצריכה', 25, 140, 4],
+    ['קפה בוקר טוב', 'מסעדות, קפה וברים', 18, 65, 5],
+  ],
+  acct_cal: [
+    ['דלק בדרך', 'תחבורה ורכבים', 180, 360, 2],
+    ['חניון העיר', 'תחבורה ורכבים', 12, 40, 3],
+    ['בית מרקחת השכונתי', 'רפואה ובתי מרקחת', 30, 160, 1],
+  ],
+  acct_isracard: [
+    ['פיצה על האש', 'מסעדות, קפה וברים', 60, 180, 2],
+    ['חנות בגדים לדוגמה', 'אופנה', 120, 450, 1],
+    ['ספרים ועוד', 'פנאי, בידור וספורט', 45, 140, 1],
+  ],
+}
+// Per card: [merchant, category, amount, day of month]
+const CARD_FIXED = {
+  acct_max: [['חברת סלולר', 'שירותי תקשורת', 59, 12]],
+  acct_cal: [
+    ['שירות סטרימינג', 'פנאי, בידור וספורט', 49.9, 3],
+    ['אפליקציית מוזיקה', 'פנאי, בידור וספורט', 21.9, 7],
+  ],
+  acct_isracard: [['חדר כושר שכונתי', 'פנאי, בידור וספורט', 229, 1]],
+}
 
 const today = new Date()
 const year = today.getFullYear()
@@ -82,63 +101,82 @@ const hash = s => crypto.createHash('sha1').update(s).digest('hex')
 const cardRows = []
 for (let m = 0; m < lastMonth; m++) {
   const daysInMonth = new Date(year, m, 0).getDate()
-  const add = (merchant, category, amount, d) => {
-    const date = day(m, d)
-    cardRows.push({
-      accountId: CARD,
-      transactionDate: date,
-      billingDate: day(m + 1, 10), // billed on the 10th of the next month
-      originalMerchantName: merchant,
-      merchantName: merchant,
-      category,
-      chargedAmount: amount,
-      originalAmount: amount,
-      originalCurrency: '₪',
-      cardLastFour: CARD_LAST_FOUR,
-      transactionType: 'רגילה',
-      contentHash: hash(`${merchant}|${date.toISOString()}|${amount}|${cardRows.length}`),
-      sourceFile: 'demo-card.xlsx',
-    })
+  for (const card of CARDS) {
+    const add = (merchant, category, amount, d) => {
+      const date = day(m, d)
+      cardRows.push({
+        accountId: card.id,
+        transactionDate: date,
+        billingDate: day(m + 1, card.billingDay), // billed the next month
+        originalMerchantName: merchant,
+        merchantName: merchant,
+        category,
+        chargedAmount: amount,
+        originalAmount: amount,
+        originalCurrency: '₪',
+        cardLastFour: card.lastFour,
+        transactionType: 'רגילה',
+        contentHash: hash(`${card.id}|${merchant}|${date.toISOString()}|${amount}|${cardRows.length}`),
+        sourceFile: `demo-${card.provider}.xlsx`,
+      })
+    }
+    for (const [merchant, category, lo, hi, times] of CARD_MERCHANTS[card.id])
+      for (let i = 0; i < times; i++) add(merchant, category, between(lo, hi), 1 + Math.floor(rand() * daysInMonth))
+    for (const [merchant, category, amount, d] of CARD_FIXED[card.id]) add(merchant, category, amount, d)
+    // One unusually large purchase, so the "unusual" card has something to show
+    if (m === lastMonth - 1 && card.id === 'acct_isracard') add('חנות אלקטרוניקה', 'מוצרי חשמל', 3890, 18)
   }
-  for (const [merchant, category, lo, hi, times] of CARD_MERCHANTS)
-    for (let i = 0; i < times; i++) add(merchant, category, between(lo, hi), 1 + Math.floor(rand() * daysInMonth))
-  for (const [merchant, category, amount, d] of CARD_FIXED) add(merchant, category, amount, d)
-  // One unusually large purchase, so the "unusual" card has something to show
-  if (m === lastMonth - 1) add('חנות אלקטרוניקה', 'מוצרי חשמל', 3890, 18)
 }
 
-const bankEvents = []
+const bankEvents = Object.fromEntries(BANKS.map(b => [b.id, []]))
 for (let m = 1; m <= lastMonth; m++) {
-  const ev = (d, description, debit, credit) => {
+  const ev = (bank, d, description, debit, credit) => {
     const date = day(m, d)
-    if (date <= today) bankEvents.push({ date, description, debit, credit })
+    if (date <= today) bankEvents[bank].push({ date, description, debit, credit })
   }
-  ev(1, 'שכר דירה', 5200, 0)
-  ev(5, 'חברת החשמל', between(240, 520), 0)
-  ev(8, 'ארנונה', 690, 0)
-  ev(9, 'משכורת - חברה לדוגמה בע"מ', 0, between(17800, 18600))
-  const billed = cardRows
-    .filter(r => r.billingDate.getMonth() + 1 === m && r.billingDate.getFullYear() === year)
-    .reduce((s, r) => s + r.chargedAmount, 0)
-  if (billed) ev(10, 'מקס איט פיננסים', Math.round(billed * 100) / 100, 0)
-  ev(15, 'העברה לחיסכון', 1500, 0)
-  if (m % 3 === 0) ev(20, 'ביטוח רכב', 410, 0)
-  if (m === 4) ev(22, 'החזר מס', 0, 2350)
+  // Leumi: the main account
+  ev('acct_leumi', 1, 'שכר דירה', 5200, 0)
+  ev('acct_leumi', 5, 'חברת החשמל', between(240, 520), 0)
+  ev('acct_leumi', 8, 'ארנונה', 690, 0)
+  ev('acct_leumi', 9, 'משכורת - חברה לדוגמה בע"מ', 0, between(17800, 18600))
+  ev('acct_leumi', 15, 'העברה לחיסכון', 1500, 0)
+  if (m % 3 === 0) ev('acct_leumi', 20, 'ביטוח רכב', 410, 0)
+  if (m === 4) ev('acct_leumi', 22, 'החזר מס', 0, 2350)
+  // Hapoalim: a second, smaller salary and its own bills
+  ev('acct_hapoalim', 10, 'משכורת - חברה נוספת בע"מ', 0, between(11200, 11800))
+  ev('acct_hapoalim', 4, 'ועד בית', 180, 0)
+  ev('acct_hapoalim', 6, 'תאגיד המים', between(90, 210), 0)
+  ev('acct_hapoalim', 12, 'גן ילדים לדוגמה', 3400, 0)
+  ev('acct_hapoalim', 18, 'העברה לחשבון לאומי', 4000, 0)
+  ev('acct_leumi', 18, 'העברה מחשבון הפועלים', 0, 4000)
+  // Discount: savings, fed by the monthly transfer
+  ev('acct_discount', 15, 'העברה מחשבון לאומי', 0, 1500)
+  if (m % 3 === 0) ev('acct_discount', 28, 'ריבית זכות', 0, between(60, 90))
+  // Each card's bill, from its bank
+  for (const card of CARDS) {
+    const billed = cardRows
+      .filter(r => r.accountId === card.id && r.billingDate.getMonth() + 1 === m && r.billingDate.getFullYear() === year)
+      .reduce((s, r) => s + r.chargedAmount, 0)
+    if (billed) ev(card.bank, card.billingDay, card.payment, Math.round(billed * 100) / 100, 0)
+  }
 }
-bankEvents.sort((a, b) => a.date - b.date)
-let balance = 12500
-const bankRows = bankEvents.map(e => {
-  balance = Math.round((balance + e.credit - e.debit) * 100) / 100
-  return {
-    accountId: BANK,
-    date: e.date,
-    originalDescription: e.description,
-    description: e.description,
-    debit: e.debit,
-    credit: e.credit,
-    balance,
-    sourceFile: 'demo-bank.xlsx',
-  }
+const bankRows = BANKS.flatMap(b => {
+  let balance = b.opening
+  return bankEvents[b.id]
+    .sort((x, y) => x.date - y.date)
+    .map(e => {
+      balance = Math.round((balance + e.credit - e.debit) * 100) / 100
+      return {
+        accountId: b.id,
+        date: e.date,
+        originalDescription: e.description,
+        description: e.description,
+        debit: e.debit,
+        credit: e.credit,
+        balance,
+        sourceFile: `demo-${b.provider}.xlsx`,
+      }
+    })
 })
 
 const prisma = new PrismaClient({ datasourceUrl: `file:${file}` })
@@ -147,15 +185,27 @@ if (dataOnly && (await prisma.bankTransaction.count()) + (await prisma.creditCar
   await prisma.$disconnect()
   process.exit(0)
 }
-await prisma.account.update({ where: { id: CARD }, data: { cardLastFour: CARD_LAST_FOUR, cardNetwork: 'mastercard' } })
+for (const b of BANKS) {
+  const { opening, ...data } = b
+  await prisma.account.upsert({ where: { id: b.id }, update: {}, create: { ...data, kind: 'BANK' } })
+}
+for (const c of CARDS) {
+  const fields = { cardLastFour: c.lastFour, cardNetwork: c.network }
+  await prisma.account.upsert({
+    where: { id: c.id },
+    update: fields,
+    create: { id: c.id, kind: 'CREDIT_CARD', provider: c.provider, displayName: c.displayName, ...fields },
+  })
+}
 await prisma.bankTransaction.createMany({ data: bankRows })
 await prisma.creditCardTransaction.createMany({ data: cardRows })
 await prisma.uploadHistory.createMany({
-  data: [
-    { accountId: BANK, fileName: 'demo-bank.xlsx', recordCount: bankRows.length },
-    { accountId: CARD, fileName: 'demo-card.xlsx', recordCount: cardRows.length },
-  ],
+  data: [...BANKS, ...CARDS].map(a => ({
+    accountId: a.id,
+    fileName: `demo-${a.provider}.xlsx`,
+    recordCount: [...bankRows, ...cardRows].filter(r => r.accountId === a.id).length,
+  })),
 })
 await prisma.$disconnect()
 
-console.log(`Demo database: ${dataOnly ? file : path.relative(root, file)} (${bankRows.length} bank rows, ${cardRows.length} card rows)`)
+console.log(`Demo database: ${dataOnly ? file : path.relative(root, file)} (${BANKS.length} banks, ${bankRows.length} bank rows; ${CARDS.length} cards, ${cardRows.length} card rows)`)
