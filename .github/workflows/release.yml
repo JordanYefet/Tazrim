@@ -1,14 +1,16 @@
 # A release, on demand: Actions -> Release -> Run workflow (on main), type the version.
 #
-#   1. the CI checks on that commit
-#   2. the Docker image (amd64 + arm64) to ghcr.io/<owner>/tazrim as <version>,
-#      <major>.<minor> and latest
-#   3. the tag v<version> and the GitHub release, notes generated from the merged PRs
-#   4. the live demo on Vercel, built from the same commit (skipped until the
-#      VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID secrets exist)
+#   1. the CI checks on main
+#   2. the release commit: the `release` branch is reset to main plus one commit,
+#      "Release v<version>", that sets package.json's version (the About page
+#      shows it); main itself never gets a bot commit
+#   3. the Docker image (amd64 + arm64) from that commit to ghcr.io/<owner>/tazrim
+#      as <version>, <major>.<minor> and latest
+#   4. then, only once the image is pushed: the `release` branch and the tag
+#      v<version> go up, and the GitHub release is created (notes from the merged PRs)
 #
-# The version is written into package.json for the builds only (the About page
-# shows it); nothing is committed to main.
+# Vercel builds the live demo from the `release` branch through its GitHub
+# link (vercel.json allows that branch only), so each release updates the demo.
 name: Release
 
 on:
@@ -57,19 +59,27 @@ jobs:
     needs: validate
     uses: ./.github/workflows/ci.yml
 
-  image:
-    name: Docker image
+  build:
+    name: Release commit and Docker image
     needs: [validate, check]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      contents: read
+      contents: write
       packages: write
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Version into package.json
-        run: npm pkg set version="${{ needs.validate.outputs.version }}"
+      - name: Release commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B release "$GITHUB_SHA"
+          npm pkg set version="$VERSION"
+          git commit -am "Release v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
 
       - name: Image name
         id: name
@@ -89,13 +99,14 @@ jobs:
         with:
           images: ${{ steps.name.outputs.image }}
           tags: |
-            type=semver,pattern={{version}},value=v${{ needs.validate.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.validate.outputs.version }}
+            type=semver,pattern={{version}},value=v${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ env.VERSION }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.title=Tazrim
             org.opencontainers.image.licenses=MIT
 
+      # From the working tree: the release commit, with its version
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -106,14 +117,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Only now that the image exists: a failed build leaves no tag behind, so the run can be repeated
+      - name: Push the release branch and tag
+        run: git push --force origin release "refs/tags/v$VERSION"
+
   release:
     name: GitHub release
-    needs: [validate, image]
+    needs: [validate, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Tag and release
+      - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}
@@ -121,15 +136,7 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tazrim"
           gh release create "v$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --verify-tag \
             --title "v$VERSION" \
             --generate-notes \
             --notes "Docker image: \`$image:$VERSION\` (also \`latest\`)"
-
-  demo:
-    name: Live demo (Vercel)
-    needs: [validate, release]
-    uses: ./.github/workflows/demo.yml
-    with:
-      ref: v${{ needs.validate.outputs.version }}
-    secrets: inherit

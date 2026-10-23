@@ -1,89 +1,34 @@
-# The live read-only demo on Vercel, built from a release.
+# Refreshes the live read-only demo every Monday (or by hand: Actions -> Demo -> Run workflow).
 #
-# - after every release (called by release.yml with that release's tag)
-# - every Monday, from the latest release, so the demo's year of made-up data
-#   (built at deploy time, scripts/seed-demo.mjs) runs up to the current week
-# - by hand: Actions -> Demo -> Run workflow (any tag or branch, e.g. main
-#   before the first release)
+# Vercel builds the demo from the `release` branch through its GitHub link; a
+# release pushes that branch, so it deploys by itself. This only rebuilds the
+# same code, so the demo's year of made-up data (built at deploy time,
+# scripts/seed-demo.mjs) runs up to the current week between releases.
 #
-# Needs the VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID secrets; without
-# them it says so and does nothing, so releases work before the demo exists.
+# Needs the VERCEL_DEPLOY_HOOK secret (Vercel: Settings -> Git -> Deploy Hooks,
+# branch `release`); without it, it says so and does nothing.
 name: Demo
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        description: The release tag to deploy
-        required: true
-        type: string
   workflow_dispatch:
-    inputs:
-      ref:
-        description: Tag or branch to deploy (empty = the latest release)
-        required: false
-        type: string
   schedule:
     - cron: '0 4 * * 1'
 
 permissions:
   contents: read
 
-concurrency:
-  group: demo
-  cancel-in-progress: true
-
 jobs:
-  deploy:
-    name: Deploy
+  refresh:
+    name: Rebuild on Vercel
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    timeout-minutes: 5
     steps:
-      - name: Vercel secrets
-        id: secrets
-        run: |
-          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::No Vercel secrets yet: the demo was not deployed"
-          fi
-
-      - name: Which release
-        if: steps.secrets.outputs.ok
-        id: ref
+      - name: Deploy hook
         env:
-          GH_TOKEN: ${{ github.token }}
-          REF: ${{ inputs.ref }}
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
         run: |
-          if [ -z "$REF" ]; then
-            REF=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          if [ -z "$HOOK" ]; then
+            echo "::notice::No VERCEL_DEPLOY_HOOK secret: the demo was not rebuilt"; exit 0
           fi
-          if [ -z "$REF" ]; then
-            echo "::notice::No release yet: nothing to deploy"; exit 0
-          fi
-          echo "ref=$REF" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        if: steps.ref.outputs.ref
-        with:
-          ref: ${{ steps.ref.outputs.ref }}
-
-      - uses: actions/setup-node@v4
-        if: steps.ref.outputs.ref
-        with:
-          node-version: 22
-
-      # Built on Vercel's machines (vercel.json: the demo database, then the app),
-      # so the database engine matches where it runs
-      - name: Deploy
-        if: steps.ref.outputs.ref
-        env:
-          REF: ${{ steps.ref.outputs.ref }}
-        run: |
-          # A release tag's version for the About page (a branch keeps package.json's)
-          if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then npm pkg set version="${REF#v}"; fi
-          npx --yes vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN"
+          curl --fail --silent --show-error -X POST "$HOOK" >/dev/null
+          echo "Vercel is rebuilding the demo"
