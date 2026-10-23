@@ -5,14 +5,12 @@ import { SearchButton } from '@/components/search/search-button'
 import { CommandSearch } from '@/components/search/command-search'
 import { useHeaderHidden } from '@/hooks/use-header-hidden'
 import { cn } from '@/lib/utils/cn'
-import { monthsArray } from '@/lib/utils/date'
 import { isPeriodPath, periodQuery, type Period } from '@/lib/period'
 import { useCurrentPeriod, useRememberPeriod } from './period-context'
-
-const MONTHS = monthsArray()
+import { PeriodPicker } from './period-picker'
 
 /**
- * Sticky, translucent header with the period selects and search. It slides
+ * Sticky, translucent header: the period picker in the middle, search at the end. It slides
  * up out of the way while scrolling down and comes back on any scroll up
  * (transform only). It stays put while focus is inside it and under
  * reduced motion.
@@ -26,14 +24,8 @@ export function Header() {
   const remember = useRememberPeriod()
   // The URL's period on a period page, else the remembered one
   const current = useCurrentPeriod()
-  const year = current.year
-  const month = current.month ? String(current.month) : ''
 
-  function update(key: 'year' | 'month', value: string) {
-    const next: Period = {
-      year: key === 'year' ? Number(value) : year,
-      month: key === 'month' ? (value ? Number(value) : undefined) : current.month,
-    }
+  function update(next: Period) {
     // Remembered at once (cookie too), so every page opened from here on shows it
     remember(next)
     // Pages without a period (settings, upload...) keep their URL
@@ -45,49 +37,23 @@ export function Header() {
     router.push(`${pathname}?${sp.toString()}`, { scroll: false })
   }
 
-  const now = new Date()
-  // The last five years, plus a remembered or linked year further back
-  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i)
-  if (!years.includes(year)) {
-    years.push(year)
-    years.sort((a, b) => b - a)
-  }
-
   return (
     <>
       <header
         data-hidden={hidden || undefined}
         className={cn(
-          'sticky top-0 z-30 flex h-14 items-center justify-between gap-4 bar-glass border-b px-4 py-2.5',
+          'sticky top-0 z-30 grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 bar-glass border-b px-4 py-2.5',
           '[@media(prefers-reduced-transparency:reduce)]:bg-card',
           'transition-transform duration-fast ease-ui',
           'data-[hidden]:-translate-y-full focus-within:!translate-y-0',
           'motion-reduce:!translate-y-0 motion-reduce:transition-none'
         )}
       >
-        <div className="flex items-center gap-2">
-          <select
-            aria-label="חודש"
-            value={month}
-            onChange={e => update('month', e.target.value)}
-          >
-            <option value="">כל החודשים</option>
-            {MONTHS.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-          <select
-            aria-label="שנה"
-            value={year}
-            onChange={e => update('year', e.target.value)}
-          >
-            {years.map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
+        {/* Empty start column, as wide as the end one, so the period sits in the middle */}
+        <div aria-hidden />
+        <PeriodPicker period={{ year: current.year, month: current.month }} onChange={update} />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <SearchButton />
         </div>
       </header>
