@@ -5,10 +5,12 @@ import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { CardStackTotal } from '@/components/cards/card-wallet'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlyCounts, getCCMonthlySummary } from '@/lib/db/cards'
+import { CategoryDonut } from '@/components/cards/category-donut'
+import { rankCategories } from '@/lib/insights/category-insights'
+import { categoryColorMap } from '@/lib/utils/category-colors'
 import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
-import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
+import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
 import {
   cardPeriodTotals,
   lastMonthWithData,
@@ -48,6 +50,17 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     })
   )
 
+  // Every card's categories together, for the donut (colours ranked by the year, as on the analysis page)
+  const ids = accounts.map(a => a.id)
+  const [categoryStats, categoryMonthly, monthlyCounts] = ids.length
+    ? await Promise.all([
+        getCCCategoryStats(ids, Number(year), month),
+        getCCCategoryMonthly(ids, Number(year)),
+        // The count tile's monthly bars
+        getCCMonthlyCounts(ids, Number(year)),
+      ])
+    : [{}, {}, {}]
+
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
   const { average } = cardPeriodTotals(combined, month)
   const total = perCard.reduce((s, c) => s + c.total, 0)
@@ -57,7 +70,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
 
   const heading = (
     <PageHeading period={{ year: Number(year), month }} title="כרטיסי אשראי">
-      {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(undefined, period)} />}
       <ManageAccountsLink />
     </PageHeading>
   )
@@ -115,6 +127,9 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           average={average}
           monthLabel={month ? monthName(month) : undefined}
           monthHasData={!!month && monthHasData(combined, month)}
+          monthlyCounts={monthlyCounts}
+          monthlyTotals={combined}
+          selectedMonth={month}
         />
       )}
       </div>
@@ -122,11 +137,25 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       <div className="wallet-shell__rest space-y-6">
         {hasData ? (
           <>
-            <MonthlySpendingChart
-              series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
-              selectedMonth={month}
-              subtitle={several ? 'כל הכרטיסים, לפי כרטיס · לחיצה על חודש מסננת' : undefined}
-            />
+            {/* The same pair as on a card's page: the months, and the categories (every card's
+                together) with the category analysis link; a category opens its transactions */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <MonthlySpendingChart
+                series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
+                selectedMonth={month}
+                subtitle={several ? 'כל הכרטיסים, לפי כרטיס · לחיצה על חודש מסננת' : undefined}
+              />
+              <CategoryDonut
+                pagePath="/cards"
+                data={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
+                stats={categoryStats}
+                colors={categoryColorMap(rankCategories(categoryMonthly))}
+                analysisHref={categoryAnalysisHref(undefined, period)}
+                categoryHrefs={Object.fromEntries(
+                  Object.keys(categoryStats).map(c => [c, categoryTransactionsHref({ cardIds: ids, category: c, year, month })])
+                )}
+              />
+            </div>
           </>
         ) : (
           <EmptyState

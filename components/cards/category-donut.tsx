@@ -8,6 +8,7 @@ import { Suspense } from 'react'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 
 // CSS vars (defined per theme in globals.css) so SSR and client markup match
 const COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
@@ -37,6 +38,8 @@ function CategoryDonutInner({
   title = 'הוצאות לפי קטגוריה',
   tone = 'expense',
   emptyText = 'אין חיובים לתקופה זו',
+  analysisHref,
+  categoryHrefs,
 }: Props) {
   const router = useRouter()
   const params = useSearchParams()
@@ -50,6 +53,12 @@ function CategoryDonutInner({
   const colorOf = (name: string, i: number) => colors?.[name] ?? COLORS[i % COLORS.length]
 
   function handleClick(entry: { name: string }) {
+    // A page without a table of its own (/cards) opens the category's transactions instead
+    const href = categoryHrefs?.[entry.name]
+    if (categoryHrefs) {
+      if (href) router.push(href)
+      return
+    }
     const sp = new URLSearchParams(params.toString())
     if (selectedCategory === entry.name) {
       sp.delete('category')
@@ -61,7 +70,14 @@ function CategoryDonutInner({
 
   return (
     <section className={SECTION}>
-      <ChartHeader title={title} subtitle="לחיצה על קטגוריה מסננת" />
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <ChartHeader
+          title={title}
+          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת'}
+          className="mb-0"
+        />
+        {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
+      </div>
       {chartData.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
@@ -141,6 +157,13 @@ interface Props {
   colors?: Record<string, string>
   title?: string
   emptyText?: string
+  /** Link-button to the category analysis page, in the card's header */
+  analysisHref?: string
+  /**
+   * Where each category opens (a page with no table to filter, e.g. /cards).
+   * Without it a click filters this page with `?category=`.
+   */
+  categoryHrefs?: Record<string, string>
   /** Amount colour: spending (cards, bank debits) or income (bank credits) */
   tone?: Tone
 }

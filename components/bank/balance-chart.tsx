@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
+import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 
 interface TxPoint { date: string; balance: number }
 
@@ -20,7 +21,16 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-export function BalanceChart({ data }: { data: TxPoint[] }) {
+export function BalanceChart({
+  data,
+  analysisHref,
+  subtitle = 'כל התנועות בתקופה',
+}: {
+  data: TxPoint[]
+  /** Link-button to the category analysis page, in the card's header (the bank pages) */
+  analysisHref?: string
+  subtitle?: string
+}) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   // Light blue, like the balance sparkline on the account element
@@ -37,9 +47,13 @@ export function BalanceChart({ data }: { data: TxPoint[] }) {
   }))
 
   return (
-    <section className={SECTION}>
-      <ChartHeader title="יתרת חשבון לאורך זמן" subtitle="כל התנועות בתקופה" />
-      <div className="h-48 sm:h-64 md:h-72">
+    <section className={`${SECTION} flex flex-col`}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <ChartHeader title="יתרת חשבון לאורך זמן" subtitle={subtitle} className="mb-0" />
+        {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
+      </div>
+      {/* Fills the card: as tall as a taller neighbour in its row (a long category legend), never shorter than this */}
+      <div className="min-h-48 flex-1 sm:min-h-64 md:min-h-72">
         {chartData.length === 0 ? (
           <p className="flex h-full items-center justify-center text-sm text-muted-foreground">אין תנועות לתקופה זו</p>
         ) : (

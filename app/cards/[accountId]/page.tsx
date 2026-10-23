@@ -3,11 +3,10 @@ import { FileSpreadsheet, Upload } from 'lucide-react'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { CardHeroTotal } from '@/components/cards/card-wallet'
 import { CategoryDonut } from '@/components/cards/category-donut'
-import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlyCounts, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
 import { seriesColor } from '@/lib/accounts/colors'
 import { getCategories } from '@/lib/db/categories'
@@ -37,7 +36,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
   const month = params.month ? Number(params.month) : undefined
 
   // Same query as /api/cards/[accountId]/transactions (first page of 50 unless a month is selected)
-  const [txs, monthly, categoryRows, insights, stats, categoryMonthly] = await Promise.all([
+  const [txs, monthly, categoryRows, insights, stats, categoryMonthly, monthlyCounts] = await Promise.all([
     getCCTransactions({
       accountId,
       year: Number(year),
@@ -59,6 +58,8 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     })),
     getCCCategoryStats(accountId, Number(year), month),
     getCCCategoryMonthly(accountId, Number(year)),
+    // The count tile's monthly bars (following the category filter, like its figure)
+    getCCMonthlyCounts(accountId, Number(year), { category: params.category }),
   ])
 
   const categoryTotals: Record<string, number> = Object.fromEntries(
@@ -72,6 +73,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     categoryStats: stats,
     categories: asJson(categoryRows),
     categoryMonthly,
+    monthlyCounts,
     unusual: insights.flags.card,
     recurring: insights.recurring,
   }
@@ -91,7 +93,7 @@ export default async function CardAccountPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, unusual, recurring } =
+  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, monthlyCounts, unusual, recurring } =
     await getCardData(account.id, params)
 
   const total = params.category
@@ -121,7 +123,6 @@ export default async function CardAccountPage({
 
   const hasData = lastMonthWithData(monthly) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
-  const title = account.cardLastFour ? `${account.displayName} ·${account.cardLastFour}` : account.displayName
 
   // The card itself is the wallet in app/cards/layout.tsx (open on this page);
   // this page fills the grid around it (components/cards/card-wallet.tsx)
@@ -130,12 +131,10 @@ export default async function CardAccountPage({
       <div className="wallet-shell__head">
         <PageHeading
           period={{ year: Number(year), month }}
-          title={title}
+          // The card's name is on the card in the wallet: the page keeps the section's title
+          title="כרטיסי אשראי"
           badge={account.archived ? 'בארכיון' : undefined}
-        >
-          {/* Same place as on /cards and the bank pages */}
-          {hasData && <CategoryAnalysisLink href={categoryAnalysisHref(account.id, period)} />}
-        </PageHeading>
+        />
       </div>
 
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
@@ -149,6 +148,9 @@ export default async function CardAccountPage({
             />
             <CardStatTiles total={total} count={count} average={averageMonthly} monthLabel={month ? monthName(month) : undefined}
               monthHasData={!!month && monthHasData(monthly, month)}
+              monthlyCounts={monthlyCounts}
+              monthlyTotals={params.category ? (categoryMonthly[params.category] ?? {}) : monthly}
+              selectedMonth={month}
             />
           </>
         ) : (
@@ -176,6 +178,7 @@ export default async function CardAccountPage({
               stats={categoryStats}
               selectedCategory={params.category}
               colors={categoryColors}
+              analysisHref={categoryAnalysisHref(account.id, period)}
             />
           </div>
         )}

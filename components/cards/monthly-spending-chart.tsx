@@ -98,13 +98,14 @@ function MonthlySpendingChartInner({
   const chartData = useStableData(rows)
 
   return (
-    <section className={SECTION}>
+    <section className={`${SECTION} flex flex-col`}>
       <ChartHeader
         title={title}
         subtitle={subtitle}
         legend={series.length > 1 ? series.map(s => ({ label: s.label, color: s.color })) : undefined}
       />
-      <div className="h-48 sm:h-64">
+      {/* Fills the card: as tall as a taller neighbour in its row (a long category legend), never shorter than this */}
+      <div className="min-h-48 flex-1 sm:min-h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
