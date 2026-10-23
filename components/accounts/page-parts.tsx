@@ -47,15 +47,20 @@ export function PageHeading({
   )
 }
 
-/** Small "ניהול חשבונות" link to the accounts section of /settings. */
+/**
+ * Small "ניהול חשבונות" link to the accounts section of /settings. Icon only on
+ * phones, so an overview's heading stays one row, as tall as an account page's:
+ * the wallet under it then keeps its place when moving between them.
+ */
 export function ManageAccountsLink() {
   return (
     <Link
       href={settingsAccountsHref({})}
-      className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label="ניהול חשבונות"
+      className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
     >
       <Settings2 className="h-4 w-4" aria-hidden />
-      ניהול חשבונות
+      <span className="max-sm:sr-only">ניהול חשבונות</span>
     </Link>
   )
 }

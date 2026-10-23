@@ -847,6 +847,9 @@ html {
   .wallet-shell__wallet { grid-column: 1; grid-row: 2; }
   .wallet-shell__beside { grid-column: 2; grid-row: 2; }
   .wallet-shell__rest { grid-column: 1 / -1; grid-row: 3; }
+  /* The bank pages: the figures take the wallet's height and never make the row
+     taller (no contribution to the row; stretched to it), so the halves end level */
+  .wallet-shell__beside--fit { height: 0; min-height: 100%; }
 }
 /* A page's own content eases in when it arrives (the wallet is already there) */
 .wallet-shell__beside,

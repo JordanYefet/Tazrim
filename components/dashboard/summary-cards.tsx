@@ -133,7 +133,9 @@ export function StatTile({
     <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className={cn('h-2 w-2 rounded-full shrink-0', DOT[tone])} aria-hidden />
-        <span className="font-medium">{label}</span>
+        <span className={cn('font-medium', bare && 'whitespace-nowrap')}>{label}</span>
+        {/* A panel cell keeps one line of label: its hint follows it where there is room */}
+        {bare && hint && <span className="hidden truncate text-xs xl:inline">· {hint}</span>}
         {href && (
           <ChevronLeft
             className="ms-auto h-4 w-4 opacity-0 transition-all duration-fast group-hover:opacity-100 group-hover:-translate-x-0.5"
@@ -148,14 +150,16 @@ export function StatTile({
               'min-w-0 font-semibold tracking-tight tabular-nums text-foreground',
               // agorot, or a comparison chip beside the figure, make the line longer:
               // keep it on one line in half-width phone tiles
-              format === 'currencyExact' || hasCompareSlot ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
+              bare
+                ? 'whitespace-nowrap text-lg leading-tight sm:text-xl'
+                : format === 'currencyExact' || hasCompareSlot ? 'whitespace-nowrap text-lg sm:text-2xl' : 'text-2xl'
             )}
           >
             <RollingNumber value={value} format={format} />
           </p>
           {compare && <DeltaChip {...compare} />}
         </div>
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+        {hint && !bare && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         {split && split.length > 1 && (
           <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
             {split.map(s => (
@@ -172,7 +176,7 @@ export function StatTile({
   // Values sit right under the label (not pushed to the bottom), so they line up
   // across a row even when one tile has an extra hint or comparison line
   const base = bare
-    ? 'group relative flex flex-col justify-center gap-1.5 px-4 py-3'
+    ? 'group relative flex h-full flex-col justify-center gap-0.5 px-4 py-1'
     : cn('group relative flex flex-col gap-3 rounded-xl surface-raised p-4', wide && 'col-span-2')
   if (!href) return <div className={base}>{body}</div>
   return (
@@ -252,21 +256,34 @@ export function NetBalance({
       aria-label="מאזן נטו"
       className={cn(
         'flex flex-col justify-between rounded-xl surface-hero p-4',
-        compact ? 'gap-3 sm:px-5 sm:py-4' : 'gap-6 sm:p-6'
+        compact ? 'gap-3 py-3 sm:px-5' : 'gap-6 sm:p-6'
       )}
     >
       <div>
-        <p className="text-sm font-medium text-muted-foreground">מאזן נטו</p>
+        <p className="text-sm font-medium text-muted-foreground">
+          מאזן נטו
+          {/* Compact: the share left joins the label line (no line of its own) */}
+          {compact && bankIncome > 0 && (
+            <span className="font-normal">
+              {' · '}
+              {positive ? (
+                <>נשאר <RollingNumber value={Math.round(100 - spentPct)} format="percent" /> מההכנסות</>
+              ) : (
+                <>ההוצאות גבוהות ב־<RollingNumber value={Math.round(spentPct - 100)} format="percent" /></>
+              )}
+            </span>
+          )}
+        </p>
         <p
           className={cn(
             'mt-1 font-semibold tracking-tight tabular-nums',
-            compact ? 'text-3xl sm:text-4xl sm:leading-none' : 'text-4xl sm:text-[2.75rem] sm:leading-none',
+            compact ? 'text-3xl leading-none' : 'text-4xl sm:text-[2.75rem] sm:leading-none',
             positive ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'
           )}
         >
           <RollingNumber value={net} format={format} />
         </p>
-        {bankIncome > 0 && (
+        {bankIncome > 0 && !compact && (
           <p className="mt-2 text-sm text-muted-foreground">
             {positive ? (
               <>נשאר <RollingNumber value={Math.round(100 - spentPct)} format="percent" /> מההכנסות</>
@@ -293,7 +310,7 @@ export function NetBalance({
               />
             )}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className={cn('flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground', compact && 'sr-only')}>
             <span className="flex items-center gap-1.5">
               <span className={cn('h-2 w-2 rounded-full', DOT.expense)} aria-hidden />
               הוצאות (כולל חיובי כרטיס)

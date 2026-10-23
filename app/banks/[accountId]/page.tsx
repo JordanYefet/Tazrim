@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { cn } from '@/lib/utils/cn'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { bankStats } from '@/components/bank/bank-summary-cards'
 import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
@@ -169,11 +170,11 @@ export default async function BankAccountPage({
       </div>
 
       {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
-      <div className="wallet-shell__beside flex flex-col gap-4">
+      <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
         {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currencyExact" />}
         {hasData ? (
           <StatPanel
-            className="flex-1"
+            className="min-h-0 flex-1"
             stats={bankStats({
               income,
               expense,
