@@ -80,7 +80,8 @@ export function bankPeriodTotals(monthly: BankMonthly, month?: number) {
   const income = picked.reduce((s, v) => s + v.income, 0)
   const expense = picked.reduce((s, v) => s + v.expense, 0)
   const averageExpense = monthlyAverage(Object.fromEntries(MONTHS.map(m => [m, values[m - 1].expense])))
-  return { income, expense, net: income - expense, averageExpense }
+  const averageIncome = monthlyAverage(Object.fromEntries(MONTHS.map(m => [m, values[m - 1].income])))
+  return { income, expense, net: income - expense, averageExpense, averageIncome }
 }
 
 /** Card charges for the selected month (or the year), and the yearly average over months with charges. */

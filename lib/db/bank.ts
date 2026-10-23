@@ -4,7 +4,7 @@ import type { ParsedBankTransaction } from '../parsers/types'
 import { accountWhere, type AccountFilter } from './accounts'
 import { getAliasMap } from './aliases'
 import { getBankCategoryRules, ruleCategoryFor } from './bank-categories'
-import { bankRowCategory } from '../insights/bank-categories'
+import { bankRowCategory, type BankDirection } from '../insights/bank-categories'
 import { localDay } from '../upload/card-dedupe'
 import { monthEndBalances } from '../insights/account-overview'
 
@@ -89,6 +89,8 @@ export async function getBankTransactions(params: {
   merchant?: string
   /** A category, or the uncategorized / card-payment bucket (lib/insights/bank-categories) */
   category?: string
+  /** Only credits (IN) or only debits (OUT) */
+  direction?: BankDirection
   showIgnored?: boolean
   take?: number
   skip?: number
@@ -114,6 +116,9 @@ export async function getBankTransactions(params: {
   if (!params.showIgnored) {
     where.ignored = false
   }
+
+  if (params.direction === 'IN') where.credit = { gt: 0 }
+  if (params.direction === 'OUT') where.debit = { gt: 0 }
 
   if (params.category) {
     // The buckets depend on the card-payment patterns, so the category is

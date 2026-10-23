@@ -32,6 +32,8 @@ export interface MonthCompare {
   value: number
   /** (value - average) / average, null when there is no average */
   delta: number | null
+  /** Above the average is good news (income), so up is green and down red */
+  upIsGood?: boolean
 }
 
 /** The yearly average tile; with a month selected a chip shows that month against the average. */
@@ -39,12 +41,18 @@ export function averageStat(
   def: Omit<StatDef, 'value' | 'compare' | 'hasCompareSlot'>,
   average: number,
   /** `hasData: false`: the month has no data yet, so no chip (not "-100%") */
-  month?: { label: string; value: number; hasData?: boolean }
+  month?: { label: string; value: number; hasData?: boolean },
+  opts: { upIsGood?: boolean } = {}
 ): StatDef {
   return {
     ...def,
     value: average,
-    compare: month && { label: month.label, value: month.value, delta: monthAverageDelta(month.value, average, month.hasData ?? true) },
+    compare: month && {
+      label: month.label,
+      value: month.value,
+      delta: monthAverageDelta(month.value, average, month.hasData ?? true),
+      upIsGood: opts.upIsGood,
+    },
     hasCompareSlot: true,
   }
 }
@@ -57,17 +65,20 @@ const pct = new Intl.NumberFormat('he-IL', { style: 'percent', maximumFractionDi
  * already has its tile, so only the percentage is shown, and the tile keeps
  * its size whether or not a month is selected.
  */
-function DeltaChip({ label, delta }: MonthCompare) {
+function DeltaChip({ label, delta, upIsGood }: MonthCompare) {
   if (delta === null) return null
   const up = Math.round(delta * 100) > 0
   const down = Math.round(delta * 100) < 0
   const relation = up ? 'מעל הממוצע' : down ? 'מתחת לממוצע' : 'כמו הממוצע'
+  // Spending above the average is bad news; income above it is good
+  const bad = upIsGood ? down : up
+  const good = upIsGood ? up : down
   return (
     <span
       className={cn(
         'shrink-0 self-center rounded px-1.5 py-0.5 text-xs font-medium tabular-nums',
-        up && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
-        down && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
+        bad && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
+        good && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
         !up && !down && 'bg-muted text-muted-foreground'
       )}
       title={`${label} ${relation}`}

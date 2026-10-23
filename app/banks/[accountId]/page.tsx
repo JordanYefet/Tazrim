@@ -14,6 +14,8 @@ import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { getAccount } from '@/lib/db/accounts'
+import { FlowFilter } from '@/components/bank/flow-filter'
+import { parseBankFlow } from '@/lib/insights/bank-categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
@@ -29,6 +31,8 @@ interface SearchParams {
   search?: string
   merchant?: string
   category?: string
+  /** in = income only, out = expenses only */
+  flow?: string
   showIgnored?: string
 }
 
@@ -45,6 +49,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
       search: params.search,
       merchant: params.merchant,
       category: params.category,
+      direction: parseBankFlow(params.flow),
       showIgnored: params.showIgnored === 'true',
       take: month ? undefined : 50,
     }),
@@ -119,7 +124,7 @@ export default async function BankAccountPage({
     incomeCategories,
   } = await getBankData(account.id, params)
 
-  const { income, expense, averageExpense } = bankPeriodTotals(bankSummary, month)
+  const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month)
 
   const chartData = Object.entries(bankSummary).map(([m, d]) => ({
     month: Number(m),
@@ -136,20 +141,24 @@ export default async function BankAccountPage({
   if (params.search) fetchSp.set('search', params.search)
   if (params.merchant) fetchSp.set('merchant', params.merchant)
   if (params.category) fetchSp.set('category', params.category)
+  if (params.flow) fetchSp.set('flow', params.flow)
   if (params.showIgnored) fetchSp.set('showIgnored', params.showIgnored)
   const hasMore = !month && transactions.length >= 50
 
   const hasData = lastMonthWithData(bankSummary) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
+  const flow = parseBankFlow(params.flow)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading
         period={{ year: Number(year), month }}
         title={account.displayName}
-        back={{ href: accountHref('BANK', undefined, period), label: 'בנקים' }}
+        back={{ href: accountHref('BANK', undefined, { ...period, flow: params.flow }), label: 'בנקים' }}
         badge={account.archived ? 'בארכיון' : undefined}
-      />
+      >
+        <FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />
+      </PageHeading>
 
       {/* The account itself is the page's hero, next to the period totals on wide screens */}
       <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
@@ -169,6 +178,7 @@ export default async function BankAccountPage({
             income={income}
             expense={expense}
             averageExpense={averageExpense}
+            averageIncome={averageIncome}
             monthLabel={month ? monthName(month) : undefined}
             monthHasData={!!month && monthHasData(bankSummary, month)}
           />
@@ -186,11 +196,12 @@ export default async function BankAccountPage({
         <>
           {/* Same 5/7 split as the summary row above, so the edges line up */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} />
+            <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
             <BalanceChart data={balancePoints} />
           </div>
           {/* Where the money went and where it came from; a slice filters the table */}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className={flow ? 'grid gap-4' : 'grid gap-4 lg:grid-cols-2'}>
+            {flow !== 'IN' && (
             <CategoryDonut
               pagePath={accountPath('BANK', account.id)}
               data={totalsOf(expenseStats)}
@@ -200,6 +211,8 @@ export default async function BankAccountPage({
               analysisHref={bankCategoryAnalysisHref(account.id, period)}
               emptyText="אין הוצאות לתקופה זו"
             />
+            )}
+            {flow !== 'OUT' && (
             <CategoryDonut
               pagePath={accountPath('BANK', account.id)}
               data={totalsOf(incomeStats)}
@@ -209,14 +222,16 @@ export default async function BankAccountPage({
               title="הכנסות לפי קטגוריה"
               tone="income"
               emptyText="אין הכנסות לתקופה זו"
+              analysisHref={flow === 'IN' ? bankCategoryAnalysisHref(account.id, period) : undefined}
             />
+            )}
           </div>
         </>
       )}
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
         <BankTransactionsTable
-          key={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')}
+          key={[params.merchant, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
           accountId={account.id}
           transactions={transactions}
           showIgnored={params.showIgnored === 'true'}

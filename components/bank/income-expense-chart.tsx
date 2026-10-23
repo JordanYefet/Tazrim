@@ -22,6 +22,8 @@ interface Props {
   /** One bank account; omitted on the /banks overview (every account) */
   accountId?: string
   subtitle?: string
+  /** Only the income (IN) or expense (OUT) bars */
+  flow?: 'IN' | 'OUT'
 }
 
 // HTML legend instead of Recharts' <Legend>, which drew cramped dark squares in RTL (ENG-11)
@@ -47,7 +49,9 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle }: Props) {
+function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flow }: Props) {
+  const showIncome = flow !== 'OUT'
+  const showExpense = flow !== 'IN'
   const router = useRouter()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
@@ -79,9 +83,9 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle }: P
   return (
     <section className={SECTION}>
       <ChartHeader
-        title="הכנסות מול הוצאות"
+        title={flow === 'IN' ? 'הכנסות' : flow === 'OUT' ? 'הוצאות' : 'הכנסות מול הוצאות'}
         subtitle={subtitle ?? 'לחיצה על חודש מסננת'}
-        legend={LEGEND}
+        legend={LEGEND.filter((_, i) => (i === 0 ? showIncome : showExpense))}
       />
       <div className="h-48 sm:h-64 md:h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -101,22 +105,26 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle }: P
             <YAxis {...axes.yAxis} />
             <Customized component={<EmptyMonthSlots selectedMonth={selectedMonth} maxWidth={42} />} />
             <Tooltip filterNull={false} content={<CustomTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
-            <Bar {...anim} dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
-              {chartData.map(entry => (
-                <Cell
-                  key={entry.month}
-                  fillOpacity={!selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
-                />
-              ))}
-            </Bar>
-            <Bar {...anim} dataKey="הוצאות" fill={expenseColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
-              {chartData.map(entry => (
-                <Cell
-                  key={entry.month}
-                  fillOpacity={!selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
-                />
-              ))}
-            </Bar>
+            {showIncome && (
+              <Bar {...anim} dataKey="הכנסות" fill={incomeColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
+                {chartData.map(entry => (
+                  <Cell
+                    key={entry.month}
+                    fillOpacity={!selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
+                  />
+                ))}
+              </Bar>
+            )}
+            {showExpense && (
+              <Bar {...anim} dataKey="הוצאות" fill={expenseColor} radius={[3, 3, 0, 0]} maxBarSize={20}>
+                {chartData.map(entry => (
+                  <Cell
+                    key={entry.month}
+                    fillOpacity={!selectedMonth || selectedMonth === entry.month ? 1 : 0.3}
+                  />
+                ))}
+              </Bar>
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>

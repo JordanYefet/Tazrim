@@ -157,4 +157,12 @@ describe('bank category totals', () => {
     expect(await of('ללא קטגוריה')).toEqual([2])
     expect(await of('ללא קטגוריה', { skip: 1, take: 1 })).toEqual([])
   })
+
+  it('getBankTransactions keeps only income or only expenses', async () => {
+    await seed()
+    const days = async (direction: 'IN' | 'OUT') =>
+      (await bank.getBankTransactions({ accountId: 'acct_leumi', year: 2030, direction })).map(r => r.date.getDate()).sort()
+    expect(await days('IN')).toEqual([2])
+    expect(await days('OUT')).toEqual([1, 3])
+  })
 })

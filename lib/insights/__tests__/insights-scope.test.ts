@@ -46,3 +46,13 @@ describe('insightsScopeOptions', () => {
     ])
   })
 })
+
+describe('parseBankFlow', () => {
+  it('reads in / out, anything else is both', async () => {
+    const { parseBankFlow } = await import('../bank-categories')
+    expect(parseBankFlow('in')).toBe('IN')
+    expect(parseBankFlow('out')).toBe('OUT')
+    expect(parseBankFlow('all')).toBeUndefined()
+    expect(parseBankFlow(undefined)).toBeUndefined()
+  })
+})

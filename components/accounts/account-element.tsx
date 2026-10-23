@@ -363,7 +363,7 @@ export interface BankElementProps {
   /** Shown instead of the balance when there is none */
   emptyText?: string
   /** Period income / expense; omitted where the totals sit next to the element */
-  totals?: { income: number; expense: number }
+  totals?: { income?: number; expense?: number }
   /** Month-end balances, oldest first */
   trend?: number[]
   hero?: boolean
@@ -457,8 +457,8 @@ export function BankElement({
           <div className={cn('flex gap-4', hero ? 'flex-col' : 'items-end')}>
             {totals && (
               <dl className="min-w-0 flex-1 space-y-1.5">
-                <Total label="הכנסות" value={totals.income} tone="income" />
-                <Total label="הוצאות" value={totals.expense} tone="expense" />
+                {totals.income !== undefined && <Total label="הכנסות" value={totals.income} tone="income" />}
+                {totals.expense !== undefined && <Total label="הוצאות" value={totals.expense} tone="expense" />}
               </dl>
             )}
             {showTrend && (

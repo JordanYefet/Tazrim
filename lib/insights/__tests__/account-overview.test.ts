@@ -58,19 +58,19 @@ describe('bankPeriodTotals', () => {
   const m = bank({ 1: [1000, 600], 2: [500, 900], 3: [0, 0] })
 
   it('totals the whole year and averages expense over months that have any', () => {
-    expect(bankPeriodTotals(m)).toEqual({ income: 1500, expense: 1500, net: 0, averageExpense: 750 })
+    expect(bankPeriodTotals(m)).toEqual({ income: 1500, expense: 1500, net: 0, averageExpense: 750, averageIncome: 750 })
   })
 
   it('uses only the selected month, and keeps the yearly average for comparison', () => {
-    expect(bankPeriodTotals(m, 2)).toEqual({ income: 500, expense: 900, net: -400, averageExpense: 750 })
+    expect(bankPeriodTotals(m, 2)).toEqual({ income: 500, expense: 900, net: -400, averageExpense: 750, averageIncome: 750 })
   })
 
   it('handles a month with no data', () => {
-    expect(bankPeriodTotals(m, 3)).toEqual({ income: 0, expense: 0, net: 0, averageExpense: 750 })
+    expect(bankPeriodTotals(m, 3)).toEqual({ income: 0, expense: 0, net: 0, averageExpense: 750, averageIncome: 750 })
   })
 
   it('does not divide by zero for an empty year', () => {
-    expect(bankPeriodTotals(emptyBankMonthly()).averageExpense).toBe(0)
+    expect(bankPeriodTotals(emptyBankMonthly())).toMatchObject({ averageExpense: 0, averageIncome: 0 })
   })
 })
 

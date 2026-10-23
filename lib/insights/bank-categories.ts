@@ -54,3 +54,8 @@ export function mergeCategoryMonthly(...parts: CategoryMonthly[]): CategoryMonth
   }
   return out
 }
+
+/** The `?flow=` filter of the bank pages: `in` = income only, `out` = expenses only, none = both */
+export function parseBankFlow(value: string | null | undefined): BankDirection | undefined {
+  return value === 'in' ? 'IN' : value === 'out' ? 'OUT' : undefined
+}

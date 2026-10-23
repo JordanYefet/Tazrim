@@ -7,7 +7,9 @@ import { listAccounts } from '@/lib/db/accounts'
 import { getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { BANK_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
-import { accountHref } from '@/lib/accounts/routes'
+import { accountHref, accountPath } from '@/lib/accounts/routes'
+import { FlowFilter } from '@/components/bank/flow-filter'
+import { parseBankFlow } from '@/lib/insights/bank-categories'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
 import {
@@ -20,7 +22,7 @@ import {
 import { monthName } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
 
-interface SearchParams { year?: string; month?: string }
+interface SearchParams { year?: string; month?: string; flow?: string }
 
 /** Every (non-archived) bank account: combined summary and one card per account. */
 export default async function BanksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -28,6 +30,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const period = { year, ...(month ? { month: String(month) } : {}) }
+  const flow = parseBankFlow(params.flow)
 
   const accounts = await listAccounts({ kind: 'BANK' })
   const perAccount = await Promise.all(
@@ -53,6 +56,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading period={{ year: Number(year), month }} title="בנקים">
+        {accounts.length > 0 && <FlowFilter basePath={accountPath('BANK')} params={params} current={flow} />}
         {hasData && <CategoryAnalysisLink href={bankCategoryAnalysisHref(undefined, period)} />}
         <ManageAccountsLink />
       </PageHeading>
@@ -75,12 +79,14 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
                 income={totals.income}
                 expense={totals.expense}
                 averageExpense={totals.averageExpense}
+                averageIncome={totals.averageIncome}
                 monthLabel={month ? monthName(month) : undefined}
                 monthHasData={!!month && monthHasData(combined, month)}
               />
               <IncomeExpenseChart
                 data={chartData}
                 selectedMonth={month}
+                flow={flow}
                 subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
               />
             </>
@@ -101,7 +107,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               {perAccount.map(({ account, latest, trend, color, totals: t }) => (
                 <BankAccountCard
                   key={account.id}
-                  href={accountHref('BANK', account.id, period)}
+                  href={accountHref('BANK', account.id, { ...period, flow: params.flow })}
                   name={account.displayName}
                   provider={account.provider}
                   color={color}
@@ -111,6 +117,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
                   expense={t.expense}
                   latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
                   expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
+                  flow={flow}
                 />
               ))}
             </div>
