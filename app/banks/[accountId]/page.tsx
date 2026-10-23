@@ -156,9 +156,7 @@ export default async function BankAccountPage({
         title={account.displayName}
         back={{ href: accountHref('BANK', undefined, { ...period, flow: params.flow }), label: 'בנקים' }}
         badge={account.archived ? 'בארכיון' : undefined}
-      >
-        <FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />
-      </PageHeading>
+      />
 
       {/* The account itself is the page's hero, next to the period totals on wide screens */}
       <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
@@ -242,6 +240,7 @@ export default async function BankAccountPage({
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
           activeCategory={params.category}
+          flowFilter={<FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -43,6 +43,7 @@ export function BankTransactionsTable({
   expenseCategories = [],
   incomeCategories = [],
   activeCategory,
+  flowFilter,
 }: {
   /** The bank account these rows belong to */
   accountId: string
@@ -53,6 +54,8 @@ export function BankTransactionsTable({
   incomeCategories?: Category[]
   /** The `?category=` filter in effect */
   activeCategory?: string
+  /** The page's all / income / expenses switch, at the start of the toolbar */
+  flowFilter?: ReactNode
   showIgnored?: boolean
   hasMore?: boolean
   fetchParams?: string
@@ -165,27 +168,30 @@ export function BankTransactionsTable({
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        {activeMerchant || activeCategory ? (
-          <div className="flex items-center gap-2 text-sm flex-wrap">
-            <span className="text-muted-foreground text-xs">מסנן:</span>
-            {activeMerchant && (
-              <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
-                {activeMerchant}
-                <button onClick={clearMerchant} aria-label="הסר מסנן" className="hover:text-primary/70 transition-colors">
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            )}
-            {activeCategory && (
-              <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
-                {activeCategory}
-                <button onClick={clearCategory} aria-label="הסר מסנן קטגוריה" className="hover:text-primary/70 transition-colors">
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            )}
-          </div>
-        ) : <div />}
+        <div className="flex items-center gap-3 flex-wrap">
+          {flowFilter}
+          {(activeMerchant || activeCategory) && (
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-muted-foreground text-xs">מסנן:</span>
+              {activeMerchant && (
+                <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
+                  {activeMerchant}
+                  <button onClick={clearMerchant} aria-label="הסר מסנן" className="hover:text-primary/70 transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {activeCategory && (
+                <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
+                  {activeCategory}
+                  <button onClick={clearCategory} aria-label="הסר מסנן קטגוריה" className="hover:text-primary/70 transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
           <input
             type="checkbox"
