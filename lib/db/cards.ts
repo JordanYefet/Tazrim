@@ -253,6 +253,35 @@ export async function getCCMonthlySummary(accountId: AccountFilter, year: number
   return monthly
 }
 
+/**
+ * Billing month (1-12) -> number of charges, for one year: the same rows as
+ * getCCMonthlySummary (ignored rows excluded). `category` counts only that
+ * category (its override when there is one), as the count tile does with a
+ * category filter.
+ */
+export async function getCCMonthlyCounts(
+  accountId: AccountFilter,
+  year: number,
+  opts: { category?: string } = {}
+): Promise<Record<number, number>> {
+  const txs = await prisma.creditCardTransaction.findMany({
+    where: {
+      ...accountWhere(accountId),
+      ignored: false,
+      billingDate: billedIn(year),
+      ...(opts.category
+        ? { OR: [{ categoryOverride: opts.category }, { categoryOverride: null, category: opts.category }] }
+        : {}),
+    },
+    select: { billingDate: true },
+  })
+
+  const counts: Record<number, number> = {}
+  for (let m = 1; m <= 12; m++) counts[m] = 0
+  for (const tx of txs) counts[tx.billingDate.getMonth() + 1]++
+  return counts
+}
+
 /** category -> billing month (1-12) -> total charged, for one year */
 export async function getCCCategoryMonthly(accountId: AccountFilter, year: number) {
   const txs = await prisma.creditCardTransaction.findMany({

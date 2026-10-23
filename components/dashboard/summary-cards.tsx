@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { RollingNumber, type RollingFormat } from '@/components/ui/rolling-number'
 import { cn } from '@/lib/utils/cn'
@@ -24,6 +25,8 @@ export interface StatDef {
    * leave room for the chip in both states, so the tile never changes size.
    */
   hasCompareSlot?: boolean
+  /** Extra content under the figure (e.g. a mini chart); it takes the tile's remaining height */
+  footer?: ReactNode
 }
 
 export interface MonthCompare {
@@ -126,6 +129,7 @@ export function StatTile({
   split,
   compare,
   hasCompareSlot,
+  footer,
   wide,
   bare,
 }: StatDef & { wide?: boolean; /** A cell of a StatPanel: no card of its own */ bare?: boolean }) {
@@ -171,6 +175,7 @@ export function StatTile({
           </ul>
         )}
       </div>
+      {footer && <div className="flex min-h-0 flex-1 flex-col">{footer}</div>}
     </>
   )
   // Values sit right under the label (not pushed to the bottom), so they line up
