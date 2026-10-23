@@ -82,8 +82,15 @@ export function placements(mode: WalletMode, cards: WalletCardInfo[], stackOrder
       if (id === mode.id) continue
       out.set(id, hidden(k++, stackOrder.indexOf(id) + 1))
     }
-    // Above the pocket (which sits at cards.length + 1) while it rises out of it
-    out.set(mode.id, { transform: 'translate3d(0, 0, 0)', opacity: 1, hidden: false, zIndex: cards.length + 2, front: true })
+    // Above the pocket (which sits at cards.length + 1) while it rises out of it;
+    // centred top to bottom in the box, which keeps the stack's height
+    out.set(mode.id, {
+      transform: `translate3d(0, ${openOffset(stackOrder.length)}, 0)`,
+      opacity: 1,
+      hidden: false,
+      zIndex: cards.length + 2,
+      front: true,
+    })
     return out
   }
   stackOrder.forEach((id, i) => {
@@ -103,6 +110,24 @@ export function placements(mode: WalletMode, cards: WalletCardInfo[], stackOrder
 
 function pocketTopExpr(stackCount: number): string {
   return stackCount <= 1 ? FRONT_PEEK : `${stackCount - 1} * ${STRIP} + ${FRONT_PEEK}`
+}
+
+/**
+ * How far down the open card sits (CSS): centred in the box, which stays the
+ * stack's height (boxHeight), so the space it leaves is split above and below
+ * it. Without a stack the box is one card tall: no offset.
+ */
+export function openOffset(stackCount: number): string {
+  if (stackCount < 1) return '0px'
+  return `calc((${pocketTopExpr(stackCount)} + ${POCKET_HEIGHT_CQW}cqw - ${CARD_HEIGHT_CQW}cqw) / 2)`
+}
+
+/** openOffset in px for a wallet this wide (FRONT_PEEK: max(44px, 12cqw)). */
+export function openOffsetPx(walletWidth: number, stackCount: number): number {
+  if (stackCount < 1) return 0
+  const w = walletWidth
+  const pocketTop = (stackCount - 1) * stripPx(w) + Math.max(44, w * 0.12)
+  return (pocketTop + (w * POCKET_HEIGHT_CQW) / 100 - (w * CARD_HEIGHT_CQW) / 100) / 2
 }
 
 /** Where the pocket's top sits in the stack (CSS): just under the front card's strip. */
@@ -180,7 +205,7 @@ export function predictCardPlacement(
   const h = (w * CARD_HEIGHT_CQW) / 100
   if (mode.kind === 'open') {
     if (mode.id !== cardId) return null
-    return { rect: { x: box.x, y: box.y, width: w, height: h }, scaleX: 1, scaleY: 1 }
+    return { rect: { x: box.x, y: box.y + openOffsetPx(w, stackOrder.length), width: w, height: h }, scaleX: 1, scaleY: 1 }
   }
   if (mode.kind !== 'stack') return null
   const i = stackOrder.indexOf(cardId)

@@ -3,6 +3,8 @@ import {
   CARD_HEIGHT_CQW,
   STACK_SCALE,
   boxHeight,
+  openOffset,
+  openOffsetPx,
   placements,
   pocketTop,
   predictCardPlacement,
@@ -57,9 +59,10 @@ describe('placements', () => {
     expect(p.get('card_old')).toMatchObject({ hidden: true, opacity: 0 })
   })
 
-  it('puts the open card on top and the others out of sight below it', () => {
+  it('puts the open card on top, centred in the box, and the others out of sight below it', () => {
     const p = placements({ kind: 'open', id: 'card_b' }, cards, stackOrder)
-    expect(p.get('card_b')).toMatchObject({ transform: 'translate3d(0, 0, 0)', opacity: 1, zIndex: 5, front: true })
+    expect(p.get('card_b')).toMatchObject({ opacity: 1, zIndex: 5, front: true })
+    expect(p.get('card_b')!.transform).toBe(`translate3d(0, ${openOffset(stackOrder.length)}, 0)`)
     expect(p.get('card_a')).toMatchObject({ hidden: true, opacity: 0 })
     expect(p.get('card_old')).toMatchObject({ hidden: true })
   })
@@ -114,10 +117,21 @@ describe('the wallet spring and the page beat (ENG-67)', () => {
 describe('predictCardPlacement (ENG-72: baking glass ahead)', () => {
   const box = { x: 16, y: 400, width: 358 }
   const order = ['back', 'middle', 'front']
-  it('the open card fills the box at its top', () => {
+  it('the open card is full width, centred top to bottom in the box', () => {
     const p = predictCardPlacement({ kind: 'open', id: 'front' }, 'front', order, box)!
-    expect(p.rect).toEqual({ x: 16, y: 400, width: 358, height: (358 * CARD_HEIGHT_CQW) / 100 })
+    expect(p.rect).toEqual({ x: 16, y: 400 + openOffsetPx(358, 3), width: 358, height: (358 * CARD_HEIGHT_CQW) / 100 })
     expect(p.scaleX).toBe(1)
+  })
+
+  it('centres the open card: equal space above and below it in the stack-tall box', () => {
+    // One card, 358 wide: the box is max(44, 43) + 61% = 262.4px tall, the card 225.8px
+    const w = 358
+    const box = Math.max(44, w * 0.12) + w * 0.61
+    const card = (w * CARD_HEIGHT_CQW) / 100
+    expect(openOffsetPx(w, 1)).toBeCloseTo((box - card) / 2)
+    expect(openOffsetPx(w, 0)).toBe(0)
+    expect(openOffset(0)).toBe('0px')
+    expect(openOffset(2)).toBe('calc((1 * max(50px, 13.7cqw) + max(44px, 12cqw) + 61cqw - 63.0841cqw) / 2)')
   })
   it('other cards are hidden while one is open', () => {
     expect(predictCardPlacement({ kind: 'open', id: 'front' }, 'back', order, box)).toBeNull()

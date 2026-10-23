@@ -29,7 +29,9 @@ export function PageHeading({
   return (
     <div className="space-y-3">
       <PeriodSync year={period.year} month={period.month} />
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      {/* At least a button's height, with or without actions, so every page's content
+          (the wallet) starts at the same place: nothing shifts between an overview and an account */}
+      <div className="flex min-h-[2.375rem] flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>

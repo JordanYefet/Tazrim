@@ -33,7 +33,8 @@ export function MonthBarsChart({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <p className="text-xs text-muted-foreground">{caption}</p>
-      <div aria-hidden className="flex min-h-14 flex-1 flex-col gap-1">
+      {/* Shrinks to the room the tile has (beside the wallet on /cards, under the card list) */}
+      <div aria-hidden className="flex min-h-8 flex-1 flex-col gap-1">
         <div className="relative flex flex-1 items-end gap-[3px]">
           {bars.map(b => (
             <div

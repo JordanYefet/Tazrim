@@ -1,4 +1,5 @@
 import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
@@ -99,9 +100,10 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       {/* The total across the cards goes on the wallet's leather pocket (the count lives there too) */}
       <CardStackTotal value={total} />
 
-      {/* Beside the stack, as tall as it: each card's figures, then the count and the
-          monthly average stretched to fill (the same two tiles as on a card's page) */}
-      <div className="wallet-shell__beside flex flex-col gap-4">
+      {/* Beside the stack, exactly as tall as it (never taller, so the page below keeps
+          its place when a card opens): each card's figures, then the count and the monthly
+          average filling the rest (the same two tiles as on a card's page) */}
+      <div className={cn('wallet-shell__beside flex flex-col gap-4', hasData && 'wallet-shell__beside--fit')}>
       <ul className="divide-y overflow-hidden rounded-xl surface">
         {perCard.map(c => (
           <CardSummaryRow
@@ -121,7 +123,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       </ul>
       {hasData && (
         <CardStatTiles
-          className="flex-1"
+          className="min-h-0 flex-1"
           total={total}
           count={count}
           average={average}
