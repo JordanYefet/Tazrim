@@ -3,7 +3,8 @@
 # - after every release (called by release.yml with that release's tag)
 # - every Monday, from the latest release, so the demo's year of made-up data
 #   (built at deploy time, scripts/seed-demo.mjs) runs up to the current week
-# - by hand: Actions -> Demo -> Run workflow
+# - by hand: Actions -> Demo -> Run workflow (any tag or branch, e.g. main
+#   before the first release)
 #
 # Needs the VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID secrets; without
 # them it says so and does nothing, so releases work before the demo exists.
@@ -17,6 +18,11 @@ on:
         required: true
         type: string
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag or branch to deploy (empty = the latest release)
+        required: false
+        type: string
   schedule:
     - cron: '0 4 * * 1'
 
@@ -78,5 +84,6 @@ jobs:
         env:
           REF: ${{ steps.ref.outputs.ref }}
         run: |
-          npm pkg set version="${REF#v}"
+          # A release tag's version for the About page (a branch keeps package.json's)
+          if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then npm pkg set version="${REF#v}"; fi
           npx --yes vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN"
