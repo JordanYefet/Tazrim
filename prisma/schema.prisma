@@ -9,7 +9,8 @@ datasource db {
 
 /// A bank account or a card. Transactions and uploads always belong to one.
 /// The accounts created by the 20261013000000_add_account migration have fixed
-/// ids (acct_leumi, acct_max), so the back-fill is reproducible.
+/// ids (acct_leumi, acct_max), so the back-fill is reproducible. A new database
+/// doesn't keep them: 20261025010000_no_default_accounts removes them while unused.
 model Account {
   id                     String                  @id @default(uuid())
   kind                   AccountKind
