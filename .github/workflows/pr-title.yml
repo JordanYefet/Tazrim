@@ -1,0 +1,30 @@
+# The PR title decides what kind of release it makes (release.yml, .github/scripts/release-bump.sh):
+# fix: patch, feat: minor, <type>!: major. A title without a recognised prefix still counts,
+# as minor, so this only warns and never blocks the merge.
+name: PR title
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  prefix:
+    name: Release prefix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the title's prefix
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          b=$(bash .github/scripts/release-bump.sh --each <<< "$TITLE" | cut -f1)
+          if [ "$b" = "minor (no prefix)" ]; then
+            echo "::warning::The PR title has no fix: / feat: / <type>!: prefix, so the next release counts it as minor"
+          else
+            echo "This PR counts as a $b release"
+          fi
+          echo "Release kind: **$b**" >> "$GITHUB_STEP_SUMMARY"
