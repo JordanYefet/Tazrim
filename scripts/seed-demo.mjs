@@ -83,7 +83,7 @@ const CARD_MERCHANTS = {
     ['חנות בגדים לדוגמה', 'אופנה', 120, 450, 1],
     ['ספרים ועוד', 'פנאי, בידור וספורט', 45, 140, 1],
     // Small buys here are the history that makes the big one below stand out as unusual
-    ['חנות אלקטרוניקה', 'מוצרי חשמל', 40, 160, 1],
+    ['חנות אלקטרוניקה', 'חשמל ומחשבים', 40, 160, 1],
   ],
 }
 // Per card: [merchant, category, amount, day of month]
@@ -157,7 +157,7 @@ for (let m = 0; m < lastMonth; m++) {
       for (let i = 0; i < times; i++) add(merchant, category, between(lo, hi), 1 + Math.floor(rand() * daysInMonth))
     for (const [merchant, category, amount, d] of CARD_FIXED[card.id]) add(merchant, category, amount, d)
     // One unusually large purchase, so the "unusual" card has something to show
-    if (m === lastMonth - 1 && card.id === 'acct_isracard') add('חנות אלקטרוניקה', 'מוצרי חשמל', 3890, 18)
+    if (m === lastMonth - 1 && card.id === 'acct_isracard') add('חנות אלקטרוניקה', 'חשמל ומחשבים', 3890, 18)
   }
 }
 
