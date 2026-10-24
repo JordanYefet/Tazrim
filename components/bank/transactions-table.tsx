@@ -304,9 +304,12 @@ export function BankTransactionsTable({
                     </td>
                   )}
                   <td className="py-2.5 px-4 text-center whitespace-nowrap">
-                    {/* Mark as recurring (ENG-71): expenses only */}
-                    {!tx.ignored && tx.debit > 0 && (
+                    {/* Mark as recurring (ENG-71): expenses only. Other rows keep its place empty,
+                        so the hide button sits in the same spot on every row */}
+                    {!tx.ignored && tx.debit > 0 ? (
                       <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]?.name} className="me-0.5 align-middle max-sm:hidden" />
+                    ) : (
+                      <span aria-hidden className="me-0.5 inline-block h-7 w-7 align-middle max-sm:hidden" />
                     )}
                     <button
                       onClick={() => toggleIgnored(tx)}
@@ -378,7 +381,8 @@ function CategoryCell({
   return (
     <div className="space-y-1.5">
       <select
-        className={cn('text-xs', !value && 'text-muted-foreground')}
+        // one width for every row, so the column lines up (a long name is cut by the select)
+        className={cn('w-36 text-xs', !value && 'text-muted-foreground')}
         value={value ?? ''}
         aria-label="קטגוריה"
         onChange={e => onPick(e.target.value || null)}
