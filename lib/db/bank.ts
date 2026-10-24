@@ -71,6 +71,7 @@ export async function upsertBankTransactions(
         credit: tx.credit,
         balance: tx.balance,
         note: tx.note,
+        reference: tx.reference ?? '',
         sourceFile: tx.sourceFile,
       },
     })

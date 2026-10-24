@@ -116,6 +116,11 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                     הערה: <Highlight text={r.note} terms={terms} />
                   </span>
                 )}
+                {matches(r.reference, terms) && (
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    אסמכתא: <bdi dir="ltr"><Highlight text={r.reference!} terms={terms} /></bdi>
+                  </span>
+                )}
               </span>
               <span
                 className={cn(

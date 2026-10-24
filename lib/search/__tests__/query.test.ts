@@ -162,6 +162,7 @@ describe('buildBankWhere', () => {
         { description: { contains: 'Fake' } },
         { originalDescription: { contains: 'Fake' } },
         { note: { contains: 'Fake' } },
+        { reference: { contains: 'Fake' } },
         { originalDescription: { in: ['RAW CAFE'] }, account: { provider: 'p1' } },
       ],
     })
@@ -170,6 +171,7 @@ describe('buildBankWhere', () => {
         { description: { contains: 'Cafe' } },
         { originalDescription: { contains: 'Cafe' } },
         { note: { contains: 'Cafe' } },
+        { reference: { contains: 'Cafe' } },
       ],
     })
   })
@@ -189,7 +191,7 @@ describe('buildBankWhere', () => {
     const and = buildBankWhere(f)!.AND as unknown[]
     const block = and.find(c => (c as { OR?: unknown[] }).OR?.length === 2) as { OR: unknown[] }
     expect(block.OR[0]).toEqual({
-      AND: [{ OR: [{ description: { contains: '120' } }, { originalDescription: { contains: '120' } }, { note: { contains: '120' } }] }],
+      AND: [{ OR: [{ description: { contains: '120' } }, { originalDescription: { contains: '120' } }, { note: { contains: '120' } }, { reference: { contains: '120' } }] }],
     })
     expect(JSON.stringify(block.OR[1])).toContain('debit')
   })
@@ -234,6 +236,7 @@ describe('buildCardWhere', () => {
         { merchantName: { contains: 'Fake' } },
         { originalMerchantName: { contains: 'Fake' } },
         { notes: { contains: 'Fake' } },
+        { reference: { contains: 'Fake' } },
         { originalMerchantName: { in: ['RAW FAKE'] }, account: { provider: 'p2' } },
       ],
     })

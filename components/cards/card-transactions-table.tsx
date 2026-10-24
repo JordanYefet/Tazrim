@@ -11,6 +11,8 @@ import type { UnusualFlag } from '@/lib/insights/unusual'
 import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
+import { ColumnPicker } from '@/components/ui/column-picker'
+import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
 
 interface CCTx {
   id: string
@@ -23,7 +25,36 @@ interface CCTx {
   chargedAmount: number
   originalAmount: number
   originalCurrency: string
+  chargedCurrency?: string
+  reference?: string
+  cardLastFour?: string
+  transactionType?: string
+  notes?: string
   ignored: boolean
+}
+
+const LABEL = Object.fromEntries(CARD_COLUMNS.map(c => [c.key, c.label])) as Record<CardColumn, string>
+
+/** An optional column's cell (lib/tables/columns.ts) */
+function optionalCell(tx: CCTx, key: CardColumn) {
+  switch (key) {
+    case 'chargedCurrency':
+      return tx.chargedCurrency || '₪'
+    case 'originalAmount':
+      return (
+        <span className="tabular-nums" dir="ltr">
+          {tx.originalAmount} {tx.originalCurrency}
+        </span>
+      )
+    case 'reference':
+      return tx.reference ? <span className="tabular-nums" dir="ltr">{tx.reference}</span> : null
+    case 'cardLastFour':
+      return tx.cardLastFour ? <span className="tabular-nums" dir="ltr">{tx.cardLastFour}</span> : null
+    case 'transactionType':
+      return tx.transactionType || null
+    case 'notes':
+      return tx.notes || null
+  }
 }
 
 interface Category { id: string; name: string }
@@ -38,6 +69,7 @@ export function CardTransactionsTable({
   fetchParams,
   unusual = {},
   recurring = {},
+  initialColumns = [],
 }: {
   /** The card these rows belong to */
   accountId: string
@@ -51,7 +83,10 @@ export function CardTransactionsTable({
   unusual?: Record<string, UnusualFlag[]>
   /** The recurring series each transaction is in, by id (ENG-71) */
   recurring?: Record<string, RowSeries>
+  /** Optional columns to show (the page reads the cookie, lib/tables/columns.ts) */
+  initialColumns?: string[]
 }) {
+  const [columns, setColumns] = useState(initialColumns as CardColumn[])
   const router = useRouter()
   const params = useSearchParams()
   const [transactions, setTransactions] = useState(initial)
@@ -153,15 +188,18 @@ export function CardTransactionsTable({
             )}
           </div>
         ) : <div />}
-        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={!!showIgnored}
-            onChange={toggleShowIgnored}
-            className="accent-primary w-3.5 h-3.5"
-          />
-          הצג מוסתרים
-        </label>
+        <div className="flex items-center gap-3">
+          <ColumnPicker kind="card" shown={columns} onChange={next => setColumns(next as CardColumn[])} />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!showIgnored}
+              onChange={toggleShowIgnored}
+              className="accent-primary w-3.5 h-3.5"
+            />
+            הצג מוסתרים
+          </label>
+        </div>
       </div>
 
       {/* Table */}
@@ -171,7 +209,7 @@ export function CardTransactionsTable({
             <thead>
               <tr className="border-b bg-muted/50">
                 {/* Billing date first: rows belong to the month they are billed in (ENG-46) */}
-                {['תאריך חיוב', 'תאריך עסקה', 'שם בית עסק', 'קטגוריה', 'סכום חיוב', ''].map((h, i) => (
+                {['תאריך חיוב', 'תאריך עסקה', 'שם בית עסק', 'קטגוריה', 'סכום חיוב', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -242,12 +280,24 @@ export function CardTransactionsTable({
                     )}>
                       {formatCurrency(tx.chargedAmount)}
                     </span>
-                    {!tx.ignored && tx.originalCurrency !== '₪' && (
+                    {!tx.ignored && tx.originalCurrency !== '₪' && !columns.includes('originalAmount') && (
                       <span className="text-xs text-muted-foreground me-1.5">
                         ({tx.originalAmount} {tx.originalCurrency})
                       </span>
                     )}
                   </td>
+                  {columns.map(c => (
+                    <td
+                      key={c}
+                      className={cn(
+                        'py-2.5 px-4 text-xs text-muted-foreground',
+                        c === 'notes' ? 'min-w-[140px]' : 'whitespace-nowrap',
+                        tx.ignored && 'line-through'
+                      )}
+                    >
+                      {optionalCell(tx, c)}
+                    </td>
+                  ))}
                   <td className="py-2.5 px-4 text-center whitespace-nowrap">
                     {/* Mark as recurring (ENG-71): expenses only */}
                     {!tx.ignored && tx.chargedAmount > 0 && (

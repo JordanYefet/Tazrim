@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { CardHeroTotal } from '@/components/cards/card-wallet'
@@ -195,6 +197,7 @@ export default async function CardAccountPage({
             fetchParams={hasMore ? fetchSp.toString() : undefined}
             unusual={unusual}
             recurring={recurring}
+            initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
           />
         )}
       </div>
