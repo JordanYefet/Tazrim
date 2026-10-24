@@ -58,6 +58,8 @@ export type MappingCheck<K extends MappingKind = MappingKind> = {
   result: MappingResult<ParsedFor<K>>
   /** Why the import is disabled, or null when it can go */
   reason: string | null
+  /** What to fix, so the page can take the user there: required columns, or the billing date */
+  fix?: 'columns' | 'billing'
 }
 
 const list = (fields: MappingField[]) => fields.map(f => FIELD_LABELS[f]).join(', ')
@@ -68,13 +70,13 @@ export function checkMapping<K extends MappingKind>(sheet: RawSheet | undefined,
   if (!sheet) return { result: empty, reason: 'הגיליון שנבחר לא נמצא בקובץ' }
   const missing = missingFields(mapping, kind)
   if (missing.length) {
-    const billingOnly = kind === 'card' && missing.includes('billingDate')
+    const billing = kind === 'card' && missing.includes('billingDate')
     const rest = missing.filter(f => f !== 'billingDate')
     const parts = [
-      rest.length ? `חסרות עמודות: ${list(rest)}` : '',
-      billingOnly ? 'בחר עמודה לתאריך החיוב או מקור אחר' : '',
+      rest.length ? `חסרות עמודות חובה: ${list(rest)}` : '',
+      billing ? 'חסר תאריך חיוב: בחר את העמודה שלו, או קבע באיזה יום בחודש הכרטיס מחויב' : '',
     ].filter(Boolean)
-    return { result: empty, reason: parts.join(' · ') }
+    return { result: empty, reason: parts.join(' · '), fix: rest.length ? 'columns' : 'billing' }
   }
   const result = applyMapping(sheet, mapping, kind)
   const global = result.errors.find(e => e.row < 0 || !result.outcomes.some(o => o.row === e.row))
