@@ -143,6 +143,7 @@ for (let m = 0; m < lastMonth; m++) {
         originalMerchantName: merchant,
         merchantName: merchant,
         category,
+        sourceCategory: category,
         chargedAmount: amount,
         originalAmount: amount,
         originalCurrency: '₪',

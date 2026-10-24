@@ -12,6 +12,7 @@
 import type { Account } from '@prisma/client'
 import { upsertBankTransactions } from '@/lib/db/bank'
 import { upsertCCTransactions } from '@/lib/db/cards'
+import { getCategoryMap } from '@/lib/db/category-mappings'
 import { recordUpload } from '@/lib/db/upload'
 import { prisma, type Db } from '@/lib/db/client'
 import { getImportProfile, profileMapping } from '@/lib/db/import-profiles'
@@ -114,7 +115,10 @@ async function storeCard(
   )
   await recordUpload({ fileName, recordCount: created, accountId: account.id }, db)
 
-  const txCategories = [...new Set(transactions.map(t => t.category).filter(Boolean))]
+  // The file's categories that are neither mapped (ENG-75) nor in the list: the prompt offers
+  // to add each one or map it to one of yours
+  const mapped = await getCategoryMap(account.provider, db)
+  const txCategories = [...new Set(transactions.map(t => t.category).filter(Boolean))].filter(name => !mapped.has(name))
   const existing = await db.category.findMany({ where: { name: { in: txCategories } } })
   const existingNames = new Set(existing.map(c => c.name))
   const newCategories = txCategories.filter(name => !existingNames.has(name))
