@@ -54,7 +54,7 @@ function sheetOf(workbook: RawWorkbookPreview, mapping: ImportMapping): RawSheet
 }
 
 /**
- * Step 3 for a provider without a built-in parser: mark the header row on the
+ * Step 3, for every file: mark the header row on the
  * raw grid, pick a field per column, choose where a card's billing date comes
  * from, and (rarely) adjust formats. The parsed preview below updates live.
  */

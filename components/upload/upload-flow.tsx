@@ -40,9 +40,7 @@ type PreviewResponse = RawWorkbookPreview & {
   fileName: string
   account: Pick<UploadAccount, 'id' | 'kind' | 'provider' | 'displayName'>
   importSupported: boolean
-  /** ENG-69: a Leumi / Max account set to import through its own mapping */
-  customImport?: boolean
-  /** Set for providers without a built-in parser: the files are imported through a column mapping */
+  /** Bank and card accounts: every file is imported through a column mapping */
   mapper: MapperInfo | null
 }
 
@@ -68,8 +66,8 @@ function newGroup(mapper: MapperInfo): MapGroup {
     : {
         mapping: mapper.suggestion,
         profile: null,
-        // a file that doesn't match the account's own mapping (e.g. one seeded from a built-in
-        // layout, ENG-69): saving afterwards updates that mapping instead of adding another
+        // a file that doesn't match the account's own mapping (e.g. the export gained columns):
+        // saving afterwards updates that mapping instead of adding another
         basedOn: mapper.accountProfile ? { id: mapper.accountProfile.id, name: mapper.accountProfile.name } : null,
         editing: true,
       }
@@ -446,11 +444,6 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             )}
           </div>
 
-          {shown.preview.customImport && mapping && !shownDone && (
-            <p className="text-xs text-muted-foreground">
-              {accountName} מוגדר לייבוא לפי מיפוי מותאם במקום הייבוא המובנה. אפשר לשנות את זה בחלון עריכת החשבון.
-            </p>
-          )}
           {mapping ? (
             <>
               {mapping.group.profile && !shownDone && (

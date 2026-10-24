@@ -24,9 +24,6 @@ model Account {
   /// Account colour (ENG-66): a palette key from lib/accounts/colors.ts, a #rrggbb
   /// hex, or "glass". Null means the brand default (issuer/bank face, else positional).
   color                  String?
-  /// ENG-69: a Leumi or Max account imports through its linked ImportProfile
-  /// instead of the built-in parser. Ignored for providers without one.
-  customImport           Boolean                 @default(false)
   archived               Boolean                 @default(false)
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]

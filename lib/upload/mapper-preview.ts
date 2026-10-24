@@ -1,7 +1,7 @@
 /**
- * What the upload page needs to map a file of a provider without a built-in
- * parser: the suggested mapping, the saved profile that fits the file (if any),
- * and the header signature that groups files sharing one mapping.
+ * What the upload page needs to map a file: the suggested mapping, the saved
+ * profile that fits the file (if any), and the header signature that groups
+ * files sharing one mapping.
  */
 import type { Account } from '@prisma/client'
 import { candidateProfiles, findMatchingProfile, profileMapping } from '@/lib/db/import-profiles'

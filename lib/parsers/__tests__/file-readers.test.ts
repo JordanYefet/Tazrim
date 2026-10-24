@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import * as XLSX from 'xlsx'
-import { sniffFormat, decodeText, readHtmlTables, readWorkbookRows, toBuffer } from '../file-readers'
+import { sniffFormat, decodeText, readHtmlTables, toBuffer } from '../file-readers'
 
 // All values below are made up.
 
@@ -41,18 +40,6 @@ describe('readHtmlTables', () => {
     expect(tables).toHaveLength(2)
     expect(tables[0]).toEqual([[{ text: 'א', colSpan: 1 }, { text: 'ב', colSpan: 2 }]])
     expect(tables[1][0][0].text).toBe('ג')
-  })
-})
-
-describe('readWorkbookRows', () => {
-  it('returns every sheet as header:1 rows', () => {
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['x', 1]]), 'A')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['y']]), 'B')
-    const buf = Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }))
-    const sheets = readWorkbookRows(buf)
-    expect(sheets.map(s => s.name)).toEqual(['A', 'B'])
-    expect(sheets[0].rows).toEqual([['x', 1]])
   })
 })
 

@@ -12,9 +12,6 @@ import {
 } from '../mapping'
 import { bankSignedCsv, calXlsx, cardWithBillingColumnCsv, sheetOf } from './fixtures'
 import { leumiHtml, maxXlsx } from '@/lib/upload/__tests__/fixtures'
-import { parseMaxCC } from '@/lib/parsers/max-cc'
-import { parseBankLeumi } from '@/lib/parsers/bank-leumi'
-import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
 
 // All values are made up.
 
@@ -263,35 +260,59 @@ describe('validateMapping', () => {
   })
 })
 
-describe('parity with the built-in parsers', () => {
-  const strip = (t: ParsedCCTransaction) => {
-    const { cardProvider: _p, ...rest } = t
-    return rest
-  }
-
-  it('MAX: the suggested mapping yields the same transactions as parseMaxCC', () => {
-    for (const buf of [maxXlsx(), maxXlsx('קטגוריה בדויה אחרת')]) {
-      const sheet = sheetOf(buf)
-      const m = suggestMapping(sheet, 'card')
-      expect(m.billingDate).toEqual({ from: 'column' })
-      const mapped = applyMapping(sheet, m, 'card')
-      expect(mapped.errors).toEqual([])
-      expect(mapped.rows.map(strip)).toEqual(parseMaxCC(buf).transactions.map(strip))
-    }
+describe('Leumi and Max exports (no built-in readers: the mapper finds the columns by name)', () => {
+  it('Max: every column is suggested and the row reads in full', () => {
+    const sheet = sheetOf(maxXlsx())
+    const m = suggestMapping(sheet, 'card')
+    expect(m.headerRow).toBe(3)
+    expect(m.billingDate).toEqual({ from: 'column' })
+    expect(missingFields(m, 'card')).toEqual([])
+    const mapped = applyMapping(sheet, m, 'card')
+    expect(mapped.errors).toEqual([])
+    expect(mapped.rows).toHaveLength(1)
+    expect(mapped.rows[0]).toMatchObject({
+      transactionDate: day(2030, 1, 7),
+      billingDate: day(2030, 2, 10),
+      originalMerchantName: 'עסק בדוי',
+      merchantName: 'עסק בדוי',
+      category: 'קטגוריה בדויה',
+      chargedAmount: 15,
+      originalAmount: 15,
+      originalCurrency: '₪',
+      cardLastFour: '0000',
+      transactionType: 'רגילה',
+    })
   })
 
-  it('Leumi: the suggested mapping yields the same transactions as parseBankLeumi', () => {
-    const buf = leumiHtml([
-      ['05/01/2030', 'חנות בדויה', '1,212.00', '0.00'],
-      ['06/01/2030', 'הפקדה בדויה', '0.00', '31.17'],
-      ['07/01/2030', 'עמלה בדויה', '3.57', '0.00'],
-    ])
-    const sheet = sheetOf(buf, 'bank-fake.xls')
+  const leumi = (extra: boolean) =>
+    Buffer.from(`<HTML dir="RTL"><body>
+<table><tr><td>תנועות בחשבון</td></tr>
+<tr><td>תאריך</td>${extra ? '<td>תאריך ערך</td>' : ''}<td>תיאור</td>${extra ? '<td>אסמכתא</td>' : ''}<td>בחובה</td><td>בזכות</td><td>היתרה בש"ח</td><td>הערה</td></tr>
+<tr><td>05/01/2030</td>${extra ? '<td>06/01/2030</td>' : ''}<td>חנות בדויה</td>${extra ? '<td>12345</td>' : ''}<td>1,212.00</td><td>0.00</td><td>100.00</td><td></td></tr>
+<tr><td>06/01/2030</td>${extra ? '<td>06/01/2030</td>' : ''}<td>הפקדה בדויה</td>${extra ? '<td>678</td>' : ''}<td>0.00</td><td>31.17</td><td>131.17</td><td>הערה בדויה</td></tr>
+</table></body></HTML>`)
+
+  const LEUMI_ROWS = [
+    { date: day(2030, 1, 5), originalDescription: 'חנות בדויה', description: 'חנות בדויה', debit: 1212, credit: 0, balance: 100 },
+    { date: day(2030, 1, 6), originalDescription: 'הפקדה בדויה', description: 'הפקדה בדויה', debit: 0, credit: 31.17, balance: 131.17, note: 'הערה בדויה' },
+  ]
+
+  it('Leumi: the usual six columns read in full', () => {
+    const sheet = sheetOf(leumi(false), 'bank-fake.xls')
     const m = suggestMapping(sheet, 'bank')
     expect(m.amountMode).toBe('split')
     const mapped = applyMapping(sheet, m, 'bank', { fileName: 'bank-fake.xls' })
     expect(mapped.errors).toEqual([])
-    const expected: ParsedBankTransaction[] = parseBankLeumi(buf, 'bank-fake.xls').transactions
-    expect(mapped.rows).toEqual(expected)
+    expect(mapped.rows).toMatchObject(LEUMI_ROWS)
+  })
+
+  it('Leumi: an export with value date and reference columns reads the same rows', () => {
+    const sheet = sheetOf(leumi(true), 'bank-fake.xls')
+    const m = suggestMapping(sheet, 'bank')
+    // the transaction date, not the value date; the reference is not an amount
+    expect(m.columns).toMatchObject({ date: 0, description: 2, debit: 4, credit: 5, balance: 6, note: 7 })
+    const mapped = applyMapping(sheet, m, 'bank', { fileName: 'bank-fake.xls' })
+    expect(mapped.errors).toEqual([])
+    expect(mapped.rows).toMatchObject(LEUMI_ROWS)
   })
 })
