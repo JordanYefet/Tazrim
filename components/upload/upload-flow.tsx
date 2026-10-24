@@ -670,10 +670,11 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
               )
             })}
 
-          {pendingCategories.length > 0 && !busy && (
+          {pendingCategories.length > 0 && !busy && account && (
             <NewCategoriesPrompt
               key={pendingCategories.join('\u0000')}
               categories={pendingCategories}
+              provider={account.provider}
               severalFiles={imported.length > 1}
               onDone={() => setPendingCategories([])}
             />

@@ -3,6 +3,7 @@ import { prisma, type Db } from './client'
 import type { ParsedCCTransaction } from '../parsers/types'
 import { accountWhere, listAccountIds, PROVIDERS, type AccountFilter } from './accounts'
 import { getCardRules } from './aliases'
+import { getCategoryMap, mappedCategory } from './category-mappings'
 import { cardDedupeKey, localDay, planCardImport } from '../upload/card-dedupe'
 
 // Every function that takes an AccountFilter reads one card (an id), several
@@ -66,6 +67,7 @@ export async function upsertCCTransactions(
 
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
   const rules = await getCardRules(account.provider, db)
+  const categories = await getCategoryMap(account.provider, db)
 
   const times = transactions.map(t => t.transactionDate.getTime())
   const stored = await db.creditCardTransaction.findMany({
@@ -94,7 +96,9 @@ export async function upsertCCTransactions(
       billingDate: tx.billingDate,
       originalMerchantName: tx.originalMerchantName,
       merchantName: rule?.displayName ?? tx.originalMerchantName,
-      category: tx.category,
+      // Yours: the issuer's category through its mapping (ENG-75), or its own name
+      category: mappedCategory(categories, tx.category),
+      sourceCategory: tx.category,
       // A category set on the merchant before (Cal files carry none)
       categoryOverride: rule?.categoryOverride ?? null,
       chargedAmount: tx.chargedAmount,

@@ -67,7 +67,10 @@ model CreditCardTransaction {
   billingDate          DateTime
   originalMerchantName String
   merchantName         String
+  /// Your category: the issuer's one translated by a CategoryMapping, or the issuer's own name when unmapped
   category             String
+  /// The category as the issuer's file had it ("" when the file has none)
+  sourceCategory       String   @default("")
   categoryOverride     String?
   chargedAmount        Float
   originalAmount       Float
@@ -110,6 +113,17 @@ model UploadHistory {
   recordCount Int
 
   @@index([accountId, fileName])
+}
+
+/// "The issuer's <sourceCategory> is my <category>", for the cards of one provider
+/// (ENG-75). Applied on import and, when saved, to that provider's stored rows.
+model CategoryMapping {
+  id             String @id @default(uuid())
+  provider       String
+  sourceCategory String
+  category       String
+
+  @@unique([provider, sourceCategory])
 }
 
 /// Expense categories are shared by cards and bank debits; income ones are for bank credits.
