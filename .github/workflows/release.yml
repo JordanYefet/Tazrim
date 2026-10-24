@@ -1,4 +1,6 @@
-# A release, on demand: Actions -> Release -> Run workflow (on main), type the version.
+# A release, on demand: Actions -> Release -> Run workflow (on main). Nothing to fill in:
+# the version is the next minor one after the newest release tag, 1.4.2 -> 1.5.0
+# (.github/scripts/next-version.sh, which also does patch and major).
 #
 #   1. the CI checks on main
 #   2. the release commit: main is merged into the `release` branch, then one
@@ -16,11 +18,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: Version, without the v (e.g. 1.0.0)
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -42,14 +39,14 @@ jobs:
       - id: v
         name: Version and branch
         env:
-          VERSION: ${{ inputs.version }}
+          BUMP: minor
         run: |
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Releases are made from main (this run is on $GITHUB_REF)"; exit 1
           fi
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::'$VERSION' is not a version like 1.0.0"; exit 1
-          fi
+          VERSION=$(bash .github/scripts/next-version.sh "$BUMP")
+          echo "::notice::Releasing v$VERSION"
+          echo "### Releasing v$VERSION" >> "$GITHUB_STEP_SUMMARY"
           if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
             echo "::error::v$VERSION already exists"; exit 1
           fi
