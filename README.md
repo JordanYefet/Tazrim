@@ -317,7 +317,7 @@ npx prisma migrate deploy   # מעדכן את מבנה בסיס הנתונים, 
 | `npm run build` | בנייה לסביבת ייצור |
 | `npm run db:studio` | עיון בבסיס הנתונים דרך Prisma Studio |
 
-**CI וגרסאות:** כל Pull Request ל-`main` עובר ב-GitHub Actions בדיקת טיפוסים, את כל הבדיקות ובנייה (`.github/workflows/ci.yml`). גרסה חדשה מפרסמים ידנית: **Actions ← Release ← Run workflow** ומקלידים מספר גרסה. התהליך מעדכן את הענף `release` (עם commit של מספר הגרסה), בונה ומפרסם את האימג' ב-GHCR, ויוצר את התג ואת ה-Release ב-GitHub. Vercel בונה מהענף `release` את הדמו החי, שמתעדכן גם פעם בשבוע (`demo.yml`) כדי שנתוני הדמו יגיעו עד השבוע הנוכחי.
+**CI וגרסאות:** כל Pull Request ל-`main` עובר ב-GitHub Actions בדיקת טיפוסים, את כל הבדיקות ובנייה (`.github/workflows/ci.yml`). גרסה חדשה מפרסמים ידנית: **Actions ← Release ← Run workflow**, ובוחרים את סוג הגרסה: `minor` (תכונות חדשות, 1.0.0 ← 1.1.0), `patch` (תיקונים בלבד, ← 1.0.1) או `major` (שינוי גדול, ← 2.0.0). מספר הגרסה מחושב לבד מהגרסה האחרונה שפורסמה (`.github/scripts/next-version.sh`). התהליך מעדכן את הענף `release` (עם commit של מספר הגרסה), בונה ומפרסם את האימג' ב-GHCR, ויוצר את התג ואת ה-Release ב-GitHub. Vercel בונה מהענף `release` את הדמו החי, שמתעדכן גם פעם בשבוע (`demo.yml`) כדי שנתוני הדמו יגיעו עד השבוע הנוכחי.
 
 **מצב קריאה בלבד:** עם `TAZRIM_READ_ONLY=1` השרת דוחה כל שינוי בנתונים, והממשק מסביר את זה כשמנסים לשמור. כך רץ הדמו החי.
 

@@ -1,4 +1,7 @@
-# A release, on demand: Actions -> Release -> Run workflow (on main), type the version.
+# A release, on demand: Actions -> Release -> Run workflow (on main), and pick what kind of
+# release it is. The version is worked out from the newest release tag
+# (.github/scripts/next-version.sh): patch 1.4.2 -> 1.4.3 (fixes), minor -> 1.5.0
+# (new features), major -> 2.0.0 (big or breaking changes).
 #
 #   1. the CI checks on main
 #   2. the release commit: main is merged into the `release` branch, then one
@@ -17,10 +20,15 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Version, without the v (e.g. 1.0.0)
+      bump:
+        description: 'What kind of release: minor (new features), patch (fixes only) or major (big or breaking changes)'
         required: true
-        type: string
+        type: choice
+        options:
+          - minor
+          - patch
+          - major
+        default: minor
 
 permissions:
   contents: read
@@ -42,14 +50,14 @@ jobs:
       - id: v
         name: Version and branch
         env:
-          VERSION: ${{ inputs.version }}
+          BUMP: ${{ inputs.bump }}
         run: |
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Releases are made from main (this run is on $GITHUB_REF)"; exit 1
           fi
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::'$VERSION' is not a version like 1.0.0"; exit 1
-          fi
+          VERSION=$(bash .github/scripts/next-version.sh "$BUMP")
+          echo "::notice::Releasing v$VERSION ($BUMP)"
+          echo "### Releasing v$VERSION ($BUMP release)" >> "$GITHUB_STEP_SUMMARY"
           if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
             echo "::error::v$VERSION already exists"; exit 1
           fi
