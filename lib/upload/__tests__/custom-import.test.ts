@@ -196,3 +196,30 @@ describe('Leumi through its mapping', () => {
     expect(body.mapper.suggestion).toMatchObject({ headerRow: 2, amountMode: 'split' })
   })
 })
+
+describe('a saved mapping from before the reference existed', () => {
+  it('still stores the file’s אסמכתא when it imports', async () => {
+    const csv = Buffer.from('תאריך,תיאור,אסמכתא,חובה,זכות\n01/09/2030,העברה בדויה,55512,90,\n02/09/2030,הפקדה בדויה,55513,,40\n')
+    const sheet = sheetOf(csv, 'ref.csv')
+    const { reference: _r, ...older } = suggestMapping(sheet, 'bank').columns
+    const mapping = { ...suggestMapping(sheet, 'bank'), columns: older }
+    const res = await profilesRoute.POST(
+      json('POST', {
+        accountId: 'acct_leumi',
+        name: 'בנק בדוי ישן',
+        mapping,
+        headerSignature: headerSignature(sheet, mapping.headerRow),
+        headers: buildSnapshot(sheet, mapping, 'bank'),
+      })
+    )
+    expect(res.status).toBe(201)
+    const { id } = await res.json()
+
+    const imported = await mod.importUpload(await acct('acct_leumi'), csv, 'ref.csv', { profileId: id })
+    expect(imported).toMatchObject({ ok: true, created: 2 })
+    expect(db.query(`SELECT reference FROM "BankTransaction" WHERE sourceFile = 'ref.csv' ORDER BY date`)).toEqual([
+      { reference: '55512' },
+      { reference: '55513' },
+    ])
+  })
+})

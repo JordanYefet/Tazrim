@@ -100,6 +100,8 @@ export async function upsertCCTransactions(
       chargedAmount: tx.chargedAmount,
       originalAmount: tx.originalAmount,
       originalCurrency: tx.originalCurrency,
+      chargedCurrency: tx.chargedCurrency || '₪',
+      reference: tx.reference ?? '',
       cardLastFour: tx.cardLastFour,
       transactionType: tx.transactionType,
       notes: tx.notes,

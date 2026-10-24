@@ -29,12 +29,14 @@ export const CARD_FIELDS = [
   'chargedAmount',
   'originalAmount',
   'originalCurrency',
+  'chargedCurrency',
+  'reference',
   'category',
   'cardLastFour',
   'transactionType',
   'notes',
 ] as const
-export const BANK_FIELDS = ['date', 'description', 'debit', 'credit', 'amount', 'balance', 'note'] as const
+export const BANK_FIELDS = ['date', 'description', 'debit', 'credit', 'amount', 'balance', 'reference', 'note'] as const
 
 export type CardField = (typeof CARD_FIELDS)[number]
 export type BankField = (typeof BANK_FIELDS)[number]
@@ -46,7 +48,9 @@ export const FIELD_LABELS: Record<MappingField, string> = {
   merchant: 'בית עסק',
   chargedAmount: 'סכום חיוב',
   originalAmount: 'סכום עסקה',
-  originalCurrency: 'מטבע',
+  originalCurrency: 'מטבע עסקה',
+  chargedCurrency: 'מטבע חיוב',
+  reference: 'אסמכתא',
   category: 'קטגוריה',
   cardLastFour: '4 ספרות',
   transactionType: 'סוג עסקה',
@@ -445,6 +449,8 @@ export function applyMapping<K extends MappingKind>(
           chargedAmount: sign * charged,
           originalAmount: sign * (original ?? charged),
           originalCurrency: text(col(row, 'originalCurrency')) || '₪',
+          chargedCurrency: text(col(row, 'chargedCurrency')) || '₪',
+          reference: text(col(row, 'reference')),
           cardLastFour: text(col(row, 'cardLastFour')),
           transactionType: text(col(row, 'transactionType')),
           notes: text(col(row, 'notes')),
@@ -479,6 +485,7 @@ export function applyMapping<K extends MappingKind>(
           credit,
           balance: balance ?? 0,
           note: text(col(row, 'note')),
+          reference: text(col(row, 'reference')),
           sourceFile: opts.fileName ?? '',
         }
       }
@@ -511,6 +518,10 @@ const SYNONYMS: Record<MappingKind, Partial<Record<MappingField, string[]>>> = {
     category: ['ענף', 'קטגוריה', 'ענף פעילות', 'category', 'sector'],
     cardLastFour: ['4 ספרות אחרונות של כרטיס האשראי', '4 ספרות אחרונות', 'ספרות אחרונות', 'כרטיס', 'card', 'last 4'],
     transactionType: ['סוג עסקה', 'סוג העסקה', 'סוג', 'type', 'transaction type'],
+    // The currency the card charged in (a foreign purchase is charged in shekels)
+    chargedCurrency: ['מטבע חיוב', 'מטבע החיוב', 'billing currency', 'charge currency', 'charged currency'],
+    // The issuer's id of the transaction: Isracard's voucher number
+    reference: ["מס' שובר", 'מס שובר', 'מספר שובר', 'שובר', 'אסמכתא', "מס' אסמכתא", 'מספר אסמכתא', 'reference', 'voucher', 'voucher number'],
     notes: ['הערות', 'הערה', 'פירוט נוסף', 'פרטים', 'notes', 'details'],
   },
   bank: {
@@ -520,6 +531,7 @@ const SYNONYMS: Record<MappingKind, Partial<Record<MappingField, string[]>>> = {
     credit: ['בזכות', 'זכות', 'זיכוי', 'credit'],
     amount: ['סכום', 'סכום בש"ח', 'סכום התנועה', 'amount'],
     balance: ['היתרה בש"ח', 'יתרה בש"ח', 'יתרה', 'היתרה', 'balance'],
+    reference: ['אסמכתא', 'אסמכתה', "מס' אסמכתא", 'מספר אסמכתא', 'reference', 'reference number'],
     note: ['הערה', 'הערות', 'note', 'notes'],
   },
 }
@@ -629,6 +641,28 @@ export function suggestMapping(
   }
   if (kind === 'bank' && mapping.amountMode === 'split') delete columns.amount
   return mapping
+}
+
+/** Fields the mapper learned after mappings were already being saved */
+const LATER_FIELDS: readonly MappingField[] = ['reference', 'chargedCurrency']
+
+/**
+ * A saved mapping made before LATER_FIELDS existed doesn't have them: it picks up the
+ * file's column for each one its header names, when that column isn't used for another
+ * field. Everything the mapping already says stays as it is.
+ */
+export function withLaterFields(sheet: Pick<RawSheet, 'rows'>, mapping: ImportMapping, kind: MappingKind): ImportMapping {
+  const allowed = fieldsFor(kind) as readonly MappingField[]
+  const used = new Set(Object.values(mapping.columns))
+  let columns = mapping.columns
+  for (const field of LATER_FIELDS) {
+    if (!allowed.includes(field) || columns[field] !== undefined) continue
+    const c = (sheet.rows[mapping.headerRow] ?? []).findIndex(cell => fieldForHeader(cell, kind) === field)
+    if (c === -1 || used.has(c)) continue
+    columns = { ...columns, [field]: c }
+    used.add(c)
+  }
+  return columns === mapping.columns ? mapping : { ...mapping, columns }
 }
 
 /**

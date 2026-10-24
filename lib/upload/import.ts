@@ -20,6 +20,7 @@ import {
   FIELD_LABELS,
   mappingKindOf,
   validateMapping,
+  withLaterFields,
   type ImportMapping,
   type MappingError,
 } from '@/lib/import/mapping'
@@ -205,7 +206,10 @@ const parseMapped: Parser = async (account, buffer, fileName, opts) => {
   let pending = 0
   let failedSheet = ''
   for (const s of sheets) {
-    const res = applyMapping(workbook.sheets[s.index], s.mapping, kind, { fileName })
+    const sheet = workbook.sheets[s.index]
+    // a saved mapping also reads the fields added since it was saved (a client mapping is as sent)
+    const sheetMapping = opts.profileId !== undefined ? withLaterFields(sheet, s.mapping, kind) : s.mapping
+    const res = applyMapping(sheet, sheetMapping, kind, { fileName })
     if (res.errors.length && !errors.length) failedSheet = workbook.sheets[s.index].name
     rows.push(...res.rows)
     errors.push(...res.errors)

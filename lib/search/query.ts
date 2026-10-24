@@ -39,6 +39,8 @@ export interface SearchResult {
   /** Card rows: the override when set, else the statement category. Bank rows: theirs, when set */
   category?: string
   note?: string
+  /** The issuer's or bank's transaction id (voucher number / אסמכתא), when the file had one */
+  reference?: string
   ignored: boolean
   /** Name of the manual recurring series that holds the row (ENG-71), computed per read */
   recurringLabel?: string
@@ -371,7 +373,7 @@ export function buildBankWhere(
   if (f.amount) and.push(bankAmount(f.amount))
   and.push(
     ...withAmountFallback(
-      textBlock(f, ['description', 'originalDescription', 'note'], 'originalDescription', aliasMatches),
+      textBlock(f, ['description', 'originalDescription', 'note', 'reference'], 'originalDescription', aliasMatches),
       f,
       bankAmount
     )
@@ -399,7 +401,7 @@ export function buildCardWhere(
   if (f.amount) and.push(cardAmount(f.amount))
   and.push(
     ...withAmountFallback(
-      textBlock(f, ['merchantName', 'originalMerchantName', 'notes'], 'originalMerchantName', aliasMatches),
+      textBlock(f, ['merchantName', 'originalMerchantName', 'notes', 'reference'], 'originalMerchantName', aliasMatches),
       f,
       cardAmount
     )
