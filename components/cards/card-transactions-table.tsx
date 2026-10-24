@@ -256,7 +256,8 @@ export function CardTransactionsTable({
                       </span>
                     ) : (
                       <select
-                        className="text-xs"
+                        // one width for every row, so the column lines up (a long name is cut by the select)
+                        className="w-36 text-xs"
                         value={tx.categoryOverride ?? tx.category}
                         onChange={e => saveCategory(tx, e.target.value)}
                       >
@@ -299,9 +300,12 @@ export function CardTransactionsTable({
                     </td>
                   ))}
                   <td className="py-2.5 px-4 text-center whitespace-nowrap">
-                    {/* Mark as recurring (ENG-71): expenses only */}
-                    {!tx.ignored && tx.chargedAmount > 0 && (
+                    {/* Mark as recurring (ENG-71): expenses only. Other rows keep its place empty,
+                        so the hide button sits in the same spot on every row */}
+                    {!tx.ignored && tx.chargedAmount > 0 ? (
                       <MarkRecurringButton source="card" transactionId={tx.id} seriesName={recurring[tx.id]?.name} className="me-0.5 align-middle max-sm:hidden" />
+                    ) : (
+                      <span aria-hidden className="me-0.5 inline-block h-7 w-7 align-middle max-sm:hidden" />
                     )}
                     <button
                       onClick={() => toggleIgnored(tx)}
