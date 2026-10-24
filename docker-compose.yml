@@ -2,6 +2,7 @@
 #
 # Another port:   TAZRIM_PORT=3005 docker compose up -d   (or put TAZRIM_PORT=3005 in a .env file)
 # Demo data:      TAZRIM_DEMO=1 docker compose up -d      (only fills an empty database)
+# Time zone:      TAZRIM_TZ=Europe/London docker compose up -d   (default Asia/Jerusalem)
 # Update:         docker compose pull && docker compose up -d
 #
 # All data is in the "tazrim-data" volume on this machine (/data/tazrim.db inside the container).
@@ -14,6 +15,8 @@ services:
       - "${TAZRIM_PORT:-3000}:3000"
     environment:
       TAZRIM_DEMO: "${TAZRIM_DEMO:-0}"
+      # The clock dates and months follow; keep it the same as wherever the data was made
+      TZ: "${TAZRIM_TZ:-Asia/Jerusalem}"
     volumes:
       - tazrim-data:/data
     restart: unless-stopped

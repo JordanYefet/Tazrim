@@ -44,9 +44,13 @@ RUN sed -i 's|^\( *url *= *\)"file:./tazrim.db"|\1env("TAZRIM_DATABASE_URL")|' p
 # ---- runtime
 FROM base AS runtime
 WORKDIR /app
+# TZ: dates are calendar days in Israeli time (imports store local midnight, months
+# are local ranges), so the server keeps the same clock as `npm run dev` on an
+# Israeli machine; in UTC a database made there shifts every month by a few hours.
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
+    TZ=Asia/Jerusalem \
     TAZRIM_DATABASE_URL=file:/data/tazrim.db \
     TAZRIM_DEMO=0
 
