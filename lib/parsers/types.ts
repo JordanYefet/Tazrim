@@ -6,6 +6,8 @@ export interface ParsedBankTransaction {
   credit: number
   balance: number
   note: string
+  /** The bank's reference (אסמכתא); '' when the file has none */
+  reference?: string
   sourceFile: string
 }
 
@@ -18,6 +20,10 @@ export interface ParsedCCTransaction {
   chargedAmount: number
   originalAmount: number
   originalCurrency: string
+  /** The currency the card charged in; ₪ when the file doesn't say */
+  chargedCurrency?: string
+  /** The issuer's transaction id (Isracard's voucher number); '' when the file has none */
+  reference?: string
   cardLastFour: string
   transactionType: string
   notes: string

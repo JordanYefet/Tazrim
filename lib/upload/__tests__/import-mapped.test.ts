@@ -98,10 +98,10 @@ describe('importUpload with a mapping', () => {
     expect(res.error).toContain('שורה 5')
   })
 
-  it('still answers UNSUPPORTED_PROVIDER without a mapping', async () => {
+  it('refuses a file sent without a mapping', async () => {
     expect(await mod.importUpload(await acct('acct_test_cal'), calXlsx(), 'x.xlsx')).toMatchObject({
       ok: false,
-      code: 'UNSUPPORTED_PROVIDER',
+      code: 'INVALID_MAPPING',
     })
   })
 })

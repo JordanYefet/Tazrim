@@ -4,9 +4,10 @@ import { leumiHtml, maxXlsx, maxXlsxWithPending, TEST_ACCOUNTS_SQL } from './fix
 import { bankSignedCsv, sheetOf } from '@/lib/import/__tests__/fixtures'
 import { headerSignature, suggestMapping } from '@/lib/import/mapping'
 import { buildSnapshot } from '@/lib/import/snapshot'
-import { BUILT_IN_LAYOUTS, layoutSignature } from '@/lib/import/builtin-layouts'
+import { readRawGrid } from '@/lib/parsers/raw-grid'
 
-// ENG-69: header storage, file-less edits, and Leumi / Max through a custom mapping.
+// ENG-69: header storage, file-less edits, and Leumi / Max through their mappings
+// (every provider imports through a mapping; there are no built-in readers).
 // Every value is made up; dates are in 2030.
 
 let db: TestDb
@@ -14,7 +15,6 @@ let mod: typeof import('../import')
 let accounts: typeof import('@/lib/db/accounts')
 let profilesRoute: typeof import('@/app/api/import-profiles/route')
 let profileRoute: typeof import('@/app/api/import-profiles/[id]/route')
-let modeRoute: typeof import('@/app/api/accounts/[id]/import-mode/route')
 let previewRoute: typeof import('@/app/api/upload/preview/route')
 
 beforeAll(async () => {
@@ -25,7 +25,6 @@ beforeAll(async () => {
   accounts = await import('@/lib/db/accounts')
   profilesRoute = await import('@/app/api/import-profiles/route')
   profileRoute = await import('@/app/api/import-profiles/[id]/route')
-  modeRoute = await import('@/app/api/accounts/[id]/import-mode/route')
   previewRoute = await import('@/app/api/upload/preview/route')
 })
 
@@ -39,7 +38,6 @@ const json = (method: string, body: unknown) =>
   new Request('http://localhost/api/x', { method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
 const get = () => new Request('http://localhost/api/x')
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) })
-const setMode = (id: string, mode: string) => modeRoute.POST(json('POST', { mode }), ctx(id))
 const preview = (buf: Buffer, name: string, accountId: string) => {
   const form = new FormData()
   form.append('file', new File([new Uint8Array(buf)], name))
@@ -47,7 +45,7 @@ const preview = (buf: Buffer, name: string, accountId: string) => {
   return previewRoute.POST(new Request('http://localhost/api/upload/preview', { method: 'POST', body: form }))
 }
 
-/** Leumi's HTML export with one more table on top, so the header is a row lower than the layout's. */
+/** Leumi's HTML export with one more table on top, so the header is a row lower than usual. */
 function leumiHtmlWithBalance(): Buffer {
   const html = leumiHtml([
     ['05/03/2030', 'חנות בדויה', '12.00', '0.00'],
@@ -74,7 +72,7 @@ describe('header rows stored with a mapping', () => {
     expect(JSON.parse(stored.headers)).toEqual(headers)
 
     const body = await (await profileRoute.GET(get(), ctx(id))).json()
-    expect(body).toMatchObject({ id, kind: 'bank', mapping, snapshot: headers, account: { id: 'acct_test_other', customImport: false } })
+    expect(body).toMatchObject({ id, kind: 'bank', mapping, snapshot: headers, account: { id: 'acct_test_other' } })
     expect(body.snapshot.samples).toHaveLength(2)
   })
 
@@ -121,95 +119,68 @@ describe('header rows stored with a mapping', () => {
   })
 })
 
-describe('switching Max to a custom mapping', () => {
+/** The mapper's suggestion for a file, as the upload page starts from it */
+function suggestionFor(buf: Buffer, name: string, kind: 'bank' | 'card') {
+  const wb = readRawGrid(buf, name)
+  const index = Math.max(0, wb.sheets.findIndex(sh => sh.rows.length > 0))
+  const mapping = suggestMapping(wb.sheets[index], kind, index)
+  return { wb, sheet: wb.sheets[index], mapping }
+}
+
+describe('Max through its mapping', () => {
   let profileId: string
 
-  it('seeds a linked profile from the built-in layout', async () => {
-    const res = await setMode('acct_test_max2', 'custom')
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toMatchObject({ customImport: true, profile: { name: BUILT_IN_LAYOUTS.max.name } })
-    profileId = body.profile.id
-    const row = db.query<{ accountId: string; headerSignature: string; mapping: string; headers: string }>(
-      `SELECT accountId, headerSignature, mapping, headers FROM "ImportProfile" WHERE id = '${profileId}'`
-    )[0]
-    expect(row.accountId).toBe('acct_test_max2')
-    expect(row.headerSignature).toBe(layoutSignature(BUILT_IN_LAYOUTS.max))
-    expect(JSON.parse(row.mapping)).toEqual(BUILT_IN_LAYOUTS.max.mapping)
-    expect(JSON.parse(row.headers).samples).toEqual([])
-    expect(mod.isImportSupported(await acct('acct_test_max2'))).toBe(false)
-    expect(mod.hasBuiltInImport(await acct('acct_test_max2'))).toBe(true)
-  })
-
-  it('no longer imports through the built-in parser without a mapping', async () => {
-    const res = await mod.importUpload(await acct('acct_test_max2'), maxXlsx(), 'max-fake.xlsx')
-    expect(res).toMatchObject({ ok: false, code: 'INVALID_MAPPING' })
-  })
-
-  it('the upload preview offers the mapper for it', async () => {
-    const res = await preview(maxXlsxWithPending(), 'max-fake.xlsx', 'acct_test_max2')
-    const body = await res.json()
-    expect(body.customImport).toBe(true)
+  it('the upload preview offers the mapper, pre-filled from the file', async () => {
+    const body = await (await preview(maxXlsxWithPending(), 'max-fake.xlsx', 'acct_test_max2')).json()
     expect(body.importSupported).toBe(true)
+    expect(body.customImport).toBeUndefined()
     expect(body.mapper.kind).toBe('card')
-    // the test export has 11 of Max's 16 columns, so the seeded profile doesn't match it by header
-    expect(body.mapper.accountProfile.id).toBe(profileId)
+    expect(body.mapper.profile).toBeNull()
+    expect(body.mapper.suggestion).toMatchObject({ headerRow: 3, billingDate: { from: 'column' } })
   })
 
-  it('imports a multi-sheet export through the mapping, leaving the pending sheet out', async () => {
-    // save the profile on this file's header (what the upload page does after a mapped import)
-    const wb = (await import('@/lib/parsers/raw-grid')).readRawGrid(maxXlsxWithPending(), 'max-fake.xlsx')
-    const mapping = BUILT_IN_LAYOUTS.max.mapping
-    const headers = buildSnapshot(wb.sheets[0], mapping, 'card')
-    expect(
-      (await profileRoute.PATCH(json('PATCH', { mapping, headerSignature: headerSignature(wb.sheets[0], 3), headers }), ctx(profileId))).status
-    ).toBe(200)
-
-    const res = await mod.importUpload(await acct('acct_test_max2'), maxXlsxWithPending(), 'max-pending-fake.xlsx', { profileId })
+  it('imports a multi-sheet export with the suggestion, leaving the pending sheet out', async () => {
+    const { mapping } = suggestionFor(maxXlsxWithPending(), 'max-fake.xlsx', 'card')
+    const res = await mod.importUpload(await acct('acct_test_max2'), maxXlsxWithPending(), 'max-pending-fake.xlsx', { mapping })
     expect(res).toMatchObject({ ok: true, created: 1, skipped: 0, pending: 2 })
     const rows = db.query<{ originalMerchantName: string; chargedAmount: number }>(
       `SELECT originalMerchantName, chargedAmount FROM "CreditCardTransaction" WHERE accountId = 'acct_test_max2'`
     )
     expect(rows).toEqual([{ originalMerchantName: 'עסק בדוי אחר', chargedAmount: 22 }])
+  })
 
-    // and the preview now recognises the file by the saved profile
+  it('a saved mapping is found again for the next file, and imports with it', async () => {
+    const { sheet, mapping } = suggestionFor(maxXlsxWithPending(), 'max-fake.xlsx', 'card')
+    const res = await profilesRoute.POST(
+      json('POST', {
+        accountId: 'acct_test_max2',
+        name: 'מקס בדוי',
+        mapping,
+        headerSignature: headerSignature(sheet, mapping.headerRow),
+        headers: buildSnapshot(sheet, mapping, 'card'),
+        linkAccount: true,
+      })
+    )
+    expect(res.status).toBe(201)
+    profileId = (await res.json()).id
+
     const body = await (await preview(maxXlsxWithPending(), 'max-fake.xlsx', 'acct_test_max2')).json()
     expect(body.mapper.profile).toMatchObject({ id: profileId, linked: true })
-  })
-
-  it('reads every sheet with the header for a client mapping too', async () => {
-    const res = await mod.importUpload(await acct('acct_test_max2'), maxXlsxWithPending(), 'max-pending-fake-2.xlsx', {
-      mapping: BUILT_IN_LAYOUTS.max.mapping,
-    })
+    const again = await mod.importUpload(await acct('acct_test_max2'), maxXlsxWithPending(), 'max-pending-fake-2.xlsx', { profileId })
     // the billed row is already there, the pending ones still left out
-    expect(res).toMatchObject({ ok: true, created: 0, skipped: 1, pending: 2 })
+    expect(again).toMatchObject({ ok: true, created: 0, skipped: 1, pending: 2 })
   })
 
-  it('switches back to the built-in importer and keeps the profile for next time', async () => {
-    const res = await setMode('acct_test_max2', 'builtin')
-    expect(await res.json()).toMatchObject({ customImport: false, profile: { id: profileId } })
-    expect(mod.isImportSupported(await acct('acct_test_max2'))).toBe(true)
-    const imported = await mod.importUpload(await acct('acct_test_max2'), maxXlsx(), 'max-fake.xlsx')
-    expect(imported).toMatchObject({ ok: true, created: 1 })
-    const again = await (await setMode('acct_test_max2', 'custom')).json()
-    expect(again.profile.id).toBe(profileId)
-    expect(db.query(`SELECT COUNT(*) AS n FROM "ImportProfile" WHERE accountId = 'acct_test_max2'`)).toEqual([{ n: 1 }])
-    await setMode('acct_test_max2', 'builtin')
-  })
-
-  it('refuses providers without a built-in importer and bad input', async () => {
-    db.exec(`INSERT INTO "Account" ("id","kind","provider","displayName","createdAt") VALUES ('acct_test_cal9','CREDIT_CARD','cal','כאל בדוי',1900000000009);`)
-    expect((await setMode('acct_test_cal9', 'custom')).status).toBe(422)
-    expect((await setMode('acct_test_max2', 'sideways')).status).toBe(400)
-    expect((await setMode('acct_nope', 'custom')).status).toBe(404)
+  it('a plain Max export imports through the same saved mapping', async () => {
+    const res = await mod.importUpload(await acct('acct_test_max2'), maxXlsx(), 'max-fake.xlsx', { profileId })
+    expect(res).toMatchObject({ ok: true, created: 1 })
   })
 })
 
-describe('Leumi through a custom mapping', () => {
-  it('imports the HTML export with a header lower than the layout and skips rows with no amount', async () => {
-    const res = await setMode('acct_leumi', 'custom')
-    const { profile } = await res.json()
-    const result = await mod.importUpload(await acct('acct_leumi'), leumiHtmlWithBalance(), 'leumi-fake.xls', { profileId: profile.id })
+describe('Leumi through its mapping', () => {
+  it('imports the HTML export with a header lower than usual and skips rows with no amount', async () => {
+    const { mapping } = suggestionFor(leumiHtmlWithBalance(), 'leumi-fake.xls', 'bank')
+    const result = await mod.importUpload(await acct('acct_leumi'), leumiHtmlWithBalance(), 'leumi-fake.xls', { mapping })
     expect(result).toMatchObject({ ok: true, created: 2 })
     const rows = db.query<{ description: string; debit: number; credit: number; balance: number }>(
       `SELECT description, debit, credit, balance FROM "BankTransaction" WHERE accountId = 'acct_leumi' ORDER BY date`
@@ -218,15 +189,37 @@ describe('Leumi through a custom mapping', () => {
       { description: 'חנות בדויה', debit: 12, credit: 0, balance: 100 },
       { description: 'הפקדה בדויה', debit: 0, credit: 30, balance: 100 },
     ])
-    // the preview finds the seeded profile though the header moved
-    const body = await (await preview(leumiHtmlWithBalance(), 'leumi-fake.xls', 'acct_leumi')).json()
-    expect(body.mapper.profile).toMatchObject({ id: profile.id })
-    expect(body.mapper.profile.mapping.headerRow).toBe(2)
   })
 
-  it('goes back to the built-in parser', async () => {
-    await setMode('acct_leumi', 'builtin')
-    const res = await mod.importUpload(await acct('acct_leumi'), leumiHtml(), 'leumi-fake-2.xls')
-    expect(res).toMatchObject({ ok: true, created: 2 })
+  it('the preview suggests the header where it is', async () => {
+    const body = await (await preview(leumiHtmlWithBalance(), 'leumi-fake.xls', 'acct_leumi')).json()
+    expect(body.mapper.suggestion).toMatchObject({ headerRow: 2, amountMode: 'split' })
+  })
+})
+
+describe('a saved mapping from before the reference existed', () => {
+  it('still stores the file’s אסמכתא when it imports', async () => {
+    const csv = Buffer.from('תאריך,תיאור,אסמכתא,חובה,זכות\n01/09/2030,העברה בדויה,55512,90,\n02/09/2030,הפקדה בדויה,55513,,40\n')
+    const sheet = sheetOf(csv, 'ref.csv')
+    const { reference: _r, ...older } = suggestMapping(sheet, 'bank').columns
+    const mapping = { ...suggestMapping(sheet, 'bank'), columns: older }
+    const res = await profilesRoute.POST(
+      json('POST', {
+        accountId: 'acct_leumi',
+        name: 'בנק בדוי ישן',
+        mapping,
+        headerSignature: headerSignature(sheet, mapping.headerRow),
+        headers: buildSnapshot(sheet, mapping, 'bank'),
+      })
+    )
+    expect(res.status).toBe(201)
+    const { id } = await res.json()
+
+    const imported = await mod.importUpload(await acct('acct_leumi'), csv, 'ref.csv', { profileId: id })
+    expect(imported).toMatchObject({ ok: true, created: 2 })
+    expect(db.query(`SELECT reference FROM "BankTransaction" WHERE sourceFile = 'ref.csv' ORDER BY date`)).toEqual([
+      { reference: '55512' },
+      { reference: '55513' },
+    ])
   })
 })

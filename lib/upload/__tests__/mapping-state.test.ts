@@ -53,8 +53,15 @@ describe('checkMapping', () => {
 
   it('names what is missing or wrong', () => {
     const m = suggestMapping(cal, 'card')
-    expect(checkMapping(cal, setColumnField(m, 'card', 1, null), 'card').reason).toContain('בית עסק')
-    expect(checkMapping(cal, { ...m, billingDate: { from: 'column' } }, 'card').reason).toContain('תאריך החיוב')
+    const noMerchant = checkMapping(cal, setColumnField(m, 'card', 1, null), 'card')
+    expect(noMerchant.reason).toContain('בית עסק')
+    expect(noMerchant.fix).toBe('columns')
+    const noBilling = checkMapping(cal, { ...m, billingDate: { from: 'column' } }, 'card')
+    expect(noBilling.reason).toContain('תאריך חיוב')
+    expect(noBilling.fix).toBe('billing')
+    // a billing day that is not chosen yet is missing the same way
+    expect(checkMapping(cal, { ...m, billingDate: { from: 'day' } }, 'card')).toMatchObject({ fix: 'billing' })
+    expect(checkMapping(cal, { ...m, billingDate: { from: 'day', day: 10, closesOn: 31 } }, 'card').reason).toBeNull()
     expect(checkMapping(cal, { ...m, billingDate: { from: 'cell', row: 0, col: 0 } }, 'card').reason).toContain('תאריך חיוב')
     expect(checkMapping(cal, setColumnField(m, 'card', 4, 'chargedAmount'), 'card').reason).toMatch(/שגיא/)
     expect(checkMapping(undefined, m, 'card').reason).not.toBeNull()

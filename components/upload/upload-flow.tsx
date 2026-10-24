@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BookmarkCheck, FileSpreadsheet, Upload } from 'lucide-react'
+import { AlertCircle, BookmarkCheck, FileSpreadsheet, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { RawGridPreview } from './raw-grid-preview'
@@ -9,7 +9,7 @@ import { AccountPicker, providerLabel, type UploadAccount } from './account-pick
 import { NewCategoriesPrompt } from './new-categories-prompt'
 import { SkippedRows } from './skipped-rows'
 import { FileList, FORMAT_LABEL, resultCounts, UnsupportedNote } from './file-list'
-import { ColumnMapper, MappedPreview } from './column-mapper'
+import { ColumnMapper, MappedPreview, MAPPER_ANCHORS } from './column-mapper'
 import { SaveProfile, SavedProfileNote, type SavedProfile } from './save-profile'
 import type { RawWorkbookPreview } from '@/lib/parsers/raw-grid'
 import { headerSignature, type ImportMapping } from '@/lib/import/mapping'
@@ -40,9 +40,7 @@ type PreviewResponse = RawWorkbookPreview & {
   fileName: string
   account: Pick<UploadAccount, 'id' | 'kind' | 'provider' | 'displayName'>
   importSupported: boolean
-  /** ENG-69: a Leumi / Max account set to import through its own mapping */
-  customImport?: boolean
-  /** Set for providers without a built-in parser: the files are imported through a column mapping */
+  /** Bank and card accounts: every file is imported through a column mapping */
   mapper: MapperInfo | null
 }
 
@@ -68,8 +66,8 @@ function newGroup(mapper: MapperInfo): MapGroup {
     : {
         mapping: mapper.suggestion,
         profile: null,
-        // a file that doesn't match the account's own mapping (e.g. one seeded from a built-in
-        // layout, ENG-69): saving afterwards updates that mapping instead of adding another
+        // a file that doesn't match the account's own mapping (e.g. the export gained columns):
+        // saving afterwards updates that mapping instead of adding another
         basedOn: mapper.accountProfile ? { id: mapper.accountProfile.id, name: mapper.accountProfile.name } : null,
         editing: true,
       }
@@ -347,6 +345,24 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
         : waiting.length > 1 ? `${waiting.length} קבצים ממתינים למיפוי ולא ייובאו עכשיו` : null
   // the shown file's own reason first, then the batch's
   const blockReason = progress ? null : shownWaiting && queue.length > 0 ? `${shownWaiting} · ${othersWaiting}` : shownWaiting ?? othersWaiting
+  // Something required is missing in the shown file's mapping: the page takes the user to it
+  const shownFix = shownWaiting && !progress ? shownCheck?.fix : undefined
+  function goToFix() {
+    if (!shownFix || !mapping) return
+    if (!mapping.group.editing) updateGroup(mapping.key, { editing: true })
+    // after the mapper has rendered (it may have just opened)
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const target = document.getElementById(MAPPER_ANCHORS[shownFix])
+        if (!target) return
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+        const field =
+          target.querySelector<HTMLElement>('[aria-invalid="true"]') ?? target.querySelector<HTMLElement>('select, input')
+        field?.focus({ preventScroll: true })
+      })
+    )
+  }
   // offer to save each hand-made mapping once a file imported with it
   const toSave = [
     ...new Set(
@@ -446,11 +462,6 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             )}
           </div>
 
-          {shown.preview.customImport && mapping && !shownDone && (
-            <p className="text-xs text-muted-foreground">
-              {accountName} מוגדר לייבוא לפי מיפוי מותאם במקום הייבוא המובנה. אפשר לשנות את זה בחלון עריכת החשבון.
-            </p>
-          )}
           {mapping ? (
             <>
               {mapping.group.profile && !shownDone && (
@@ -506,9 +517,14 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    onClick={importAll}
-                    disabled={busy || reading || queue.length === 0}
-                    className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-quick ease-out active:scale-[0.97] disabled:opacity-50"
+                    // blocked by a missing field: still clickable, and takes the user to it
+                    onClick={queue.length > 0 ? importAll : goToFix}
+                    disabled={busy || reading || (queue.length === 0 && !shownFix)}
+                    aria-disabled={queue.length === 0 || undefined}
+                    className={cn(
+                      'px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-quick ease-out active:scale-[0.97] disabled:opacity-50',
+                      queue.length === 0 && 'opacity-50'
+                    )}
                   >
                     {importLabel}
                   </button>
@@ -523,7 +539,23 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                   {reading && !busy && <span className="text-xs text-muted-foreground">ממתין שכל הקבצים ייקראו...</span>}
                 </div>
                 {blockReason && !reading && !busy && (
-                  <p className="text-xs text-muted-foreground" aria-live="polite">{blockReason}</p>
+                  shownFix ? (
+                    <div role="alert" className="flex flex-wrap items-start gap-x-3 gap-y-1.5 rounded-lg border border-destructive/50 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive">
+                      <span className="flex min-w-0 flex-1 basis-64 items-start gap-1.5 text-pretty">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        {blockReason}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={goToFix}
+                        className="shrink-0 font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      >
+                        הראה לי
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground" aria-live="polite">{blockReason}</p>
+                  )
                 )}
                 {progress && progress.n > 1 && (
                   <div aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">

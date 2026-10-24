@@ -24,9 +24,6 @@ model Account {
   /// Account colour (ENG-66): a palette key from lib/accounts/colors.ts, a #rrggbb
   /// hex, or "glass". Null means the brand default (issuer/bank face, else positional).
   color                  String?
-  /// ENG-69: a Leumi or Max account imports through its linked ImportProfile
-  /// instead of the built-in parser. Ignored for providers without one.
-  customImport           Boolean                 @default(false)
   archived               Boolean                 @default(false)
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]
@@ -48,6 +45,8 @@ model BankTransaction {
   credit              Float    @default(0)
   balance             Float
   note                String   @default("")
+  /// The bank's reference (אסמכתא); "" when the file has none
+  reference           String   @default("")
   /// A Category name (expense for debits, income for credits); null = uncategorized.
   /// Card-payment rows never get one (lib/insights/bank-categories.ts).
   category            String?
@@ -73,6 +72,10 @@ model CreditCardTransaction {
   chargedAmount        Float
   originalAmount       Float
   originalCurrency     String
+  /// The currency the card charged in (a foreign purchase is charged in ₪)
+  chargedCurrency      String   @default("₪")
+  /// The issuer's id of the transaction (Isracard's voucher number); "" when the file has none
+  reference            String   @default("")
   cardLastFour         String
   transactionType      String
   notes                String   @default("")

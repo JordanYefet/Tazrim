@@ -32,6 +32,10 @@ function req(fields: { file?: File; accountId?: string; force?: string; mapping?
 }
 
 const leumiFile = () => new File([new Uint8Array(leumiHtml())], 'bank-fake.xls')
+/** What the upload page sends with a file: a mapping (the suggestion for the file) */
+const mappingOf = (buf: Buffer, name: string, kind: 'bank' | 'card') => JSON.stringify(suggestMapping(sheetOf(buf, name), kind))
+const leumiMapping = () => mappingOf(leumiHtml(), 'bank-fake.xls', 'bank')
+const maxMapping = () => mappingOf(maxXlsx(), 'card-fake.xlsx', 'card')
 
 describe('POST /api/upload', () => {
   it('400 without a file or account', async () => {
@@ -45,11 +49,11 @@ describe('POST /api/upload', () => {
   })
 
   it('imports into the chosen account, and a second import adds nothing', async () => {
-    const first = await POST(req({ file: leumiFile(), accountId: 'acct_leumi' }))
+    const first = await POST(req({ file: leumiFile(), accountId: 'acct_leumi', mapping: leumiMapping() }))
     expect(first.status).toBe(200)
     expect(await first.json()).toEqual({ created: 2, skipped: 0, skippedRows: [] })
 
-    const second = await POST(req({ file: leumiFile(), accountId: 'acct_leumi' }))
+    const second = await POST(req({ file: leumiFile(), accountId: 'acct_leumi', mapping: leumiMapping() }))
     const body = await second.json()
     expect(body).toMatchObject({ created: 0, skipped: 2 })
     expect(body.skippedRows).toHaveLength(2)
@@ -61,10 +65,10 @@ describe('POST /api/upload', () => {
 
   it('re-uploads a card file and imports the skipped rows the user chose', async () => {
     const card = () => new File([new Uint8Array(maxXlsx())], 'card-fake.xlsx')
-    expect(await (await POST(req({ file: card(), accountId: 'acct_max' }))).json()).toMatchObject({ created: 1 })
-    const again = await (await POST(req({ file: card(), accountId: 'acct_max' }))).json()
+    expect(await (await POST(req({ file: card(), accountId: 'acct_max', mapping: maxMapping() }))).json()).toMatchObject({ created: 1 })
+    const again = await (await POST(req({ file: card(), accountId: 'acct_max', mapping: maxMapping() }))).json()
     expect(again).toMatchObject({ created: 0, skipped: 1 })
-    const forced = await (await POST(req({ file: card(), accountId: 'acct_max', force: '[0]' }))).json()
+    const forced = await (await POST(req({ file: card(), accountId: 'acct_max', force: '[0]', mapping: maxMapping() }))).json()
     expect(forced).toMatchObject({ created: 1, skipped: 0 })
   })
 
@@ -74,10 +78,10 @@ describe('POST /api/upload', () => {
     }
   })
 
-  it('422 UNSUPPORTED_PROVIDER for an account without a parser', async () => {
+  it('400 INVALID_MAPPING when a file comes without a mapping', async () => {
     const res = await POST(req({ file: new File([new Uint8Array(OTHER_CSV)], 'o.csv'), accountId: 'acct_test_other' }))
-    expect(res.status).toBe(422)
-    expect((await res.json()).code).toBe('UNSUPPORTED_PROVIDER')
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe('INVALID_MAPPING')
   })
 
   it('imports through a mapping sent as JSON, and 400s for bad JSON', async () => {

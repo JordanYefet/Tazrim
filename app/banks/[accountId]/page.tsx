@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { cn } from '@/lib/utils/cn'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { bankStats } from '@/components/bank/bank-summary-cards'
@@ -239,6 +241,7 @@ export default async function BankAccountPage({
           fetchParams={hasMore ? fetchSp.toString() : undefined}
           unusual={unusual}
           recurring={recurring}
+          initialColumns={parseColumns((await cookies()).get(columnsCookie('bank'))?.value, 'bank')}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
           activeCategory={params.category}

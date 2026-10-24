@@ -1,5 +1,4 @@
 import type { ImportProfile } from '@prisma/client'
-import { builtInLayoutFor } from './builtin-layouts'
 import { parseSnapshot } from './snapshot'
 
 /** What the UI sees of a saved profile (the mapping itself stays on the server). */
@@ -15,11 +14,9 @@ export interface ProfileView {
    * so the mapping opens without a file
    */
   fileless: boolean
-  /** Linked to a Leumi / Max account that currently uses the built-in importer */
-  idle: boolean
 }
 
-type LinkedAccount = { id: string; displayName: string; kind?: string; provider?: string; customImport?: boolean }
+type LinkedAccount = { id: string; displayName: string }
 
 export function toProfileView(p: ImportProfile & { account?: LinkedAccount | null }): ProfileView {
   const a = p.account
@@ -31,6 +28,5 @@ export function toProfileView(p: ImportProfile & { account?: LinkedAccount | nul
     account: a ? { id: a.id, displayName: a.displayName } : null,
     updatedAt: p.updatedAt.toISOString(),
     fileless: parseSnapshot(p.headers) !== null || p.headerSignature.trim() !== '',
-    idle: !!a && a.kind !== undefined && a.provider !== undefined && !a.customImport && builtInLayoutFor({ kind: a.kind, provider: a.provider }) !== null,
   }
 }

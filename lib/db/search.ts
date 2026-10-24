@@ -84,6 +84,7 @@ export async function searchTransactions(filters: SearchFilters): Promise<Search
         amount: tx.debit - tx.credit,
         ...(tx.category ? { category: tx.category } : {}),
         ...(tx.note ? { note: tx.note } : {}),
+        ...(tx.reference ? { reference: tx.reference } : {}),
         ignored: tx.ignored,
       })
     ),
@@ -100,6 +101,7 @@ export async function searchTransactions(filters: SearchFilters): Promise<Search
         amount: tx.chargedAmount,
         category: tx.categoryOverride ?? tx.category,
         ...(tx.notes ? { note: tx.notes } : {}),
+        ...(tx.reference ? { reference: tx.reference } : {}),
         ignored: tx.ignored,
       })
     ),

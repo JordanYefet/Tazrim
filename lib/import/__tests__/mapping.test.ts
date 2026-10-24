@@ -8,13 +8,11 @@ import {
   parseDate,
   suggestMapping,
   validateMapping,
+  withLaterFields,
   type ImportMapping,
 } from '../mapping'
 import { bankSignedCsv, calXlsx, cardWithBillingColumnCsv, sheetOf } from './fixtures'
 import { leumiHtml, maxXlsx } from '@/lib/upload/__tests__/fixtures'
-import { parseMaxCC } from '@/lib/parsers/max-cc'
-import { parseBankLeumi } from '@/lib/parsers/bank-leumi'
-import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
 
 // All values are made up.
 
@@ -131,10 +129,16 @@ describe('a Cal-shaped card export (billing date in the metadata line)', () => {
     expect(errors[0]).toMatchObject({ row: 0, field: 'billingDate' })
   })
 
-  it('takes a fixed billing date', () => {
-    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'fixed', date: '2030-03-02' } }
-    const { rows } = applyMapping(sheet, m, 'card')
-    expect(rows[0].billingDate).toEqual(day(2030, 3, 2))
+  it('a billing day gives each row its own billing date, instalments included', () => {
+    // billed on the 10th for the cycle that closed at the end of the previous month: the same
+    // 10/02/2030 the file states, for the January purchases and payment 3 of a November one
+    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10, closesOn: 31 } }
+    const { rows, errors } = applyMapping(sheet, m, 'card')
+    expect(errors).toEqual([])
+    expect(rows.map(r => r.billingDate)).toEqual([day(2030, 2, 10), day(2030, 2, 10), day(2030, 2, 10)])
+    // closing on the billing day itself: purchases before the 10th are billed that month
+    const sameDay: ImportMapping = { ...m, billingDate: { from: 'day', day: 10 } }
+    expect(applyMapping(sheet, sameDay, 'card').rows[0].billingDate).toEqual(day(2030, 1, 10))
   })
 
   it('flips the sign when expenses are negative in the file', () => {
@@ -172,12 +176,129 @@ describe('a card export with a billing-date column (CSV, text dates)', () => {
   })
 })
 
+describe('a card export with no billing date anywhere (e.g. Isracard)', () => {
+  const sheet = sheetOf(
+    Buffer.from(['תאריך רכישה,שם בית עסק,סכום עסקה,סכום חיוב,פירוט נוסף', '08/10/2030,עסק בדוי,40,40,', '15/10/2030,עסק בדוי אחר,25,25,', '04/07/2030,חנות בדויה,300,100,תשלום 3 מתוך 3'].join('\n')),
+    'fake.csv'
+  )
+
+  it('suggests a billing day that is not set yet, so the billing date is missing', () => {
+    const m = suggestMapping(sheet, 'card')
+    expect(m.billingDate).toEqual({ from: 'day' })
+    expect(missingFields(m, 'card')).toEqual(['billingDate'])
+    expect(applyMapping(sheet, m, 'card').errors).toEqual([{ row: -1, field: 'billingDate', message: 'לא נקבע יום החיוב' }])
+  })
+
+  it('once the day is set, each row is billed on the next billing day after its purchase', () => {
+    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10 } }
+    expect(missingFields(m, 'card')).toEqual([])
+    const { rows, errors, pending } = applyMapping(sheet, m, 'card')
+    expect(errors).toEqual([])
+    expect(pending).toBe(0)
+    expect(rows.map(r => r.billingDate)).toEqual([day(2030, 10, 10), day(2030, 11, 10), day(2030, 9, 10)])
+  })
+})
+
+describe('voucher number and the two currencies (Isracard-shaped headers)', () => {
+  const sheet = sheetOf(
+    Buffer.from(
+      [
+        "תאריך רכישה,שם בית עסק,סכום עסקה,מטבע עסקה,סכום חיוב,מטבע חיוב,מס' שובר,פירוט נוסף",
+        '02/08/2030,חנות בדויה בחו"ל,25.00,$,92.40,₪,100245,',
+        '05/08/2030,תחנת דלק בדויה,250.00,₪,250.00,₪,100478,',
+      ].join('\n')
+    ),
+    'fake.csv'
+  )
+
+  it('suggests every column, the voucher number as the reference', () => {
+    expect(suggestMapping(sheet, 'card').columns).toEqual({
+      transactionDate: 0,
+      merchant: 1,
+      originalAmount: 2,
+      originalCurrency: 3,
+      chargedAmount: 4,
+      chargedCurrency: 5,
+      reference: 6,
+      notes: 7,
+    })
+  })
+
+  it('reads them into each row', () => {
+    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10 } }
+    const { rows, errors } = applyMapping(sheet, m, 'card')
+    expect(errors).toEqual([])
+    expect(rows.map(r => [r.originalAmount, r.originalCurrency, r.chargedAmount, r.chargedCurrency, r.reference])).toEqual([
+      [25, '$', 92.4, '₪', '100245'],
+      [250, '₪', 250, '₪', '100478'],
+    ])
+  })
+
+  it('a file without them: no reference, charged in ₪', () => {
+    const plain = sheetOf(cardWithBillingColumnCsv(), 'fake.csv')
+    const row = applyMapping(plain, suggestMapping(plain, 'card'), 'card').rows[0]
+    expect(row).toMatchObject({ reference: '', chargedCurrency: '₪' })
+  })
+})
+
+describe('a mapping saved before the reference and charged currency existed', () => {
+  const sheet = sheetOf(
+    Buffer.from(["תאריך רכישה,שם בית עסק,סכום עסקה,מטבע עסקה,סכום חיוב,מטבע חיוב,מס' שובר,פירוט נוסף", '05/08/2030,תחנת דלק בדויה,250.00,₪,250.00,₪,100478,'].join('\n')),
+    'fake.csv'
+  )
+  const { reference: _r, chargedCurrency: _c, ...older } = suggestMapping(sheet, 'card').columns
+  const saved: ImportMapping = { ...suggestMapping(sheet, 'card'), columns: older, billingDate: { from: 'day', day: 10 } }
+
+  it('picks up their columns from the file', () => {
+    const m = withLaterFields(sheet, saved, 'card')
+    expect(m.columns).toMatchObject({ reference: 6, chargedCurrency: 5 })
+    expect(applyMapping(sheet, m, 'card').rows[0]).toMatchObject({ reference: '100478', chargedCurrency: '₪' })
+  })
+
+  it('keeps everything else, and leaves a column already used for another field', () => {
+    const taken: ImportMapping = { ...saved, columns: { ...older, notes: 6 } }
+    const m = withLaterFields(sheet, taken, 'card')
+    expect(m.columns.notes).toBe(6)
+    expect(m.columns.reference).toBeUndefined()
+    expect(m.columns.chargedCurrency).toBe(5)
+    expect(m.billingDate).toEqual({ from: 'day', day: 10 })
+  })
+
+  it('is the same mapping when there is nothing to add', () => {
+    const full = suggestMapping(sheet, 'card')
+    expect(withLaterFields(sheet, full, 'card')).toBe(full)
+  })
+})
+
+describe('validateMapping and the billing day', () => {
+  const sheet = sheetOf(cardWithBillingColumnCsv(), 'fake.csv')
+  const base = suggestMapping(sheet, 'card')
+
+  it('keeps a billing day and an optional closing day', () => {
+    expect(validateMapping({ ...base, billingDate: { from: 'day', day: 2, closesOn: 28 } }, 'card')).toMatchObject({
+      ok: true,
+      mapping: { billingDate: { from: 'day', day: 2, closesOn: 28 } },
+    })
+    expect(validateMapping({ ...base, billingDate: { from: 'day', day: 15 } }, 'card')).toMatchObject({
+      ok: true,
+      mapping: { billingDate: { from: 'day', day: 15 } },
+    })
+  })
+
+  it('turns a fixed date saved before the billing day into that date’s day of the month', () => {
+    expect(validateMapping({ ...base, billingDate: { from: 'fixed', date: '2030-10-10' } }, 'card')).toMatchObject({
+      ok: true,
+      mapping: { billingDate: { from: 'day', day: 10 } },
+    })
+  })
+})
+
 describe('per-row validation', () => {
   const sheet = sheetOf(
     Buffer.from(['תאריך עסקה,שם בית עסק,סכום חיוב', '01/01/2030,עסק בדוי,abc', '02/01/2030,,5', 'סיכום,,5'].join('\n')),
     'fake.csv'
   )
-  const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'fixed', date: '2030-02-10' } }
+  const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10 } }
 
   it('reports each bad cell with its row and field', () => {
     const { rows, errors } = applyMapping(sheet, m, 'card')
@@ -214,8 +335,8 @@ describe('a bank export with one signed amount', () => {
     const { rows, errors } = applyMapping(sheet, suggestMapping(sheet, 'bank'), 'bank', { fileName: 'b.csv' })
     expect(errors).toEqual([])
     expect(rows).toEqual([
-      { date: day(2030, 1, 2), originalDescription: 'משכורת בדויה', description: 'משכורת בדויה', debit: 0, credit: 5317.43, balance: 5421.15, note: '', sourceFile: 'b.csv' },
-      { date: day(2030, 1, 3), originalDescription: 'סופר בדוי', description: 'סופר בדוי', debit: 127.83, credit: 0, balance: 5293.32, note: '', sourceFile: 'b.csv' },
+      { date: day(2030, 1, 2), originalDescription: 'משכורת בדויה', description: 'משכורת בדויה', debit: 0, credit: 5317.43, balance: 5421.15, note: '', reference: '', sourceFile: 'b.csv' },
+      { date: day(2030, 1, 3), originalDescription: 'סופר בדוי', description: 'סופר בדוי', debit: 127.83, credit: 0, balance: 5293.32, note: '', reference: '', sourceFile: 'b.csv' },
     ])
   })
 
@@ -251,6 +372,11 @@ describe('validateMapping', () => {
       { ...good, billingDate: { from: 'cell', row: 2, col: 0, pattern: '(' } },
       { ...good, billingDate: { from: 'cell', row: 2, col: 0, pattern: 'x'.repeat(201) } },
       { ...good, billingDate: { from: 'fixed', date: '2030-13-01' } },
+      { ...good, billingDate: { from: 'day', day: 0 } },
+      { ...good, billingDate: { from: 'day', day: 32 } },
+      { ...good, billingDate: { from: 'day', day: 1.5 } },
+      { ...good, billingDate: { from: 'day', day: 10, closesOn: 40 } },
+      { ...good, billingDate: { from: 'day' } }, // the day not chosen yet
       { ...good, startRow: 2 }, // before the header
     ]
     for (const input of bad) expect(validateMapping(input, 'card').ok, JSON.stringify(input)).toBe(false)
@@ -263,35 +389,60 @@ describe('validateMapping', () => {
   })
 })
 
-describe('parity with the built-in parsers', () => {
-  const strip = (t: ParsedCCTransaction) => {
-    const { cardProvider: _p, ...rest } = t
-    return rest
-  }
-
-  it('MAX: the suggested mapping yields the same transactions as parseMaxCC', () => {
-    for (const buf of [maxXlsx(), maxXlsx('קטגוריה בדויה אחרת')]) {
-      const sheet = sheetOf(buf)
-      const m = suggestMapping(sheet, 'card')
-      expect(m.billingDate).toEqual({ from: 'column' })
-      const mapped = applyMapping(sheet, m, 'card')
-      expect(mapped.errors).toEqual([])
-      expect(mapped.rows.map(strip)).toEqual(parseMaxCC(buf).transactions.map(strip))
-    }
+describe('Leumi and Max exports (no built-in readers: the mapper finds the columns by name)', () => {
+  it('Max: every column is suggested and the row reads in full', () => {
+    const sheet = sheetOf(maxXlsx())
+    const m = suggestMapping(sheet, 'card')
+    expect(m.headerRow).toBe(3)
+    expect(m.billingDate).toEqual({ from: 'column' })
+    expect(missingFields(m, 'card')).toEqual([])
+    const mapped = applyMapping(sheet, m, 'card')
+    expect(mapped.errors).toEqual([])
+    expect(mapped.rows).toHaveLength(1)
+    expect(mapped.rows[0]).toMatchObject({
+      transactionDate: day(2030, 1, 7),
+      billingDate: day(2030, 2, 10),
+      originalMerchantName: 'עסק בדוי',
+      merchantName: 'עסק בדוי',
+      category: 'קטגוריה בדויה',
+      chargedAmount: 15,
+      originalAmount: 15,
+      originalCurrency: '₪',
+      cardLastFour: '0000',
+      transactionType: 'רגילה',
+    })
   })
 
-  it('Leumi: the suggested mapping yields the same transactions as parseBankLeumi', () => {
-    const buf = leumiHtml([
-      ['05/01/2030', 'חנות בדויה', '1,212.00', '0.00'],
-      ['06/01/2030', 'הפקדה בדויה', '0.00', '31.17'],
-      ['07/01/2030', 'עמלה בדויה', '3.57', '0.00'],
-    ])
-    const sheet = sheetOf(buf, 'bank-fake.xls')
+  const leumi = (extra: boolean) =>
+    Buffer.from(`<HTML dir="RTL"><body>
+<table><tr><td>תנועות בחשבון</td></tr>
+<tr><td>תאריך</td>${extra ? '<td>תאריך ערך</td>' : ''}<td>תיאור</td>${extra ? '<td>אסמכתא</td>' : ''}<td>בחובה</td><td>בזכות</td><td>היתרה בש"ח</td><td>הערה</td></tr>
+<tr><td>05/01/2030</td>${extra ? '<td>06/01/2030</td>' : ''}<td>חנות בדויה</td>${extra ? '<td>12345</td>' : ''}<td>1,212.00</td><td>0.00</td><td>100.00</td><td></td></tr>
+<tr><td>06/01/2030</td>${extra ? '<td>06/01/2030</td>' : ''}<td>הפקדה בדויה</td>${extra ? '<td>678</td>' : ''}<td>0.00</td><td>31.17</td><td>131.17</td><td>הערה בדויה</td></tr>
+</table></body></HTML>`)
+
+  const LEUMI_ROWS = [
+    { date: day(2030, 1, 5), originalDescription: 'חנות בדויה', description: 'חנות בדויה', debit: 1212, credit: 0, balance: 100 },
+    { date: day(2030, 1, 6), originalDescription: 'הפקדה בדויה', description: 'הפקדה בדויה', debit: 0, credit: 31.17, balance: 131.17, note: 'הערה בדויה' },
+  ]
+
+  it('Leumi: the usual six columns read in full', () => {
+    const sheet = sheetOf(leumi(false), 'bank-fake.xls')
     const m = suggestMapping(sheet, 'bank')
     expect(m.amountMode).toBe('split')
     const mapped = applyMapping(sheet, m, 'bank', { fileName: 'bank-fake.xls' })
     expect(mapped.errors).toEqual([])
-    const expected: ParsedBankTransaction[] = parseBankLeumi(buf, 'bank-fake.xls').transactions
-    expect(mapped.rows).toEqual(expected)
+    expect(mapped.rows).toMatchObject(LEUMI_ROWS)
+  })
+
+  it('Leumi: an export with value date and reference columns reads the same rows', () => {
+    const sheet = sheetOf(leumi(true), 'bank-fake.xls')
+    const m = suggestMapping(sheet, 'bank')
+    // the transaction date, not the value date; the אסמכתא is the reference, not an amount
+    expect(m.columns).toMatchObject({ date: 0, description: 2, reference: 3, debit: 4, credit: 5, balance: 6, note: 7 })
+    const mapped = applyMapping(sheet, m, 'bank', { fileName: 'bank-fake.xls' })
+    expect(mapped.errors).toEqual([])
+    expect(mapped.rows).toMatchObject(LEUMI_ROWS)
+    expect(mapped.rows.map(r => r.reference)).toEqual(['12345', '678'])
   })
 })

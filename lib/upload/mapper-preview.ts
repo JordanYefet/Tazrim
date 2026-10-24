@@ -1,7 +1,7 @@
 /**
- * What the upload page needs to map a file of a provider without a built-in
- * parser: the suggested mapping, the saved profile that fits the file (if any),
- * and the header signature that groups files sharing one mapping.
+ * What the upload page needs to map a file: the suggested mapping, the saved
+ * profile that fits the file (if any), and the header signature that groups
+ * files sharing one mapping.
  */
 import type { Account } from '@prisma/client'
 import { candidateProfiles, findMatchingProfile, profileMapping } from '@/lib/db/import-profiles'
@@ -10,6 +10,7 @@ import {
   headerSignature,
   mappingKindOf,
   suggestMapping,
+  withLaterFields,
   type ImportMapping,
   type MappingKind,
 } from '@/lib/import/mapping'
@@ -45,7 +46,9 @@ export async function mapperFor(
     ? suggestMapping(sheet, kind, sheetIndex)
     : suggestMapping({ rows: [] }, kind)
 
-  const match = await findMatchingProfile(account, workbook)
+  const saved = await findMatchingProfile(account, workbook)
+  // a saved mapping shows (and imports) the fields added since it was saved, too
+  const match = saved && { ...saved, mapping: withLaterFields(workbook.sheets[saved.mapping.sheet] ?? { rows: [] }, saved.mapping, kind) }
   const mapping = match?.mapping ?? suggestion
   const signatureSheet = workbook.sheets[mapping.sheet]
   const own = (await candidateProfiles(account)).find(p => p.accountId === account.id)

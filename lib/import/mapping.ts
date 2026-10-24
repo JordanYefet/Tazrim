@@ -1,5 +1,5 @@
 /**
- * Column mapping for exports that have no built-in parser (ENG-23).
+ * Column mapping: how every export is read (ENG-23).
  *
  * A mapping says where the header is, which column holds which field, where a
  * card's billing date comes from, and how dates and numbers are written. It
@@ -18,6 +18,7 @@
  */
 import type { RawCell, RawSheet } from '@/lib/parsers/raw-grid'
 import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
+import { billingDateByDay } from './billing-day'
 
 export type MappingKind = 'card' | 'bank'
 
@@ -28,12 +29,14 @@ export const CARD_FIELDS = [
   'chargedAmount',
   'originalAmount',
   'originalCurrency',
+  'chargedCurrency',
+  'reference',
   'category',
   'cardLastFour',
   'transactionType',
   'notes',
 ] as const
-export const BANK_FIELDS = ['date', 'description', 'debit', 'credit', 'amount', 'balance', 'note'] as const
+export const BANK_FIELDS = ['date', 'description', 'debit', 'credit', 'amount', 'balance', 'reference', 'note'] as const
 
 export type CardField = (typeof CARD_FIELDS)[number]
 export type BankField = (typeof BANK_FIELDS)[number]
@@ -45,7 +48,9 @@ export const FIELD_LABELS: Record<MappingField, string> = {
   merchant: 'בית עסק',
   chargedAmount: 'סכום חיוב',
   originalAmount: 'סכום עסקה',
-  originalCurrency: 'מטבע',
+  originalCurrency: 'מטבע עסקה',
+  chargedCurrency: 'מטבע חיוב',
+  reference: 'אסמכתא',
   category: 'קטגוריה',
   cardLastFour: '4 ספרות',
   transactionType: 'סוג עסקה',
@@ -81,8 +86,11 @@ export type BillingDateSource =
   | { from: 'column' }
   /** A date inside one cell, e.g. "עסקאות לחיוב ב-10/01/2030". `pattern`: a regex whose group 1 is the date */
   | { from: 'cell'; row: number; col: number; pattern?: string }
-  /** YYYY-MM-DD */
-  | { from: 'fixed'; date: string }
+  /**
+   * Billed on the same day every month (lib/import/billing-day.ts): each row's billing date
+   * comes from its purchase date. `day` unset: not chosen yet (the mapping is incomplete).
+   */
+  | { from: 'day'; day?: number; closesOn?: number }
 
 export interface ImportMapping {
   /** Sheet index in the workbook */
@@ -265,18 +273,28 @@ export function dateFromCell(value: RawCell | undefined, pattern?: string): Date
 export function requiredFields(mapping: Pick<ImportMapping, 'billingDate' | 'amountMode'>, kind: MappingKind): MappingField[] {
   if (kind === 'card') {
     const req: MappingField[] = ['transactionDate', 'merchant', 'chargedAmount']
-    if (!mapping.billingDate || mapping.billingDate.from === 'column') req.push('billingDate')
+    const source = mapping.billingDate
+    if (!source || source.from === 'column' || (source.from === 'day' && !isDayOfMonth(source.day))) req.push('billingDate')
     return req
   }
   return ['date', 'description', ...(mapping.amountMode === 'signed' ? (['amount'] as const) : (['debit'] as const))]
 }
 
-/** Required fields with no column. Bank split mode needs debit or credit (reported as "debit"). */
+/** 1-31 */
+export const isDayOfMonth = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 31
+
+/**
+ * Required fields with no column. Bank split mode needs debit or credit (reported as "debit").
+ * A card's billing date is missing when its source is a column and none is chosen, or a
+ * billing day that isn't set yet.
+ */
 export function missingFields(
   mapping: Pick<ImportMapping, 'columns' | 'billingDate' | 'amountMode'>,
   kind: MappingKind
 ): MappingField[] {
-  const has = (f: MappingField) => mapping.columns[f] !== undefined
+  const source = mapping.billingDate
+  const has = (f: MappingField) =>
+    f === 'billingDate' && source?.from === 'day' ? isDayOfMonth(source.day) : mapping.columns[f] !== undefined
   return requiredFields(mapping, kind).filter(f =>
     kind === 'bank' && f === 'debit' ? !has('debit') && !has('credit') : !has(f)
   )
@@ -295,19 +313,15 @@ const ERR = {
   amount: 'סכום לא תקין',
   noAmount: 'אין סכום בחובה או בזכות',
   billing: 'לא נמצא תאריך חיוב בתא שנבחר',
-  fixed: 'תאריך החיוב אינו תקין',
 }
 
 function isBlank(row: RawCell[] | undefined): boolean {
   return !row || row.every(c => c === null || (typeof c === 'string' && c.trim() === ''))
 }
 
-/** Billing date for every row when it does not come from a column; an error when it can't be read. */
+/** Billing date for every row when it comes from one cell; an error when it can't be read. */
 function sharedBillingDate(sheet: RawSheet, source: BillingDateSource | undefined): Date | MappingError | null {
-  if (!source || source.from === 'column') return null
-  if (source.from === 'fixed') {
-    return parseDate(source.date, 'YYYY-MM-DD') ?? { row: -1, field: 'billingDate', message: ERR.fixed }
-  }
+  if (!source || source.from !== 'cell') return null
   return (
     dateFromCell(sheet.rows[source.row]?.[source.col], source.pattern) ?? {
       row: source.row,
@@ -326,7 +340,11 @@ export function applyMapping<K extends MappingKind>(
   const result: MappingResult<ParsedFor<K>> = { rows: [], rowNumbers: [], errors: [], skipped: 0, pending: 0, outcomes: [] }
   const missing = missingFields(mapping, kind)
   if (missing.length) {
-    result.errors = missing.map(field => ({ row: -1, field, message: 'לא נבחרה עמודה' }))
+    result.errors = missing.map(field => ({
+      row: -1,
+      field,
+      message: field === 'billingDate' && mapping.billingDate?.from === 'day' ? 'לא נקבע יום החיוב' : 'לא נבחרה עמודה',
+    }))
     return result
   }
 
@@ -365,7 +383,7 @@ export function applyMapping<K extends MappingKind>(
     if (date && mapping.skipInvalid) {
       const empty = (f: MappingField) => mapping.columns[f] !== undefined && text(col(row, f)) === ''
       // Approved, not billed yet: comes back billed in a later statement
-      if (kind === 'card' && !billing && empty('billingDate')) {
+      if (kind === 'card' && mapping.billingDate?.from === 'column' && empty('billingDate')) {
         result.pending++
         result.outcomes.push({ row: r, status: 'skipped', reason: 'pending' })
         continue
@@ -409,8 +427,11 @@ export function applyMapping<K extends MappingKind>(
 
     let tx: ParsedCCTransaction | ParsedBankTransaction | null = null
     if (kind === 'card') {
+      const source = mapping.billingDate
       let billingDate = billing
-      if (!billingDate) {
+      if (source?.from === 'day') {
+        if (date) billingDate = billingDateByDay(date, { day: source.day!, closesOn: source.closesOn }, text(col(row, 'notes')))
+      } else if (!billingDate) {
         billingDate = parseDate(col(row, 'billingDate'), mapping.dateFormat)
         if (!billingDate) fail('billingDate', text(col(row, 'billingDate')) ? ERR.date : ERR.empty)
       }
@@ -428,6 +449,8 @@ export function applyMapping<K extends MappingKind>(
           chargedAmount: sign * charged,
           originalAmount: sign * (original ?? charged),
           originalCurrency: text(col(row, 'originalCurrency')) || '₪',
+          chargedCurrency: text(col(row, 'chargedCurrency')) || '₪',
+          reference: text(col(row, 'reference')),
           cardLastFour: text(col(row, 'cardLastFour')),
           transactionType: text(col(row, 'transactionType')),
           notes: text(col(row, 'notes')),
@@ -462,6 +485,7 @@ export function applyMapping<K extends MappingKind>(
           credit,
           balance: balance ?? 0,
           note: text(col(row, 'note')),
+          reference: text(col(row, 'reference')),
           sourceFile: opts.fileName ?? '',
         }
       }
@@ -487,12 +511,17 @@ const SYNONYMS: Record<MappingKind, Partial<Record<MappingField, string[]>>> = {
     transactionDate: ['תאריך עסקה', 'תאריך העסקה', 'תאריך רכישה', 'תאריך הרכישה', 'תאריך ביצוע', 'תאריך ביצוע העסקה', 'transaction date', 'purchase date', 'date'],
     billingDate: ['תאריך חיוב', 'תאריך החיוב', 'מועד חיוב', 'מועד החיוב', 'billing date', 'charge date'],
     merchant: ['שם בית עסק', 'שם בית העסק', 'בית עסק', 'בית העסק', 'שם העסק', 'שם בעסק', 'merchant', 'merchant name', 'description'],
-    chargedAmount: ['סכום חיוב', 'סכום החיוב', 'סכום לחיוב', 'סכום חיוב בש"ח', 'charged amount', 'charge amount', 'amount'],
+    // Cal's export names it "סכום בש"ח" (the shekel amount charged)
+    chargedAmount: ['סכום חיוב', 'סכום החיוב', 'סכום לחיוב', 'סכום חיוב בש"ח', 'סכום בש"ח', 'סכום בשח', 'charged amount', 'charge amount', 'amount'],
     originalAmount: ['סכום עסקה', 'סכום העסקה', 'סכום עסקה מקורי', 'סכום מקורי', 'סכום קנייה', 'original amount', 'transaction amount'],
     originalCurrency: ['מטבע עסקה מקורי', 'מטבע עסקה', 'מטבע מקורי', 'מטבע', 'currency', 'original currency'],
     category: ['ענף', 'קטגוריה', 'ענף פעילות', 'category', 'sector'],
     cardLastFour: ['4 ספרות אחרונות של כרטיס האשראי', '4 ספרות אחרונות', 'ספרות אחרונות', 'כרטיס', 'card', 'last 4'],
     transactionType: ['סוג עסקה', 'סוג העסקה', 'סוג', 'type', 'transaction type'],
+    // The currency the card charged in (a foreign purchase is charged in shekels)
+    chargedCurrency: ['מטבע חיוב', 'מטבע החיוב', 'billing currency', 'charge currency', 'charged currency'],
+    // The issuer's id of the transaction: Isracard's voucher number
+    reference: ["מס' שובר", 'מס שובר', 'מספר שובר', 'שובר', 'אסמכתא', "מס' אסמכתא", 'מספר אסמכתא', 'reference', 'voucher', 'voucher number'],
     notes: ['הערות', 'הערה', 'פירוט נוסף', 'פרטים', 'notes', 'details'],
   },
   bank: {
@@ -502,6 +531,7 @@ const SYNONYMS: Record<MappingKind, Partial<Record<MappingField, string[]>>> = {
     credit: ['בזכות', 'זכות', 'זיכוי', 'credit'],
     amount: ['סכום', 'סכום בש"ח', 'סכום התנועה', 'amount'],
     balance: ['היתרה בש"ח', 'יתרה בש"ח', 'יתרה', 'היתרה', 'balance'],
+    reference: ['אסמכתא', 'אסמכתה', "מס' אסמכתא", 'מספר אסמכתא', 'reference', 'reference number'],
     note: ['הערה', 'הערות', 'note', 'notes'],
   },
 }
@@ -597,8 +627,10 @@ export function suggestMapping(
     number,
   }
   if (kind === 'card') {
+    // a billing-date column, else a full date above the table, else a billing day the user sets
     const cell = columns.billingDate === undefined ? findBillingDateCell(sheet, headerRow) : null
-    mapping.billingDate = cell ? { from: 'cell', row: cell.row, col: cell.col } : { from: 'column' }
+    mapping.billingDate =
+      columns.billingDate !== undefined ? { from: 'column' } : cell ? { from: 'cell', row: cell.row, col: cell.col } : { from: 'day' }
     // Card files list charges positive; a file where most amounts are negative lists them negative
     mapping.expensesNegative = amounts.length > 0 && negatives > amounts.length / 2
   } else {
@@ -609,6 +641,28 @@ export function suggestMapping(
   }
   if (kind === 'bank' && mapping.amountMode === 'split') delete columns.amount
   return mapping
+}
+
+/** Fields the mapper learned after mappings were already being saved */
+const LATER_FIELDS: readonly MappingField[] = ['reference', 'chargedCurrency']
+
+/**
+ * A saved mapping made before LATER_FIELDS existed doesn't have them: it picks up the
+ * file's column for each one its header names, when that column isn't used for another
+ * field. Everything the mapping already says stays as it is.
+ */
+export function withLaterFields(sheet: Pick<RawSheet, 'rows'>, mapping: ImportMapping, kind: MappingKind): ImportMapping {
+  const allowed = fieldsFor(kind) as readonly MappingField[]
+  const used = new Set(Object.values(mapping.columns))
+  let columns = mapping.columns
+  for (const field of LATER_FIELDS) {
+    if (!allowed.includes(field) || columns[field] !== undefined) continue
+    const c = (sheet.rows[mapping.headerRow] ?? []).findIndex(cell => fieldForHeader(cell, kind) === field)
+    if (c === -1 || used.has(c)) continue
+    columns = { ...columns, [field]: c }
+    used.add(c)
+  }
+  return columns === mapping.columns ? mapping : { ...mapping, columns }
 }
 
 /**
@@ -628,7 +682,7 @@ export function withHeaderRow(sheet: Pick<RawSheet, 'rows'>, mapping: ImportMapp
   if (kind === 'card') {
     const cur = mapping.billingDate
     if (s.columns.billingDate !== undefined) next.billingDate = { from: 'column' }
-    else if (s.billingDate?.from === 'cell' && cur?.from !== 'fixed') next.billingDate = s.billingDate
+    else if (s.billingDate?.from === 'cell' && cur?.from !== 'day') next.billingDate = s.billingDate
     else if (cur?.from === 'cell' && cur.row >= headerRow) next.billingDate = { from: 'column' }
   } else if (Object.keys(s.columns).length) {
     next.amountMode = s.amountMode
@@ -709,10 +763,21 @@ export function validateMapping(input: unknown, kind: MappingKind): ValidateResu
         }
       }
       mapping.billingDate = { from: 'cell', row, col, ...(pattern !== undefined ? { pattern: pattern as string } : {}) }
+    } else if (billingDate.from === 'day') {
+      const { day, closesOn } = billingDate
+      if (day !== undefined && !isDayOfMonth(day)) return fail('יום החיוב לא תקין')
+      if (closesOn !== undefined && closesOn !== null && !isDayOfMonth(closesOn)) return fail('יום סגירת המחזור לא תקין')
+      mapping.billingDate = {
+        from: 'day',
+        ...(day !== undefined ? { day } : {}),
+        ...(isDayOfMonth(closesOn) ? { closesOn } : {}),
+      }
     } else if (billingDate.from === 'fixed') {
-      if (typeof billingDate.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(billingDate.date) || !parseDate(billingDate.date, 'YYYY-MM-DD'))
-        return fail('תאריך החיוב אינו תקין')
-      mapping.billingDate = { from: 'fixed', date: billingDate.date }
+      // Mappings saved before the billing day: a fixed date meant that file's month only;
+      // its day of the month is the card's billing day
+      const date = typeof billingDate.date === 'string' ? parseDate(billingDate.date, 'YYYY-MM-DD') : null
+      if (!date) return fail('תאריך החיוב אינו תקין')
+      mapping.billingDate = { from: 'day', day: date.getDate() }
     } else return fail('חסר מקור לתאריך החיוב')
   } else {
     if (amountMode !== 'split' && amountMode !== 'signed') return fail('מצב סכום לא תקין')

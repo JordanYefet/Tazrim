@@ -12,6 +12,10 @@ import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
+import { ColumnPicker } from '@/components/ui/column-picker'
+import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
+
+const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 
 interface BankTx {
   id: string
@@ -22,6 +26,7 @@ interface BankTx {
   credit: number
   balance: number
   note: string
+  reference?: string
   category: string | null
   categoryManual: boolean
   ignored: boolean
@@ -40,6 +45,7 @@ export function BankTransactionsTable({
   fetchParams,
   unusual = {},
   recurring = {},
+  initialColumns = [],
   expenseCategories = [],
   incomeCategories = [],
   activeCategory,
@@ -63,7 +69,10 @@ export function BankTransactionsTable({
   unusual?: Record<string, UnusualFlag[]>
   /** The recurring series each transaction is in, by id (ENG-71) */
   recurring?: Record<string, RowSeries>
+  /** Optional columns to show (the page reads the cookie, lib/tables/columns.ts) */
+  initialColumns?: string[]
 }) {
+  const [columns, setColumns] = useState(initialColumns as BankColumn[])
   const router = useRouter()
   const params = useSearchParams()
   const [transactions, setTransactions] = useState(initial)
@@ -192,15 +201,18 @@ export function BankTransactionsTable({
             </div>
           )}
         </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={!!showIgnored}
-            onChange={toggleShowIgnored}
-            className="accent-primary w-3.5 h-3.5"
-          />
-          הצג מוסתרים
-        </label>
+        <div className="flex items-center gap-3">
+          <ColumnPicker kind="bank" shown={columns} onChange={next => setColumns(next as BankColumn[])} />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!showIgnored}
+              onChange={toggleShowIgnored}
+              className="accent-primary w-3.5 h-3.5"
+            />
+            הצג מוסתרים
+          </label>
+        </div>
       </div>
 
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
@@ -211,7 +223,7 @@ export function BankTransactionsTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ''].map((h, i) => (
+                {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -286,10 +298,18 @@ export function BankTransactionsTable({
                       </span>
                     )}
                   </td>
+                  {columns.includes('reference') && (
+                    <td className={cn('py-2.5 px-4 whitespace-nowrap text-xs text-muted-foreground tabular-nums', tx.ignored && 'line-through')}>
+                      {tx.reference && <span dir="ltr">{tx.reference}</span>}
+                    </td>
+                  )}
                   <td className="py-2.5 px-4 text-center whitespace-nowrap">
-                    {/* Mark as recurring (ENG-71): expenses only */}
-                    {!tx.ignored && tx.debit > 0 && (
+                    {/* Mark as recurring (ENG-71): expenses only. Other rows keep its place empty,
+                        so the hide button sits in the same spot on every row */}
+                    {!tx.ignored && tx.debit > 0 ? (
                       <MarkRecurringButton source="bank" transactionId={tx.id} seriesName={recurring[tx.id]?.name} className="me-0.5 align-middle max-sm:hidden" />
+                    ) : (
+                      <span aria-hidden className="me-0.5 inline-block h-7 w-7 align-middle max-sm:hidden" />
                     )}
                     <button
                       onClick={() => toggleIgnored(tx)}
@@ -361,7 +381,8 @@ function CategoryCell({
   return (
     <div className="space-y-1.5">
       <select
-        className={cn('text-xs', !value && 'text-muted-foreground')}
+        // one width for every row, so the column lines up (a long name is cut by the select)
+        className={cn('w-36 text-xs', !value && 'text-muted-foreground')}
         value={value ?? ''}
         aria-label="קטגוריה"
         onChange={e => onPick(e.target.value || null)}

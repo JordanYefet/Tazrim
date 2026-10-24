@@ -104,8 +104,10 @@ describe('generateLinesTile', () => {
     expect(Math.abs(a - (paths.length - a))).toBeLessThanOrEqual(Math.ceil(paths.length / 3))
   })
 
-  it('is the same for the same seed and different for another', () => {
-    expect(generateLinesTile({ seed: 3 }).paths).toEqual(generateLinesTile({ seed: 3 }).paths)
-    expect(generateLinesTile({ seed: 3 }).paths).not.toEqual(paths)
+  // Generates two tiles (each well under a second here, a few on a slow CI machine)
+  it('is the same for the same seed and different for another', { timeout: 20_000 }, () => {
+    const three = generateLinesTile({ seed: 3 }).paths
+    expect(generateLinesTile({ seed: 3 }).paths).toEqual(three)
+    expect(three).not.toEqual(paths)
   })
 })

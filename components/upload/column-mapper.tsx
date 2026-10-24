@@ -11,6 +11,7 @@ import {
   DATE_FORMATS,
   FIELD_LABELS,
   findBillingDateCell,
+  missingFields,
   normalizeHeader,
   requiredFields,
   suggestMapping,
@@ -32,7 +33,6 @@ const PREVIEW_ROWS = 20
 const pad = (n: number) => String(n).padStart(2, '0')
 /** DD/MM/YYYY */
 export const formatDay = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
-const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 const DATE_FORMAT_LABELS: Record<DateFormat, string> = {
   auto: 'זיהוי אוטומטי',
@@ -54,7 +54,7 @@ function sheetOf(workbook: RawWorkbookPreview, mapping: ImportMapping): RawSheet
 }
 
 /**
- * Step 3 for a provider without a built-in parser: mark the header row on the
+ * Step 3, for every file: mark the header row on the
  * raw grid, pick a field per column, choose where a card's billing date comes
  * from, and (rarely) adjust formats. The parsed preview below updates live.
  */
@@ -79,6 +79,8 @@ export function ColumnMapper({
   const id = useId()
   const sheet = sheetOf(workbook, mapping)
   const required = new Set(requiredFields(mapping, kind))
+  // the billing date has its own section below, with its own message
+  const missingColumns = missingFields(mapping, kind).filter(f => f !== 'billingDate')
   const fields = selectableFields(kind)
 
   function rowTone(r: number): GridRowTone | undefined {
@@ -132,8 +134,16 @@ export function ColumnMapper({
       )}
 
       {sheet && sheet.columnCount > 0 && (
-        <fieldset className="min-w-0 space-y-2">
+        <fieldset id={MAPPER_ANCHORS.columns} className="min-w-0 scroll-mt-24 space-y-2">
           <legend className="mb-2 text-sm font-medium">מה יש בכל עמודה?</legend>
+          {missingColumns.length > 0 && (
+            <p role="alert" className="flex items-start gap-1.5 rounded-lg border border-destructive/50 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive text-pretty">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>
+                חסרות עמודות חובה: {missingColumns.map(f => FIELD_LABELS[f]).join(', ')}. בחר לכל אחת את העמודה שלה ברשימה למטה.
+              </span>
+            </p>
+          )}
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: sheet.columnCount }, (_, c) => {
               const header = normalizeHeader(sheet.rows[mapping.headerRow]?.[c] ?? null)
@@ -194,6 +204,11 @@ export function ColumnMapper({
 /** The highest header row the file-less mapper accepts (the stored header is laid out down to it) */
 const MAX_FILELESS_HEADER_ROW = 200
 
+/** Where the upload page scrolls to when something required is missing */
+export const MAPPER_ANCHORS = { columns: 'mapper-columns', billing: 'mapper-billing' } as const
+
+const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
+
 function BillingDateSource({
   sheet,
   mapping,
@@ -208,12 +223,24 @@ function BillingDateSource({
   const cell = source.from === 'cell' ? { row: source.row, col: source.col } : findBillingDateCell(sheet, mapping.headerRow)
   const cellDate = cell ? dateFromCell(sheet.rows[cell.row]?.[cell.col], source.from === 'cell' ? source.pattern : undefined) : null
   const hasColumn = mapping.columns.billingDate !== undefined
-  const fixed = source.from === 'fixed' ? source.date : ''
+  const day = source.from === 'day' ? source.day : undefined
+  const closesOn = source.from === 'day' ? source.closesOn : undefined
+  const missing = (source.from === 'column' && !hasColumn) || (source.from === 'day' && day === undefined)
 
-  const option = (value: 'column' | 'cell' | 'fixed', label: React.ReactNode, extra?: React.ReactNode) => (
+  const setDay = (next: { day?: number; closesOn?: number }) =>
+    onChange({
+      ...mapping,
+      billingDate: {
+        from: 'day',
+        ...(next.day !== undefined ? { day: next.day } : {}),
+        ...(next.closesOn !== undefined ? { closesOn: next.closesOn } : {}),
+      },
+    })
+
+  const option = (value: 'column' | 'cell' | 'day', label: React.ReactNode, extra?: React.ReactNode) => (
     <label
       className={cn(
-        'flex min-h-10 cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-sm transition-colors',
+        'flex min-h-10 cursor-pointer flex-wrap items-center gap-x-2 gap-y-2 rounded-lg border px-3 py-2 text-sm transition-colors',
         source.from === value ? 'border-primary/40 bg-primary/5' : 'hover:bg-muted/50'
       )}
     >
@@ -224,7 +251,7 @@ function BillingDateSource({
         onChange={() => {
           if (value === 'column') onChange({ ...mapping, billingDate: { from: 'column' } })
           if (value === 'cell' && cell) onChange({ ...mapping, billingDate: { from: 'cell', row: cell.row, col: cell.col } })
-          if (value === 'fixed') onChange({ ...mapping, billingDate: { from: 'fixed', date: fixed || (cellDate ? isoDay(cellDate) : '') } })
+          if (value === 'day') setDay({ day, closesOn })
         }}
         className="accent-[hsl(var(--primary))]"
       />
@@ -234,10 +261,22 @@ function BillingDateSource({
   )
 
   return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1 text-sm font-medium">תאריך החיוב</legend>
-      <p className="text-xs text-muted-foreground">החודש של כל עסקה בכרטיס נקבע לפי תאריך החיוב שלה.</p>
-      <div className="grid gap-2 sm:grid-cols-3">
+    <fieldset id={MAPPER_ANCHORS.billing} className="scroll-mt-24 space-y-2">
+      <legend className={cn('mb-1 text-sm font-medium', missing && 'text-destructive')}>תאריך החיוב *</legend>
+      <div className={cn('space-y-2', missing && 'rounded-xl border border-destructive/50 bg-destructive/[0.04] p-3')}>
+      {missing ? (
+        <p role="alert" className="flex items-start gap-1.5 text-sm text-destructive text-pretty">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            {source.from === 'day'
+              ? 'בחר באיזה יום בחודש הכרטיס מחויב. תאריך החיוב של כל עסקה ייקבע לפי תאריך הרכישה שלה.'
+              : 'בקובץ אין עמודה של תאריך חיוב. בחר אותה ברשימת העמודות למעלה, או קבע באיזה יום בחודש הכרטיס מחויב.'}
+          </span>
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">החודש של כל עסקה בכרטיס נקבע לפי תאריך החיוב שלה.</p>
+      )}
+      <div className="grid gap-2">
         {option(
           'column',
           hasColumn ? (
@@ -254,18 +293,52 @@ function BillingDateSource({
             </>
           )}
         {option(
-          'fixed',
-          'תאריך קבוע',
-          source.from === 'fixed' && (
-            <input
-              type="date"
-              aria-label="תאריך החיוב"
-              value={fixed}
-              onChange={e => onChange({ ...mapping, billingDate: { from: 'fixed', date: e.target.value } })}
-              className={cn(inputClass, 'w-full sm:w-auto')}
-            />
+          'day',
+          'יום קבוע בכל חודש',
+          source.from === 'day' && (
+            <span className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 ps-6">
+              <label className="flex items-center gap-2">
+                <span>מחויב ב־</span>
+                <select
+                  aria-label="יום החיוב בחודש"
+                  aria-invalid={day === undefined || undefined}
+                  value={day ?? ''}
+                  onChange={e => setDay({ day: e.target.value ? Number(e.target.value) : undefined, closesOn })}
+                  className={cn('w-20', day === undefined && 'border-destructive text-muted-foreground')}
+                >
+                  <option value="">בחר</option>
+                  {DAYS.map(d => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <span>לחודש</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <span>המחזור נסגר ב־</span>
+                <select
+                  aria-label="יום סגירת המחזור"
+                  value={closesOn ?? ''}
+                  onChange={e => setDay({ day, closesOn: e.target.value ? Number(e.target.value) : undefined })}
+                  className={cn('w-28', closesOn === undefined && 'text-muted-foreground')}
+                >
+                  <option value="">ביום החיוב</option>
+                  {DAYS.map(d => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="w-full text-xs text-muted-foreground text-pretty">
+                עסקה עד יום סגירת המחזור נכנסת לחיוב הקרוב, ואחריו לחיוב של החודש הבא. אפשר לראות אותו בדף הפירוט: התאריך של העסקה האחרונה
+                שנכנסה לחיוב. בתשלומים (&quot;תשלום 3 מתוך 10&quot;) כל תשלום עובר לחודש שלו.
+              </span>
+            </span>
           )
         )}
+      </div>
       </div>
     </fieldset>
   )

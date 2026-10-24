@@ -56,9 +56,11 @@ describe('POST /api/upload/preview', () => {
     })
   })
 
-  it('sends no mapper for a built-in provider', async () => {
+  it('sends the mapper for Leumi and Max too (there are no built-in readers)', async () => {
     const res = await POST(req(new File(['a,b\n1,2'], 'x.csv'), 'acct_leumi'))
-    expect((await res.json()).mapper).toBeNull()
+    const body = await res.json()
+    expect(body.importSupported).toBe(true)
+    expect(body.mapper.kind).toBe('bank')
   })
 
   it('400 when no file or no account is sent', async () => {
