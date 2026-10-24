@@ -114,3 +114,12 @@ describe('importUpload', () => {
     expect(wrong).toMatchObject({ ok: false, code: 'PARSE_ERROR', status: 422 })
   })
 })
+
+describe('importUpload with category mappings (ENG-75)', () => {
+  it("doesn't offer an issuer category that is already mapped for the provider", async () => {
+    db.exec(`INSERT INTO "CategoryMapping" ("id","provider","sourceCategory","category") VALUES ('cm_test','max','קטגוריה ממופה בדויה','קטגוריה שלי בדויה')`)
+    const file = maxXlsx('קטגוריה ממופה בדויה')
+    const res = await mod.importUpload(await acct('acct_max'), file, 'card-mapped-fake.xlsx', card(file, 'card-mapped-fake.xlsx'))
+    expect(res.ok && res.newCategories).toEqual([])
+  })
+})

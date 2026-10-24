@@ -6,7 +6,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { inputClass } from '@/components/accounts/add-account-form'
 import { DELETE_ALL_PHRASE, matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
 
-const BACKUP_DOCS = 'https://github.com/JordanYefet/Tazrim#גיבוי-ועדכון-גרסה'
+const BACKUP_DOCS = 'https://github.com/JordanYefet/Tazrim#גיבוי-ושחזור'
 
 /** What the wipe removes: every data table in lib/db/wipe.ts, in the user's words. */
 const DELETED = [

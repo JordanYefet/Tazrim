@@ -1,6 +1,8 @@
 # A release, on demand: Actions -> Release -> Run workflow (on main). Nothing to fill in:
-# the version is the next minor one after the newest release tag, 1.4.2 -> 1.5.0
-# (.github/scripts/next-version.sh, which also does patch and major).
+# the version follows the newest release tag, bumped by the biggest change among the PRs
+# merged since then, read from their title prefixes (.github/scripts/release-bump.sh):
+# only fix: PRs 1.4.2 -> 1.4.3, any feat: or unprefixed one -> 1.5.0, any <type>!: -> 2.0.0.
+# The run summary lists the PRs and what each one counted as.
 #
 #   1. the CI checks on main
 #   2. the release commit: main is merged into the `release` branch, then one
@@ -30,6 +32,9 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # the merged PRs' titles
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
@@ -39,14 +44,31 @@ jobs:
       - id: v
         name: Version and branch
         env:
-          BUMP: minor
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Releases are made from main (this run is on $GITHUB_REF)"; exit 1
           fi
+          prs=$(bash .github/scripts/release-prs.sh)
+          BUMP=$(cut -f2- <<< "$prs" | bash .github/scripts/release-bump.sh)
           VERSION=$(bash .github/scripts/next-version.sh "$BUMP")
-          echo "::notice::Releasing v$VERSION"
-          echo "### Releasing v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Releasing v$VERSION ($BUMP)"
+          {
+            echo "### Releasing v$VERSION ($BUMP)"
+            echo
+            if [ -z "$prs" ]; then
+              echo "No PRs merged since the last release, so a minor release."
+            else
+              echo "The biggest change among the PRs merged since the last release decides it: \`fix:\` patch, \`feat:\` minor, \`<type>!:\` major, no prefix minor."
+              echo
+              echo "| PR | Title | Release |"
+              echo "| --- | --- | --- |"
+              while IFS=$'\t' read -r n title; do
+                b=$(bash .github/scripts/release-bump.sh --each <<< "$title" | cut -f1)
+                echo "| #$n | ${title//|/\\|} | $b |"
+              done <<< "$prs"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
           if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
             echo "::error::v$VERSION already exists"; exit 1
           fi

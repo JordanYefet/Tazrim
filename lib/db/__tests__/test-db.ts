@@ -32,10 +32,20 @@ export interface TestDb {
 }
 
 /**
- * Creates a DB with every migration applied, or only the ones before `before`
- * (to build a legacy DB that a later migration then upgrades).
+ * The Leumi bank and MAX card many tests put their rows in. A new database has no
+ * accounts (20261025010000_no_default_accounts), so createTestDb adds these back.
  */
-export function createTestDb(opts: { before?: string } = {}): TestDb {
+export const DEFAULT_TEST_ACCOUNTS_SQL = `INSERT OR IGNORE INTO "Account" ("id", "kind", "provider", "displayName", "cardLastFour", "archived", "createdAt") VALUES
+    ('acct_leumi', 'BANK', 'leumi', 'בנק לאומי', NULL, false, 1791849600000),
+    ('acct_max', 'CREDIT_CARD', 'max', 'מקס', NULL, false, 1791849600000);`
+
+/**
+ * Creates a DB with every migration applied, or only the ones before `before`
+ * (to build a legacy DB that a later migration then upgrades). With every
+ * migration applied it also has the default test accounts, unless
+ * `defaultAccounts: false` asks for a database exactly as a new install has it.
+ */
+export function createTestDb(opts: { before?: string; defaultAccounts?: boolean } = {}): TestDb {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-test-'))
   const file = path.join(dir, 'test.db')
 
@@ -73,6 +83,7 @@ export function createTestDb(opts: { before?: string } = {}): TestDb {
     if (opts.before && name >= opts.before) break
     applyMigration(name)
   }
+  if (!opts.before && opts.defaultAccounts !== false) exec(DEFAULT_TEST_ACCOUNTS_SQL)
 
   return {
     file,

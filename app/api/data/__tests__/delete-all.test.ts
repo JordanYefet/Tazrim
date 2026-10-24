@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Prisma } from '@prisma/client'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
 import { DELETE_ALL_PHRASE, matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
+import { STARTING_CATEGORIES } from '@/lib/db/starting-categories'
 
 // All values are made up.
 
@@ -19,6 +20,7 @@ const SEED = `
     ('c1','acct_test_card',1893456000000,1893456000000,'Fake Shop','Fake Shop','cat',7,7,'ILS','0000','regular');
   INSERT INTO "TransactionAlias" ("id","provider","originalName","displayName") VALUES ('a1','max','Fake Shop','Shop');
   INSERT INTO "BankCategoryRule" ("id","provider","originalDescription","direction","category") VALUES ('bcr1','leumi','Fake Employer','IN','Fake income');
+  INSERT INTO "CategoryMapping" ("id","provider","sourceCategory","category") VALUES ('cm1','max','Fake issuer category','Fake category');
   INSERT INTO "UploadHistory" ("id","accountId","fileName","uploadedAt","recordCount") VALUES ('u1','acct_leumi','fake.xlsx',1893456000000,1);
   INSERT INTO "Category" ("id","name","createdAt") VALUES ('cat1','Fake category',1893456000000);
   INSERT INTO "RecurringSeriesOverride" ("id","key","baseKey","accountId","status","createdAt","updatedAt") VALUES
@@ -122,8 +124,14 @@ describe('POST /api/data/delete-all', () => {
     expect(body.ok).toBe(true)
     expect(body.deleted).toMatchObject({ Account: 3, BankTransaction: 1, CreditCardTransaction: 1, ImportProfile: 1 })
 
-    for (const table of dataTables()) expect(count(table), table).toBe(0)
+    for (const table of dataTables()) {
+      if (table !== 'Category') expect(count(table), table).toBe(0)
+    }
     expect(dataTables()).toEqual([...wipe.WIPE_TABLES].sort())
+    // Like a new install (ENG-76): the starting categories, and nothing else
+    expect(db.query<{ name: string; kind: string }>(`SELECT name, kind FROM "Category" ORDER BY rowid`)).toEqual(
+      STARTING_CATEGORIES.map(c => ({ name: c.name, kind: c.kind }))
+    )
     expect(count('_prisma_migrations')).toBe(migrations)
   })
 
