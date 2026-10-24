@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from './client'
+import { STARTING_CATEGORIES } from './starting-categories'
 
 /**
  * Every data table, in the order its rows are deleted: rows that point at an
@@ -30,7 +31,7 @@ export const WIPE_TABLES = (Object.keys(WIPE_ORDER) as WipeTable[]).sort((a, b) 
 /**
  * Deletes every row of every data table in one transaction (ENG-62). The
  * schema and _prisma_migrations stay, so the app opens like a fresh install,
- * with no accounts. Returns how many rows went per table.
+ * with no accounts and the starting categories. Returns how many rows went per table.
  *
  * Afterwards VACUUM rebuilds the database file, so the deleted rows don't
  * linger in its free pages. A failed VACUUM leaves the data deleted, just not
@@ -41,6 +42,8 @@ export async function wipeAllData(): Promise<Record<WipeTable, number>> {
     const counts = {} as Record<WipeTable, number>
     // Table names come from the constant above, never from input
     for (const table of WIPE_TABLES) counts[table] = await tx.$executeRawUnsafe(`DELETE FROM "${table}"`)
+    // A new install starts with the starting categories (ENG-76), so this does too
+    await tx.category.createMany({ data: STARTING_CATEGORIES })
     return counts
   })
   try {
