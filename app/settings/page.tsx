@@ -1,6 +1,5 @@
 import { listAccountsWithCounts } from '@/lib/db/accounts'
-import { hasBuiltInImport, isImportSupported } from '@/lib/upload/import'
-import { mappingKindOf } from '@/lib/import/mapping'
+import { isImportSupported } from '@/lib/upload/import'
 import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
 import { parseNewKind } from '@/components/accounts/account-kinds'
 import { ThemeSelector } from '@/components/layout/theme-selector'
@@ -39,9 +38,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     archived: a.archived,
     transactionCount: a.transactionCount,
     uploadCount: a.counts.uploads,
-    importSupported: isImportSupported(a) || mappingKindOf(a.kind) !== null,
-    builtInImport: isImportSupported(a),
-    customImport: a.customImport && hasBuiltInImport(a),
+    importSupported: isImportSupported(a),
     importProfile: ownProfile(a),
     positionColor: positionColor(a.kind, a.archived),
   }))

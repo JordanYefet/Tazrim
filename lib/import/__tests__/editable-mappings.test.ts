@@ -10,12 +10,14 @@ import {
   validateSnapshot,
 } from '../snapshot'
 import { locateHeader, mappedSheets, shiftMapping } from '../sheets'
-import { BUILT_IN_LAYOUTS, builtInLayoutFor, layoutSignature, layoutSnapshot, MAX_HEADER } from '../builtin-layouts'
 import { calXlsx, cardWithBillingColumnCsv, sheetOf } from './fixtures'
 import { readRawGrid } from '@/lib/parsers/raw-grid'
 import { maxXlsxWithPending } from '@/lib/upload/__tests__/fixtures'
 
 // ENG-69. Every value is made up.
+
+/** What the mapper suggests for a Max export (there is no built-in layout any more) */
+const maxMapping = (): ImportMapping => suggestMapping(readRawGrid(maxXlsxWithPending(), 'max-fake.xlsx').sheets[0], 'card')
 
 describe('header snapshots', () => {
   it('keeps the header row, the first clean rows and a billing-date cell above the header', () => {
@@ -90,7 +92,7 @@ describe('locating the header and the sheets a mapping reads', () => {
 
   it('reads every sheet with the same header, not the others', () => {
     const wb = readRawGrid(maxXlsxWithPending(), 'max-fake.xlsx')
-    const layout = BUILT_IN_LAYOUTS.max.mapping
+    const layout = maxMapping()
     const found = mappedSheets(wb, layout)
     expect(found.map(s => s.index)).toEqual([0, 1])
     const other = { sheets: [...wb.sheets, { name: 'אחר', rows: [['כותרת אחרת', 'x']], rowCount: 1, columnCount: 2 }] }
@@ -100,7 +102,7 @@ describe('locating the header and the sheets a mapping reads', () => {
 
 describe('rows a mapping skips (ENG-69)', () => {
   const max = readRawGrid(maxXlsxWithPending(), 'max-fake.xlsx')
-  const mapping = BUILT_IN_LAYOUTS.max.mapping
+  const mapping = maxMapping()
 
   it('counts card rows with no billing date as pending, not as errors', () => {
     const res = applyMapping(max.sheets[1], mapping, 'card')
@@ -120,25 +122,5 @@ describe('rows a mapping skips (ENG-69)', () => {
     expect(res.errors).toEqual([])
     expect(res.rows).toHaveLength(1)
     expect(res.skipped).toBe(1)
-  })
-})
-
-describe('built-in layouts', () => {
-  it('are valid mappings whose header matches the parser fixtures', () => {
-    for (const layout of Object.values(BUILT_IN_LAYOUTS)) {
-      expect(validateMapping(layout.mapping, layout.kind)).toMatchObject({ ok: true })
-      expect(snapshotSignature(layoutSnapshot(layout))).toBe(layoutSignature(layout))
-      expect(layout.warning.length).toBeGreaterThan(0)
-    }
-    const wb = readRawGrid(maxXlsxWithPending(), 'max-fake.xlsx')
-    // the upload fixture has the first 11 of Max's columns
-    expect(headerSignature(wb.sheets[0], 3)).toBe(headerSignature({ rows: [MAX_HEADER.slice(0, 11)] }, 0))
-  })
-
-  it('only apply to the provider and kind they were made for', () => {
-    expect(builtInLayoutFor({ kind: 'CREDIT_CARD', provider: 'max' })?.provider).toBe('max')
-    expect(builtInLayoutFor({ kind: 'BANK', provider: 'leumi' })?.provider).toBe('leumi')
-    expect(builtInLayoutFor({ kind: 'BANK', provider: 'max' })).toBeNull()
-    expect(builtInLayoutFor({ kind: 'CREDIT_CARD', provider: 'cal' })).toBeNull()
   })
 })

@@ -2,17 +2,12 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Columns3, Lock, Pencil, Trash2, X } from 'lucide-react'
-import { cn } from '@/lib/utils/cn'
+import { Check, Columns3, Pencil, Trash2, X } from 'lucide-react'
 import { providerLabel } from '@/components/upload/account-picker'
 import type { ProfileView } from '@/lib/import/profile-view'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ProfileEditDialog } from './profile-edit-dialog'
 
-const BUILT_IN = [
-  { key: 'leumi', name: 'לאומי – תנועות בחשבון', kind: 'חשבון בנק' },
-  { key: 'max', name: 'מקס – פירוט עסקאות', kind: 'כרטיס אשראי' },
-]
 
 const iconButton =
   'flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-quick ease-out hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40'
@@ -21,8 +16,7 @@ const kindLabel = (k: ProfileView['accountKind']) => (k === 'BANK' ? 'חשבון
 
 /**
  * Saved column mappings (ENG-24): edit (ENG-69, from the stored header, no
- * file), rename or delete. The built-in importers are listed for reference; a
- * Leumi or Max account switches to its own mapping from its edit window.
+ * file), rename or delete.
  */
 export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] }) {
   const router = useRouter()
@@ -103,7 +97,6 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                   {providerLabel(p.provider)} · {kindLabel(p.accountKind)}
                   {p.account && <> · ברירת מחדל של {p.account.displayName}</>}
                 </p>
-                {p.idle && <p className="text-xs text-muted-foreground text-pretty">לא בשימוש כרגע, החשבון מיובא בייבוא המובנה</p>}
               </div>
             )}
             {editing !== p.id && (
@@ -138,23 +131,10 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
             {error?.id === p.id && <p role="alert" className="w-full text-xs text-destructive">{error.message}</p>}
           </li>
         ))}
-        {BUILT_IN.map(b => (
-          <li key={b.key} className={cn('flex min-w-0 items-center gap-2 px-4 py-3 md:px-6')}>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{b.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{b.kind} · ייבוא מובנה</p>
-              <p className="text-xs text-muted-foreground text-pretty">אפשר להחליף אותו במיפוי מותאם מחלון עריכת החשבון.</p>
-            </div>
-            <span className="flex shrink-0 items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-              <Lock className="h-3 w-3" aria-hidden />
-              מובנה
-            </span>
-          </li>
-        ))}
       </ul>
       {profiles.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          עדיין אין מיפויים שמורים. אחרי ייבוא קובץ של ספק בלי ייבוא מובנה תוכל לשמור את המיפוי שלו.
+          עדיין אין מיפויים שמורים. אחרי ייבוא קובץ תוכל לשמור את המיפוי שלו לפעמים הבאות.
         </p>
       )}
 

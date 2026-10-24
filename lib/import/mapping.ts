@@ -1,5 +1,5 @@
 /**
- * Column mapping for exports that have no built-in parser (ENG-23).
+ * Column mapping: how every export is read (ENG-23).
  *
  * A mapping says where the header is, which column holds which field, where a
  * card's billing date comes from, and how dates and numbers are written. It

@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     name: profile.name,
     accountKind: profile.accountKind,
     provider: profile.provider,
-    account: account ? { id: account.id, displayName: account.displayName, customImport: account.customImport } : null,
+    account: account ? { id: account.id, displayName: account.displayName } : null,
     kind,
     mapping,
     snapshot,

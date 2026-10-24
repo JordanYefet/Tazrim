@@ -20,7 +20,7 @@ interface EditPayload {
   kind: MappingKind
   mapping: ImportMapping
   snapshot: HeaderSnapshot | null
-  account: { id: string; displayName: string; customImport: boolean } | null
+  account: { id: string; displayName: string } | null
 }
 
 const primary =

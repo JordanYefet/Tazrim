@@ -10,7 +10,6 @@ import { mappingKindOf, validateMapping, type ImportMapping } from '@/lib/import
 import type { RawWorkbook } from '@/lib/parsers/raw-grid'
 import { parseSnapshot, snapshotFromSignature, snapshotSignature, validateSnapshot, type HeaderSnapshot } from '@/lib/import/snapshot'
 import { locateHeader } from '@/lib/import/sheets'
-import { builtInLayoutFor, layoutSignature, layoutSnapshot } from '@/lib/import/builtin-layouts'
 
 export type { ImportProfile }
 
@@ -78,14 +77,14 @@ function checkHeaders(value: unknown, signature: string): string {
 }
 
 export type ProfileWithAccount = ImportProfile & {
-  account: Pick<Account, 'id' | 'displayName' | 'kind' | 'provider' | 'customImport'> | null
+  account: Pick<Account, 'id' | 'displayName' | 'kind' | 'provider'> | null
 }
 
 /** Every profile, newest first, with its linked account's name. */
 export async function listImportProfiles(): Promise<ProfileWithAccount[]> {
   return prisma.importProfile.findMany({
     orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
-    include: { account: { select: { id: true, displayName: true, kind: true, provider: true, customImport: true } } },
+    include: { account: { select: { id: true, displayName: true, kind: true, provider: true } } },
   })
 }
 
@@ -208,44 +207,6 @@ export async function findMatchingProfile(
     if (placed) return { profile, mapping: placed }
   }
   return null
-}
-
-// ---------------------------------------------------------------------------
-// Custom mappings for built-in providers (ENG-69)
-
-type ModeAccount = Pick<Account, 'id' | 'kind' | 'provider' | 'displayName'>
-
-/**
- * Switches a Leumi or Max account to its own mapping (`custom`) or back to
- * the built-in parser. Switching to custom links a profile seeded from the
- * built-in layout when the account has none, so it can be edited with no
- * file; switching back keeps that profile (a later switch reuses it).
- * Null when the provider has no built-in importer.
- */
-export async function setImportMode(
-  account: ModeAccount,
-  mode: 'custom' | 'builtin'
-): Promise<{ customImport: boolean; profile: ImportProfile | null } | null> {
-  const layout = builtInLayoutFor(account)
-  if (!layout) return null
-  return prisma.$transaction(async tx => {
-    await tx.account.update({ where: { id: account.id }, data: { customImport: mode === 'custom' } })
-    let profile = await tx.importProfile.findFirst({ where: { accountId: account.id, accountKind: account.kind } })
-    if (mode === 'custom' && !profile) {
-      profile = await tx.importProfile.create({
-        data: {
-          name: layout.name,
-          accountKind: account.kind,
-          provider: account.provider,
-          mapping: JSON.stringify(layout.mapping),
-          headerSignature: layoutSignature(layout),
-          headers: JSON.stringify(layoutSnapshot(layout)),
-          accountId: account.id,
-        },
-      })
-    }
-    return { customImport: mode === 'custom', profile }
-  })
 }
 
 /** Drops the sample rows of the account's linked profiles (its transactions are being deleted). */

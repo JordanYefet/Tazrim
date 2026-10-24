@@ -1,9 +1,9 @@
 'use client'
 
 import { useId, useState, type ReactNode } from 'react'
-import { AlertTriangle, Info } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { CREATABLE, KIND_META, KNOWN_PROVIDERS, importSupportedFor, type CreatableKindValue } from './account-kinds'
+import { CREATABLE, KIND_META, KNOWN_PROVIDERS, type CreatableKindValue } from './account-kinds'
 import { BankElement, PaymentCard } from './account-element'
 import { ColorPicker } from './color-picker'
 import { CARD_NETWORKS, impliedNetwork, providerLabel } from '@/lib/accounts/brands'
@@ -103,7 +103,6 @@ export function AccountForm(props: CreateProps | EditProps) {
   const [saving, setSaving] = useState(false)
 
   const provider = providerChoice === OTHER ? otherProvider.trim().toLowerCase() : providerChoice
-  const supported = provider ? importSupportedFor(kind, provider) : true
   const lastFourInvalid = kind === 'CREDIT_CARD' && lastFour !== '' && !/^\d{4}$/.test(lastFour)
   // Merchant rules are keyed by provider: say what changes before saving (ENG-65)
   const providerChanged = !!editing && !!provider && provider !== editing.provider
@@ -362,13 +361,6 @@ export function AccountForm(props: CreateProps | EditProps) {
             )}
 
           </div>
-
-          {!supported && !editing && (
-            <p className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-              <Info className="h-4 w-4 shrink-0" aria-hidden />
-              לספק הזה אין ייבוא מובנה. בהעלאה הראשונה תתאים את העמודות של הקובץ, ואפשר לשמור את המיפוי לפעמים הבאות.
-            </p>
-          )}
 
           {props.mode === 'edit' && props.children}
 

@@ -1,7 +1,7 @@
 /**
- * Low-level file readers shared by the provider parsers (bank-leumi, max-cc)
- * and the generic raw-grid reader. Nothing here knows about any provider's
- * column layout — it only turns bytes into text, tables or worksheet rows.
+ * Low-level file readers for the raw-grid reader (lib/parsers/raw-grid). Nothing
+ * here knows about any provider's column layout: it only turns bytes into
+ * text, tables or a workbook.
  */
 import * as XLSX from 'xlsx'
 import { parse as parseHtml } from 'node-html-parser'
@@ -103,13 +103,4 @@ export function readHtmlTables(html: string): HtmlCell[][][] {
 /** Parse an .xlsx / .xls (BIFF) / SpreadsheetML workbook. */
 export function readWorkbook(buf: Buffer, opts: XLSX.ParsingOptions = {}): XLSX.WorkBook {
   return XLSX.read(buf, { type: 'buffer', ...opts })
-}
-
-/** Every sheet of a workbook as `sheet_to_json({ header: 1 })` rows. */
-export function readWorkbookRows(buf: Buffer): { name: string; rows: unknown[][] }[] {
-  const workbook = readWorkbook(buf)
-  return workbook.SheetNames.map(name => ({
-    name,
-    rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1 }),
-  }))
 }
