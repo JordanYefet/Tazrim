@@ -128,10 +128,16 @@ describe('a Cal-shaped card export (billing date in the metadata line)', () => {
     expect(errors[0]).toMatchObject({ row: 0, field: 'billingDate' })
   })
 
-  it('takes a fixed billing date', () => {
-    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'fixed', date: '2030-03-02' } }
-    const { rows } = applyMapping(sheet, m, 'card')
-    expect(rows[0].billingDate).toEqual(day(2030, 3, 2))
+  it('a billing day gives each row its own billing date, instalments included', () => {
+    // billed on the 10th for the cycle that closed at the end of the previous month: the same
+    // 10/02/2030 the file states, for the January purchases and payment 3 of a November one
+    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10, closesOn: 31 } }
+    const { rows, errors } = applyMapping(sheet, m, 'card')
+    expect(errors).toEqual([])
+    expect(rows.map(r => r.billingDate)).toEqual([day(2030, 2, 10), day(2030, 2, 10), day(2030, 2, 10)])
+    // closing on the billing day itself: purchases before the 10th are billed that month
+    const sameDay: ImportMapping = { ...m, billingDate: { from: 'day', day: 10 } }
+    expect(applyMapping(sheet, sameDay, 'card').rows[0].billingDate).toEqual(day(2030, 1, 10))
   })
 
   it('flips the sign when expenses are negative in the file', () => {
@@ -169,12 +175,58 @@ describe('a card export with a billing-date column (CSV, text dates)', () => {
   })
 })
 
+describe('a card export with no billing date anywhere (e.g. Isracard)', () => {
+  const sheet = sheetOf(
+    Buffer.from(['תאריך רכישה,שם בית עסק,סכום עסקה,סכום חיוב,פירוט נוסף', '08/10/2030,עסק בדוי,40,40,', '15/10/2030,עסק בדוי אחר,25,25,', '04/07/2030,חנות בדויה,300,100,תשלום 3 מתוך 3'].join('\n')),
+    'fake.csv'
+  )
+
+  it('suggests a billing day that is not set yet, so the billing date is missing', () => {
+    const m = suggestMapping(sheet, 'card')
+    expect(m.billingDate).toEqual({ from: 'day' })
+    expect(missingFields(m, 'card')).toEqual(['billingDate'])
+    expect(applyMapping(sheet, m, 'card').errors).toEqual([{ row: -1, field: 'billingDate', message: 'לא נקבע יום החיוב' }])
+  })
+
+  it('once the day is set, each row is billed on the next billing day after its purchase', () => {
+    const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10 } }
+    expect(missingFields(m, 'card')).toEqual([])
+    const { rows, errors, pending } = applyMapping(sheet, m, 'card')
+    expect(errors).toEqual([])
+    expect(pending).toBe(0)
+    expect(rows.map(r => r.billingDate)).toEqual([day(2030, 10, 10), day(2030, 11, 10), day(2030, 9, 10)])
+  })
+})
+
+describe('validateMapping and the billing day', () => {
+  const sheet = sheetOf(cardWithBillingColumnCsv(), 'fake.csv')
+  const base = suggestMapping(sheet, 'card')
+
+  it('keeps a billing day and an optional closing day', () => {
+    expect(validateMapping({ ...base, billingDate: { from: 'day', day: 2, closesOn: 28 } }, 'card')).toMatchObject({
+      ok: true,
+      mapping: { billingDate: { from: 'day', day: 2, closesOn: 28 } },
+    })
+    expect(validateMapping({ ...base, billingDate: { from: 'day', day: 15 } }, 'card')).toMatchObject({
+      ok: true,
+      mapping: { billingDate: { from: 'day', day: 15 } },
+    })
+  })
+
+  it('turns a fixed date saved before the billing day into that date’s day of the month', () => {
+    expect(validateMapping({ ...base, billingDate: { from: 'fixed', date: '2030-10-10' } }, 'card')).toMatchObject({
+      ok: true,
+      mapping: { billingDate: { from: 'day', day: 10 } },
+    })
+  })
+})
+
 describe('per-row validation', () => {
   const sheet = sheetOf(
     Buffer.from(['תאריך עסקה,שם בית עסק,סכום חיוב', '01/01/2030,עסק בדוי,abc', '02/01/2030,,5', 'סיכום,,5'].join('\n')),
     'fake.csv'
   )
-  const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'fixed', date: '2030-02-10' } }
+  const m: ImportMapping = { ...suggestMapping(sheet, 'card'), billingDate: { from: 'day', day: 10 } }
 
   it('reports each bad cell with its row and field', () => {
     const { rows, errors } = applyMapping(sheet, m, 'card')
@@ -248,6 +300,11 @@ describe('validateMapping', () => {
       { ...good, billingDate: { from: 'cell', row: 2, col: 0, pattern: '(' } },
       { ...good, billingDate: { from: 'cell', row: 2, col: 0, pattern: 'x'.repeat(201) } },
       { ...good, billingDate: { from: 'fixed', date: '2030-13-01' } },
+      { ...good, billingDate: { from: 'day', day: 0 } },
+      { ...good, billingDate: { from: 'day', day: 32 } },
+      { ...good, billingDate: { from: 'day', day: 1.5 } },
+      { ...good, billingDate: { from: 'day', day: 10, closesOn: 40 } },
+      { ...good, billingDate: { from: 'day' } }, // the day not chosen yet
       { ...good, startRow: 2 }, // before the header
     ]
     for (const input of bad) expect(validateMapping(input, 'card').ok, JSON.stringify(input)).toBe(false)
