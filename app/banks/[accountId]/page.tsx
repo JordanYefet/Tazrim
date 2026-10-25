@@ -12,6 +12,7 @@ import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankHeroBalance } from '@/components/cards/card-wallet'
 import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
+import { withCategorySuggestions } from '@/lib/db/category-suggestions'
 import { getCategories } from '@/lib/db/categories'
 import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { CategoryDonut } from '@/components/cards/category-donut'
@@ -62,7 +63,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
       direction: parseBankFlow(params.flow),
       showIgnored: params.showIgnored === 'true',
       take: month ? undefined : 50,
-    }),
+    }).then(withCategorySuggestions),
     getBankMonthlySummary(Number(year), accountId, { ...chartFilter, category: params.category }),
     // Flags for the whole year, so rows loaded with "load more" get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
