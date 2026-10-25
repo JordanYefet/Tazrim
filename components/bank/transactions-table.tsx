@@ -140,6 +140,8 @@ export function BankTransactionsTable({
         changed.has(t.id) ? { ...t, category, categoryManual: scope === 'row' && t.id === id } : t
       )
     )
+    // The page's totals and donuts count categories too
+    router.refresh()
   }
 
   // A generic description has no rule to offer, so a pick saves the row right away
@@ -165,9 +167,8 @@ export function BankTransactionsTable({
     const cleared = new Set((await res.json()).clearedIds as string[])
     setGeneric(prev => new Set(prev).add(tx.originalDescription))
     setTransactions(prev => prev.map(t => (cleared.has(t.id) ? { ...t, category: null } : t)))
+    // Refreshes the page's totals and donuts, which counted the cleared rule categories too
     await saveCategory('row')
-    // The totals and donuts counted the cleared rule categories
-    router.refresh()
   }
 
   const selectableRows = transactions.filter(selectable)
@@ -200,6 +201,7 @@ export function BankTransactionsTable({
     const changed = new Set((await res.json() as { updatedIds: string[] }).updatedIds)
     setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, category, categoryManual: true } : t)))
     setSelected(new Set())
+    router.refresh()
   }
 
   /** A suggestion's click: this row only, as "רק תנועה זו" would save it */
@@ -215,6 +217,7 @@ export function BankTransactionsTable({
     }
     setCategoryError(null)
     setTransactions(prev => prev.map(t => (t.id === id ? { ...t, category, categoryManual: true } : t)))
+    router.refresh()
   }
 
   async function toggleIgnored(tx: BankTx) {
