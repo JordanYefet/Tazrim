@@ -50,6 +50,7 @@ export function BankTransactionsTable({
   incomeCategories = [],
   activeCategory,
   flowFilter,
+  genericDescriptions = [],
 }: {
   /** The bank account these rows belong to */
   accountId: string
@@ -71,6 +72,8 @@ export function BankTransactionsTable({
   recurring?: Record<string, RowSeries>
   /** Optional columns to show (the page reads the cookie, lib/tables/columns.ts) */
   initialColumns?: string[]
+  /** Descriptions categorised row by row, never by a rule (lib/db/generic-descriptions.ts) */
+  genericDescriptions?: string[]
 }) {
   const [columns, setColumns] = useState(initialColumns as BankColumn[])
   const router = useRouter()
@@ -81,6 +84,7 @@ export function BankTransactionsTable({
   const [editing, setEditing] = useState<{ id: string; field: 'note'; value: string } | null>(null)
   const [pending, setPending] = useState<PendingCategory | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
+  const [generic, setGeneric] = useState(() => new Set(genericDescriptions))
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
 
@@ -107,9 +111,9 @@ export function BankTransactionsTable({
     setEditing(null)
   }
 
-  async function saveCategory(scope: 'row' | 'rule') {
-    if (!pending) return
-    const { id, category } = pending
+  async function saveCategory(scope: 'row' | 'rule', target = pending) {
+    if (!target) return
+    const { id, category } = target
     const res = await fetch(`/api/bank/transactions/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -129,6 +133,34 @@ export function BankTransactionsTable({
         changed.has(t.id) ? { ...t, category, categoryManual: scope === 'row' && t.id === id } : t
       )
     )
+  }
+
+  // A generic description has no rule to offer, so a pick saves the row right away
+  function pickCategory(tx: BankTx, category: string | null) {
+    if (generic.has(tx.originalDescription)) saveCategory('row', { id: tx.id, category })
+    else setPending({ id: tx.id, category })
+  }
+
+  /** Marks the pending row's description generic (its rules go), then saves the pick for that row */
+  async function markGeneric() {
+    const tx = pending && transactions.find(t => t.id === pending.id)
+    if (!tx) return
+    const res = await fetch('/api/bank/generic-descriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: tx.originalDescription }),
+    })
+    if (!res.ok) {
+      setPending(null)
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'הסימון נכשל')
+      return
+    }
+    const cleared = new Set((await res.json()).clearedIds as string[])
+    setGeneric(prev => new Set(prev).add(tx.originalDescription))
+    setTransactions(prev => prev.map(t => (cleared.has(t.id) ? { ...t, category: null } : t)))
+    await saveCategory('row')
+    // The totals and donuts counted the cleared rule categories
+    router.refresh()
   }
 
   async function toggleIgnored(tx: BankTx) {
@@ -267,8 +299,10 @@ export function BankTransactionsTable({
                       tx={tx}
                       categories={directionOf(tx) === 'OUT' ? expenseCategories : incomeCategories}
                       pending={pending?.id === tx.id ? pending : null}
-                      onPick={category => setPending({ id: tx.id, category })}
-                      onSave={saveCategory}
+                      generic={generic.has(tx.originalDescription)}
+                      onPick={category => pickCategory(tx, category)}
+                      onSave={scope => saveCategory(scope)}
+                      onMarkGeneric={markGeneric}
                       onCancel={() => setPending(null)}
                     />
                   </td>
@@ -351,21 +385,26 @@ export function BankTransactionsTable({
  * A row's category: a picker of the row's kind (expense for debits, income
  * for credits), then a choice of this row only or every row with the same
  * description in the same direction (a rule, also applied to future imports).
+ * A generic description (a cheque, a transfer) has no rule: a pick saves this row.
  * The card payment has none: its breakdown is the card's own categories.
  */
 function CategoryCell({
   tx,
   categories,
   pending,
+  generic,
   onPick,
   onSave,
+  onMarkGeneric,
   onCancel,
 }: {
   tx: BankTx
   categories: Category[]
   pending: PendingCategory | null
+  generic: boolean
   onPick: (category: string | null) => void
   onSave: (scope: 'row' | 'rule') => void
+  onMarkGeneric: () => void
   onCancel: () => void
 }) {
   if (isCardPaymentRow(tx)) {
@@ -393,6 +432,7 @@ function CategoryCell({
           <option key={c.id} value={c.name}>{c.name}</option>
         ))}
       </select>
+      {generic && <p className="text-[11px] text-muted-foreground">תיאור כללי · נשמר לתנועה זו בלבד</p>}
       {pending && (
         <div className="flex flex-wrap items-center gap-1 text-xs">
           <button
@@ -410,6 +450,13 @@ function CategoryCell({
           </button>
           <button onClick={onCancel} aria-label="ביטול" className="p-0.5 text-muted-foreground hover:text-foreground">
             <X className="h-3 w-3" />
+          </button>
+          <button
+            onClick={onMarkGeneric}
+            className="basis-full text-start text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            title="תיאור שלא מזהה למי הכסף הלך, כמו שיק או העברה: כל תנועה שלו מקבלת קטגוריה משלה"
+          >
+            סמן כתיאור כללי
           </button>
         </div>
       )}
