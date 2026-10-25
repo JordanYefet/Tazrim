@@ -1,12 +1,11 @@
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
-import { cn } from '@/lib/utils/cn'
 import { bankStats } from '@/components/bank/bank-summary-cards'
 import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
-import { BankAccountCard } from '@/components/accounts/account-cards'
+import { BankSummaryRow } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { getBankBalancePoints, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { combinedBalance } from '@/lib/insights/combined-balance'
 import { BANK_COLORS } from '@/lib/nav/state'
@@ -36,15 +35,14 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const accounts = await listAccounts({ kind: 'BANK' })
   const perAccount = await Promise.all(
     accounts.map(async (account, i) => {
-      const [monthly, [latest], trend, balancePoints] = await Promise.all([
+      const [monthly, [latest], balancePoints] = await Promise.all([
         getBankMonthlySummary(Number(year), account.id),
         // newest row in the period: its balance is the account's balance then
         getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
-        getBankBalanceTrend(account.id, Number(year), month),
         getBankBalancePoints(account.id, Number(year), month),
       ])
       const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
-      return { account, monthly, latest, trend, balancePoints, color, totals: bankPeriodTotals(monthly, month) }
+      return { account, monthly, latest, balancePoints, color, totals: bankPeriodTotals(monthly, month) }
     })
   )
 
@@ -88,13 +86,30 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
       <div className="wallet-shell__head">{heading}</div>
       <CardStackTotal value={stackBalance} />
 
-      {/* Beside the wallet, as tall as it: the net balance over the four period figures in one card */}
-      <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
+      {/* Beside the wallet: each account's figures (as the card list on /cards), then the net
+          balance and the four period figures in a compact card. Together they are taller than
+          the wallet, so the column sets the row's height here (no --fit) */}
+      <div className="wallet-shell__beside flex flex-col gap-3">
+        <ul className="divide-y overflow-hidden rounded-xl surface">
+          {perAccount.map(({ account, latest, color, totals: t }) => (
+            <BankSummaryRow
+              key={account.id}
+              href={accountHref('BANK', account.id, period)}
+              name={account.displayName}
+              provider={account.provider}
+              color={color}
+              colorChoice={account.color}
+              expense={t.expense}
+              balance={latest?.balance}
+              expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
+            />
+          ))}
+        </ul>
         {hasData ? (
           <>
             <NetBalance compact bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
             <StatPanel
-              className="min-h-0 flex-1"
+              compact
               stats={bankStats({
                 income: totals.income,
                 expense: totals.expense,
@@ -131,30 +146,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               analysisHref={bankCategoryAnalysisHref(undefined, period)}
             />
           </div>
-        )}
-
-        {/* Several accounts: each one's period figures (one account's are the tiles above) */}
-        {several && (
-          <section aria-labelledby="bank-accounts" className="space-y-3">
-            <h2 id="bank-accounts" className="text-base font-semibold">{`החשבונות (${accounts.length})`}</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {perAccount.map(({ account, latest, trend, color, totals: t }) => (
-                <BankAccountCard
-                  key={account.id}
-                  href={accountHref('BANK', account.id, period)}
-                  name={account.displayName}
-                  provider={account.provider}
-                  color={color}
-                  colorChoice={account.color}
-                  trend={trend.map(p => p.balance)}
-                  income={t.income}
-                  expense={t.expense}
-                  latest={latest ? { balance: latest.balance, date: latest.date.toISOString() } : undefined}
-                  expenseShare={shareOf(t.expense, totals.expense)}
-                />
-              ))}
-            </div>
-          </section>
         )}
       </div>
     </div>
