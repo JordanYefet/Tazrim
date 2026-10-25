@@ -30,6 +30,8 @@ interface BankTx {
   category: string | null
   categoryManual: boolean
   ignored: boolean
+  /** An uncategorized row's likely category (lib/insights/category-suggestions); never applied by itself */
+  suggestion?: { category: string; fromAmount: number; fromDate: string }
 }
 
 interface Category { id: string; name: string }
@@ -129,6 +131,21 @@ export function BankTransactionsTable({
         changed.has(t.id) ? { ...t, category, categoryManual: scope === 'row' && t.id === id } : t
       )
     )
+  }
+
+  /** A suggestion's click: this row only, as "רק תנועה זו" would save it */
+  async function acceptSuggestion(id: string, category: string) {
+    const res = await fetch(`/api/bank/transactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, categoryScope: 'row' }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    setTransactions(prev => prev.map(t => (t.id === id ? { ...t, category, categoryManual: true } : t)))
   }
 
   async function toggleIgnored(tx: BankTx) {
@@ -270,6 +287,7 @@ export function BankTransactionsTable({
                       onPick={category => setPending({ id: tx.id, category })}
                       onSave={saveCategory}
                       onCancel={() => setPending(null)}
+                      onSuggest={category => acceptSuggestion(tx.id, category)}
                     />
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
@@ -360,6 +378,7 @@ function CategoryCell({
   onPick,
   onSave,
   onCancel,
+  onSuggest,
 }: {
   tx: BankTx
   categories: Category[]
@@ -367,6 +386,7 @@ function CategoryCell({
   onPick: (category: string | null) => void
   onSave: (scope: 'row' | 'rule') => void
   onCancel: () => void
+  onSuggest: (category: string) => void
 }) {
   if (isCardPaymentRow(tx)) {
     return <span className="text-xs text-muted-foreground" title="הפירוט לפי קטגוריה נמצא בכרטיס">{CARD_PAYMENT_CATEGORY}</span>
@@ -393,6 +413,16 @@ function CategoryCell({
           <option key={c.id} value={c.name}>{c.name}</option>
         ))}
       </select>
+      {/* A quiet guess under the picker, gone once the row has a category or a pick is pending */}
+      {tx.suggestion && !tx.category && !pending && (
+        <button
+          onClick={() => onSuggest(tx.suggestion!.category)}
+          title={`כמו ${formatCurrency(tx.suggestion.fromAmount)} ב־${formatDate(tx.suggestion.fromDate)}`}
+          className="block max-w-36 truncate rounded-full border border-dashed border-foreground/20 px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+        >
+          <bdi>{tx.suggestion.category}</bdi>?
+        </button>
+      )}
       {pending && (
         <div className="flex flex-wrap items-center gap-1 text-xs">
           <button
