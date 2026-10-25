@@ -36,9 +36,11 @@ interface SearchParams {
 async function getCardData(accountId: string, params: SearchParams & { year: string }) {
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
+  // A merchant filter narrows the charts and tiles too, not only the table (ENG-83)
+  const chartFilter = { merchant: params.merchant }
 
   // Same query as /api/cards/[accountId]/transactions (first page of 50 unless a month is selected)
-  const [txs, monthly, categoryRows, insights, stats, categoryMonthly, monthlyCounts] = await Promise.all([
+  const [txs, monthly, categoryRows, insights, stats, allCategoryMonthly, categoryMonthly, monthlyCounts] = await Promise.all([
     getCCTransactions({
       accountId,
       year: Number(year),
@@ -49,7 +51,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
       showIgnored: params.showIgnored === 'true',
       take: month ? undefined : 50,
     }),
-    getCCMonthlySummary(accountId, Number(year)),
+    getCCMonthlySummary(accountId, Number(year), chartFilter),
     getCategories('EXPENSE'),
     // Flags for the whole year (every account's history as baseline), so "load more" rows get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
@@ -58,10 +60,12 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
       flags: await getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } }),
       recurring: recurringNameMap(r.series, accountId),
     })),
-    getCCCategoryStats(accountId, Number(year), month),
+    getCCCategoryStats(accountId, Number(year), month, chartFilter),
+    // Unfiltered, for the colors: a category keeps its color under a merchant filter
     getCCCategoryMonthly(accountId, Number(year)),
+    params.merchant ? getCCCategoryMonthly(accountId, Number(year), chartFilter) : null,
     // The count tile's monthly bars (following the category filter, like its figure)
-    getCCMonthlyCounts(accountId, Number(year), { category: params.category }),
+    getCCMonthlyCounts(accountId, Number(year), { ...chartFilter, category: params.category }),
   ])
 
   const categoryTotals: Record<string, number> = Object.fromEntries(
@@ -74,7 +78,8 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     categoryTotals,
     categoryStats: stats,
     categories: asJson(categoryRows),
-    categoryMonthly,
+    categoryMonthly: categoryMonthly ?? allCategoryMonthly,
+    allCategoryMonthly,
     monthlyCounts,
     unusual: insights.flags.card,
     recurring: insights.recurring,
@@ -95,7 +100,7 @@ export default async function CardAccountPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, monthlyCounts, unusual, recurring } =
+  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, allCategoryMonthly, monthlyCounts, unusual, recurring } =
     await getCardData(account.id, params)
 
   const total = params.category
@@ -114,7 +119,7 @@ export default async function CardAccountPage({
   )
 
   // Same category colors on every chart, ranked by yearly spend
-  const categoryColors = categoryColorMap(rankCategories(categoryMonthly))
+  const categoryColors = categoryColorMap(rankCategories(allCategoryMonthly))
 
   const fetchSp = new URLSearchParams({ year })
   if (params.search) fetchSp.set('search', params.search)
