@@ -91,7 +91,10 @@ function CategoryDonutInner({
                 nameKey="name"
                 innerRadius="42%"
                 outerRadius="78%"
-                paddingAngle={2}
+                // A ring of one slice (one category, e.g. under a merchant filter) has no
+                // gap and no outline: either draws a seam where the ring meets itself
+                paddingAngle={chartData.length > 1 ? 2 : 0}
+                stroke={chartData.length > 1 ? undefined : 'none'}
                 onClick={handleClick}
                 style={{ cursor: 'pointer' }}
               >

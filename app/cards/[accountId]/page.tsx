@@ -36,8 +36,9 @@ interface SearchParams {
 async function getCardData(accountId: string, params: SearchParams & { year: string }) {
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  // A merchant filter narrows the charts and tiles too, not only the table (ENG-83)
-  const chartFilter = { merchant: params.merchant }
+  // A merchant or search filter narrows the charts and tiles too, not only the table (ENG-83)
+  const chartFilter = { merchant: params.merchant, search: params.search }
+  const filtered = !!(params.merchant || params.search)
 
   // Same query as /api/cards/[accountId]/transactions (first page of 50 unless a month is selected)
   const [txs, monthly, categoryRows, insights, stats, allCategoryMonthly, categoryMonthly, monthlyCounts] = await Promise.all([
@@ -63,7 +64,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     getCCCategoryStats(accountId, Number(year), month, chartFilter),
     // Unfiltered, for the colors: a category keeps its color under a merchant filter
     getCCCategoryMonthly(accountId, Number(year)),
-    params.merchant ? getCCCategoryMonthly(accountId, Number(year), chartFilter) : null,
+    filtered ? getCCCategoryMonthly(accountId, Number(year), chartFilter) : null,
     // The count tile's monthly bars (following the category filter, like its figure)
     getCCMonthlyCounts(accountId, Number(year), { ...chartFilter, category: params.category }),
   ])

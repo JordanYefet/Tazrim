@@ -3,6 +3,7 @@ import { prisma, type Db } from './client'
 import type { ParsedCCTransaction } from '../parsers/types'
 import { accountWhere, listAccountIds, PROVIDERS, type AccountFilter } from './accounts'
 import { getCardRules } from './aliases'
+import { nameMatch, type NameFilter } from './name-filter'
 import { getCategoryMap, mappedCategory } from './category-mappings'
 import { cardDedupeKey, localDay, planCardImport } from '../upload/card-dedupe'
 
@@ -160,11 +161,7 @@ export async function getCCTransactions(params: {
 
   if (params.year) where.billingDate = billedIn(params.year, params.month)
 
-  if (params.merchant) {
-    where.merchantName = params.merchant
-  } else if (params.search) {
-    where.merchantName = { contains: params.search }
-  }
+  where.merchantName = nameMatch(params)
 
   // Top-level `ignored` is ANDed with every OR branch — no duplication needed.
   if (params.category) {
@@ -220,21 +217,13 @@ export async function bulkUpdateCCCategory(
   })
 }
 
-/** Options shared by the card page's charts: `merchant` narrows them to one merchant, as its table (ENG-83) */
-export interface CCChartFilter {
-  merchant?: string
-}
-
-const merchantWhere = (filter: CCChartFilter): Prisma.CreditCardTransactionWhereInput =>
-  filter.merchant ? { merchantName: filter.merchant } : {}
-
-export async function getCCCategoryStats(accountId: AccountFilter, year: number, month?: number, filter: CCChartFilter = {}) {
+export async function getCCCategoryStats(accountId: AccountFilter, year: number, month?: number, filter: NameFilter = {}) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
       billingDate: billedIn(year, month),
-      ...merchantWhere(filter),
+      merchantName: nameMatch(filter),
     },
   })
   const stats: Record<string, { total: number; count: number }> = {}
@@ -248,13 +237,13 @@ export async function getCCCategoryStats(accountId: AccountFilter, year: number,
 }
 
 /** month (1-12) -> total charged, by billing month */
-export async function getCCMonthlySummary(accountId: AccountFilter, year: number, filter: CCChartFilter = {}) {
+export async function getCCMonthlySummary(accountId: AccountFilter, year: number, filter: NameFilter = {}) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
       billingDate: billedIn(year),
-      ...merchantWhere(filter),
+      merchantName: nameMatch(filter),
     },
   })
 
@@ -273,19 +262,19 @@ export async function getCCMonthlySummary(accountId: AccountFilter, year: number
  * Billing month (1-12) -> number of charges, for one year: the same rows as
  * getCCMonthlySummary (ignored rows excluded). `category` counts only that
  * category (its override when there is one), as the count tile does with a
- * category filter; `merchant` counts only that merchant.
+ * category filter; a merchant or search counts only those merchants.
  */
 export async function getCCMonthlyCounts(
   accountId: AccountFilter,
   year: number,
-  opts: CCChartFilter & { category?: string } = {}
+  opts: NameFilter & { category?: string } = {}
 ): Promise<Record<number, number>> {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
       billingDate: billedIn(year),
-      ...merchantWhere(opts),
+      merchantName: nameMatch(opts),
       ...(opts.category
         ? { OR: [{ categoryOverride: opts.category }, { categoryOverride: null, category: opts.category }] }
         : {}),
@@ -300,13 +289,13 @@ export async function getCCMonthlyCounts(
 }
 
 /** category -> billing month (1-12) -> total charged, for one year */
-export async function getCCCategoryMonthly(accountId: AccountFilter, year: number, filter: CCChartFilter = {}) {
+export async function getCCCategoryMonthly(accountId: AccountFilter, year: number, filter: NameFilter = {}) {
   const txs = await prisma.creditCardTransaction.findMany({
     where: {
       ...accountWhere(accountId),
       ignored: false,
       billingDate: billedIn(year),
-      ...merchantWhere(filter),
+      merchantName: nameMatch(filter),
     },
     select: { billingDate: true, category: true, categoryOverride: true, chargedAmount: true },
   })
