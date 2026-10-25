@@ -59,10 +59,10 @@ const BANKS = [
   { id: 'acct_discount', provider: 'discount', displayName: 'חיסכון', opening: 24000 },
 ]
 // Each card's bill is paid from one bank, on its billing day, under a name the
-// app recognises as that company's payment (lib/insights/card-payment.ts)
+// app recognises as that company's payment (lib/insights/card-payment.ts). Cal is glass, so the demo shows that colour too
 const CARDS = [
   { id: 'acct_max', provider: 'max', displayName: 'מקס', lastFour: '1234', network: 'mastercard', bank: 'acct_leumi', billingDay: 10, payment: 'מקס איט פיננסים' },
-  { id: 'acct_cal', provider: 'cal', displayName: 'כאל', lastFour: '5678', network: 'visa', bank: 'acct_leumi', billingDay: 2, payment: 'כרטיסי אשראי לישראל' },
+  { id: 'acct_cal', provider: 'cal', displayName: 'כאל', lastFour: '5678', network: 'visa', bank: 'acct_leumi', billingDay: 2, payment: 'כרטיסי אשראי לישראל', color: 'glass' },
   { id: 'acct_isracard', provider: 'isracard', displayName: 'ישראכרט', lastFour: '9012', network: 'isracard', bank: 'acct_hapoalim', billingDay: 15, payment: 'ישראכרט' },
 ]
 
@@ -224,7 +224,7 @@ for (const b of BANKS) {
   await prisma.account.upsert({ where: { id: b.id }, update: {}, create: { ...data, kind: 'BANK' } })
 }
 for (const c of CARDS) {
-  const fields = { cardLastFour: c.lastFour, cardNetwork: c.network }
+  const fields = { cardLastFour: c.lastFour, cardNetwork: c.network, color: c.color }
   await prisma.account.upsert({
     where: { id: c.id },
     update: fields,
