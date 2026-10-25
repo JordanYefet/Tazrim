@@ -23,7 +23,8 @@ import { withQuery } from '@/lib/accounts/routes'
 import { periodQuery } from '@/lib/period'
 import { EASE, LAND_AT, MOTION } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
-import { prebakeGlass, requestGlassBake, showGlassAt } from '@/components/glass/glass-bakery'
+import { UNDER_REACH, faceLook, prebakeGlass, requestGlassBake, showGlassAt, type Placement } from '@/components/glass/glass-bakery'
+import { overlaps, type UnderFace } from '@/lib/glass/under'
 import {
   POCKET_HEIGHT_CQW,
   boxHeight,
@@ -441,6 +442,21 @@ function Wallet({
     const r = b.getBoundingClientRect()
     return { x: r.left + window.scrollX, y: learnedBoxTop.get(boxKey(m.kind, r.width)) ?? r.top + window.scrollY, width: r.width }
   }
+  // Where a card's glass will be in a mode, with the cards behind it there (ENG-81): in the
+  // stack, the cards before it in stackOrder that reach under it; open, none (they are hidden)
+  const glassPlacement = (m: WalletMode, id: string, box: { x: number; y: number; width: number }): Placement | null => {
+    const p = predictCardPlacement(m, id, stackOrder, box)
+    if (!p || m.kind !== 'stack') return p
+    const near = { x: p.rect.x - UNDER_REACH, y: p.rect.y - UNDER_REACH, width: p.rect.width + 2 * UNDER_REACH, height: p.rect.height + 2 * UNDER_REACH }
+    const under: UnderFace[] = []
+    for (const other of stackOrder.slice(0, stackOrder.indexOf(id))) {
+      const op = predictCardPlacement(m, other, stackOrder, box)
+      const face = elements.current.get(other)?.querySelector<HTMLElement>('.acct-face')
+      const look = face && faceLook(face)
+      if (op && look && overlaps(op.rect, near)) under.push({ rect: op.rect, radius: look.radius * op.scaleX, colors: look.colors })
+    }
+    return { ...p, under }
+  }
 
   // Mode changed: move every card from where it is now to its new place
   useLayoutEffect(() => {
@@ -461,7 +477,7 @@ function Wallet({
     if (nextBox) {
       for (const c of cards) {
         const host = glassHost(c.id)
-        const to = host && predictCardPlacement(mode, c.id, stackOrder, nextBox)
+        const to = host && glassPlacement(mode, c.id, nextBox)
         if (host && to) showGlassAt(host, to)
       }
     }
@@ -524,7 +540,7 @@ function Wallet({
         if (!host) continue
         for (const m of [{ kind: 'stack' } as const, { kind: 'open', id: c.id } as const]) {
           const b = boxFor(m)
-          const p = b && predictCardPlacement(m, c.id, stackOrder, b)
+          const p = b && glassPlacement(m, c.id, b)
           if (p) prebakeGlass(host, c.id, p)
         }
       }

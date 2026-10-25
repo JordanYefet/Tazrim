@@ -22,12 +22,14 @@
 import { readBackgroundSetting } from '@/lib/background/read-setting'
 import { bakeGlass } from '@/lib/glass/bake'
 import { cacheKey, nearSameRect, resolveRadius, type Rect } from '@/lib/glass/geometry'
+import { overlaps, underSignature, type UnderFace } from '@/lib/glass/under'
 
-/** An element on the document: where it is (on-screen size) and its scale. */
+/** An element on the document: where it is (on-screen size) and its scale, and the account faces under it. */
 export interface Placement {
   rect: Rect
   scaleX: number
   scaleY: number
+  under?: UnderFace[]
 }
 
 interface Entry {
@@ -77,7 +79,7 @@ function env() {
 
 function keyFor(id: string, host: HTMLElement, p: Placement): string {
   const e = env()
-  return cacheKey({ id, width: host.offsetWidth, height: host.offsetHeight, rect: p.rect, scale: p.scaleX, dpr: e.dpr, theme: e.dark ? 'dark' : 'light', background: e.background })
+  return cacheKey({ id, width: host.offsetWidth, height: host.offsetHeight, rect: p.rect, scale: p.scaleX, dpr: e.dpr, theme: e.dark ? 'dark' : 'light', background: e.background, under: underSignature(p.under, p.rect) })
 }
 
 function remember(key: string, canvas: HTMLCanvasElement, rect: Rect) {
@@ -141,6 +143,7 @@ function bake(job: Job) {
     setting: e.setting,
     dark: e.dark,
     page: { width: document.documentElement.clientWidth, scrollY: window.scrollY, viewportHeight: window.innerHeight },
+    under: placement.under,
   })
   remember(job.key, target, placement.rect)
   if (!firstMarked) {
@@ -190,14 +193,55 @@ function animating(el: HTMLElement): Animation[] {
   })
 }
 
-/** Where an element is now, on the document. */
+/** An opaque account face's colours and its corner radius at scale 1; null for a glass face. */
+export function faceLook(face: HTMLElement): { radius: number; colors: [string, string, string] } | null {
+  if (face.hasAttribute('data-glass') || !face.offsetWidth) return null
+  const cs = getComputedStyle(face)
+  const colors = (['--face-a', '--face-b', '--face-c'] as const).map(v => cs.getPropertyValue(v).trim())
+  if (colors.some(c => !c)) return null
+  return { radius: resolveRadius(cs.borderTopLeftRadius, face.offsetWidth, face.offsetHeight), colors: colors as [string, string, string] }
+}
+
+/** How far around an element a face under it still matters (the lens looks past the edge). */
+export const UNDER_REACH = 40
+
+/**
+ * The account faces under `host` now (ENG-81): in the wallet, the cards
+ * behind its card (lower z-index, shown) that reach under it, back to front.
+ */
+function facesUnder(host: HTMLElement, at: Rect): UnderFace[] {
+  const card = host.closest<HTMLElement>('.wallet-card')
+  const box = card?.parentElement
+  if (!card || !box) return []
+  const z = Number(getComputedStyle(card).zIndex) || 0
+  const near = { x: at.x - UNDER_REACH, y: at.y - UNDER_REACH, width: at.width + 2 * UNDER_REACH, height: at.height + 2 * UNDER_REACH }
+  const out: Array<UnderFace & { z: number }> = []
+  for (const other of box.querySelectorAll<HTMLElement>(':scope > .wallet-card')) {
+    if (other === card || other.hasAttribute('data-hidden')) continue
+    const cs = getComputedStyle(other)
+    const oz = Number(cs.zIndex) || 0
+    if (oz >= z || Number(cs.opacity) < 0.99) continue
+    const face = other.querySelector<HTMLElement>('.acct-face')
+    const look = face && faceLook(face)
+    if (!face || !look) continue
+    const r = face.getBoundingClientRect()
+    const rect = { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height }
+    if (!overlaps(rect, near)) continue
+    out.push({ rect, radius: look.radius * (r.width / face.offsetWidth), colors: look.colors, z: oz })
+  }
+  return out.sort((a, b) => a.z - b.z).map(({ z: _z, ...f }) => f)
+}
+
+/** Where an element is now, on the document, and what lies under it. */
 export function placementOf(host: HTMLElement): Placement | null {
   const r = host.getBoundingClientRect()
   if (!r.width || !host.offsetWidth) return null
+  const rect = { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height }
   return {
-    rect: { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height },
+    rect,
     scaleX: r.width / host.offsetWidth,
     scaleY: r.height / host.offsetHeight,
+    under: facesUnder(host, rect),
   }
 }
 
