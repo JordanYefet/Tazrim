@@ -147,10 +147,11 @@ export function StatTile({
         <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground" title={hint ? `${label} · ${hint}` : label}>
           {label}
         </span>
+        {/* The chip before the figure, so every figure ends at the cell's edge and the columns line up */}
+        {compare && <DeltaChip {...compare} />}
         <span className="shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-foreground">
           <RollingNumber value={value} format={format} />
         </span>
-        {compare && <DeltaChip {...compare} />}
       </div>
     )
   }
