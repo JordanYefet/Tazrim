@@ -1,6 +1,7 @@
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 import { bankStats } from '@/components/bank/bank-summary-cards'
-import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
+import { StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankSummaryRow } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
@@ -86,10 +87,9 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
       <div className="wallet-shell__head">{heading}</div>
       <CardStackTotal value={stackBalance} />
 
-      {/* Beside the wallet: each account's figures (as the card list on /cards), then the net
-          balance and the four period figures in a compact card. Together they are taller than
-          the wallet, so the column sets the row's height here (no --fit) */}
-      <div className="wallet-shell__beside flex flex-col gap-3">
+      {/* Beside the wallet, as tall as it: each account's figures (as the card list on /cards),
+          then the four period figures in a compact card filling the rest */}
+      <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
         <ul className="divide-y overflow-hidden rounded-xl surface">
           {perAccount.map(({ account, latest, color, totals: t }) => (
             <BankSummaryRow
@@ -106,20 +106,18 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
           ))}
         </ul>
         {hasData ? (
-          <>
-            <NetBalance compact bankIncome={totals.income} bankExpense={totals.expense} format="currencyExact" />
-            <StatPanel
-              compact
-              stats={bankStats({
-                income: totals.income,
-                expense: totals.expense,
-                averageExpense: totals.averageExpense,
-                averageIncome: totals.averageIncome,
-                monthLabel: month ? monthName(month) : undefined,
-                monthHasData: !!month && monthHasData(combined, month),
-              })}
-            />
-          </>
+          <StatPanel
+            compact
+            className="min-h-0 flex-1"
+            stats={bankStats({
+              income: totals.income,
+              expense: totals.expense,
+              averageExpense: totals.averageExpense,
+              averageIncome: totals.averageIncome,
+              monthLabel: month ? monthName(month) : undefined,
+              monthHasData: !!month && monthHasData(combined, month),
+            })}
+          />
         ) : (
           <EmptyState
             icon={FileSpreadsheet}
