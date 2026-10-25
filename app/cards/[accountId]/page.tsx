@@ -111,13 +111,13 @@ export default async function CardAccountPage({
     ? (categoryStats[params.category]?.count ?? 0)
     : Object.values(categoryStats).reduce((s, v) => s + v.count, 0)
 
+  // The selected category's months, or the whole card's
+  const shownMonthly = params.category ? (categoryMonthly[params.category] ?? {}) : monthly
+
   // Yearly average over months with charges (not all 12 the chart shows); with a
   // category filter, that category's yearly total over the same months (as the
   // category page's table averages it). Always shown, so a month can be compared.
-  const averageMonthly = monthlyAverage(
-    params.category ? (categoryMonthly[params.category] ?? {}) : monthly,
-    monthly
-  )
+  const averageMonthly = monthlyAverage(shownMonthly, monthly)
 
   // Same category colors on every chart, ranked by yearly spend
   const categoryColors = categoryColorMap(rankCategories(allCategoryMonthly))
@@ -157,7 +157,7 @@ export default async function CardAccountPage({
             <CardStatTiles total={total} count={count} average={averageMonthly} monthLabel={month ? monthName(month) : undefined}
               monthHasData={!!month && monthHasData(monthly, month)}
               monthlyCounts={monthlyCounts}
-              monthlyTotals={params.category ? (categoryMonthly[params.category] ?? {}) : monthly}
+              monthlyTotals={shownMonthly}
               selectedMonth={month}
             />
           </>
@@ -177,7 +177,8 @@ export default async function CardAccountPage({
           <div className="grid gap-4 lg:grid-cols-2">
             <MonthlySpendingChart
               accountId={account.id}
-              series={[{ key: account.id, label: account.displayName, color: seriesColor(account.color, 'var(--chart-cc)'), data: monthly }]}
+              // A category filter narrows the bars too, like the tiles and the table
+              series={[{ key: account.id, label: account.displayName, color: seriesColor(account.color, 'var(--chart-cc)'), data: shownMonthly }]}
               selectedMonth={month}
             />
             <CategoryDonut
