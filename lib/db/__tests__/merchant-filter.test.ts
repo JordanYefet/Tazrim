@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from './test-db'
 import type { ParsedBankTransaction, ParsedCCTransaction } from '../../parsers/types'
+import { UNCATEGORIZED } from '../../insights/bank-categories'
 
 // ENG-83: a merchant or search filter on an account page reaches its charts and
 // tiles, not only the table. Made-up values only.
@@ -136,6 +137,27 @@ describe('merchant and search filters on the bank charts', () => {
     expect(m[3]).toEqual({ income: 0, expense: 80 })
     expect((await bank.getBankMonthlySummary(2030, 'acct_leumi', { search: 'LANDLORD' }))[2]).toEqual({ income: 0, expense: 3120 })
     expect((await bank.getBankMonthlySummary(2030, 'acct_leumi'))[2]).toEqual({ income: 5000, expense: 3120 })
+  })
+
+  it('getBankMonthlySummary with a category: only rows in that bucket', async () => {
+    db.exec(`UPDATE "BankTransaction" SET category = 'Fake Rent' WHERE description = 'FAKE LANDLORD'`)
+    try {
+      const m = await bank.getBankMonthlySummary(2030, 'acct_leumi', { category: 'Fake Rent' })
+      expect(m[2]).toEqual({ income: 0, expense: 120 })
+      expect(m[3]).toEqual({ income: 0, expense: 80 })
+      // Rows without a category count under the uncategorized bucket, both directions
+      expect((await bank.getBankMonthlySummary(2030, 'acct_leumi', { category: UNCATEGORIZED }))[2]).toEqual({
+        income: 5000,
+        expense: 3000,
+      })
+      // With a merchant too: both apply
+      expect((await bank.getBankMonthlySummary(2030, 'acct_leumi', { category: 'Fake Rent', search: 'PLUS' }))[2]).toEqual({
+        income: 0,
+        expense: 0,
+      })
+    } finally {
+      db.exec(`UPDATE "BankTransaction" SET category = NULL`)
+    }
   })
 
   it('getBankCategoryStats', async () => {

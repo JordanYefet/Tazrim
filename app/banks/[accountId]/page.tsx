@@ -45,7 +45,8 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
   // A merchant or search filter narrows the income/expense figures, chart and donuts too,
-  // not only the table (ENG-83); the balance stays the account's
+  // not only the table (ENG-83); the balance stays the account's. A category narrows
+  // the figures and chart; the donuts keep every category, the selected one highlighted.
   const chartFilter = { merchant: params.merchant, search: params.search }
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
@@ -61,7 +62,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
       showIgnored: params.showIgnored === 'true',
       take: month ? undefined : 50,
     }),
-    getBankMonthlySummary(Number(year), accountId, chartFilter),
+    getBankMonthlySummary(Number(year), accountId, { ...chartFilter, category: params.category }),
     // Flags for the whole year, so rows loaded with "load more" get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
     // and the table marks rows that are already recurring (ENG-71)

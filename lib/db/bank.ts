@@ -177,8 +177,15 @@ export async function getBankBalancePoints(accountId: string, year: number, mont
   return rows.map(r => ({ date: r.date.toISOString(), balance: r.balance }))
 }
 
-/** Monthly income/expense; `accountId` omitted = every bank account. `filter` narrows to a merchant or search. */
-export async function getBankMonthlySummary(year: number, accountId?: AccountFilter, filter: NameFilter = {}) {
+/**
+ * Monthly income/expense; `accountId` omitted = every bank account. `filter`
+ * narrows to a merchant or search, and to a category (or bucket) as the table does.
+ */
+export async function getBankMonthlySummary(
+  year: number,
+  accountId?: AccountFilter,
+  filter: NameFilter & { category?: string } = {}
+) {
   const txs = await prisma.bankTransaction.findMany({
     where: {
       ...accountWhere(accountId),
@@ -192,6 +199,8 @@ export async function getBankMonthlySummary(year: number, accountId?: AccountFil
   for (let m = 1; m <= 12; m++) monthly[m] = { income: 0, expense: 0 }
 
   for (const tx of txs) {
+    // The buckets depend on the card-payment patterns, so matched in JS, as in getBankTransactions
+    if (filter.category && bankRowCategory(tx) !== filter.category) continue
     const m = tx.date.getMonth() + 1
     monthly[m].income += tx.credit
     monthly[m].expense += tx.debit
