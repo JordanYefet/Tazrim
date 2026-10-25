@@ -122,6 +122,55 @@ describe('setBankCategory', () => {
   })
 })
 
+describe('setBankCategoryMany', () => {
+  it('sets every given row as a manual choice, and only those', async () => {
+    await seed()
+    const a = idOf('acct_leumi', 'FAKE TRANSFER', 1)
+    const b = idOf('acct_fake_leumi2', 'FAKE TRANSFER', 4)
+    const result = await cats.setBankCategoryMany({ ids: [a, b], category: 'Fake Rent' })
+    expect([...result.updatedIds].sort()).toEqual([a, b].sort())
+    expect(categoryOf(a)).toEqual({ category: 'Fake Rent', categoryManual: 1 })
+    expect(categoryOf(b)).toEqual({ category: 'Fake Rent', categoryManual: 1 })
+    expect(categoryOf(idOf('acct_fake_other', 'FAKE TRANSFER', 5)).category).toBeNull()
+  })
+
+  it('null clears the rows, still as a manual choice', async () => {
+    await seed()
+    const a = idOf('acct_leumi', 'FAKE TRANSFER', 1)
+    const b = idOf('acct_fake_other', 'FAKE TRANSFER', 5)
+    await cats.setBankCategoryMany({ ids: [a, b], category: 'Fake Food' })
+    await cats.setBankCategoryMany({ ids: [a, b], category: null })
+    expect(categoryOf(a)).toEqual({ category: null, categoryManual: 1 })
+    expect(categoryOf(b)).toEqual({ category: null, categoryManual: 1 })
+  })
+
+  it('refuses a card payment row, an unknown or wrong-kind category, or a missing row, changing nothing', async () => {
+    await seed()
+    const a = idOf('acct_leumi', 'FAKE TRANSFER', 1)
+    const payment = idOf('acct_leumi', 'FAKE MAX PAYMENT', 3)
+    const many = (ids: string[], category: string | null) => cats.setBankCategoryMany({ ids, category })
+    await expect(many([a, payment], 'Fake Rent')).rejects.toMatchObject({ status: 400 })
+    await expect(many([a], 'Nope')).rejects.toMatchObject({ status: 400 })
+    await expect(many([a], 'Fake Salary')).rejects.toMatchObject({ status: 400 })
+    await expect(many([a, 'missing'], 'Fake Rent')).rejects.toMatchObject({ status: 404 })
+    expect(categoryOf(a)).toEqual({ category: null, categoryManual: 0 })
+    expect(categoryOf(payment).category).toBeNull()
+  })
+
+  it('a mixed selection fails when the category fits only one direction', async () => {
+    await seed()
+    const out = idOf('acct_leumi', 'FAKE TRANSFER', 1)
+    const inc = idOf('acct_leumi', 'FAKE TRANSFER', 2)
+    await expect(cats.setBankCategoryMany({ ids: [out, inc], category: 'Fake Rent' })).rejects.toMatchObject({ status: 400 })
+    await expect(cats.setBankCategoryMany({ ids: [out, inc], category: 'Fake Rent In' })).rejects.toMatchObject({ status: 400 })
+    expect(categoryOf(out).categoryManual).toBe(0)
+    expect(categoryOf(inc).categoryManual).toBe(0)
+    // Clearing has no kind, so it fits both directions
+    await cats.setBankCategoryMany({ ids: [out, inc], category: null })
+    expect(categoryOf(inc)).toEqual({ category: null, categoryManual: 1 })
+  })
+})
+
 describe('bank category totals', () => {
   it('buckets the card payment and uncategorized rows, or leaves the card payment out', async () => {
     await seed()

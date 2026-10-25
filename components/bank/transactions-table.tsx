@@ -37,6 +37,9 @@ interface Category { id: string; name: string }
 /** A category picked on a row, waiting for "this row" or "every such row" */
 interface PendingCategory { id: string; category: string | null }
 
+/** Rows that take a category: the card payment and ignored rows have none */
+const selectable = (tx: BankTx) => !tx.ignored && !isCardPaymentRow(tx)
+
 export function BankTransactionsTable({
   accountId,
   transactions: initial,
@@ -85,6 +88,8 @@ export function BankTransactionsTable({
   const [pending, setPending] = useState<PendingCategory | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [generic, setGeneric] = useState(() => new Set(genericDescriptions))
+  // Rows ticked for one category at once; the page remounts the table on a new data set, which clears it
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
 
@@ -163,7 +168,41 @@ export function BankTransactionsTable({
     router.refresh()
   }
 
+  const selectableRows = transactions.filter(selectable)
+  const allSelected = selectableRows.length > 0 && selectableRows.every(t => selected.has(t.id))
+
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(selectableRows.map(t => t.id)))
+  }
+
+  async function saveBulkCategory(category: string | null) {
+    const ids = [...selected]
+    const res = await fetch('/api/bank/transactions/bulk-category', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, category }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    const changed = new Set((await res.json() as { updatedIds: string[] }).updatedIds)
+    setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, category, categoryManual: true } : t)))
+    setSelected(new Set())
+  }
+
   async function toggleIgnored(tx: BankTx) {
+    // An ignored row takes no category, so it leaves the selection
+    if (!tx.ignored) setSelected(prev => (prev.has(tx.id) ? new Set([...prev].filter(id => id !== tx.id)) : prev))
     const ignored = !tx.ignored
     await fetch(`/api/bank/transactions/${tx.id}`, {
       method: 'PATCH',
@@ -249,12 +288,35 @@ export function BankTransactionsTable({
 
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
 
+      {selected.size > 0 && (
+        <BulkCategoryBar
+          rows={transactions.filter(t => selected.has(t.id))}
+          expenseCategories={expenseCategories}
+          incomeCategories={incomeCategories}
+          onApply={saveBulkCategory}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
+
       {/* Table */}
       <div className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="w-0 py-2.5 ps-4 pe-0">
+                  <label className="-m-3 inline-flex p-3 align-middle">
+                    <input
+                      type="checkbox"
+                      aria-label="בחירת כל התנועות שנטענו"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = selected.size > 0 && !allSelected }}
+                      disabled={selectableRows.length === 0}
+                      onChange={toggleAll}
+                      className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default"
+                    />
+                  </label>
+                </th>
                 {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
@@ -266,9 +328,23 @@ export function BankTransactionsTable({
                   key={tx.id}
                   className={cn(
                     'border-b transition-colors hover:bg-muted/30',
-                    tx.ignored && 'opacity-40'
+                    tx.ignored && 'opacity-40',
+                    selected.has(tx.id) && 'bg-primary/5'
                   )}
                 >
+                  <td className="w-0 py-2.5 ps-4 pe-0">
+                    {/* The padding widens the tap target past the small box, for phones */}
+                    <label className="-m-3 inline-flex p-3 align-middle">
+                      <input
+                        type="checkbox"
+                        aria-label={`בחירת ${tx.description}`}
+                        checked={selected.has(tx.id)}
+                        disabled={!selectable(tx)}
+                        onChange={() => toggleSelected(tx.id)}
+                        className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default disabled:opacity-30"
+                      />
+                    </label>
+                  </td>
                   <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs">{formatDate(tx.date)}</td>
                   <td className="py-2.5 px-4 min-w-[140px]">
                     {tx.ignored ? (
@@ -460,6 +536,82 @@ function CategoryCell({
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+/** The bar's "nothing picked yet" option; '' is uncategorized */
+const PICK = '__pick'
+
+/**
+ * One category for every ticked row, each as a manual choice: for generic
+ * descriptions such as cheques, where a rule can't tell the rows apart. The
+ * list follows the rows' direction, so debits and credits together can't take one.
+ */
+function BulkCategoryBar({
+  rows,
+  expenseCategories,
+  incomeCategories,
+  onApply,
+  onClear,
+}: {
+  rows: BankTx[]
+  expenseCategories: Category[]
+  incomeCategories: Category[]
+  onApply: (category: string | null) => Promise<void>
+  onClear: () => void
+}) {
+  // undefined: nothing picked yet; null: uncategorized
+  const [choice, setChoice] = useState<string | null | undefined>(undefined)
+  const [saving, setSaving] = useState(false)
+  const directions = new Set(rows.map(directionOf))
+  const mixed = directions.size > 1
+  const categories = directions.has('IN') ? incomeCategories : expenseCategories
+  // A pick from the other direction's list stops applying once the selection changes direction
+  const picked = choice === null || (!mixed && categories.some(c => c.name === choice)) ? choice : undefined
+
+  async function apply() {
+    if (picked === undefined) return
+    setSaving(true)
+    await onApply(picked)
+    setSaving(false)
+  }
+
+  return (
+    <div className="sticky top-16 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl surface-overlay px-3 py-2 text-sm">
+      <span className="font-medium">
+        {rows.length === 1 ? 'נבחרה תנועה אחת' : <>נבחרו <span className="tabular-nums">{rows.length}</span> תנועות</>}
+      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className={cn('w-40 text-xs', picked === undefined && 'text-muted-foreground')}
+          aria-label="קטגוריה לתנועות שנבחרו"
+          disabled={mixed}
+          value={picked === undefined ? PICK : picked ?? ''}
+          onChange={e => setChoice(e.target.value === PICK ? undefined : e.target.value || null)}
+        >
+          <option value={PICK} disabled>בחרו קטגוריה</option>
+          <option value="">{UNCATEGORIZED}</option>
+          {categories.map(c => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+        <button
+          onClick={apply}
+          disabled={picked === undefined || saving}
+          className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'שומר...' : 'החל'}
+        </button>
+        {mixed && <span className="text-xs text-muted-foreground">בחרו תנועות מאותו כיוון</span>}
+      </div>
+      <button
+        onClick={onClear}
+        className="ms-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        <X className="h-3 w-3" />
+        ניקוי הבחירה
+      </button>
     </div>
   )
 }

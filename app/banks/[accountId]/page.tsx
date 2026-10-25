@@ -241,7 +241,7 @@ export default async function BankAccountPage({
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
         <BankTransactionsTable
-          key={[params.merchant, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
+          key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
           accountId={account.id}
           transactions={transactions}
           showIgnored={params.showIgnored === 'true'}
