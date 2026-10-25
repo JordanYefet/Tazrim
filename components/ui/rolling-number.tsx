@@ -30,8 +30,11 @@ function format(value: number, kind: RollingFormat) {
 }
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-// Line box of every glyph; the window is exactly one line tall
-const LINE_HEIGHT = '1.15em'
+// Line box of every glyph; the window is exactly one line tall. Rounded to whole
+// pixels: digit d sits d rows down the strip, and a fractional row (1.15 × 16px =
+// 18.4px) leaves each digit at a different sub-pixel offset, which the browser
+// rounds up or down per digit, so neighbours land a pixel apart
+const LINE_HEIGHT = 'round(1.15em, 1px)'
 // Strong ease-out: fast start, long settle, reads as "rolling into place" (motion tokens, ENG-67)
 const EASE = MOTION_EASE.ui
 // Lower digits start a hair earlier, odometer-style, but every digit lands on the same beat

@@ -132,7 +132,29 @@ export function StatTile({
   footer,
   wide,
   bare,
-}: StatDef & { wide?: boolean; /** A cell of a StatPanel: no card of its own */ bare?: boolean }) {
+  dense,
+}: StatDef & {
+  wide?: boolean
+  /** A cell of a StatPanel: no card of its own */
+  bare?: boolean
+  /** A cell of a compact StatPanel: label and figure on one small line */
+  dense?: boolean
+}) {
+  if (dense) {
+    return (
+      <div className="flex h-full min-w-0 items-center gap-2 px-3 py-2 text-xs sm:px-4">
+        <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT[tone])} aria-hidden />
+        <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground" title={hint ? `${label} · ${hint}` : label}>
+          {label}
+        </span>
+        {/* The chip before the figure, so every figure ends at the cell's edge and the columns line up */}
+        {compare && <DeltaChip {...compare} />}
+        <span className="shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-foreground">
+          <RollingNumber value={value} format={format} />
+        </span>
+      </div>
+    )
+  }
   const body = (
     <>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -205,7 +227,16 @@ export function StatTile({
  * gaps between tiles, so it fits beside the wallet with the net balance
  * (the bank pages). Rows share the card's height evenly.
  */
-export function StatPanel({ stats, className }: { stats: StatDef[]; className?: string }) {
+export function StatPanel({
+  stats,
+  compact,
+  className,
+}: {
+  stats: StatDef[]
+  /** Each figure on one small line (beside the bank wallet, under the account list) */
+  compact?: boolean
+  className?: string
+}) {
   return (
     <div className={cn('grid auto-rows-fr grid-cols-2 overflow-hidden rounded-xl surface-raised', className)}>
       {stats.map((s, i) => (
@@ -217,7 +248,7 @@ export function StatPanel({ stats, className }: { stats: StatDef[]; className?: 
             i < stats.length - 2 && 'border-b'
           )}
         >
-          <StatTile {...s} bare />
+          <StatTile {...s} bare dense={compact} />
         </div>
       ))}
     </div>
