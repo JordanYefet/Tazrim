@@ -273,15 +273,17 @@ export function BankTransactionsTable({
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="w-0 py-2.5 ps-4 pe-0">
-                  <input
-                    type="checkbox"
-                    aria-label="בחירת כל התנועות שנטענו"
-                    checked={allSelected}
-                    ref={el => { if (el) el.indeterminate = selected.size > 0 && !allSelected }}
-                    disabled={selectableRows.length === 0}
-                    onChange={toggleAll}
-                    className="accent-primary h-4 w-4 align-middle cursor-pointer disabled:cursor-default"
-                  />
+                  <label className="-m-3 inline-flex p-3 align-middle">
+                    <input
+                      type="checkbox"
+                      aria-label="בחירת כל התנועות שנטענו"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = selected.size > 0 && !allSelected }}
+                      disabled={selectableRows.length === 0}
+                      onChange={toggleAll}
+                      className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default"
+                    />
+                  </label>
                 </th>
                 {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
@@ -299,14 +301,17 @@ export function BankTransactionsTable({
                   )}
                 >
                   <td className="w-0 py-2.5 ps-4 pe-0">
-                    <input
-                      type="checkbox"
-                      aria-label={`בחירת ${tx.description}`}
-                      checked={selected.has(tx.id)}
-                      disabled={!selectable(tx)}
-                      onChange={() => toggleSelected(tx.id)}
-                      className="accent-primary h-4 w-4 align-middle cursor-pointer disabled:cursor-default disabled:opacity-30"
-                    />
+                    {/* The padding widens the tap target past the small box, for phones */}
+                    <label className="-m-3 inline-flex p-3 align-middle">
+                      <input
+                        type="checkbox"
+                        aria-label={`בחירת ${tx.description}`}
+                        checked={selected.has(tx.id)}
+                        disabled={!selectable(tx)}
+                        onChange={() => toggleSelected(tx.id)}
+                        className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default disabled:opacity-30"
+                      />
+                    </label>
                   </td>
                   <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs">{formatDate(tx.date)}</td>
                   <td className="py-2.5 px-4 min-w-[140px]">
