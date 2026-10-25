@@ -154,6 +154,15 @@ model BankCategoryRule {
   @@unique([provider, originalDescription, direction])
 }
 
+/// A bank description that only says how money moved (a cheque, a transfer, a cash
+/// withdrawal), not who got it: its rows are categorised one by one, never by a
+/// BankCategoryRule. Matched exactly against BankTransaction.originalDescription, at any bank.
+model GenericDescription {
+  id          String   @id @default(uuid())
+  description String   @unique
+  createdAt   DateTime @default(now())
+}
+
 /// A user decision about a detected recurring series (lib/insights/recurring.ts).
 /// Series are re-detected on every read; this row is matched to them by `key`,
 /// or by `baseKey` when the merchant has a single series (see applyOverrides).

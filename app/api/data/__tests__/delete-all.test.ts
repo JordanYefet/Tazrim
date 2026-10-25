@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
 import { DELETE_ALL_PHRASE, matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
 import { STARTING_CATEGORIES } from '@/lib/db/starting-categories'
+import { STARTING_GENERIC_DESCRIPTIONS } from '@/lib/db/starting-generic-descriptions'
 
 // All values are made up.
 
@@ -125,12 +126,15 @@ describe('POST /api/data/delete-all', () => {
     expect(body.deleted).toMatchObject({ Account: 3, BankTransaction: 1, CreditCardTransaction: 1, ImportProfile: 1 })
 
     for (const table of dataTables()) {
-      if (table !== 'Category') expect(count(table), table).toBe(0)
+      if (table !== 'Category' && table !== 'GenericDescription') expect(count(table), table).toBe(0)
     }
     expect(dataTables()).toEqual([...wipe.WIPE_TABLES].sort())
     // Like a new install (ENG-76): the starting categories, and nothing else
     expect(db.query<{ name: string; kind: string }>(`SELECT name, kind FROM "Category" ORDER BY rowid`)).toEqual(
       STARTING_CATEGORIES.map(c => ({ name: c.name, kind: c.kind }))
+    )
+    expect(db.query<{ description: string }>(`SELECT description FROM "GenericDescription" ORDER BY rowid`).map(r => r.description)).toEqual(
+      STARTING_GENERIC_DESCRIPTIONS
     )
     expect(count('_prisma_migrations')).toBe(migrations)
   })

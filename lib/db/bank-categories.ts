@@ -10,12 +10,14 @@ import {
   type BankDirection,
 } from '../insights/bank-categories'
 import type { CategoryMonthly } from '../insights/category-insights'
+import { isGenericDescription, listGenericDescriptions } from './generic-descriptions'
 
 const ruleKey = (direction: BankDirection, originalDescription: string) => `${direction}|${originalDescription}`
 
-/** direction|originalDescription -> category, for one provider's bank rules. */
+/** direction|originalDescription -> category, for one provider's bank rules. A generic description never has one. */
 export async function getBankCategoryRules(provider: string, db: Db = prisma): Promise<Map<string, string>> {
-  const rules = await db.bankCategoryRule.findMany({ where: { provider } })
+  const generic = await listGenericDescriptions(db)
+  const rules = await db.bankCategoryRule.findMany({ where: { provider, originalDescription: { notIn: generic } } })
   return new Map(rules.map(r => [ruleKey(r.direction as BankDirection, r.originalDescription), r.category]))
 }
 
@@ -58,6 +60,10 @@ export async function setBankCategory(params: {
   const tx = await prisma.bankTransaction.findUnique({ where: { id: params.id }, include: { account: true } })
   if (!tx) throw new BankCategoryError('לא נמצא', 404)
   if (isCardPaymentRow(tx)) throw new BankCategoryError('לתשלום לחברת האשראי אין קטגוריה: הפירוט שלו בכרטיס', 400)
+
+  if (params.scope === 'rule' && (await isGenericDescription(tx.originalDescription))) {
+    throw new BankCategoryError('תיאור כללי: הקטגוריה נשמרת לתנועה זו בלבד', 400)
+  }
 
   const direction = directionOf(tx)
   if (params.category !== null) {
