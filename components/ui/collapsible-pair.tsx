@@ -33,8 +33,9 @@ export function CollapsiblePair({
     >
       {/* The content keeps its side-by-side width (half the row, cqw of the pair): a
           collapsing column clips its card instead of re-wrapping it taller, which
-          would stretch the row and leave a gap under the other card */}
-      <div className="lg:min-w-[calc(50cqw-0.5rem)]">{node}</div>
+          would stretch the row and leave a gap under the other card. Side by side, the
+          card fills the row's height, so a short one (an empty donut) matches its pair */}
+      <div className="lg:h-full lg:min-w-[calc(50cqw-0.5rem)] lg:[&>*]:h-full">{node}</div>
     </div>
   )
   return (
