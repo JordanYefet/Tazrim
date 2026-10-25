@@ -69,7 +69,7 @@ function CategoryDonutInner({
   }
 
   return (
-    <section className={SECTION}>
+    <section className={`${SECTION} flex flex-col`}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <ChartHeader
           title={title}
@@ -79,7 +79,8 @@ function CategoryDonutInner({
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
       </div>
       {chartData.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
+        // Centred in whatever height the card gets (as tall as its pair, side by side)
+        <p className="flex flex-1 items-center justify-center py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="h-52 w-52 flex-shrink-0">
