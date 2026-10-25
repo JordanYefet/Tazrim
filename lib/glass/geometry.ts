@@ -125,9 +125,9 @@ export function fresnelSchlick(cosTheta: number, f0 = 0.04): number {
  * how it looks, then (after "@") where it is on the document, rounded to
  * half a px. Two keys with the same part before "@" differ only in place.
  */
-export function cacheKey(parts: { id: string; width: number; height: number; rect: Rect; scale: number; dpr: number; theme: string; background: string }): string {
+export function cacheKey(parts: { id: string; width: number; height: number; rect: Rect; scale: number; dpr: number; theme: string; background: string; under?: string }): string {
   const r = (n: number) => Math.round(n * 2) / 2
-  return `${parts.id}|${r(parts.width)}x${r(parts.height)}|${parts.scale.toFixed(3)}|${parts.dpr}|${parts.theme}|${parts.background}@${r(parts.rect.x)},${r(parts.rect.y)}`
+  return `${parts.id}|${r(parts.width)}x${r(parts.height)}|${parts.scale.toFixed(3)}|${parts.dpr}|${parts.theme}|${parts.background}${parts.under ? `|${parts.under}` : ''}@${r(parts.rect.x)},${r(parts.rect.y)}`
 }
 
 /** Whether two rects are within `tolerance` px of each other on every edge. */

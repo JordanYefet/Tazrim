@@ -1,5 +1,6 @@
 import { prisma, type Db } from './client'
 import { accountWhere, type AccountFilter } from './accounts'
+import { nameMatch, type NameFilter } from './name-filter'
 import {
   bankRowCategory,
   CARD_PAYMENT_CATEGORY,
@@ -150,15 +151,22 @@ export async function getBankCategoryMonthly(
   return result
 }
 
-/** category -> { total, count } for one direction over a year or one month (the donut). */
+/** category -> { total, count } for one direction over a year or one month (the donut); `filter` narrows to a merchant or search. */
 export async function getBankCategoryStats(
   accountId: AccountFilter,
   year: number,
   month: number | undefined,
-  direction: BankDirection
+  direction: BankDirection,
+  filter: NameFilter = {}
 ): Promise<Record<string, { total: number; count: number }>> {
   const rows = await prisma.bankTransaction.findMany({
-    where: { ...accountWhere(accountId), ignored: false, date: yearWhere(year, month), ...directionWhere(direction) },
+    where: {
+      ...accountWhere(accountId),
+      ignored: false,
+      date: yearWhere(year, month),
+      description: nameMatch(filter),
+      ...directionWhere(direction),
+    },
     select: bankRowSelect,
   })
   const stats: Record<string, { total: number; count: number }> = {}

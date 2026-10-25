@@ -10,7 +10,9 @@
  *
  * One WebGL2 context for every element, on a canvas that is never attached:
  *   1. the background behind the element (plus a margin) is painted at the
- *      device pixel ratio (lib/background/paint.ts) and uploaded with mipmaps
+ *      device pixel ratio (lib/background/paint.ts), with the account faces
+ *      lying under it (a glass card in the wallet's stack, ENG-81,
+ *      lib/glass/under.ts), and uploaded with mipmaps
  *   2. a separable Gaussian blur (FROST_BLUR) into two small framebuffers
  *   3. the lens: a narrow band along the rounded edge looks outward (the
  *      page just past the edge bends in), red and blue a little apart there
@@ -25,6 +27,7 @@
 
 import { PAGE_COLOR, paintBackground, type PageGeometry } from '@/lib/background/paint'
 import type { BackgroundSetting } from '@/lib/background/setting'
+import { paintUnderFaces, type UnderFace } from './under'
 import { BLUR_TEXELS_PER_PX, FROST_BLUR, bakeMargin, bakeRegion, bakeScale, gaussianWeights, lensParams, type Rect } from './geometry'
 
 export interface BakeInput {
@@ -43,6 +46,8 @@ export interface BakeInput {
   setting: BackgroundSetting
   dark: boolean
   page: PageGeometry
+  /** Account faces under the element, back to front (the wallet's stack) */
+  under?: UnderFace[]
 }
 
 export type BakeBackend = 'webgl' | 'canvas2d'
@@ -129,12 +134,19 @@ void main() {
     frost(local + off).g,
     frost(local + off * (1.0 - 0.1 * f)).b);
 
-  // The pattern a little stronger (as on the approved mockup), a touch of saturation, a light tint
-  col = clamp(u_page + (col - u_page) * u_contrast, 0.0, 1.0);
+  // The pattern a little stronger (as on the approved mockup), a touch of saturation, a light tint.
+  // Only faint detail (the pattern) is strengthened: a card under the glass (ENG-81) differs
+  // from the page by far more and keeps its colour
+  float away = length(col - u_page);
+  col = clamp(u_page + (col - u_page) * mix(u_contrast, 1.0, smoothstep(0.08, 0.3, away)), 0.0, 1.0);
   float luma = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(luma), col, 1.1);
+  // Over something far darker (light mode) or brighter (dark mode) than the page, such as
+  // another card, a denser tint, so the glass card's text still reads
+  float pageLuma = dot(u_page, vec3(0.299, 0.587, 0.114));
+  float dense = smoothstep(0.12, 0.45, u_dark > 0.5 ? luma - pageLuma : pageLuma - luma);
   // Light through the pane: a lighter, slightly whiter tint in dark mode, a touch more luminous in light mode
-  col = u_dark > 0.5 ? mix(col, vec3(0.42, 0.47, 0.58), 0.16) + 0.025 : mix(col, vec3(1.0), 0.09);
+  col = u_dark > 0.5 ? mix(col, vec3(0.42, 0.47, 0.58), 0.16 + 0.34 * dense) + 0.025 : mix(col, vec3(1.0), 0.09 + 0.43 * dense);
 
   // The band's slope tilts the normal outward (y down here, z toward the viewer)
   vec3 n = normalize(vec3(grad * f * 1.6, 1.0));
@@ -354,7 +366,9 @@ function bake2d(input: BakeInput, painted: HTMLCanvasElement, region: Rect, ctx:
   const ox = (region.x - input.x) / input.scaleX
   const oy = (region.y - input.y) / input.scaleY
   ctx.drawImage(small, ox * k, oy * k, (region.width / input.scaleX) * k, (region.height / input.scaleY) * k)
-  ctx.fillStyle = input.dark ? 'rgba(107, 120, 148, 0.18)' : 'rgba(255, 255, 255, 0.16)'
+  // Denser over cards under it (ENG-81), so the text reads
+  const over = input.under?.length ? 1 : 0
+  ctx.fillStyle = input.dark ? `rgba(107, 120, 148, ${0.18 + 0.3 * over})` : `rgba(255, 255, 255, ${0.16 + 0.38 * over})`
   ctx.fillRect(0, 0, W, H)
   const sheen = ctx.createLinearGradient(0, 0, W * 0.6, H * 0.6)
   sheen.addColorStop(0, input.dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.3)')
@@ -396,6 +410,14 @@ export function bakeGlass(input: BakeInput): { ms: number; backend: BakeBackend 
   const scale = bakeScale(region, input.dpr, gl?.maxTextureSize ?? 4096)
   if (!painted) painted = document.createElement('canvas')
   paintBackground(painted, input.setting, input.dark, { ...region, scale }, input.page)
+  if (input.under?.length) {
+    const pc = painted.getContext('2d')
+    if (pc) {
+      pc.setTransform(scale, 0, 0, scale, -region.x * scale, -region.y * scale)
+      paintUnderFaces(pc, input.under, input.dark)
+      pc.setTransform(1, 0, 0, 1, 0, 0)
+    }
+  }
   const tPaint = performance.now()
 
   const W = Math.max(1, Math.round(input.width * input.dpr))
