@@ -25,7 +25,7 @@ export function AddChip({ label, placeholder, onAdd }: {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1 rounded-full border border-dashed px-3 py-1.5 text-sm text-primary transition-colors hover:border-primary/50 hover:bg-primary/5"
+        className="inline-flex h-9 items-center justify-center gap-1 rounded-full border border-dashed px-4 text-sm text-primary transition-colors hover:border-primary/50 hover:bg-primary/5"
       >
         <Plus className="h-3.5 w-3.5" aria-hidden />
         {label}
@@ -37,7 +37,7 @@ export function AddChip({ label, placeholder, onAdd }: {
       autoFocus
       aria-label={placeholder}
       placeholder={placeholder}
-      className="w-48 rounded-full border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      className="h-9 w-48 rounded-full border bg-background px-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       value={value}
       onChange={e => setValue(e.target.value)}
       onKeyDown={e => {

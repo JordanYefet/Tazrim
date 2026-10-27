@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 import { AddChip } from '@/components/categories/add-chip'
 
 /**
@@ -25,35 +25,68 @@ export function GenericDescriptions({ initial }: { initial: string[] }) {
     return true
   }
 
-  async function remove(description: string) {
-    const res = await fetch('/api/bank/generic-descriptions', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description }),
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  function toggle(d: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (!next.delete(d)) next.add(d)
+      return next
     })
-    if (!res.ok) { setError((await res.json().catch(() => null))?.error ?? 'ההסרה נכשלה'); return }
-    setDescriptions(prev => prev.filter(d => d !== description))
+  }
+
+  async function removeSelected() {
+    for (const description of selected) {
+      const res = await fetch('/api/bank/generic-descriptions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description }),
+      })
+      if (!res.ok) { setError((await res.json().catch(() => null))?.error ?? 'ההסרה נכשלה'); return }
+      setDescriptions(prev => prev.filter(d => d !== description))
+      setSelected(prev => { const next = new Set(prev); next.delete(description); return next })
+    }
     setError(null)
   }
 
   return (
-    <div className="space-y-2">
-      {/* The descriptions, then "+ הוסף תיאור" turning into a field in place */}
+    <div className="space-y-3">
+      {/* Tapping a description selects it; the remove button below acts on the selection */}
       <div className="flex flex-wrap gap-2">
-        {descriptions.map(d => (
-          <div key={d} className="group flex items-center gap-1.5 bg-muted hover:bg-muted/70 rounded-full px-3 py-1.5 text-sm transition-colors">
-            <bdi>{d}</bdi>
+        {descriptions.map(d => {
+          const on = selected.has(d)
+          return (
             <button
-              onClick={() => remove(d)}
-              className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-              aria-label={`הסר את ${d}`}
+              key={d}
+              aria-pressed={on}
+              onClick={() => toggle(d)}
+              className={cn(
+                'inline-flex h-9 items-center justify-center rounded-full px-4 text-sm transition-[background-color,box-shadow,transform] duration-fast active:scale-[0.97]',
+                on ? 'bg-destructive/10 text-destructive ring-1 ring-inset ring-destructive/40' : 'bg-muted hover:bg-muted/70'
+              )}
             >
-              <X className="h-3 w-3" />
+              <bdi>{d}</bdi>
             </button>
-          </div>
-        ))}
+          )
+        })}
         <AddChip label="הוסף תיאור" placeholder="תיאור כפי שהוא מופיע בקובץ הבנק" onAdd={add} />
       </div>
+      {selected.size > 0 && (
+        <div className="flex gap-2">
+          <button
+            onClick={removeSelected}
+            className="h-10 flex-1 rounded-xl bg-destructive/10 text-sm font-medium text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
+          >
+            {selected.size === 1 ? `הסר את "${[...selected][0]}"` : `הסר ${selected.size} תיאורים`}
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="h-10 rounded-xl bg-muted px-4 text-sm transition-[background-color,transform] hover:bg-muted/70 active:scale-[0.97]"
+          >
+            ביטול
+          </button>
+        </div>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )

@@ -8,8 +8,13 @@ export async function PATCH(
   const { id } = await params
   const { name } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'שם קטגוריה נדרש' }, { status: 400 })
-  const category = await renameCategory(id, name.trim())
-  return NextResponse.json(category)
+  try {
+    return NextResponse.json(await renameCategory(id, name.trim()))
+  } catch (e) {
+    // The name is unique: another category already has it
+    if ((e as { code?: string }).code === 'P2002') return NextResponse.json({ error: 'שם כבר קיים' }, { status: 400 })
+    throw e
+  }
 }
 
 export async function DELETE(

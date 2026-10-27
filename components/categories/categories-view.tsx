@@ -49,8 +49,8 @@ const KIND_HINT: Record<Kind, string> = {
 const KIND_DOT: Record<Kind, string> = { EXPENSE: 'bg-[hsl(var(--expense))]', INCOME: 'bg-[hsl(var(--income))]' }
 
 /**
- * /categories as one list (Settings style): expense or income categories with their
- * year's total; a category opens the app's window with what fills it automatically.
+ * /categories as one list (Settings style): expense or income categories; a category
+ * opens the app's window with its year's total and what fills it automatically.
  * The rarer lists (transactions categorised one by one, merchant names) are rows below.
  */
 export function CategoriesView({
@@ -111,10 +111,7 @@ export function CategoriesView({
 
       {/* Keyed on the kind, so the switch slides the list in from its tab's side (income is on the left) */}
       <div key={kind} className={cn('categories-list space-y-1.5', kind === 'INCOME' ? 'categories-list--from-left' : 'categories-list--from-right')}>
-        <div className="flex justify-between px-4 text-xs font-medium text-muted-foreground">
-          <span>{KIND_HINT[kind]}</span>
-          <span>{year}</span>
-        </div>
+        <p className="px-4 text-xs font-medium text-muted-foreground">{KIND_HINT[kind]}</p>
         <ul className="overflow-hidden rounded-2xl surface divide-y">
           {categories.map(c => (
             <li key={c.id}>
@@ -136,9 +133,6 @@ export function CategoriesView({
                     אוטומטי
                   </span>
                 )}
-                <span className="w-24 shrink-0 text-end text-[15px] tabular-nums text-muted-foreground">
-                  {c.total > 0 ? formatCurrencyWhole(c.total) : '–'}
-                </span>
                 <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
               </button>
             </li>
