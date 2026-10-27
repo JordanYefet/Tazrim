@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeftRight, ChevronLeft, Plus, Store, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { providerLabel } from '@/lib/accounts/brands'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -19,8 +18,6 @@ type Kind = 'EXPENSE' | 'INCOME'
 export interface CategoryItem {
   id: string
   name: string
-  /** Spent (or received) this year */
-  total: number
   /** Its colour in the charts; null when it has no spending to rank */
   color: string | null
   sources: CategorySource[]
@@ -50,7 +47,7 @@ const KIND_DOT: Record<Kind, string> = { EXPENSE: 'bg-[hsl(var(--expense))]', IN
 
 /**
  * /categories as one list (Settings style): expense or income categories; a category
- * opens the app's window with its year's total and what fills it automatically.
+ * opens the app's window with what fills it automatically.
  * The rarer lists (transactions categorised one by one, merchant names) are rows below.
  */
 export function CategoriesView({
@@ -60,7 +57,6 @@ export function CategoriesView({
   issuer,
   generic,
   aliases,
-  year,
 }: {
   expense: CategoryItem[]
   income: CategoryItem[]
@@ -68,7 +64,6 @@ export function CategoriesView({
   issuer: IssuerCategory[]
   generic: string[]
   aliases: Alias[]
-  year: string
 }) {
   const router = useRouter()
   const [kind, setKind] = useState<Kind>('EXPENSE')
@@ -184,7 +179,6 @@ export function CategoriesView({
             key={category.id}
             category={category}
             kind={categoryKind}
-            year={year}
             issuer={issuer}
             onChanged={() => router.refresh()}
             onDeleted={() => { setOpen(null); router.refresh() }}
@@ -349,11 +343,10 @@ async function removeSource(s: CategorySource): Promise<boolean> {
   return res.ok
 }
 
-/** One category's window: its year, what fills it automatically, rename and delete */
-function CategoryDetails({ category, kind, year, issuer, onChanged, onDeleted }: {
+/** One category's window: what fills it automatically, rename and delete */
+function CategoryDetails({ category, kind, issuer, onChanged, onDeleted }: {
   category: CategoryItem
   kind: Kind
-  year: string
   issuer: IssuerCategory[]
   onChanged: () => void
   onDeleted: () => void
@@ -402,10 +395,7 @@ function CategoryDetails({ category, kind, year, issuer, onChanged, onDeleted }:
 
   return (
     <div className="mt-1 space-y-5">
-      <p className="text-sm text-muted-foreground">
-        {kind === 'EXPENSE' ? 'קטגוריית הוצאה' : 'קטגוריית הכנסה'} · {year}:{' '}
-        <span className="font-medium tabular-nums text-foreground">{category.total > 0 ? formatCurrencyWhole(category.total) : 'אין עדיין'}</span>
-      </p>
+      <p className="text-sm text-muted-foreground">{kind === 'EXPENSE' ? 'קטגוריית הוצאה' : 'קטגוריית הכנסה'}</p>
 
       <section className="space-y-1.5">
         <h3 className="px-1 text-xs font-medium text-muted-foreground">מקבלת אוטומטית</h3>

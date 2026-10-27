@@ -13,12 +13,9 @@ import { categorySources, pendingIssuerCategories } from '@/lib/insights/categor
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { withResolvedPeriod } from '@/lib/period-server'
 
-const yearTotal = (monthly: CategoryMonthly, category: string) =>
-  Object.values(monthly[category] ?? {}).reduce((s, v) => s + v, 0)
-
 /**
- * One list of your categories (expense or income), each with its year's total and
- * chart colour; a category opens what fills it automatically.
+ * One list of your categories (expense or income), each in its chart colour (ranked by
+ * the selected year's spending, as on the charts); a category opens what fills it automatically.
  */
 export default async function CategoriesPage({ searchParams }: { searchParams: Promise<{ year?: string; month?: string }> }) {
   const { year } = await withResolvedPeriod(await searchParams)
@@ -46,7 +43,6 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
     return list.map(c => ({
       id: c.id,
       name: c.name,
-      total: yearTotal(monthly, c.name),
       color: colors[c.name] ?? null,
       sources: sources[c.name] ?? [],
     }))
@@ -62,7 +58,6 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
         issuer={issuer}
         generic={generic}
         aliases={asJson(aliases)}
-        year={year}
       />
     </div>
   )
