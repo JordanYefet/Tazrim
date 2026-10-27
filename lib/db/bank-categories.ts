@@ -114,6 +114,32 @@ export async function setBankCategory(params: {
   })
 }
 
+/** Every bank category rule, for the categories page */
+export async function listBankCategoryRules() {
+  return prisma.bankCategoryRule.findMany({ orderBy: [{ category: 'asc' }, { originalDescription: 'asc' }] })
+}
+
+/**
+ * Removes one rule (from the categories page) and clears the categories it set:
+ * that provider's non-manual rows of the description, in its direction. Rows chosen
+ * by hand keep theirs, as when a rule is cleared from the table.
+ */
+export async function removeBankCategoryRule(rule: { provider: string; originalDescription: string; direction: string }) {
+  const direction = rule.direction === 'IN' ? 'IN' : 'OUT'
+  await prisma.$transaction([
+    prisma.bankCategoryRule.deleteMany({ where: { provider: rule.provider, originalDescription: rule.originalDescription, direction } }),
+    prisma.bankTransaction.updateMany({
+      where: {
+        originalDescription: rule.originalDescription,
+        account: { provider: rule.provider, kind: 'BANK' },
+        categoryManual: false,
+        ...directionWhere(direction),
+      },
+      data: { category: null },
+    }),
+  ])
+}
+
 /**
  * Sets one category on several bank rows at once, each as a manual choice
  * (like `scope: 'row'`): for generic descriptions (cheques, transfers) a rule

@@ -122,6 +122,26 @@ describe('setBankCategory', () => {
   })
 })
 
+describe('listBankCategoryRules / removeBankCategoryRule', () => {
+  it('lists the rules, and removing one clears the rows it set but keeps manual ones and the other direction', async () => {
+    await seed()
+    await cats.setBankCategory({ id: idOf('acct_leumi', 'FAKE TRANSFER', 1), category: 'Fake Rent', scope: 'rule' })
+    await cats.setBankCategory({ id: idOf('acct_leumi', 'FAKE TRANSFER', 2), category: 'Fake Rent In', scope: 'rule' })
+    // A row chosen by hand after the rule
+    await cats.setBankCategory({ id: idOf('acct_fake_leumi2', 'FAKE TRANSFER', 4), category: 'Fake Food', scope: 'row' })
+    expect((await cats.listBankCategoryRules()).map(r => [r.originalDescription, r.direction, r.category]).sort()).toEqual([
+      ['FAKE TRANSFER', 'IN', 'Fake Rent In'],
+      ['FAKE TRANSFER', 'OUT', 'Fake Rent'],
+    ])
+
+    await cats.removeBankCategoryRule({ provider: 'leumi', originalDescription: 'FAKE TRANSFER', direction: 'OUT' })
+    expect((await cats.listBankCategoryRules()).map(r => r.direction)).toEqual(['IN'])
+    expect(categoryOf(idOf('acct_leumi', 'FAKE TRANSFER', 1)).category).toBeNull()
+    expect(categoryOf(idOf('acct_fake_leumi2', 'FAKE TRANSFER', 4)).category).toBe('Fake Food')
+    expect(categoryOf(idOf('acct_leumi', 'FAKE TRANSFER', 2)).category).toBe('Fake Rent In')
+  })
+})
+
 describe('setBankCategoryMany', () => {
   it('sets every given row as a manual choice, and only those', async () => {
     await seed()
