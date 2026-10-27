@@ -4,6 +4,7 @@ import { getAliases } from '@/lib/db/aliases'
 import { getIssuerCategories } from '@/lib/db/category-mappings'
 import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { getBankCategoryMonthly, listBankCategoryRules } from '@/lib/db/bank-categories'
+import { listBankDescriptions, listCardMerchants } from '@/lib/db/category-choices'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
 import { listAccounts } from '@/lib/db/accounts'
 import { asJson } from '@/lib/db/summary'
@@ -23,7 +24,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
   const bankIds = banks.map(a => a.id)
   const cardIds = cards.map(a => a.id)
 
-  const [expense, income, aliases, issuer, generic, bankRules, cardMonthly, outMonthly, inMonthly] = await Promise.all([
+  const [expense, income, aliases, issuer, generic, bankRules, cardMonthly, outMonthly, inMonthly, merchants, outDescriptions, inDescriptions] = await Promise.all([
     getCategories('EXPENSE'),
     getCategories('INCOME'),
     getAliases(),
@@ -34,6 +35,9 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
     // The card payment is left out: the card charges are its breakdown (as on the overview)
     bankIds.length ? getBankCategoryMonthly(bankIds, Number(year), 'OUT', { cardPayments: 'exclude' }) : {},
     bankIds.length ? getBankCategoryMonthly(bankIds, Number(year), 'IN') : {},
+    listCardMerchants(),
+    listBankDescriptions('OUT'),
+    listBankDescriptions('IN'),
   ])
 
   const spent = mergeCategoryMonthly(cardMonthly, outMonthly)
@@ -55,7 +59,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
         expense={items(expense, spent)}
         income={items(income, inMonthly)}
         pending={pendingIssuerCategories(issuer)}
-        issuer={issuer}
+        choices={{ issuer, merchants, descriptions: { OUT: outDescriptions, IN: inDescriptions } }}
         generic={generic}
         aliases={asJson(aliases)}
       />

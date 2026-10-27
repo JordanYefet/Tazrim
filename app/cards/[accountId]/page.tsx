@@ -198,6 +198,7 @@ export default async function CardAccountPage({
             accountId={account.id}
             transactions={transactions}
             categories={categories}
+            categoryColors={categoryColors}
             activeCategory={params.category}
             showIgnored={params.showIgnored === 'true'}
             hasMore={hasMore}

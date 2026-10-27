@@ -253,6 +253,7 @@ export default async function BankAccountPage({
           initialColumns={parseColumns((await cookies()).get(columnsCookie('bank'))?.value, 'bank')}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
+          categoryColors={{ ...incomeColors, ...expenseColors }}
           genericDescriptions={genericDescriptions}
           activeCategory={params.category}
           flowFilter={<FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />}

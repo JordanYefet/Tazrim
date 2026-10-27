@@ -81,37 +81,58 @@ export async function setBankCategory(params: {
     return { updatedIds: [tx.id] }
   }
 
-  const provider = tx.account.provider
-  const ruleWhere = {
-    provider_originalDescription_direction: { provider, originalDescription: tx.originalDescription, direction },
-  }
-  const rowsWhere = {
-    originalDescription: tx.originalDescription,
-    account: { provider, kind: 'BANK' as const },
-    ...directionWhere(direction),
-  }
+  // This row follows the rule from now on, like the others it covers
+  await prisma.bankTransaction.update({ where: { id: tx.id }, data: { categoryManual: false } })
+  return applyBankRule({ provider: tx.account.provider, originalDescription: tx.originalDescription, direction, category: params.category })
+}
 
+/**
+ * Sets (or with null removes) the rule for one description and direction at one provider,
+ * and gives that provider's non-manual rows of it the rule's category. Card payments
+ * never take one, as on import.
+ */
+async function applyBankRule(rule: { provider: string; originalDescription: string; direction: BankDirection; category: string | null }) {
+  const key = { provider: rule.provider, originalDescription: rule.originalDescription, direction: rule.direction }
   return prisma.$transaction(async db => {
-    if (params.category === null) {
-      await db.bankCategoryRule.deleteMany({ where: ruleWhere.provider_originalDescription_direction })
+    if (rule.category === null) {
+      await db.bankCategoryRule.deleteMany({ where: key })
     } else {
       await db.bankCategoryRule.upsert({
-        where: ruleWhere,
-        update: { category: params.category },
-        create: { ...ruleWhere.provider_originalDescription_direction, category: params.category },
+        where: { provider_originalDescription_direction: key },
+        update: { category: rule.category },
+        create: { ...key, category: rule.category },
       })
     }
-    // This row follows the rule from now on, like the others it covers
-    await db.bankTransaction.update({ where: { id: tx.id }, data: { categoryManual: false } })
     const affected = await db.bankTransaction.findMany({
-      where: { ...rowsWhere, categoryManual: false },
+      where: {
+        originalDescription: rule.originalDescription,
+        account: { provider: rule.provider, kind: 'BANK' as const },
+        categoryManual: false,
+        ...directionWhere(rule.direction),
+      },
       select: { id: true, description: true, originalDescription: true, debit: true },
     })
-    // Same exclusion as on import: a card payment never takes a rule's category
     const ids = affected.filter(r => !isCardPaymentRow(r)).map(r => r.id)
-    await db.bankTransaction.updateMany({ where: { id: { in: ids } }, data: { category: params.category } })
+    await db.bankTransaction.updateMany({ where: { id: { in: ids } }, data: { category: rule.category } })
     return { updatedIds: ids }
   })
+}
+
+/** A rule added from the categories page: "every <description> going <direction> is <category>" */
+export async function setBankDescriptionRule(params: {
+  provider: string
+  originalDescription: string
+  direction: BankDirection
+  category: string
+}): Promise<SetBankCategoryResult> {
+  if (await isGenericDescription(params.originalDescription)) {
+    throw new BankCategoryError('תיאור כללי: הקטגוריה נשמרת לתנועה זו בלבד', 400)
+  }
+  const cat = await prisma.category.findUnique({ where: { name: params.category } })
+  if (!cat || cat.kind !== CATEGORY_KIND_OF[params.direction]) {
+    throw new BankCategoryError(params.direction === 'OUT' ? 'קטגוריית הוצאה לא קיימת' : 'קטגוריית הכנסה לא קיימת', 400)
+  }
+  return applyBankRule(params)
 }
 
 /** Every bank category rule, for the categories page */

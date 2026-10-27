@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, ArrowLeftRight, ChevronLeft, Plus, Store, X } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, ChevronLeft, CreditCard, Landmark, Plus, Search, Store } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/lib/accounts/brands'
 import { AppDialog } from '@/components/ui/app-dialog'
@@ -12,6 +12,7 @@ import { IssuerCategories } from './issuer-categories'
 import { MerchantMappings } from './merchant-mappings'
 import type { CategorySource } from '@/lib/insights/category-sources'
 import type { IssuerCategory } from '@/lib/db/category-mappings'
+import type { BankDescription, CardMerchant } from '@/lib/db/category-choices'
 
 type Kind = 'EXPENSE' | 'INCOME'
 
@@ -36,6 +37,7 @@ type Open =
   | { type: 'pending' }
   | { type: 'generic' }
   | { type: 'merchants' }
+  | { type: 'create' }
   | null
 
 const KIND_LABEL: Record<Kind, string> = { EXPENSE: 'הוצאות', INCOME: 'הכנסות' }
@@ -54,24 +56,32 @@ export function CategoriesView({
   expense,
   income,
   pending,
-  issuer,
+  choices,
   generic,
   aliases,
 }: {
   expense: CategoryItem[]
   income: CategoryItem[]
   pending: IssuerCategory[]
-  issuer: IssuerCategory[]
+  /** What a category can be filled from, for the windows' pickers */
+  choices: SourceChoices
   generic: string[]
   aliases: Alias[]
 }) {
   const router = useRouter()
   const [kind, setKind] = useState<Kind>('EXPENSE')
   const [open, setOpen] = useState<Open>(null)
+  // A fresh new-category form per opening (not on closing: that would cut the window's exit short)
+  const [createRun, setCreateRun] = useState(0)
   // The last window's content stays while it animates out
   const last = useRef<Open>(null)
   if (open) last.current = open
   const shown = open ?? last.current
+
+  function closeAndRefresh() {
+    setOpen(null)
+    router.refresh()
+  }
 
   // /categories#generic (from the bank table) arrives with that window open
   useEffect(() => {
@@ -133,7 +143,7 @@ export function CategoriesView({
             </li>
           ))}
           <li>
-            <NewCategoryRow kind={kind} onAdded={() => router.refresh()} />
+            <NewCategoryRow onClick={() => { setCreateRun(n => n + 1); setOpen({ type: 'create' }) }} />
           </li>
         </ul>
         <p className="px-4 text-xs leading-relaxed text-muted-foreground">
@@ -179,9 +189,20 @@ export function CategoriesView({
             key={category.id}
             category={category}
             kind={categoryKind}
-            issuer={issuer}
+            choices={choices}
             onChanged={() => router.refresh()}
-            onDeleted={() => { setOpen(null); router.refresh() }}
+            onDeleted={closeAndRefresh}
+          />
+        )}
+      </AppDialog>
+
+      <AppDialog open={open?.type === 'create'} onOpenChange={o => !o && setOpen(null)} title="קטגוריה חדשה">
+        {shown?.type === 'create' && (
+          <NewCategoryForm
+            key={createRun}
+            initialKind={kind}
+            choices={choices}
+            onCreated={closeAndRefresh}
           />
         )}
       </AppDialog>
@@ -209,7 +230,7 @@ export function CategoriesView({
 }
 
 /** Expense / income, with a thumb that slides between them */
-function SegmentedKind({ kind, onChange, counts }: { kind: Kind; onChange: (k: Kind) => void; counts: Record<Kind, number> }) {
+function SegmentedKind({ kind, onChange, counts }: { kind: Kind; onChange: (k: Kind) => void; counts?: Record<Kind, number> }) {
   return (
     <div role="tablist" aria-label="סוג קטגוריה" className="relative grid grid-cols-2 rounded-xl bg-muted p-[3px]">
       <span
@@ -234,7 +255,7 @@ function SegmentedKind({ kind, onChange, counts }: { kind: Kind; onChange: (k: K
         >
           <span className={cn('h-2 w-2 rounded-full', KIND_DOT[k])} aria-hidden />
           {KIND_LABEL[k]}
-          <span className="text-xs font-normal tabular-nums text-muted-foreground">{counts[k]}</span>
+          {counts && <span className="text-xs font-normal tabular-nums text-muted-foreground">{counts[k]}</span>}
         </button>
       ))}
     </div>
@@ -271,57 +292,102 @@ function RowButton({ icon, title, sub, value, onClick }: {
   )
 }
 
-/** The list's last row: "+ קטגוריה חדשה", turning into a field in place */
-function NewCategoryRow({ kind, onAdded }: { kind: Kind; onAdded: () => void }) {
-  const [editing, setEditing] = useState(false)
-  const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  async function add() {
-    if (!name.trim()) return
-    const res = await fetch('/api/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), kind }),
-    })
-    if (!res.ok) { setError('שם כבר קיים'); return }
-    setName('')
-    setError(null)
-    onAdded()
-  }
-
-  if (!editing) {
-    return (
-      <button onClick={() => setEditing(true)} className="flex h-[52px] w-full items-center gap-3.5 px-4 text-start text-[15px] text-primary transition-colors hover:bg-muted/40">
-        <span className="flex h-3.5 w-3.5 items-center justify-center" aria-hidden><Plus className="h-4 w-4" /></span>
-        קטגוריה חדשה
-      </button>
-    )
-  }
+/** The list's last row: opens the new-category window */
+function NewCategoryRow({ onClick }: { onClick: () => void }) {
   return (
-    <div className="flex min-h-[52px] items-center gap-3 px-4 py-2">
-      <input
-        autoFocus
-        aria-label={kind === 'INCOME' ? 'שם קטגוריית הכנסה חדשה' : 'שם קטגוריית הוצאה חדשה'}
-        placeholder={kind === 'INCOME' ? 'שם קטגוריית הכנסה חדשה' : 'שם קטגוריית הוצאה חדשה'}
-        className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-1.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
-        value={name}
-        onChange={e => setName(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') add()
-          if (e.key === 'Escape') { setName(''); setError(null); setEditing(false) }
-        }}
-        onBlur={() => { if (!name.trim()) { setError(null); setEditing(false) } }}
-      />
-      {error && <span className="text-sm text-destructive">{error}</span>}
-    </div>
+    <button onClick={onClick} className="flex h-[52px] w-full items-center gap-3.5 px-4 text-start text-[15px] text-primary transition-colors hover:bg-muted/40">
+      <span className="flex h-3.5 w-3.5 items-center justify-center" aria-hidden><Plus className="h-4 w-4" /></span>
+      קטגוריה חדשה
+    </button>
   )
 }
 
-function sourceText(s: CategorySource): { name: string; sub: string } {
-  if (s.type === 'issuer') return { name: s.sourceCategory, sub: `קטגוריה של ${providerLabel(s.provider)} · ${s.count} עסקאות` }
-  if (s.type === 'merchant') return { name: s.displayName, sub: `בית עסק · ${providerLabel(s.provider)}` }
-  return { name: s.originalDescription, sub: `תיאור בבנק · ${providerLabel(s.provider)}` }
+/** What a category can be filled from, for the pickers */
+export interface SourceChoices {
+  issuer: IssuerCategory[]
+  merchants: CardMerchant[]
+  /** Bank descriptions of debits (expense categories) and credits (income ones) */
+  descriptions: { OUT: BankDescription[]; IN: BankDescription[] }
+}
+
+type GroupType = 'issuer' | 'merchant' | 'bank'
+
+/** The three kinds of source, each with its own colour and icon so they read apart at a glance */
+const GROUPS: Record<GroupType, { title: string; sub: string; add: string; icon: React.ReactNode; tone: string; chip: string }> = {
+  issuer: {
+    title: 'קטגוריות של חברות האשראי',
+    sub: 'כל העסקאות בקטגוריה הזאת בקובץ של החברה',
+    add: 'קטגוריה מחברת אשראי',
+    icon: <CreditCard className="h-4 w-4" aria-hidden />,
+    tone: 'bg-violet-500',
+    chip: 'bg-violet-500/10 ring-violet-500/30',
+  },
+  merchant: {
+    title: 'בתי עסק',
+    sub: 'כל החיובים מבית עסק מסוים, בכל כרטיס',
+    add: 'בית עסק',
+    icon: <Store className="h-4 w-4" aria-hidden />,
+    tone: 'bg-orange-500',
+    chip: 'bg-orange-500/10 ring-orange-500/30',
+  },
+  bank: {
+    title: 'תיאורים בבנק',
+    sub: 'כל התנועות בבנק עם התיאור הזה',
+    add: 'תיאור מהבנק',
+    icon: <Landmark className="h-4 w-4" aria-hidden />,
+    tone: 'bg-sky-500',
+    chip: 'bg-sky-500/10 ring-sky-500/30',
+  },
+}
+
+/** A source of one of the groups, as a key, a label and its own data */
+interface SourceRef {
+  key: string
+  label: string
+  sub?: string
+  source: CategorySource
+}
+
+const keyOf = (s: CategorySource) =>
+  s.type === 'issuer' ? `i|${s.provider}|${s.sourceCategory}` : s.type === 'merchant' ? `m|${s.provider}|${s.originalName}` : `b|${s.provider}|${s.direction}|${s.originalDescription}`
+
+function refOf(s: CategorySource): SourceRef {
+  if (s.type === 'issuer') return { key: keyOf(s), label: s.sourceCategory, sub: providerLabel(s.provider), source: s }
+  if (s.type === 'merchant') return { key: keyOf(s), label: s.displayName, sub: providerLabel(s.provider), source: s }
+  return { key: keyOf(s), label: s.originalDescription, sub: providerLabel(s.provider), source: s }
+}
+
+/** Everything one group could add for a category of this kind, minus what it already has */
+function choicesFor(type: GroupType, kind: Kind, choices: SourceChoices, taken: Set<string>): SourceRef[] {
+  const all: SourceRef[] =
+    type === 'issuer'
+      ? choices.issuer.map(r => refOf({ type: 'issuer', provider: r.provider, sourceCategory: r.sourceCategory, count: r.count }))
+      : type === 'merchant'
+        ? choices.merchants.map(m => refOf({ type: 'merchant', provider: m.provider, originalName: m.originalName, displayName: m.displayName }))
+        : choices.descriptions[kind === 'EXPENSE' ? 'OUT' : 'IN'].map(d =>
+            refOf({ type: 'bank', provider: d.provider, originalDescription: d.originalDescription, direction: kind === 'EXPENSE' ? 'OUT' : 'IN' })
+          )
+  return all.filter(r => !taken.has(r.key))
+}
+
+/** Gives a category one source: the matching rule or mapping, applied to the stored rows */
+async function addSource(s: CategorySource, category: string): Promise<string | null> {
+  const json = { 'Content-Type': 'application/json' }
+  const res =
+    s.type === 'issuer'
+      ? await fetch('/api/category-mappings', { method: 'PUT', headers: json, body: JSON.stringify({ provider: s.provider, sourceCategory: s.sourceCategory, category }) })
+      : s.type === 'merchant'
+        ? await fetch('/api/aliases', {
+            method: 'PATCH',
+            headers: json,
+            body: JSON.stringify({ provider: s.provider, originalName: s.originalName, displayName: s.displayName, categoryOverride: category }),
+          })
+        : await fetch('/api/bank/category-rules', {
+            method: 'POST',
+            headers: json,
+            body: JSON.stringify({ provider: s.provider, originalDescription: s.originalDescription, direction: s.direction, category }),
+          })
+  return res.ok ? null : ((await res.json().catch(() => null))?.error ?? 'השיוך נכשל')
 }
 
 async function removeSource(s: CategorySource): Promise<boolean> {
@@ -343,35 +409,144 @@ async function removeSource(s: CategorySource): Promise<boolean> {
   return res.ok
 }
 
-/** One category's window: what fills it automatically, rename and delete */
-function CategoryDetails({ category, kind, issuer, onChanged, onDeleted }: {
+/**
+ * One kind of source: its own colour and icon, its sources as pills (tap to select,
+ * then remove below, as on the one-by-one list), and "+ add" opening a search in place.
+ */
+function SourceGroup({ type, items, options, onAdd, onRemove }: {
+  type: GroupType
+  items: SourceRef[]
+  options: SourceRef[]
+  onAdd: (ref: SourceRef) => void
+  onRemove: (refs: SourceRef[]) => void
+}) {
+  const g = GROUPS[type]
+  const [adding, setAdding] = useState(false)
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const found = query.trim() ? options.filter(o => o.label.includes(query.trim())).slice(0, 8) : options.slice(0, 8)
+
+  return (
+    <section className="overflow-hidden rounded-2xl ring-1 ring-inset ring-border">
+      <div className="flex items-center gap-2.5 bg-muted/40 px-3.5 py-2.5">
+        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white', g.tone)}>{g.icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">{g.title}</span>
+          <span className="block text-xs text-muted-foreground">{g.sub}</span>
+        </span>
+      </div>
+      <div className="space-y-3 p-3.5">
+        <div className="flex flex-wrap gap-2">
+          {items.map(r => {
+            const on = selected.has(r.key)
+            return (
+              <button
+                key={r.key}
+                aria-pressed={on}
+                title={r.sub}
+                onClick={() => setSelected(prev => { const n = new Set(prev); if (!n.delete(r.key)) n.add(r.key); return n })}
+                className={cn(
+                  'inline-flex h-8 items-center justify-center rounded-full px-3.5 text-sm ring-1 ring-inset transition-[background-color,box-shadow,transform] duration-fast active:scale-[0.97]',
+                  on ? 'bg-destructive/10 text-destructive ring-destructive/40' : g.chip
+                )}
+              >
+                <bdi>{r.label}</bdi>
+              </button>
+            )
+          })}
+          {!adding && options.length > 0 && (
+            <button
+              onClick={() => setAdding(true)}
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-full border border-dashed px-3.5 text-sm text-primary transition-colors hover:border-primary/50 hover:bg-primary/5"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              {g.add}
+            </button>
+          )}
+          {items.length === 0 && !adding && options.length === 0 && <span className="text-sm text-muted-foreground">אין מה לשייך</span>}
+        </div>
+
+        {selected.size > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { onRemove(items.filter(r => selected.has(r.key))); setSelected(new Set()) }}
+              className="h-9 flex-1 rounded-xl bg-destructive/10 text-sm font-medium text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
+            >
+              {selected.size === 1 ? 'הסר' : `הסר ${selected.size}`}
+            </button>
+            <button onClick={() => setSelected(new Set())} className="h-9 rounded-xl bg-muted px-4 text-sm transition-[background-color,transform] hover:bg-muted/70 active:scale-[0.97]">
+              ביטול
+            </button>
+          </div>
+        )}
+
+        {adding && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <label className="relative flex-1">
+                <span className="sr-only">חיפוש {g.add}</span>
+                <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <input
+                  autoFocus
+                  placeholder={`חיפוש ${g.add}`}
+                  className="h-9 w-full rounded-xl border bg-background ps-9 pe-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setAdding(false); setQuery('') } }}
+                />
+              </label>
+              <button onClick={() => { setAdding(false); setQuery('') }} className="h-9 rounded-xl bg-muted px-3 text-sm">סיום</button>
+            </div>
+            <ul className="max-h-48 overflow-y-auto rounded-xl bg-muted/40 divide-y divide-border/60">
+              {found.map(o => (
+                <li key={o.key}>
+                  <button
+                    onClick={() => onAdd(o)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm transition-colors hover:bg-muted"
+                  >
+                    <Plus className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                    <bdi className="min-w-0 flex-1 truncate">{o.label}</bdi>
+                    {o.sub && <span className="shrink-0 text-xs text-muted-foreground">{o.sub}</span>}
+                  </button>
+                </li>
+              ))}
+              {found.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">לא נמצא</li>}
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** The groups a category of this kind can have: cards are expenses, so income has only the bank */
+const groupsFor = (kind: Kind): GroupType[] => (kind === 'EXPENSE' ? ['issuer', 'merchant', 'bank'] : ['bank'])
+
+/** One category's window: what fills it automatically, by kind of source; rename and delete */
+function CategoryDetails({ category, kind, choices, onChanged, onDeleted }: {
   category: CategoryItem
   kind: Kind
-  issuer: IssuerCategory[]
+  choices: SourceChoices
   onChanged: () => void
   onDeleted: () => void
 }) {
   const { confirm, dialog } = useConfirm()
   const [renaming, setRenaming] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Issuer categories map to expense ones; the others it could take
-  const addable = kind === 'EXPENSE' ? issuer.filter(r => r.category !== category.name) : []
+  const refs = category.sources.map(refOf)
+  const taken = new Set(refs.map(r => r.key))
 
-  async function remove(s: CategorySource) {
-    if (await removeSource(s)) onChanged()
-    else setError('ההסרה נכשלה')
+  async function add(ref: SourceRef) {
+    const err = await addSource(ref.source, category.name)
+    setError(err)
+    if (!err) onChanged()
   }
 
-  async function addIssuer(key: string) {
-    const r = addable.find(x => `${x.provider}\u0000${x.sourceCategory}` === key)
-    if (!r) return
-    const res = await fetch('/api/category-mappings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: r.provider, sourceCategory: r.sourceCategory, category: category.name }),
-    })
-    if (res.ok) onChanged()
-    else setError((await res.json().catch(() => null))?.error ?? 'השיוך נכשל')
+  async function remove(list: SourceRef[]) {
+    for (const r of list) {
+      if (!(await removeSource(r.source))) { setError('ההסרה נכשלה'); break }
+    }
+    onChanged()
   }
 
   async function rename() {
@@ -381,69 +556,32 @@ function CategoryDetails({ category, kind, issuer, onChanged, onDeleted }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: renaming.trim() }),
     })
-    if (!res.ok) { setError('שם כבר קיים'); return }
+    if (!res.ok) { setError((await res.json().catch(() => null))?.error ?? 'שינוי השם נכשל'); return }
     setRenaming(null)
     setError(null)
     onChanged()
   }
 
-  async function remove_() {
+  async function deleteCategory() {
     if (!(await confirm({ title: <>למחוק את הקטגוריה <bdi>{category.name}</bdi>?</> }))) return
     await fetch(`/api/categories/${category.id}`, { method: 'DELETE' })
     onDeleted()
   }
 
   return (
-    <div className="mt-1 space-y-5">
+    <div className="mt-1 space-y-4">
       <p className="text-sm text-muted-foreground">{kind === 'EXPENSE' ? 'קטגוריית הוצאה' : 'קטגוריית הכנסה'}</p>
-
-      <section className="space-y-1.5">
-        <h3 className="px-1 text-xs font-medium text-muted-foreground">מקבלת אוטומטית</h3>
-        <ul className="overflow-hidden rounded-xl bg-muted/50 divide-y divide-border/60">
-          {category.sources.map(s => {
-            const t = sourceText(s)
-            return (
-              <li key={`${s.type}|${s.provider}|${t.name}`} className="flex min-h-[52px] items-center gap-3 px-3.5 py-1.5">
-                <span className="min-w-0 flex-1">
-                  <bdi className="block truncate text-[15px]">{t.name}</bdi>
-                  <span className="block text-xs text-muted-foreground">{t.sub}</span>
-                </span>
-                <button
-                  onClick={() => remove(s)}
-                  aria-label={`הסר את ${t.name}`}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              </li>
-            )
-          })}
-          {category.sources.length === 0 && (
-            <li className="px-3.5 py-3 text-sm text-muted-foreground">עוד אין מקור אוטומטי: כל תנועה בקטגוריה הזאת נבחרה ידנית.</li>
-          )}
-          {addable.length > 0 && (
-            <li className="px-3.5 py-2">
-              <select
-                aria-label="שיוך קטגוריה של חברת אשראי"
-                className="w-full bg-transparent py-1.5 text-[15px] text-primary focus:outline-none"
-                value=""
-                onChange={e => addIssuer(e.target.value)}
-              >
-                <option value="" disabled>+ שייך קטגוריה של חברת אשראי</option>
-                {addable.map(r => (
-                  <option key={`${r.provider}\u0000${r.sourceCategory}`} value={`${r.provider}\u0000${r.sourceCategory}`}>
-                    {r.sourceCategory} · {providerLabel(r.provider)}
-                    {r.category ? ` (עכשיו: ${r.category})` : ''}
-                  </option>
-                ))}
-              </select>
-            </li>
-          )}
-        </ul>
-        <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-          בתי עסק ותיאורים בבנק נוספים מהטבלאות: בחירת קטגוריה לבית עסק, או &quot;כל התנועות&quot; בטבלת הבנק.
-        </p>
-      </section>
+      <h3 className="text-sm font-semibold">מה ממלא אותה אוטומטית</h3>
+      {groupsFor(kind).map(type => (
+        <SourceGroup
+          key={type}
+          type={type}
+          items={refs.filter(r => r.source.type === type)}
+          options={choicesFor(type, kind, choices, taken)}
+          onAdd={add}
+          onRemove={remove}
+        />
+      ))}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -468,7 +606,7 @@ function CategoryDetails({ category, kind, issuer, onChanged, onDeleted }: {
             שינוי שם
           </button>
           <button
-            onClick={remove_}
+            onClick={deleteCategory}
             className="h-11 flex-1 rounded-xl bg-destructive/10 text-[15px] text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
           >
             מחיקה
@@ -476,6 +614,74 @@ function CategoryDetails({ category, kind, issuer, onChanged, onDeleted }: {
         </div>
       )}
       {dialog}
+    </div>
+  )
+}
+
+/** The new-category window: name, kind, and its sources chosen up front, all saved on "צור" */
+function NewCategoryForm({ initialKind, choices, onCreated }: {
+  initialKind: Kind
+  choices: SourceChoices
+  onCreated: () => void
+}) {
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState<Kind>(initialKind)
+  const [picked, setPicked] = useState<SourceRef[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const taken = new Set(picked.map(r => r.key))
+  // A kind change drops sources the other kind can't have (cards are expenses)
+  const kept = picked.filter(r => groupsFor(kind).includes(r.source.type) && (r.source.type !== 'bank' || r.source.direction === (kind === 'EXPENSE' ? 'OUT' : 'IN')))
+
+  async function create() {
+    if (!name.trim()) { setError('צריך שם'); return }
+    setSaving(true)
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), kind }),
+    })
+    if (!res.ok) { setSaving(false); setError('שם כבר קיים'); return }
+    for (const r of kept) {
+      const err = await addSource(r.source, name.trim())
+      if (err) { setError(err); break }
+    }
+    setSaving(false)
+    onCreated()
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      <label className="block space-y-1.5">
+        <span className="text-sm text-muted-foreground">שם</span>
+        <input
+          autoFocus
+          className="h-11 w-full rounded-xl border bg-background px-3.5 text-base focus:outline-none focus:ring-2 focus:ring-ring"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </label>
+      <SegmentedKind kind={kind} onChange={setKind} />
+      <h3 className="text-sm font-semibold">מה ימלא אותה אוטומטית</h3>
+      <p className="-mt-2 text-xs text-muted-foreground">אפשר לבחור כבר עכשיו, או לדלג ולבחור אחר כך מהטבלאות.</p>
+      {groupsFor(kind).map(type => (
+        <SourceGroup
+          key={`${kind}|${type}`}
+          type={type}
+          items={kept.filter(r => r.source.type === type)}
+          options={choicesFor(type, kind, choices, taken)}
+          onAdd={ref => setPicked(prev => [...prev, ref])}
+          onRemove={list => setPicked(prev => prev.filter(r => !list.some(x => x.key === r.key)))}
+        />
+      ))}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <button
+        onClick={create}
+        disabled={saving}
+        className="h-11 w-full rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-50"
+      >
+        צור קטגוריה
+      </button>
     </div>
   )
 }

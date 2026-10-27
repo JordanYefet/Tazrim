@@ -13,6 +13,7 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
+import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
 
 interface CCTx {
   id: string
@@ -70,6 +71,7 @@ export function CardTransactionsTable({
   unusual = {},
   recurring = {},
   initialColumns = [],
+  categoryColors = {},
 }: {
   /** The card these rows belong to */
   accountId: string
@@ -85,8 +87,12 @@ export function CardTransactionsTable({
   recurring?: Record<string, RowSeries>
   /** Optional columns to show (the page reads the cookie, lib/tables/columns.ts) */
   initialColumns?: string[]
+  /** Each category's chart colour, for its dot in the row and the picker */
+  categoryColors?: Record<string, string>
 }) {
   const [columns, setColumns] = useState(initialColumns as CardColumn[])
+  // The row whose category window is open
+  const [picking, setPicking] = useState<string | null>(null)
   const router = useRouter()
   const params = useSearchParams()
   const [transactions, setTransactions] = useState(initial)
@@ -106,17 +112,20 @@ export function CardTransactionsTable({
     setLoadingMore(false)
   }
 
-  async function saveCategory(tx: CCTx, categoryOverride: string) {
+  /** 'row' sets this charge only; 'merchant' every charge of the merchant, and later files too */
+  async function saveCategory(tx: CCTx, categoryOverride: string, scope: 'row' | 'merchant') {
     await fetch(`${api}/${tx.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categoryOverride }),
+      body: JSON.stringify({ categoryOverride, categoryScope: scope }),
     })
     setTransactions(prev =>
       prev.map(t =>
-        t.originalMerchantName === tx.originalMerchantName ? { ...t, categoryOverride } : t
+        (scope === 'row' ? t.id === tx.id : t.originalMerchantName === tx.originalMerchantName) ? { ...t, categoryOverride } : t
       )
     )
+    // The page's totals and donuts count categories too
+    router.refresh()
   }
 
   async function toggleIgnored(tx: CCTx) {
@@ -255,23 +264,11 @@ export function CardTransactionsTable({
                         {tx.categoryOverride ?? tx.category}
                       </span>
                     ) : (
-                      <select
-                        // one width for every row, so the column lines up (a long name is cut by the select)
-                        className="w-36 text-xs"
-                        value={tx.categoryOverride ?? tx.category}
-                        onChange={e => saveCategory(tx, e.target.value)}
-                      >
-                        {tx.categoryOverride && tx.categoryOverride !== tx.category &&
-                          !categories.some(c => c.name === tx.categoryOverride) && (
-                          <option value={tx.categoryOverride}>{tx.categoryOverride}</option>
-                        )}
-                        <option value={tx.category}>{tx.category}</option>
-                        {categories
-                          .filter(c => c.name !== tx.category)
-                          .map(c => (
-                            <option key={c.id} value={c.name}>{c.name}</option>
-                          ))}
-                      </select>
+                      <CategoryPill
+                        name={tx.categoryOverride ?? tx.category}
+                        color={categoryColors[tx.categoryOverride ?? tx.category]}
+                        onClick={() => setPicking(tx.id)}
+                      />
                     )}
                   </td>
                   <td className="py-2.5 px-4 whitespace-nowrap">
@@ -339,6 +336,53 @@ export function CardTransactionsTable({
           </button>
         </div>
       )}
+
+      {/* One window for every row's category pill; the bank table opens the same one */}
+      <CardCategoryWindow
+        tx={picking ? transactions.find(t => t.id === picking) : undefined}
+        categories={categories}
+        colors={categoryColors}
+        onClose={() => setPicking(null)}
+        onSave={async (tx, category, scope) => {
+          setPicking(null)
+          await saveCategory(tx, category, scope)
+        }}
+      />
     </div>
+  )
+}
+
+/** The category window of one card charge (components/categories/category-picker.tsx) */
+function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
+  tx: CCTx | undefined
+  categories: Category[]
+  colors: Record<string, string>
+  onClose: () => void
+  onSave: (tx: CCTx, category: string, scope: 'row' | 'merchant') => Promise<void>
+}) {
+  // The last charge stays while the window animates out
+  const [last, setLast] = useState<CCTx | undefined>(tx)
+  if (tx && tx !== last) setLast(tx)
+  const shown = tx ?? last
+  return (
+    <CategoryPicker
+      open={!!tx}
+      onOpenChange={o => !o && onClose()}
+      context={`חיוב בכרטיס · ${shown ? formatDate(shown.transactionDate) : ''}`}
+      title={shown?.merchantName ?? ''}
+      amount={shown ? formatCurrency(shown.chargedAmount) : ''}
+      amountTone="expense"
+      categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      current={shown ? shown.categoryOverride ?? shown.category : null}
+      scopes={
+        shown
+          ? [
+              { id: 'row', title: 'רק החיוב הזה', sub: `שאר החיובים מ${shown.merchantName} לא משתנים` },
+              { id: 'merchant', title: `כל החיובים מ${shown.merchantName}`, sub: 'בכל הכרטיסים של החברה, וגם בקבצים הבאים' },
+            ]
+          : undefined
+      }
+      onSave={(category, scope) => (shown && category ? onSave(shown, category, scope === 'merchant' ? 'merchant' : 'row') : undefined)}
+    />
   )
 }

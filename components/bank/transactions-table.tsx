@@ -14,6 +14,7 @@ import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
+import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 
@@ -36,8 +37,6 @@ interface BankTx {
 
 interface Category { id: string; name: string }
 
-/** A category picked on a row, waiting for "this row" or "every such row" */
-interface PendingCategory { id: string; category: string | null }
 
 /** Rows that take a category: the card payment and ignored rows have none */
 const selectable = (tx: BankTx) => !tx.ignored && !isCardPaymentRow(tx)
@@ -56,6 +55,7 @@ export function BankTransactionsTable({
   activeCategory,
   flowFilter,
   genericDescriptions = [],
+  categoryColors = {},
 }: {
   /** The bank account these rows belong to */
   accountId: string
@@ -77,6 +77,8 @@ export function BankTransactionsTable({
   recurring?: Record<string, RowSeries>
   /** Optional columns to show (the page reads the cookie, lib/tables/columns.ts) */
   initialColumns?: string[]
+  /** Each category's chart colour, for its dot in the row and the picker */
+  categoryColors?: Record<string, string>
   /** Descriptions categorised row by row, never by a rule (lib/db/generic-descriptions.ts) */
   genericDescriptions?: string[]
 }) {
@@ -87,7 +89,8 @@ export function BankTransactionsTable({
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editing, setEditing] = useState<{ id: string; field: 'note'; value: string } | null>(null)
-  const [pending, setPending] = useState<PendingCategory | null>(null)
+  // The row whose category window is open
+  const [picking, setPicking] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [generic, setGeneric] = useState(() => new Set(genericDescriptions))
   // Rows ticked for one category at once; the page remounts the table on a new data set, which clears it
@@ -118,15 +121,13 @@ export function BankTransactionsTable({
     setEditing(null)
   }
 
-  async function saveCategory(scope: 'row' | 'rule', target = pending) {
-    if (!target) return
+  async function saveCategory(scope: 'row' | 'rule', target: { id: string; category: string | null }) {
     const { id, category } = target
     const res = await fetch(`/api/bank/transactions/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category, categoryScope: scope }),
     })
-    setPending(null)
     if (!res.ok) {
       setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
       return
@@ -144,32 +145,27 @@ export function BankTransactionsTable({
     router.refresh()
   }
 
-  // A generic description has no rule to offer, so a pick saves the row right away
-  function pickCategory(tx: BankTx, category: string | null) {
-    if (generic.has(tx.originalDescription)) saveCategory('row', { id: tx.id, category })
-    else setPending({ id: tx.id, category })
-  }
-
-  /** Marks the pending row's description generic (its rules go), then saves the pick for that row */
-  async function markGeneric() {
-    const tx = pending && transactions.find(t => t.id === pending.id)
-    if (!tx) return
+  /** Marks a row's description generic (its rules go), then saves the category picked in the window for that row */
+  async function markGeneric(tx: BankTx, category: string | null) {
     const res = await fetch('/api/bank/generic-descriptions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description: tx.originalDescription }),
     })
+    setPicking(null)
     if (!res.ok) {
-      setPending(null)
       setCategoryError((await res.json().catch(() => null))?.error ?? 'הסימון נכשל')
       return
     }
     const cleared = new Set((await res.json()).clearedIds as string[])
     setGeneric(prev => new Set(prev).add(tx.originalDescription))
     setTransactions(prev => prev.map(t => (cleared.has(t.id) ? { ...t, category: null } : t)))
-    // Refreshes the page's totals and donuts, which counted the cleared rule categories too
-    await saveCategory('row')
+    // Saving refreshes the page's totals and donuts, which counted the cleared rule categories too
+    if (category !== null) await saveCategory('row', { id: tx.id, category })
+    else router.refresh()
   }
+
+  const pickingTx = picking ? transactions.find(t => t.id === picking) : undefined
 
   const selectableRows = transactions.filter(selectable)
   const allSelected = selectableRows.length > 0 && selectableRows.every(t => selected.has(t.id))
@@ -393,13 +389,8 @@ export function BankTransactionsTable({
                   <td className="py-2.5 px-4 min-w-[140px] align-top">
                     <CategoryCell
                       tx={tx}
-                      categories={directionOf(tx) === 'OUT' ? expenseCategories : incomeCategories}
-                      pending={pending?.id === tx.id ? pending : null}
-                      generic={generic.has(tx.originalDescription)}
-                      onPick={category => pickCategory(tx, category)}
-                      onSave={scope => saveCategory(scope)}
-                      onMarkGeneric={markGeneric}
-                      onCancel={() => setPending(null)}
+                      color={tx.category ? categoryColors[tx.category] : undefined}
+                      onOpen={() => setPicking(tx.id)}
                       onSuggest={category => acceptSuggestion(tx.id, category)}
                     />
                   </td>
@@ -474,36 +465,80 @@ export function BankTransactionsTable({
           </button>
         </div>
       )}
+
+      {/* One window for every row's category pill; the card table opens the same one */}
+      <BankCategoryWindow
+        tx={pickingTx}
+        generic={!!pickingTx && generic.has(pickingTx.originalDescription)}
+        categories={pickingTx && directionOf(pickingTx) === 'IN' ? incomeCategories : expenseCategories}
+        colors={categoryColors}
+        onClose={() => setPicking(null)}
+        onSave={async (tx, category, scope) => {
+          setPicking(null)
+          await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
+        }}
+        onMarkGeneric={markGeneric}
+      />
     </div>
   )
 }
 
+/** The category window of one bank row (components/categories/category-picker.tsx) */
+function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, onMarkGeneric }: {
+  tx: BankTx | undefined
+  generic: boolean
+  categories: Category[]
+  colors: Record<string, string>
+  onClose: () => void
+  onSave: (tx: BankTx, category: string | null, scope: string | null) => Promise<void>
+  onMarkGeneric: (tx: BankTx, category: string | null) => void
+}) {
+  // The last row stays while the window animates out
+  const [last, setLast] = useState<BankTx | undefined>(tx)
+  if (tx && tx !== last) setLast(tx)
+  const shown = tx ?? last
+  const out = shown ? directionOf(shown) === 'OUT' : true
+  const direction = out ? 'היוצאות' : 'הנכנסות'
+  return (
+    <CategoryPicker
+      open={!!tx}
+      onOpenChange={o => !o && onClose()}
+      context={`${out ? 'תנועה יוצאת' : 'תנועה נכנסת'} בבנק · ${shown ? formatDate(shown.date) : ''}`}
+      title={shown?.description ?? ''}
+      amount={shown ? formatCurrency(out ? shown.debit : shown.credit) : ''}
+      amountTone={out ? 'expense' : 'income'}
+      categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      current={shown?.category ?? null}
+      allowNone
+      scopes={
+        generic || !shown
+          ? undefined
+          : [
+              { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
+              { id: 'rule', title: `כל התנועות ${direction} "${shown.originalDescription}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
+            ]
+      }
+      note={generic && shown ? `"${shown.originalDescription}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
+      suggestion={
+        shown?.suggestion && !shown.category
+          ? { category: shown.suggestion.category, reason: `כמו ${formatCurrency(shown.suggestion.fromAmount)} ב־${formatDate(shown.suggestion.fromDate)}` }
+          : undefined
+      }
+      extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
+      onSave={(category, scope) => (shown ? onSave(shown, category, scope) : undefined)}
+    />
+  )
+}
+
 /**
- * A row's category: a picker of the row's kind (expense for debits, income
- * for credits), then a choice of this row only or every row with the same
- * description in the same direction (a rule, also applied to future imports).
- * A generic description (a cheque, a transfer) has no rule: a pick saves this row.
+ * A row's category: a pill that opens the category window (CategoryPicker, as on the
+ * card table), with the suggestion under it while the row has none.
  * The card payment has none: its breakdown is the card's own categories.
  */
-function CategoryCell({
-  tx,
-  categories,
-  pending,
-  generic,
-  onPick,
-  onSave,
-  onMarkGeneric,
-  onCancel,
-  onSuggest,
-}: {
+function CategoryCell({ tx, color, onOpen, onSuggest }: {
   tx: BankTx
-  categories: Category[]
-  pending: PendingCategory | null
-  generic: boolean
-  onPick: (category: string | null) => void
-  onSave: (scope: 'row' | 'rule') => void
-  onMarkGeneric: () => void
-  onCancel: () => void
+  color?: string
+  onOpen: () => void
   onSuggest: (category: string) => void
 }) {
   if (isCardPaymentRow(tx)) {
@@ -512,62 +547,18 @@ function CategoryCell({
   if (tx.ignored) {
     return <span className="line-through text-muted-foreground text-xs">{tx.category ?? ''}</span>
   }
-  const value = pending ? pending.category : tx.category
-  // A category the list no longer has (renamed or deleted) still shows
-  const missing = tx.category && !categories.some(c => c.name === tx.category)
-  const direction = directionOf(tx) === 'OUT' ? 'היוצאות' : 'הנכנסות'
   return (
-    <div className="space-y-1.5">
-      <select
-        // one width for every row, so the column lines up (a long name is cut by the select)
-        className={cn('w-36 text-xs', !value && 'text-muted-foreground')}
-        value={value ?? ''}
-        aria-label="קטגוריה"
-        onChange={e => onPick(e.target.value || null)}
-      >
-        <option value="">{UNCATEGORIZED}</option>
-        {missing && <option value={tx.category!}>{tx.category}</option>}
-        {categories.map(c => (
-          <option key={c.id} value={c.name}>{c.name}</option>
-        ))}
-      </select>
-      {generic && <p className="text-[11px] text-muted-foreground">תיאור כללי · נשמר לתנועה זו בלבד</p>}
-      {/* A quiet guess under the picker, gone once the row has a category or a pick is pending */}
-      {tx.suggestion && !tx.category && !pending && (
+    <div className="flex flex-col items-start gap-1">
+      <CategoryPill name={tx.category} color={color} onClick={onOpen} />
+      {/* A quiet guess under the pill while the row has no category */}
+      {tx.suggestion && !tx.category && (
         <button
           onClick={() => onSuggest(tx.suggestion!.category)}
           title={`כמו ${formatCurrency(tx.suggestion.fromAmount)} ב־${formatDate(tx.suggestion.fromDate)}`}
-          className="block max-w-36 truncate rounded-full border border-dashed border-foreground/20 px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+          className="block max-w-40 truncate rounded-full border border-dashed border-foreground/20 px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
         >
           <bdi>{tx.suggestion.category}</bdi>?
         </button>
-      )}
-      {pending && (
-        <div className="flex flex-wrap items-center gap-1 text-xs">
-          <button
-            onClick={() => onSave('row')}
-            className="rounded-md border px-2 py-0.5 hover:bg-muted transition-colors"
-          >
-            רק תנועה זו
-          </button>
-          <button
-            onClick={() => onSave('rule')}
-            className="max-w-[16rem] truncate rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/20 transition-colors"
-            title="גם לתנועות שיועלו בהמשך"
-          >
-            כל התנועות {direction} <bdi>{tx.originalDescription}</bdi>
-          </button>
-          <button onClick={onCancel} aria-label="ביטול" className="p-0.5 text-muted-foreground hover:text-foreground">
-            <X className="h-3 w-3" />
-          </button>
-          <button
-            onClick={onMarkGeneric}
-            className="basis-full text-start text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            title="תיאור שלא מזהה למי הכסף הלך, כמו שיק או העברה: כל תנועה שלו מקבלת קטגוריה משלה"
-          >
-            סמן כתיאור כללי
-          </button>
-        </div>
       )}
     </div>
   )
