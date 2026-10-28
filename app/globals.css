@@ -291,6 +291,13 @@ html {
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
+/* /categories: switching expense / income slides the new list in a short way
+   from its tab's side (components/categories/categories-view.tsx) */
+.categories-list { animation: categories-list-in var(--motion-base) var(--ease-ui) backwards; }
+.categories-list--from-left { --categories-from: -12px; }
+.categories-list--from-right { --categories-from: 12px; }
+@keyframes categories-list-in { from { opacity: 0; transform: translateX(var(--categories-from, 0)); } }
+
 /* Phone tab bar: a web approximation of Apple's glass material (not an
    official Apple style). Content stays visible through a tinted, blurred,
    saturated layer; a bright rim and a soft top sheen give it an edge. */
@@ -400,6 +407,8 @@ html {
   .sheet-scrim[data-state='open'], .sheet-scrim[data-state='closed'],
   .dialog-scrim[data-state='open'], .dialog-scrim[data-state='closed'] { animation: none; }
   .recharts-bar-rectangle path, .month-slot { transition: none; }
+  /* The list only fades in */
+  .categories-list { --categories-from: 0; }
 }
 
 /* iOS zooms the page into any field under 16px when it gets focus, and stays

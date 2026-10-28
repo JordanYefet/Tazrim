@@ -12,7 +12,9 @@ import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankHeroBalance } from '@/components/cards/card-wallet'
 import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
+import { withCategorySuggestions } from '@/lib/db/category-suggestions'
 import { getCategories } from '@/lib/db/categories'
+import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { CollapsiblePair } from '@/components/ui/collapsible-pair'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
@@ -50,7 +52,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   const chartFilter = { merchant: params.merchant, search: params.search }
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
-  const [txs, monthly, insights, [latest], trend, balancePoints, categories] = await Promise.all([
+  const [txs, monthly, insights, [latest], trend, balancePoints, categories, genericDescriptions] = await Promise.all([
     getBankTransactions({
       accountId,
       year: Number(year),
@@ -61,7 +63,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
       direction: parseBankFlow(params.flow),
       showIgnored: params.showIgnored === 'true',
       take: month ? undefined : 50,
-    }),
+    }).then(withCategorySuggestions),
     getBankMonthlySummary(Number(year), accountId, { ...chartFilter, category: params.category }),
     // Flags for the whole year, so rows loaded with "load more" get badges too
     // recurring charges are exempt from the outlier checks (ENG-37)
@@ -84,6 +86,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
       getCategories('EXPENSE'),
       getCategories('INCOME'),
     ]),
+    listGenericDescriptions(),
   ])
   const [expenseStats, incomeStats, expenseMonthly, incomeMonthly, expenseCategories, incomeCategories] = categories
 
@@ -101,6 +104,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
     incomeColors: categoryColorMap(rankCategories(incomeMonthly)),
     expenseCategories: asJson(expenseCategories),
     incomeCategories: asJson(incomeCategories),
+    genericDescriptions,
   }
 }
 
@@ -135,6 +139,7 @@ export default async function BankAccountPage({
     incomeColors,
     expenseCategories,
     incomeCategories,
+    genericDescriptions,
   } = await getBankData(account.id, params)
 
   const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month)
@@ -237,7 +242,7 @@ export default async function BankAccountPage({
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
         <BankTransactionsTable
-          key={[params.merchant, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
+          key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
           accountId={account.id}
           transactions={transactions}
           showIgnored={params.showIgnored === 'true'}
@@ -248,6 +253,8 @@ export default async function BankAccountPage({
           initialColumns={parseColumns((await cookies()).get(columnsCookie('bank'))?.value, 'bank')}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
+          categoryColors={{ ...incomeColors, ...expenseColors }}
+          genericDescriptions={genericDescriptions}
           activeCategory={params.category}
           flowFilter={<FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />

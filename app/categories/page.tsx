@@ -1,58 +1,68 @@
-import { CategoryList } from '@/components/categories/category-list'
-import { MerchantMappings } from '@/components/categories/merchant-mappings'
-import { IssuerCategories } from '@/components/categories/issuer-categories'
+import { CategoriesView, type CategoryItem } from '@/components/categories/categories-view'
 import { getCategories } from '@/lib/db/categories'
 import { getAliases } from '@/lib/db/aliases'
 import { getIssuerCategories } from '@/lib/db/category-mappings'
+import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
+import { getBankCategoryMonthly, listBankCategoryRules } from '@/lib/db/bank-categories'
+import { listBankDescriptions, listCardMerchants } from '@/lib/db/category-choices'
+import { getCCCategoryMonthly } from '@/lib/db/cards'
+import { listAccounts } from '@/lib/db/accounts'
 import { asJson } from '@/lib/db/summary'
+import { mergeCategoryMonthly } from '@/lib/insights/bank-categories'
+import { rankCategories, type CategoryMonthly } from '@/lib/insights/category-insights'
+import { categorySources, pendingIssuerCategories } from '@/lib/insights/category-sources'
+import { categoryColorMap } from '@/lib/utils/category-colors'
+import { withResolvedPeriod } from '@/lib/period-server'
 
-async function getData() {
-  const [expense, income, aliases, issuer] = await Promise.all([
+/**
+ * One list of your categories (expense or income), each in its chart colour (ranked by
+ * the selected year's spending, as on the charts); a category opens what fills it automatically.
+ */
+export default async function CategoriesPage({ searchParams }: { searchParams: Promise<{ year?: string; month?: string }> }) {
+  const { year } = await withResolvedPeriod(await searchParams)
+  const [banks, cards] = await Promise.all([listAccounts({ kind: 'BANK' }), listAccounts({ kind: 'CREDIT_CARD' })])
+  const bankIds = banks.map(a => a.id)
+  const cardIds = cards.map(a => a.id)
+
+  const [expense, income, aliases, issuer, generic, bankRules, cardMonthly, outMonthly, inMonthly, merchants, outDescriptions, inDescriptions] = await Promise.all([
     getCategories('EXPENSE'),
     getCategories('INCOME'),
     getAliases(),
     getIssuerCategories(),
+    listGenericDescriptions(),
+    listBankCategoryRules(),
+    cardIds.length ? getCCCategoryMonthly(cardIds, Number(year)) : {},
+    // The card payment is left out: the card charges are its breakdown (as on the overview)
+    bankIds.length ? getBankCategoryMonthly(bankIds, Number(year), 'OUT', { cardPayments: 'exclude' }) : {},
+    bankIds.length ? getBankCategoryMonthly(bankIds, Number(year), 'IN') : {},
+    listCardMerchants(),
+    listBankDescriptions('OUT'),
+    listBankDescriptions('IN'),
   ])
-  return { expense: asJson(expense), income: asJson(income), aliases: asJson(aliases), issuer }
-}
 
-export default async function CategoriesPage() {
-  const { expense, income, aliases, issuer } = await getData()
+  const spent = mergeCategoryMonthly(cardMonthly, outMonthly)
+  const sources = categorySources({ issuer, aliases, bankRules })
+  const items = (list: { id: string; name: string }[], monthly: CategoryMonthly): CategoryItem[] => {
+    const colors = categoryColorMap(rankCategories(monthly))
+    return list.map(c => ({
+      id: c.id,
+      name: c.name,
+      color: colors[c.name] ?? null,
+      sources: sources[c.name] ?? [],
+    }))
+  }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">קטגוריות ומיפויי עסקים</h1>
-
-      <section className="space-y-4 rounded-xl surface p-4 sm:p-6">
-        <div>
-          <h2 className="text-base font-semibold">קטגוריות הוצאה</h2>
-          <p className="text-sm text-muted-foreground">לחיובי כרטיסי האשראי ולתנועות יוצאות בבנק</p>
-        </div>
-        <CategoryList initial={expense} kind="EXPENSE" />
-      </section>
-
-      <section className="space-y-4 rounded-xl surface p-4 sm:p-6">
-        <div>
-          <h2 className="text-base font-semibold">קטגוריות מחברות האשראי</h2>
-          <p className="text-sm text-muted-foreground">
-            הקטגוריות שהגיעו בקבצים של חברות האשראי. בחר לכל אחת קטגוריה מהרשימה שלך, וכל העסקאות שלה, גם בקבצים הבאים, יקבלו אותה.
-          </p>
-        </div>
-        <IssuerCategories initial={issuer} categories={expense} />
-      </section>
-
-      <section className="space-y-4 rounded-xl surface p-4 sm:p-6">
-        <div>
-          <h2 className="text-base font-semibold">קטגוריות הכנסה</h2>
-          <p className="text-sm text-muted-foreground">לתנועות נכנסות בבנק, כמו משכורת או שכר דירה שמתקבל</p>
-        </div>
-        <CategoryList initial={income} kind="INCOME" />
-      </section>
-
-      <section className="space-y-4 rounded-xl surface p-4 sm:p-6">
-        <h2 className="text-base font-semibold">מיפויי עסקים</h2>
-        <MerchantMappings initial={aliases} categories={expense} />
-      </section>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h1 className="text-[28px] font-bold leading-tight tracking-tight">קטגוריות</h1>
+      <CategoriesView
+        expense={items(expense, spent)}
+        income={items(income, inMonthly)}
+        pending={pendingIssuerCategories(issuer)}
+        choices={{ issuer, merchants, descriptions: { OUT: outDescriptions, IN: inDescriptions } }}
+        generic={generic}
+        aliases={asJson(aliases)}
+      />
     </div>
   )
 }
