@@ -91,6 +91,8 @@ export function CategoriesView({
   const lists = { EXPENSE: expense, INCOME: income }
   const categories = lists[kind]
   const expenseNames = expense.map(c => ({ id: c.id, name: c.name }))
+  // Each category's chart colour, for the pills in the lists' windows
+  const colors = Object.fromEntries([...expense, ...income].filter(c => c.color).map(c => [c.name, c.color!]))
   const category = shown?.type === 'category' ? [...expense, ...income].find(c => c.id === shown.id) : undefined
   const categoryKind: Kind = category && income.some(c => c.id === category.id) ? 'INCOME' : 'EXPENSE'
 
@@ -211,7 +213,7 @@ export function CategoriesView({
         <p className="mb-4 mt-1 text-sm text-muted-foreground">
           קטגוריות שהגיעו בקבצים של חברות האשראי ועוד אין להן קטגוריה שלך. בחירה כאן חלה על כל העסקאות שלהן, גם בקבצים הבאים.
         </p>
-        {shown?.type === 'pending' && <IssuerCategories initial={pending} categories={expenseNames} />}
+        {shown?.type === 'pending' && <IssuerCategories initial={pending} categories={expenseNames} colors={colors} />}
       </AppDialog>
 
       <AppDialog open={open?.type === 'generic'} onOpenChange={o => !o && setOpen(null)} title="תנועות שמסווגים אחת אחת">
@@ -222,8 +224,8 @@ export function CategoriesView({
         {shown?.type === 'generic' && <GenericDescriptions initial={generic} />}
       </AppDialog>
 
-      <AppDialog open={open?.type === 'merchants'} onOpenChange={o => !o && setOpen(null)} title="שמות בתי עסק" className="sm:max-w-3xl">
-        <div className="mt-4">{shown?.type === 'merchants' && <MerchantMappings initial={aliases} categories={expenseNames} />}</div>
+      <AppDialog open={open?.type === 'merchants'} onOpenChange={o => !o && setOpen(null)} title="שמות בתי עסק">
+        <div className="mt-4">{shown?.type === 'merchants' && <MerchantMappings initial={aliases} categories={expenseNames} colors={colors} />}</div>
       </AppDialog>
     </div>
   )

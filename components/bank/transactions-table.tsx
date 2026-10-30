@@ -11,7 +11,7 @@ import type { UnusualFlag } from '@/lib/insights/unusual'
 import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
-import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
+import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
@@ -309,6 +309,7 @@ export function BankTransactionsTable({
           rows={transactions.filter(t => selected.has(t.id))}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
+          colors={categoryColors}
           onApply={saveBulkCategory}
           onClear={() => setSelected(new Set())}
         />
@@ -508,6 +509,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
       amount={shown ? formatCurrency(out ? shown.debit : shown.credit) : ''}
       amountTone={out ? 'expense' : 'income'}
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      createKind={out ? 'EXPENSE' : 'INCOME'}
       current={shown?.category ?? null}
       allowNone
       scopes={
@@ -564,9 +566,6 @@ function CategoryCell({ tx, color, onOpen, onSuggest }: {
   )
 }
 
-/** The bar's "nothing picked yet" option; '' is uncategorized */
-const PICK = '__pick'
-
 /**
  * One category for every ticked row, each as a manual choice: for generic
  * descriptions such as cheques, where a rule can't tell the rows apart. The
@@ -576,59 +575,39 @@ function BulkCategoryBar({
   rows,
   expenseCategories,
   incomeCategories,
+  colors,
   onApply,
   onClear,
 }: {
   rows: BankTx[]
   expenseCategories: Category[]
   incomeCategories: Category[]
+  colors: Record<string, string>
   onApply: (category: string | null) => Promise<void>
   onClear: () => void
 }) {
-  // undefined: nothing picked yet; null: uncategorized
-  const [choice, setChoice] = useState<string | null | undefined>(undefined)
-  const [saving, setSaving] = useState(false)
+  const [open, setOpen] = useState(false)
   const directions = new Set(rows.map(directionOf))
   const mixed = directions.size > 1
-  const categories = directions.has('IN') ? incomeCategories : expenseCategories
-  // A pick from the other direction's list stops applying once the selection changes direction
-  const picked = choice === null || (!mixed && categories.some(c => c.name === choice)) ? choice : undefined
-
-  async function apply() {
-    if (picked === undefined) return
-    setSaving(true)
-    await onApply(picked)
-    setSaving(false)
-  }
+  const income = directions.has('IN')
+  const categories = income ? incomeCategories : expenseCategories
+  const total = rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0)
 
   return (
     <div className="sticky top-16 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl surface-overlay px-3 py-2 text-sm">
       <span className="font-medium">
         {rows.length === 1 ? 'נבחרה תנועה אחת' : <>נבחרו <span className="tabular-nums">{rows.length}</span> תנועות</>}
       </span>
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          className={cn('w-40 text-xs', picked === undefined && 'text-muted-foreground')}
-          aria-label="קטגוריה לתנועות שנבחרו"
-          disabled={mixed}
-          value={picked === undefined ? PICK : picked ?? ''}
-          onChange={e => setChoice(e.target.value === PICK ? undefined : e.target.value || null)}
-        >
-          <option value={PICK} disabled>בחרו קטגוריה</option>
-          <option value="">{UNCATEGORIZED}</option>
-          {categories.map(c => (
-            <option key={c.id} value={c.name}>{c.name}</option>
-          ))}
-        </select>
+      {mixed ? (
+        <span className="text-xs text-muted-foreground">בחרו תנועות מאותו כיוון</span>
+      ) : (
         <button
-          onClick={apply}
-          disabled={picked === undefined || saving}
-          className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          onClick={() => setOpen(true)}
+          className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-[0.97]"
         >
-          {saving ? 'שומר...' : 'החל'}
+          בחר קטגוריה
         </button>
-        {mixed && <span className="text-xs text-muted-foreground">בחרו תנועות מאותו כיוון</span>}
-      </div>
+      )}
       <button
         onClick={onClear}
         className="ms-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -636,6 +615,25 @@ function BulkCategoryBar({
         <X className="h-3 w-3" />
         ניקוי הבחירה
       </button>
+
+      {/* The rows' category window, for all of them at once: each gets it as its own choice */}
+      <CategoryPicker
+        open={open}
+        onOpenChange={setOpen}
+        context={income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'}
+        title={rows.length === 1 ? 'תנועה אחת' : `${rows.length} תנועות`}
+        amount={formatCurrency(total)}
+        amountTone={income ? 'income' : 'expense'}
+        categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+        createKind={income ? 'INCOME' : 'EXPENSE'}
+        current={undefined}
+        allowNone
+        note="כל תנועה שנבחרה תקבל את הקטגוריה הזאת, כבחירה שלה בלבד."
+        onSave={async category => {
+          setOpen(false)
+          await onApply(category)
+        }}
+      />
     </div>
   )
 }

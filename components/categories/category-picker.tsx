@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Plus, Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { UNCATEGORIZED } from '@/lib/insights/bank-categories'
@@ -21,16 +22,19 @@ export interface PickerScope {
 const NO_COLOR = 'hsl(var(--muted-foreground) / 0.35)'
 
 /** A table row's category: a pill that opens the picker (no dropdown in the row) */
-export function CategoryPill({ name, color, onClick, className }: {
+export function CategoryPill({ name, color, sourceName, onClick, className }: {
   /** null = uncategorised */
   name: string | null
   color?: string
+  /** An uncategorised card row's category in the issuer's file (none of yours), shown on hover */
+  sourceName?: string
   onClick: () => void
   className?: string
 }) {
   return (
     <button
       onClick={onClick}
+      title={!name && sourceName ? `בקובץ: ${sourceName}` : undefined}
       className={cn(
         'inline-flex h-7 max-w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
         name ? 'bg-muted/60' : 'border border-dashed text-muted-foreground',
@@ -63,6 +67,7 @@ export function CategoryPicker({
   note,
   suggestion,
   extraAction,
+  createKind,
   onSave,
 }: {
   open: boolean
@@ -73,7 +78,8 @@ export function CategoryPicker({
   amount: string
   amountTone: 'expense' | 'income'
   categories: PickerCategory[]
-  current: string | null
+  /** The row's category (null = none); undefined starts with nothing picked (several rows at once) */
+  current: string | null | undefined
   /** "ללא קטגוריה" is a choice (bank rows) */
   allowNone?: boolean
   /** What the choice applies to; none = this row only, nothing to ask */
@@ -84,6 +90,8 @@ export function CategoryPicker({
   suggestion?: { category: string; reason: string }
   /** A quiet extra action beside Save; gets the picked category */
   extraAction?: { label: string; onClick: (category: string | null) => void }
+  /** The kind a category made here gets ("+ חדשה" beside the search); none = no creating */
+  createKind?: 'EXPENSE' | 'INCOME'
   onSave: (category: string | null, scope: string | null) => Promise<void> | void
 }) {
   return (
@@ -113,6 +121,7 @@ export function CategoryPicker({
           note={note}
           suggestion={suggestion}
           extraAction={extraAction}
+          createKind={createKind}
           onSave={onSave}
         />
       )}
@@ -120,18 +129,44 @@ export function CategoryPicker({
   )
 }
 
-function PickerBody({ categories, current, allowNone, scopes, defaultScope, note, suggestion, extraAction, onSave }: {
+function PickerBody({ categories: given, current, allowNone, scopes, defaultScope, note, suggestion, extraAction, createKind, onSave }: {
   categories: PickerCategory[]
-  current: string | null
+  current: string | null | undefined
   allowNone?: boolean
   scopes?: PickerScope[]
   defaultScope?: string
   note?: string
   suggestion?: { category: string; reason: string }
   extraAction?: { label: string; onClick: (category: string | null) => void }
+  createKind?: 'EXPENSE' | 'INCOME'
   onSave: (category: string | null, scope: string | null) => Promise<void> | void
 }) {
-  const [picked, setPicked] = useState<string | null>(current)
+  const router = useRouter()
+  // Categories made in this window join the list at once (the page refreshes behind it)
+  const [made, setMade] = useState<PickerCategory[]>([])
+  const categories = useMemo(() => [...given, ...made.filter(m => !given.some(g => g.name === m.name))], [given, made])
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  async function create() {
+    const name = newName.trim()
+    if (!name || !createKind) return
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, kind: createKind }),
+    })
+    if (!res.ok) { setCreateError('שם כבר קיים'); return }
+    setMade(prev => [...prev, { name }])
+    setPicked(name)
+    setNewName('')
+    setCreateError(null)
+    setCreating(false)
+    router.refresh()
+  }
+
+  const [picked, setPicked] = useState<string | null | undefined>(current)
   const initialScope = defaultScope ?? scopes?.[0]?.id ?? null
   const [scope, setScope] = useState<string | null>(initialScope)
   const [query, setQuery] = useState('')
@@ -141,13 +176,13 @@ function PickerBody({ categories, current, allowNone, scopes, defaultScope, note
     [categories, query]
   )
   const colorOf = (name: string) => categories.find(c => c.name === name)?.color
-  // Applying the same category more widely is a change too
-  const changed = picked !== current || scope !== initialScope
+  // Applying the same category more widely is a change too; nothing picked yet is not
+  const changed = picked !== undefined && (picked !== current || scope !== initialScope)
 
   async function save() {
     setSaving(true)
     try {
-      await onSave(picked, scopes?.length ? scope : null)
+      if (picked !== undefined) await onSave(picked, scopes?.length ? scope : null)
     } finally {
       setSaving(false)
     }
@@ -169,17 +204,60 @@ function PickerBody({ categories, current, allowNone, scopes, defaultScope, note
         </button>
       )}
 
-      {categories.length > 8 && (
-        <label className="relative block">
-          <span className="sr-only">חיפוש קטגוריה</span>
-          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <input
-            className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="חיפוש קטגוריה"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-        </label>
+      {creating ? (
+        // "+ חדשה" turns the search row into the new category's name
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              aria-label="שם הקטגוריה החדשה"
+              placeholder={createKind === 'INCOME' ? 'שם קטגוריית הכנסה חדשה' : 'שם קטגוריית הוצאה חדשה'}
+              className="h-10 min-w-0 flex-1 rounded-xl border bg-background px-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); create() }
+                if (e.key === 'Escape') { e.stopPropagation(); setCreating(false); setCreateError(null) }
+              }}
+            />
+            <button
+              onClick={create}
+              disabled={!newName.trim()}
+              className="h-10 shrink-0 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
+            >
+              הוספה
+            </button>
+            <button
+              onClick={() => { setCreating(false); setCreateError(null) }}
+              className="h-10 shrink-0 rounded-xl bg-muted px-3 text-sm transition-colors hover:bg-muted/70"
+            >
+              ביטול
+            </button>
+          </div>
+          {createError && <p className="text-sm text-destructive">{createError}</p>}
+        </div>
+      ) : (categories.length > 8 || createKind) && (
+        <div className="flex gap-2">
+          <label className="relative block min-w-0 flex-1">
+            <span className="sr-only">חיפוש קטגוריה</span>
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <input
+              className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="חיפוש קטגוריה"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </label>
+          {createKind && (
+            <button
+              onClick={() => { setCreating(true); setNewName(query.trim()) }}
+              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl border border-dashed px-3.5 text-sm text-primary transition-colors hover:border-primary/50 hover:bg-primary/5"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              חדשה
+            </button>
+          )}
+        </div>
       )}
 
       <div role="radiogroup" aria-label="קטגוריה" className="flex max-h-64 flex-wrap gap-2 overflow-y-auto">
@@ -231,7 +309,7 @@ function PickerBody({ categories, current, allowNone, scopes, defaultScope, note
         </button>
         {extraAction && (
           <button
-            onClick={() => extraAction.onClick(picked)}
+            onClick={() => extraAction.onClick(picked ?? null)}
             className="h-11 px-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             {extraAction.label}

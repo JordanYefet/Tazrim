@@ -32,7 +32,11 @@ export function categorySources({ issuer, aliases, bankRules }: {
   return out
 }
 
-/** Issuer categories on the stored card rows that aren't mapped to one of yours yet */
-export function pendingIssuerCategories<T extends IssuerRow>(issuer: T[]): T[] {
-  return issuer.filter(r => r.category === null)
+/**
+ * Issuer categories on the stored card rows that aren't one of yours yet: unmapped, and
+ * not already named like one of your categories (their rows carry that name already).
+ */
+export function pendingIssuerCategories<T extends IssuerRow>(issuer: T[], yours: string[] = []): T[] {
+  const names = new Set(yours)
+  return issuer.filter(r => r.category === null && !names.has(r.sourceCategory))
 }

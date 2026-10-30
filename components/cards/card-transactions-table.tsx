@@ -93,6 +93,12 @@ export function CardTransactionsTable({
   const [columns, setColumns] = useState(initialColumns as CardColumn[])
   // The row whose category window is open
   const [picking, setPicking] = useState<string | null>(null)
+  // A row's category, when it is one of yours (an unmapped issuer category is none)
+  const yours = new Set(categories.map(c => c.name))
+  const known = (tx: CCTx) => {
+    const c = tx.categoryOverride ?? tx.category
+    return yours.has(c) ? c : null
+  }
   const router = useRouter()
   const params = useSearchParams()
   const [transactions, setTransactions] = useState(initial)
@@ -265,8 +271,9 @@ export function CardTransactionsTable({
                       </span>
                     ) : (
                       <CategoryPill
-                        name={tx.categoryOverride ?? tx.category}
-                        color={categoryColors[tx.categoryOverride ?? tx.category]}
+                        name={known(tx)}
+                        color={known(tx) ? categoryColors[known(tx)!] : undefined}
+                        sourceName={known(tx) ? undefined : tx.categoryOverride ?? tx.category}
                         onClick={() => setPicking(tx.id)}
                       />
                     )}
@@ -373,7 +380,8 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
       amount={shown ? formatCurrency(shown.chargedAmount) : ''}
       amountTone="expense"
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
-      current={shown ? shown.categoryOverride ?? shown.category : null}
+      createKind="EXPENSE"
+      current={shown && categories.some(c => c.name === (shown.categoryOverride ?? shown.category)) ? shown.categoryOverride ?? shown.category : null}
       scopes={
         shown
           ? [

@@ -45,6 +45,14 @@ describe('RecurringList', () => {
     expect(html).toContain('dismiss k2')
   })
 
+  it('can hand each row to a wrapper (a button that opens the series window)', () => {
+    const html = renderToStaticMarkup(
+      <RecurringList series={[base]} wrapRow={(s, content) => <button data-series={s.key}>{content}</button>} />
+    )
+    expect(html).toContain('data-series="card||streamly|monthly"')
+    expect(html).toMatch(/<button data-series="[^"]+">[\s\S]*Streamly[\s\S]*<\/button>/)
+  })
+
   it('shows an empty state', () => {
     expect(renderToStaticMarkup(<RecurringList total={0} series={[]} />)).toContain('עדיין לא זוהו')
   })

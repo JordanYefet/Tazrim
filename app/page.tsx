@@ -197,11 +197,13 @@ export default async function DashboardPage({
               colors={categoryColors}
               categoryHrefs={donutHrefs}
             />
-            <UncategorizedCard bank={uncategorized.bank} card={uncategorized.card} />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RecurringCard series={recurring.subscriptions} total={recurring.total} />
+            {/* What deserves a look sits beside the donut, at full height */}
             <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
+          </div>
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <RecurringCard series={recurring.subscriptions} total={recurring.total} />
+            {/* Compact, not stretched to the recurring list's height */}
+            <UncategorizedCard bank={uncategorized.bank} card={uncategorized.card} />
           </div>
         </>
       ) : (

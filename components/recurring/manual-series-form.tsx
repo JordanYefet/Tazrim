@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import * as Dialog from '@radix-ui/react-dialog'
+import { AppDialog } from '@/components/ui/app-dialog'
 import { ArrowUp, Loader2, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -55,10 +55,7 @@ const BUTTON =
 export const SHEET_BUTTON = BUTTON
 const badge = 'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium'
 
-/**
- * The sheet every manual-series flow opens in: rises from the bottom on phones,
- * centered on wider screens (the confirm dialog's motion).
- */
+/** The window every manual-series flow opens in: the app's window (AppDialog) */
 export function RecurringSheet({
   open,
   onOpenChange,
@@ -71,25 +68,9 @@ export function RecurringSheet({
   children: ReactNode
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
-        <Dialog.Content
-          dir="rtl"
-          aria-describedby={undefined}
-          className="confirm-dialog fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl surface-overlay p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-card-foreground focus:outline-none sm:inset-x-4 sm:inset-y-0 sm:my-auto sm:h-fit sm:max-h-[88dvh] sm:max-w-lg sm:rounded-3xl sm:p-6"
-        >
-          <Dialog.Close
-            aria-label="סגור"
-            className="absolute end-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </Dialog.Close>
-          <Dialog.Title className="pe-10 text-base font-semibold">{title}</Dialog.Title>
-          <div className="mt-4">{children}</div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <AppDialog open={open} onOpenChange={onOpenChange} title={title}>
+      <div className="mt-4">{children}</div>
+    </AppDialog>
   )
 }
 

@@ -3,8 +3,9 @@
 import { createContext, useContext } from 'react'
 import {
   Building2,
+  ChartPie,
   CreditCard,
-  LayoutDashboard,
+  House,
   Info,
   Repeat,
   Settings,
@@ -60,11 +61,13 @@ export const SECTION_ITEMS: Record<NavSectionKey, NavSectionItem> = {
 }
 
 export const MAIN_NAV: NavItem[] = [
-  { type: 'link', href: '/', label: 'לוח בקרה', icon: LayoutDashboard },
+  // The same house as the phone's tab bar
+  { type: 'link', href: '/', label: 'ראשי', icon: House },
   SECTION_ITEMS.banks,
   SECTION_ITEMS.cards,
   { type: 'link', href: '/recurring', label: 'חיובים קבועים', icon: Repeat },
   { type: 'link', href: '/upload', label: 'העלאת קבצים', icon: Upload },
+  { type: 'link', href: '/analysis', label: 'ניתוח לפי קטגוריה', icon: ChartPie },
   { type: 'link', href: '/categories', label: 'קטגוריות', icon: Tag },
 ]
 

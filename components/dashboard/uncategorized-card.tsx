@@ -1,42 +1,43 @@
 import Link from 'next/link'
 import { CheckCircle2, ChevronLeft } from 'lucide-react'
-import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
+import { cn } from '@/lib/utils/cn'
+import { SECTION } from '@/components/accounts/page-parts'
 
 /**
  * The overview's count of transactions without a category, in every period
- * (lib/db/uncategorized.ts), with a link to all of them in search.
+ * (lib/db/uncategorized.ts): a compact card, linking to all of them in search.
+ * Kept small on purpose; "שווה בדיקה" is the card that matters more.
  */
-export function UncategorizedCard({ bank, card }: { bank: number; card: number }) {
+export function UncategorizedCard({ bank, card, className }: { bank: number; card: number; className?: string }) {
   const total = bank + card
-  return (
-    <section className={`${SECTION} flex flex-col`}>
-      <ChartHeader title="תנועות בלי קטגוריה" subtitle="מכל התקופות, בבנק ובכרטיסים" />
-      {total === 0 ? (
-        <p className="flex flex-1 items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-          <CheckCircle2 className="h-5 w-5 text-[hsl(var(--income))]" aria-hidden />
-          לכל התנועות יש קטגוריה
+  if (total === 0) {
+    return (
+      <section className={cn(SECTION, 'flex items-center gap-2.5 py-4 sm:py-4', className)}>
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-[hsl(var(--income))]" aria-hidden />
+        <p className="text-sm">
+          <span className="font-semibold">תנועות בלי קטגוריה:</span>{' '}
+          <span className="text-muted-foreground">אין, לכל התנועות יש קטגוריה</span>
         </p>
-      ) : (
-        <div className="flex flex-1 flex-col justify-between gap-5">
-          <dl className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-muted/50 px-4 py-3">
-              <dt className="text-xs text-muted-foreground">בבנק</dt>
-              <dd className="text-2xl font-semibold tabular-nums">{bank}</dd>
-            </div>
-            <div className="rounded-xl bg-muted/50 px-4 py-3">
-              <dt className="text-xs text-muted-foreground">בכרטיסים</dt>
-              <dd className="text-2xl font-semibold tabular-nums">{card}</dd>
-            </div>
-          </dl>
-          <Link
-            href="/search?uncategorized=1"
-            className="group inline-flex items-center justify-center gap-1 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary transition-[background-color,transform] hover:bg-primary/15 active:scale-[0.98]"
-          >
-            {total === 1 ? 'להצגת התנועה' : `להצגת כל ה־${total}`}
-            <ChevronLeft className="h-4 w-4 transition-transform duration-fast group-hover:-translate-x-0.5" aria-hidden />
-          </Link>
-        </div>
-      )}
-    </section>
+      </section>
+    )
+  }
+  return (
+    <Link
+      href="/search?uncategorized=1"
+      className={cn(SECTION, 'group flex items-center gap-3 py-4 transition-colors hover:bg-muted/30 sm:py-4', className)}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">
+          {total === 1 ? 'תנועה אחת בלי קטגוריה' : `${total} תנועות בלי קטגוריה`}
+        </span>
+        <span className="block text-xs text-muted-foreground tabular-nums">
+          {bank} בבנק · {card} בכרטיסים · מכל התקופות
+        </span>
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary">
+        להצגה
+        <ChevronLeft className="h-4 w-4 transition-transform duration-fast group-hover:-translate-x-0.5" aria-hidden />
+      </span>
+    </Link>
   )
 }

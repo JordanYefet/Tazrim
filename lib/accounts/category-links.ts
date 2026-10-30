@@ -1,14 +1,22 @@
-import { accountHref, accountPath, withQuery, type QueryInput } from './routes'
+import { accountHref, withQuery, type QueryInput } from './routes'
 import { isRealCategory } from '@/lib/insights/bank-categories'
 
-/** The category analysis page: one card's (`/cards/<id>/categories`) or every card's (`/cards/categories`). */
-export function categoryAnalysisHref(cardId: string | undefined, params?: QueryInput): string {
-  return withQuery(`${accountPath('CREDIT_CARD', cardId)}/categories`, params)
+/**
+ * The category analysis page (/analysis), bank and cards together. Its scope is in the
+ * path: nothing = everything, `bank`, `cards`, or one account's id.
+ */
+export function analysisHref(scope: string | undefined, params?: QueryInput): string {
+  return withQuery(scope ? `/analysis/${encodeURIComponent(scope)}` : '/analysis', params)
 }
 
-/** The bank category analysis page: one account's (`/banks/<id>/categories`) or every bank account's. */
+/** The analysis of one card, or of every card */
+export function categoryAnalysisHref(cardId: string | undefined, params?: QueryInput): string {
+  return analysisHref(cardId ?? 'cards', params)
+}
+
+/** The analysis of one bank account, or of every bank account */
 export function bankCategoryAnalysisHref(accountId: string | undefined, params?: QueryInput): string {
-  return withQuery(`${accountPath('BANK', accountId)}/categories`, params)
+  return analysisHref(accountId ?? 'bank', params)
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
