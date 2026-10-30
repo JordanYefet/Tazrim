@@ -1,46 +1,14 @@
-import { notFound } from 'next/navigation'
-import { CategoryAnalysis } from '@/components/cards/category-analysis'
-import { PageHeading } from '@/components/accounts/page-parts'
-import { getAccount } from '@/lib/db/accounts'
-import { getCCCategoryMonthly } from '@/lib/db/cards'
-import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
-import { withResolvedPeriod } from '@/lib/period-server'
+import { redirect } from 'next/navigation'
+import { analysisHref } from '@/lib/accounts/category-links'
 
-interface SearchParams { year?: string; month?: string }
-
-/** One card's spending by category over the year: the stacked chart and the category × month table. */
+/** Moved: one card's analysis is a scope of /analysis (bank and cards together); old links keep working. */
 export default async function CardCategoriesPage({
-  params: routeParams,
+  params,
   searchParams,
 }: {
   params: Promise<{ accountId: string }>
-  searchParams: Promise<SearchParams>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { accountId } = await routeParams
-  const account = await getAccount(decodeURIComponent(accountId))
-  if (!account || account.kind !== 'CREDIT_CARD') notFound()
-
-  const params = await withResolvedPeriod(await searchParams)
-  const year = params.year
-  const month = params.month ? Number(params.month) : undefined
-  const monthly = await getCCCategoryMonthly(account.id, Number(year))
-  const name = account.cardLastFour ? `${account.displayName} ·${account.cardLastFour}` : account.displayName
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeading
-        period={{ year: Number(year), month }}
-        title="ניתוח לפי קטגוריה"
-        badge={account.archived ? 'בארכיון' : undefined}
-      />
-      <CategoryAnalysis
-        categoryHref={category => categoryTransactionsHref({ cardIds: [account.id], category, year, month })}
-        monthly={monthly}
-        year={year}
-        month={month}
-        basePath={categoryAnalysisHref(account.id)}
-        emptyText={`העלה פירוט חיובים של ${account.displayName} כדי לראות כאן את החיובים לפי קטגוריה וחודש.`}
-      />
-    </div>
-  )
+  const { accountId } = await params
+  redirect(analysisHref(decodeURIComponent(accountId), await searchParams))
 }
