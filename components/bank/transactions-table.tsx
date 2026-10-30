@@ -15,6 +15,7 @@ import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insi
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 
@@ -305,7 +306,7 @@ export function BankTransactionsTable({
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
 
       {selected.size > 0 && (
-        <BulkCategoryBar
+        <BankBulkBar
           rows={transactions.filter(t => selected.has(t.id))}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
@@ -566,19 +567,8 @@ function CategoryCell({ tx, color, onOpen, onSuggest }: {
   )
 }
 
-/**
- * One category for every ticked row, each as a manual choice: for generic
- * descriptions such as cheques, where a rule can't tell the rows apart. The
- * list follows the rows' direction, so debits and credits together can't take one.
- */
-function BulkCategoryBar({
-  rows,
-  expenseCategories,
-  incomeCategories,
-  colors,
-  onApply,
-  onClear,
-}: {
+/** The shared bulk bar for ticked bank rows: their direction picks expense or income categories */
+function BankBulkBar({ rows, expenseCategories, incomeCategories, colors, onApply, onClear }: {
   rows: BankTx[]
   expenseCategories: Category[]
   incomeCategories: Category[]
@@ -586,54 +576,19 @@ function BulkCategoryBar({
   onApply: (category: string | null) => Promise<void>
   onClear: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const directions = new Set(rows.map(directionOf))
-  const mixed = directions.size > 1
   const income = directions.has('IN')
   const categories = income ? incomeCategories : expenseCategories
-  const total = rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0)
-
   return (
-    <div className="sticky top-16 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl surface-overlay px-3 py-2 text-sm">
-      <span className="font-medium">
-        {rows.length === 1 ? 'נבחרה תנועה אחת' : <>נבחרו <span className="tabular-nums">{rows.length}</span> תנועות</>}
-      </span>
-      {mixed ? (
-        <span className="text-xs text-muted-foreground">בחרו תנועות מאותו כיוון</span>
-      ) : (
-        <button
-          onClick={() => setOpen(true)}
-          className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-[0.97]"
-        >
-          בחר קטגוריה
-        </button>
-      )}
-      <button
-        onClick={onClear}
-        className="ms-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-      >
-        <X className="h-3 w-3" />
-        ניקוי הבחירה
-      </button>
-
-      {/* The rows' category window, for all of them at once: each gets it as its own choice */}
-      <CategoryPicker
-        open={open}
-        onOpenChange={setOpen}
-        context={income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'}
-        title={rows.length === 1 ? 'תנועה אחת' : `${rows.length} תנועות`}
-        amount={formatCurrency(total)}
-        amountTone={income ? 'income' : 'expense'}
-        categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
-        createKind={income ? 'INCOME' : 'EXPENSE'}
-        current={undefined}
-        allowNone
-        note="כל תנועה שנבחרה תקבל את הקטגוריה הזאת, כבחירה שלה בלבד."
-        onSave={async category => {
-          setOpen(false)
-          await onApply(category)
-        }}
-      />
-    </div>
+    <BulkCategoryBar
+      count={rows.length}
+      kind={directions.size > 1 ? 'mixed' : income ? 'income' : 'expense'}
+      context={income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'}
+      amount={formatCurrency(rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0))}
+      categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      allowNone
+      onApply={onApply}
+      onClear={onClear}
+    />
   )
 }

@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
+import { ListChecks, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult } from '@/lib/search/query'
+import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult, type TextMode } from '@/lib/search/query'
 import { formatCurrency } from '@/lib/utils/currency'
 import { isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { SearchResultList } from './search-result-list'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import { SearchEmptyState, SearchNoResults } from './search-states'
@@ -41,6 +42,7 @@ interface PickerData {
 
 interface FormState {
   text: string
+  textMode: TextMode
   amountInput: string
   from: string
   to: string
@@ -54,6 +56,7 @@ const NONE = '__none'
 
 const toForm = (f: SearchFilters): FormState => ({
   text: f.text ?? '',
+  textMode: f.textMode ?? 'all',
   amountInput: f.amountInput ?? '',
   from: f.from ?? '',
   to: f.to ?? '',
@@ -65,6 +68,7 @@ const toForm = (f: SearchFilters): FormState => ({
 const formQuery = (s: FormState) =>
   toSearchParams({
     text: s.text.trim() || undefined,
+    textMode: s.textMode,
     amountInput: s.amountInput.trim() || undefined,
     from: s.from || undefined,
     to: s.to || undefined,
@@ -160,6 +164,33 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
             {advancedActive && <span className="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full bg-primary" aria-label="יש סינון פעיל" />}
           </button>
         </div>
+
+        {/* Several words: all of them (the default) or any one; quotes keep a phrase whole */}
+        {splitTerms(form.text).length > 1 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+            <div role="radiogroup" aria-label="התאמת המילים" className="inline-flex rounded-lg border bg-card p-0.5">
+              {([['all', 'כל המילים'], ['any', 'אחת מהמילים']] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.textMode === mode}
+                  onClick={() => update({ textMode: mode })}
+                  className={cn(
+                    'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    form.textMode === mode ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span>
+              ביטוי מדויק: <bdi>"בין מירכאות"</bdi>
+            </span>
+          </div>
+        )}
 
         {showFilters && (
           <div id="search-filters" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -296,6 +327,102 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
 
+  // Selecting rows for one category at once: rows ticked one by one, or every
+  // match of the search (counted by the server, minus the rows unticked since)
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState<Map<string, SearchResult>>(new Map())
+  const [all, setAll] = useState<AllMatches | null>(null)
+  const [excluded, setExcluded] = useState<Set<string>>(new Set())
+  const [allLoading, setAllLoading] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+
+  const isSelected = (r: SearchResult) => (all ? !excluded.has(keyOf(r)) : picked.has(keyOf(r)))
+  const selectedCount = all ? all.bankOut + all.bankIn + all.card - excluded.size : picked.size
+
+  function clearSelection() {
+    setPicked(new Map())
+    setAll(null)
+    setExcluded(new Set())
+    setBulkError(null)
+  }
+
+  function toggleRow(r: SearchResult) {
+    const key = keyOf(r)
+    if (all) {
+      setExcluded(prev => {
+        const next = new Set(prev)
+        if (!next.delete(key)) next.add(key)
+        return next
+      })
+    } else {
+      setPicked(prev => {
+        const next = new Map(prev)
+        if (!next.delete(key)) next.set(key, r)
+        return next
+      })
+    }
+  }
+
+  async function toggleAll() {
+    if (all) return clearSelection()
+    setAllLoading(true)
+    setBulkError(null)
+    try {
+      const res = await fetch(`/api/search/bulk-category?${queryString}`)
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error ?? 'הבחירה נכשלה')
+      setPicked(new Map())
+      setExcluded(new Set())
+      setAll(body as AllMatches)
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : 'הבחירה נכשלה')
+    } finally {
+      setAllLoading(false)
+    }
+  }
+
+  // What the ticked rows are decides the categories offered; card charges take expense ones
+  const chosen = [...picked.values()]
+  const mix = all
+    ? { out: all.bankOut > 0, in: all.bankIn > 0, bank: all.bankOut + all.bankIn > 0, card: all.card > 0 }
+    : {
+        out: chosen.some(r => r.source === 'bank' && r.amount > 0),
+        in: chosen.some(r => r.source === 'bank' && r.amount <= 0),
+        bank: chosen.some(r => r.source === 'bank'),
+        card: chosen.some(r => r.source === 'card'),
+      }
+  const bulkKind = mix.in && (mix.out || mix.card) ? 'mixed' : mix.in ? 'income' : 'expense'
+
+  async function saveBulk(category: string | null) {
+    const res = await fetch('/api/search/bulk-category', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        all
+          ? { category, query: queryString, exclude: [...excluded].map(fromKey) }
+          : { category, items: [...picked.keys()].map(fromKey) }
+      ),
+    })
+    const body = await res.json().catch(() => null)
+    if (!res.ok) {
+      setBulkError(body?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    const changed = new Set([
+      ...(body.bankIds as string[]).map(id => `bank:${id}`),
+      ...(body.cardIds as string[]).map(id => `card:${id}`),
+    ])
+    // Rows that got a category leave a "ללא קטגוריה" list, loaded or not
+    if (uncategorizedOnly && category !== null) {
+      setResults(prev => prev.filter(r => !changed.has(keyOf(r))))
+      setRemoved(n => n + changed.size)
+    } else {
+      setResults(prev => prev.map(r => (changed.has(keyOf(r)) ? { ...r, category: category ?? undefined } : r)))
+    }
+    clearSelection()
+    setSelecting(false)
+  }
+
   async function loadMore() {
     if (!cursor) return
     setLoading(true)
@@ -317,14 +444,81 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
 
   return (
     <section className="rounded-xl surface p-2 sm:p-3">
-      <p className="px-2 pb-2 text-xs text-muted-foreground tabular-nums" aria-live="polite">
-        {initial.total - removed === 1 ? 'תוצאה אחת' : `${initial.total - removed} תוצאות`}
-        {initial.total - removed > results.length ? ` · מוצגות ${results.length}` : ''}
-      </p>
+      <div className="flex min-h-9 items-center gap-2 px-2 pb-2">
+        {selecting && (
+          <label className="-my-2 -ms-2 inline-flex cursor-pointer items-center gap-2 p-2 text-xs">
+            <input
+              type="checkbox"
+              aria-label="בחירת כל התוצאות"
+              checked={!!all}
+              ref={el => { if (el) el.indeterminate = !!all && excluded.size > 0 }}
+              disabled={allLoading}
+              onChange={toggleAll}
+              className="h-4 w-4 cursor-pointer accent-[hsl(var(--primary))]"
+            />
+            {allLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden />}
+          </label>
+        )}
+        <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+          {selecting
+            ? `בחירת כל ${initial.total - removed} התוצאות`
+            : <>
+                {initial.total - removed === 1 ? 'תוצאה אחת' : `${initial.total - removed} תוצאות`}
+                {initial.total - removed > results.length ? ` · מוצגות ${results.length}` : ''}
+              </>}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            if (selecting) clearSelection()
+            setSelecting(s => !s)
+          }}
+          aria-pressed={selecting}
+          className={cn(
+            'ms-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            selecting ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          )}
+        >
+          <ListChecks className="h-3.5 w-3.5" aria-hidden />
+          {selecting ? 'סיום בחירה' : 'בחירה'}
+        </button>
+      </div>
+      {bulkError && <p role="alert" className="px-2 pb-2 text-sm text-destructive">{bulkError}</p>}
+      {selectedCount > 0 && (
+        <div className="px-1 pb-2">
+          <BulkCategoryBar
+            count={selectedCount}
+            kind={bulkKind}
+            context={bulkContext(mix, bulkKind === 'income')}
+            amount={all ? undefined : formatCurrency(chosen.reduce((sum, r) => sum + Math.abs(r.amount), 0))}
+            categories={(bulkKind === 'income' ? picker.income : picker.expense).map(name => ({ name, color: picker.colors[name] }))}
+            allowNone={!mix.card}
+            onApply={saveBulk}
+            onClear={clearSelection}
+          />
+        </div>
+      )}
       <SearchResultList
         results={results}
         terms={terms}
         categoryInActions
+        leading={
+          selecting
+            ? r => (
+                <label className="-m-1 inline-flex h-10 w-8 items-center justify-center">
+                  <input
+                    type="checkbox"
+                    aria-label={`בחירת ${r.description}`}
+                    checked={selectable(r) && isSelected(r)}
+                    disabled={!selectable(r)}
+                    onChange={() => toggleRow(r)}
+                    className="h-4 w-4 cursor-pointer accent-[hsl(var(--primary))] disabled:cursor-default disabled:opacity-30"
+                  />
+                </label>
+              )
+            : undefined
+        }
         // The category pill (opens the category window, as in the tables) and mark as recurring
         // (ENG-71, expenses only); fixed slots keep the amounts aligned
         actions={r => (
@@ -360,6 +554,29 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
       )}
     </section>
   )
+}
+
+/** What "select every match" takes, counted by /api/search/bulk-category */
+interface AllMatches {
+  bankOut: number
+  bankIn: number
+  card: number
+}
+
+const keyOf = (r: Pick<SearchResult, 'source' | 'id'>) => `${r.source}:${r.id}`
+const fromKey = (key: string) => {
+  const i = key.indexOf(':')
+  return { source: key.slice(0, i), id: key.slice(i + 1) }
+}
+
+/** A row can be ticked when its category pill shows: not hidden, not the bank's card payment */
+const selectable = (r: SearchResult) => !r.ignored && !isCardPayment(r)
+
+/** The bulk window's heading: which kinds of rows are in the selection */
+function bulkContext(mix: { bank: boolean; card: boolean }, income: boolean) {
+  if (mix.bank && mix.card) return 'תנועות בבנק וחיובים בכרטיס'
+  if (mix.card) return 'חיובים בכרטיס'
+  return income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'
 }
 
 /** A bank row's payment to a card company never takes a category */

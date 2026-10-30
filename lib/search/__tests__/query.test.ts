@@ -75,6 +75,13 @@ describe('splitTerms / textAsAmount', () => {
     expect(splitTerms('100% a_b _')).toEqual(['100', 'a', 'b'])
   })
 
+  it('keeps a quoted phrase whole, and a quote inside a word as part of it', () => {
+    expect(splitTerms('"Fake  Cheque Deposit" cafe')).toEqual(['Fake Cheque Deposit', 'cafe'])
+    expect(splitTerms('פלוני בע"מ')).toEqual(['פלוני', 'בע"מ'])
+    expect(splitTerms('"unclosed phrase')).toEqual(['unclosed', 'phrase'])
+    expect(splitTerms('"" "a b"')).toEqual(['a b'])
+  })
+
   it('treats a lone amount-like query as an amount too', () => {
     expect(textAsAmount('₪120')).toEqual(parseAmountRange('120'))
     expect(textAsAmount('1,200')).toEqual(parseAmountRange('1200'))
@@ -117,6 +124,13 @@ describe('parseSearchParams / toSearchParams', () => {
     expect(bad.amount).toBeUndefined()
     expect(bad.amountInput).toBe('lots')
     expect(bad.amountInvalid).toBe(true)
+  })
+
+  it('match=any makes one term enough, and survives the round trip only with text', () => {
+    expect(parseSearchParams({ q: 'a b', match: 'any' }).textMode).toBe('any')
+    expect(parseSearchParams({ q: 'a b', match: 'nope' }).textMode).toBeUndefined()
+    expect(toSearchParams({ text: 'a b', textMode: 'any' }).get('match')).toBe('any')
+    expect(toSearchParams({ textMode: 'any' }).get('match')).toBeNull()
   })
 
   it('round-trips through toSearchParams', () => {
@@ -174,6 +188,20 @@ describe('buildBankWhere', () => {
         { reference: { contains: 'Cafe' } },
       ],
     })
+  })
+
+  it('with match=any, one of the terms is enough', () => {
+    const where = buildBankWhere(parseSearchParams({ q: 'Fake Cafe', match: 'any' }))!
+    const field = (term: string) => ({
+      OR: [
+        { description: { contains: term } },
+        { originalDescription: { contains: term } },
+        { note: { contains: term } },
+        { reference: { contains: term } },
+      ],
+    })
+    expect(where.AND).toContainEqual({ OR: [field('Fake'), field('Cafe')] })
+    expect(where.AND).not.toContainEqual(field('Fake'))
   })
 
   it('matches an amount on either side, ignoring zero sides', () => {
