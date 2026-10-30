@@ -14,6 +14,7 @@ import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 
 interface CCTx {
   id: string
@@ -104,6 +105,9 @@ export function CardTransactionsTable({
   const [transactions, setTransactions] = useState(initial)
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
+  // Charges ticked for one category at once; the page remounts the table on a new data set, which clears it
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('CREDIT_CARD', accountId)
   const api = `/api/cards/${encodeURIComponent(accountId)}/transactions`
@@ -134,7 +138,43 @@ export function CardTransactionsTable({
     router.refresh()
   }
 
+  const selectableRows = transactions.filter(t => !t.ignored)
+  const allSelected = selectableRows.length > 0 && selectableRows.every(t => selected.has(t.id))
+
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(selectableRows.map(t => t.id)))
+  }
+
+  /** Every ticked charge gets the category as its own choice (no merchant rule) */
+  async function saveBulkCategory(category: string | null) {
+    if (category === null) return
+    const res = await fetch(`${api}/bulk-category`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [...selected], category }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    const changed = new Set((await res.json() as { updatedIds: string[] }).updatedIds)
+    setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride: category } : t)))
+    setSelected(new Set())
+    router.refresh()
+  }
+
   async function toggleIgnored(tx: CCTx) {
+    // A hidden charge takes no category, so it leaves the selection
+    if (!tx.ignored) setSelected(prev => (prev.has(tx.id) ? new Set([...prev].filter(id => id !== tx.id)) : prev))
     const ignored = !tx.ignored
     await fetch(`${api}/${tx.id}`, {
       method: 'PATCH',
@@ -217,12 +257,39 @@ export function CardTransactionsTable({
         </div>
       </div>
 
+      {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
+
+      {selected.size > 0 && (
+        <BulkCategoryBar
+          count={selected.size}
+          kind="expense"
+          context="חיובים בכרטיס"
+          amount={formatCurrency(transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0))}
+          categories={categories.map(c => ({ name: c.name, color: categoryColors[c.name] }))}
+          onApply={saveBulkCategory}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
+
       {/* Table */}
       <div className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="w-0 py-2.5 ps-4 pe-0">
+                  <label className="-m-3 inline-flex p-3 align-middle">
+                    <input
+                      type="checkbox"
+                      aria-label="בחירת כל העסקאות שנטענו"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = selected.size > 0 && !allSelected }}
+                      disabled={selectableRows.length === 0}
+                      onChange={toggleAll}
+                      className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default"
+                    />
+                  </label>
+                </th>
                 {/* Billing date first: rows belong to the month they are billed in (ENG-46) */}
                 {['תאריך חיוב', 'תאריך עסקה', 'שם בית עסק', 'קטגוריה', 'סכום חיוב', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
@@ -235,9 +302,23 @@ export function CardTransactionsTable({
                   key={tx.id}
                   className={cn(
                     'border-b transition-colors hover:bg-muted/30',
-                    tx.ignored && 'opacity-40'
+                    tx.ignored && 'opacity-40',
+                    selected.has(tx.id) && 'bg-primary/5'
                   )}
                 >
+                  <td className="w-0 py-2.5 ps-4 pe-0">
+                    {/* The padding widens the tap target past the small box, for phones */}
+                    <label className="-m-3 inline-flex p-3 align-middle">
+                      <input
+                        type="checkbox"
+                        aria-label={`בחירת ${tx.merchantName}`}
+                        checked={selected.has(tx.id)}
+                        disabled={tx.ignored}
+                        onChange={() => toggleSelected(tx.id)}
+                        className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default disabled:opacity-30"
+                      />
+                    </label>
+                  </td>
                   <td className="py-2.5 px-4 whitespace-nowrap text-xs tabular-nums">{formatDate(tx.billingDate)}</td>
                   <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs tabular-nums">{formatDate(tx.transactionDate)}</td>
                   <td className="py-2.5 px-4 min-w-[160px]">
