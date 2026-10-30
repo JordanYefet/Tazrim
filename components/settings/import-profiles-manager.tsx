@@ -2,25 +2,27 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Columns3, Pencil, Trash2, X } from 'lucide-react'
+import { ChevronLeft, Columns3, Trash2 } from 'lucide-react'
 import { providerLabel } from '@/components/upload/account-picker'
 import type { ProfileView } from '@/lib/import/profile-view'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ProfileEditDialog } from './profile-edit-dialog'
+import { AppDialog } from '@/components/ui/app-dialog'
 
-
-const iconButton =
-  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-quick ease-out hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40'
 
 const kindLabel = (k: ProfileView['accountKind']) => (k === 'BANK' ? 'חשבון בנק' : k === 'CREDIT_CARD' ? 'כרטיס אשראי' : k)
 
 /**
- * Saved column mappings (ENG-24): edit (ENG-69, from the stored header, no
- * file), rename or delete.
+ * Saved column mappings (ENG-24): a row per mapping opens its window to rename it,
+ * edit it (ENG-69, from the stored header, no file) or delete it.
  */
 export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] }) {
   const router = useRouter()
-  const [editing, setEditing] = useState<string | null>(null)
+  // The mapping whose window is open (and the last one, while it animates out)
+  const [open, setOpen] = useState<ProfileView | null>(null)
+  const lastOpen = useRef<ProfileView | null>(null)
+  if (open) lastOpen.current = open
+  const shownProfile = open ?? lastOpen.current
   const [draft, setDraft] = useState('')
   const [confirming, setConfirming] = useState<ProfileView | null>(null)
   // The last profile asked about, so the text stays put while the dialog animates out
@@ -57,7 +59,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: draft }),
     })
-    if (ok) setEditing(null)
+    if (ok) setOpen(null)
   }
 
   return (
@@ -68,75 +70,99 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
           מיפויי עמודות שנשמרו בהעלאת קבצים. קובץ עם אותן כותרות מזוהה לבד, ואפשר לערוך מיפוי גם בלי קובץ.
         </p>
       </div>
-      <ul className="divide-y rounded-xl surface">
-        {profiles.map(p => (
-          <li key={p.id} className="flex min-w-0 flex-wrap items-center gap-2 px-4 py-3 md:px-6">
-            {editing === p.id ? (
-              <form onSubmit={e => rename(e, p.id)} className="flex min-w-0 flex-1 items-center gap-1">
-                <label htmlFor={`profile-${p.id}`} className="sr-only">שם המיפוי</label>
-                <input
-                  id={`profile-${p.id}`}
-                  value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => e.key === 'Escape' && setEditing(null)}
-                  maxLength={80}
-                  autoFocus
-                  className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <button type="submit" className={iconButton} aria-label="שמור שם" disabled={pending === p.id || !draft.trim()}>
-                  <Check className="h-4 w-4" aria-hidden />
-                </button>
-                <button type="button" className={iconButton} aria-label="בטל עריכה" onClick={() => setEditing(null)}>
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              </form>
-            ) : (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{p.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {providerLabel(p.provider)} · {kindLabel(p.accountKind)}
-                  {p.account && <> · ברירת מחדל של {p.account.displayName}</>}
-                </p>
-              </div>
-            )}
-            {editing !== p.id && (
-              <div className="flex items-center">
-                {p.fileless && (
-                  <button
-                    type="button"
-                    onClick={() => setMapping(p)}
-                    aria-label={`ערוך את המיפוי: ${p.name}`}
-                    className="me-1 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-3 text-sm font-medium transition-[background-color,transform] duration-quick ease-out hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <Columns3 className="h-4 w-4 text-muted-foreground" aria-hidden />
-                    ערוך
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={iconButton}
-                  aria-label={`שנה שם: ${p.name}`}
-                  onClick={() => {
-                    setEditing(p.id)
-                    setDraft(p.name)
-                  }}
-                >
-                  <Pencil className="h-4 w-4" aria-hidden />
-                </button>
-                <button type="button" className={iconButton} aria-label={`מחק: ${p.name}`} onClick={() => setConfirming(p)}>
-                  <Trash2 className="h-4 w-4" aria-hidden />
-                </button>
-              </div>
-            )}
-            {error?.id === p.id && <p role="alert" className="w-full text-xs text-destructive">{error.message}</p>}
-          </li>
-        ))}
-      </ul>
-      {profiles.length === 0 && (
+      {profiles.length > 0 ? (
+        <ul className="divide-y overflow-hidden rounded-xl surface">
+          {profiles.map(p => (
+            <li key={p.id}>
+              {/* The row opens the mapping's window: rename, edit the columns, delete */}
+              <button
+                type="button"
+                onClick={() => { setOpen(p); setDraft(p.name); setError(null) }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/40 active:bg-muted/60 md:px-6"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground" aria-hidden>
+                  <Columns3 className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{p.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {providerLabel(p.provider)} · {kindLabel(p.accountKind)}
+                    {p.account && <> · ברירת מחדל של {p.account.displayName}</>}
+                  </span>
+                </span>
+                <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
         <p className="text-xs text-muted-foreground">
           עדיין אין מיפויים שמורים. אחרי ייבוא קובץ תוכל לשמור את המיפוי שלו לפעמים הבאות.
         </p>
       )}
+
+      <AppDialog open={!!open} onOpenChange={o => !o && setOpen(null)} title={<bdi>{shownProfile?.name}</bdi>}>
+        {shownProfile && (
+          <div className="mt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {providerLabel(shownProfile.provider)} · {kindLabel(shownProfile.accountKind)}
+              {shownProfile.account && <> · ברירת מחדל של {shownProfile.account.displayName}</>}
+            </p>
+            <form onSubmit={e => rename(e, shownProfile.id)} className="flex gap-2">
+              <label htmlFor="profile-name" className="sr-only">שם המיפוי</label>
+              <input
+                id="profile-name"
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                maxLength={80}
+                className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                type="submit"
+                disabled={pending === shownProfile.id || !draft.trim() || draft.trim() === shownProfile.name}
+                className="h-11 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
+              >
+                שמירה
+              </button>
+            </form>
+            <ul className="overflow-hidden rounded-xl bg-muted/40 divide-y divide-border/60">
+              {shownProfile.fileless && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { const p = shownProfile; setOpen(null); setMapping(p) }}
+                    className="flex min-h-[56px] w-full items-center gap-3 px-3.5 py-2 text-start transition-colors hover:bg-muted"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground" aria-hidden>
+                      <Columns3 className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px]">עריכת המיפוי</span>
+                      <span className="block text-xs text-muted-foreground">אילו עמודות בקובץ הן התאריך, התיאור והסכום</span>
+                    </span>
+                  </button>
+                </li>
+              )}
+              <li>
+                <button
+                  type="button"
+                  onClick={() => { const p = shownProfile; setOpen(null); setConfirming(p) }}
+                  className="flex min-h-[56px] w-full items-center gap-3 px-3.5 py-2 text-start transition-colors hover:bg-muted"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive" aria-hidden>
+                    <Trash2 className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] text-destructive">מחיקת המיפוי</span>
+                    <span className="block text-xs text-muted-foreground">תנועות שכבר יובאו לא ישתנו</span>
+                  </span>
+                </button>
+              </li>
+            </ul>
+            {error?.id === shownProfile.id && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
+          </div>
+        )}
+      </AppDialog>
 
       <ProfileEditDialog
         profile={mapping}

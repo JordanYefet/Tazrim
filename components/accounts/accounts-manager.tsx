@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Archive, ArchiveRestore, ChevronDown, CheckCircle2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, CheckCircle2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/components/upload/account-picker'
 import { KIND_META, type AccountKindValue, type CreatableKindValue } from './account-kinds'
@@ -181,6 +181,30 @@ export function AccountsManager({
           refresh()
         }}
         onImported={refresh}
+        manage={
+          editing
+            ? {
+                archived: editing.archived,
+                lastOfKind: kindCount(editing.kind) <= 1,
+                onArchiveToggle: async () => {
+                  const res = await fetch(`/api/accounts/${encodeURIComponent(editing.id)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ archived: !editing.archived }),
+                  })
+                  if (!res.ok) return
+                  setEditing(null)
+                  refresh()
+                },
+                // The delete confirmation takes over from the account's window
+                onDelete: () => {
+                  const account = editing
+                  setEditing(null)
+                  setDeleting(account)
+                },
+              }
+            : undefined
+        }
       />
 
       <DeleteAccountDialog
@@ -238,6 +262,30 @@ function AccountRow({
     }
   }
 
+  // A bank account or card opens its window (edit, import, archive, delete); the row has no buttons
+  if (editable) {
+    return (
+      <li className={cn(account.archived && 'opacity-80')}>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/40 active:bg-muted/60 md:px-6"
+        >
+          <AccountMini
+            kind={account.kind as 'BANK' | 'CREDIT_CARD'}
+            provider={account.provider}
+            network={account.cardNetwork}
+            color={account.positionColor}
+            colorChoice={account.color}
+            className={cn('w-11', account.archived && 'grayscale')}
+          />
+          <AccountText account={account} netLabel={netLabel} />
+          <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
+        </button>
+      </li>
+    )
+  }
+
   return (
     <li className={cn('flex flex-wrap items-center gap-3 px-4 py-3 md:px-6', account.archived && 'opacity-80')}>
       {editable ? (
@@ -255,27 +303,7 @@ function AccountRow({
         </span>
       )}
 
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-medium">
-          <span className="truncate">{account.displayName}</span>
-          {!account.importSupported && (
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
-              ייבוא עדיין לא נתמך
-            </span>
-          )}
-        </p>
-        <p className="flex flex-col text-xs text-muted-foreground sm:flex-row sm:gap-x-1.5">
-          <span className="truncate">
-            {providerLabel(account.provider)}
-            {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
-            {netLabel && <> · <span dir="ltr">{netLabel}</span></>}
-          </span>
-          <span aria-hidden className="hidden sm:inline">·</span>
-          <span className="whitespace-nowrap tabular-nums">
-            {n(account.transactionCount)} תנועות · {n(account.uploadCount)} העלאות
-          </span>
-        </p>
-      </div>
+      <AccountText account={account} netLabel={netLabel} />
 
       <div className="flex shrink-0 items-center gap-0.5 ms-auto" aria-busy={busy}>
         {editable && (
@@ -312,5 +340,32 @@ function AccountRow({
 
       {error && <p className="basis-full text-xs text-destructive" role="alert">{error}</p>}
     </li>
+  )
+}
+
+/** An account row's name, provider, card details and counts */
+function AccountText({ account, netLabel }: { account: ManagedAccount; netLabel: string | null }) {
+  return (
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <span className="truncate">{account.displayName}</span>
+            {!account.importSupported && (
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+                ייבוא עדיין לא נתמך
+              </span>
+            )}
+          </p>
+          <p className="flex flex-col text-xs text-muted-foreground sm:flex-row sm:gap-x-1.5">
+            <span className="truncate">
+              {providerLabel(account.provider)}
+              {account.cardLastFour && <> · <span dir="ltr">•••• {account.cardLastFour}</span></>}
+              {netLabel && <> · <span dir="ltr">{netLabel}</span></>}
+            </span>
+            <span aria-hidden className="hidden sm:inline">·</span>
+            <span className="whitespace-nowrap tabular-nums">
+              {n(account.transactionCount)} תנועות · {n(account.uploadCount)} העלאות
+            </span>
+          </p>
+        </div>
   )
 }
