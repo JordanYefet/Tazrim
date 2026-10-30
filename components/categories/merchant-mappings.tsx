@@ -122,6 +122,7 @@ export function MerchantMappings({ initial, categories, colors = {} }: {
         amount=""
         amountTone="expense"
         categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+        createKind="EXPENSE"
         current={lastPicked?.categoryOverride ?? null}
         allowNone
         note="הקטגוריה חלה על החיובים הבאים מבית העסק, בכל הכרטיסים של החברה."

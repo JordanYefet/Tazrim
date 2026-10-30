@@ -16,6 +16,7 @@ import {
 } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
 import { cn } from '@/lib/utils/cn'
+import { AccountMini } from '@/components/accounts/account-element'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -54,6 +55,8 @@ export default async function AnalysisPage({
   const cards = cardAccounts.map(a => ({ id: a.id, label: a.displayName }))
   const scope = resolveAnalysisScope(segments?.[0] ? decodeURIComponent(segments[0]) : undefined, { banks, cards })
   const options = analysisScopeOptions({ banks, cards })
+  // An account's chip shows its face, as in the account switcher
+  const accountsById = new Map([...bankAccounts, ...cardAccounts].map(a => [a.id, a]))
   const { bankIds, cardIds } = scope
 
   const [cardMonthly, outMonthly, inMonthly] = await Promise.all([
@@ -84,25 +87,43 @@ export default async function AnalysisPage({
       ) : (
         <>
           {options.length > 0 && (
-            <nav aria-label="סינון לפי חשבון" className="flex flex-wrap gap-1.5">
-              {options.map(o => {
-                const active = o.value === scope.value
-                return (
-                  <Link
-                    key={o.value || 'all'}
-                    href={analysisHref(o.value || undefined, period)}
-                    scroll={false}
-                    aria-current={active ? 'true' : undefined}
-                    className={cn(
-                      'inline-flex h-8 max-w-full items-center justify-center truncate rounded-full border px-3.5 text-sm transition-colors',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      active ? 'border-primary/40 bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                    )}
-                  >
-                    {o.label}
-                  </Link>
-                )
-              })}
+            // The same pills as the account switcher on /banks and /cards: opaque, the account's face,
+            // one row that scrolls sideways on phones
+            <nav aria-label="סינון לפי חשבון" className="-mx-4 md:mx-0">
+              <ul className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5 md:flex-wrap md:overflow-visible md:px-0">
+                {options.map(o => {
+                  const active = o.value === scope.value
+                  const account = accountsById.get(o.value)
+                  return (
+                    <li key={o.value || 'all'} className="shrink-0">
+                      <Link
+                        href={analysisHref(o.value || undefined, period)}
+                        scroll={false}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          'surface',
+                          active
+                            ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        {account && (
+                          <AccountMini
+                            kind={account.kind as 'BANK' | 'CREDIT_CARD'}
+                            provider={account.provider}
+                            network={account.cardNetwork}
+                            colorChoice={account.color}
+                            className="w-[22px]"
+                          />
+                        )}
+                        {o.label}
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
             </nav>
           )}
 

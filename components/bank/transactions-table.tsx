@@ -509,6 +509,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
       amount={shown ? formatCurrency(out ? shown.debit : shown.credit) : ''}
       amountTone={out ? 'expense' : 'income'}
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      createKind={out ? 'EXPENSE' : 'INCOME'}
       current={shown?.category ?? null}
       allowNone
       scopes={
@@ -624,6 +625,7 @@ function BulkCategoryBar({
         amount={formatCurrency(total)}
         amountTone={income ? 'income' : 'expense'}
         categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+        createKind={income ? 'INCOME' : 'EXPENSE'}
         current={undefined}
         allowNone
         note="כל תנועה שנבחרה תקבל את הקטגוריה הזאת, כבחירה שלה בלבד."

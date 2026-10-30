@@ -418,6 +418,7 @@ function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
         amount={formatCurrency(Math.abs(r.amount))}
         amountTone={income ? 'income' : 'expense'}
         categories={names.map(name => ({ name, color: picker.colors[name] }))}
+        createKind={income ? 'INCOME' : 'EXPENSE'}
         current={r.category && (picker.expense.includes(r.category) || picker.income.includes(r.category)) ? r.category : null}
         allowNone={bank}
         scopes={

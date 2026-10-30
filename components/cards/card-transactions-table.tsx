@@ -380,6 +380,7 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
       amount={shown ? formatCurrency(shown.chargedAmount) : ''}
       amountTone="expense"
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      createKind="EXPENSE"
       current={shown && categories.some(c => c.name === (shown.categoryOverride ?? shown.category)) ? shown.categoryOverride ?? shown.category : null}
       scopes={
         shown

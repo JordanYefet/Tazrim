@@ -86,6 +86,7 @@ export function IssuerCategories({ initial, categories, colors = {} }: {
         amount=""
         amountTone="expense"
         categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+        createKind="EXPENSE"
         current={shown ? effective(shown) : null}
         allowNone
         note="הבחירה חלה על כל העסקאות בקטגוריה הזאת בקבצים של החברה, גם בקבצים הבאים."
