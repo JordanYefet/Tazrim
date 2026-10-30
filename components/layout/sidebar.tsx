@@ -252,7 +252,7 @@ export function Sidebar({
           {toggleButton}
           <Link
             href={periodHref('/')}
-            aria-label="תזרים · לוח בקרה"
+            aria-label="תזרים · ראשי"
             tabIndex={collapsed ? -1 : undefined}
             aria-hidden={collapsed || undefined}
             className={cn(

@@ -14,7 +14,7 @@ import { usePeriodHref } from './period-context'
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
   { href: '/banks', label: 'בנקים', icon: Building2 },
   { href: '/cards', label: 'כרטיסים', title: 'כרטיסי אשראי', icon: CreditCard },
-  { href: '/', label: 'לוח בקרה', icon: House },
+  { href: '/', label: 'ראשי', icon: House },
   { href: '/recurring', label: 'קבועים', title: 'חיובים קבועים', icon: Repeat },
 ]
 
