@@ -15,6 +15,7 @@ export const MAX_LIMIT = 100
 const MAX_TERMS = 8
 
 export type SearchSource = 'bank' | 'card'
+export type TextMode = 'all' | 'any'
 
 /**
  * One search hit, from either table.
@@ -66,8 +67,10 @@ export interface SearchCursor {
 }
 
 export interface SearchFilters {
-  /** Free text; every whitespace-separated term must match (AND), each in any text field (OR) */
+  /** Free text: whitespace-separated terms or "quoted phrases", each matched in any text field */
   text?: string
+  /** 'all' (default): every term must match; 'any': one is enough */
+  textMode?: TextMode
   amount?: AmountRange
   /** The raw amount input, kept so the form can show it back */
   amountInput?: string
@@ -144,18 +147,25 @@ export function parseAmountRange(input: string): AmountRange | null {
 
 /**
  * Whitespace-separated terms, de-duplicated case-insensitively, at most 8.
+ * A term in double quotes ("cheque deposit") is one phrase, spaces and all; a
+ * quote inside a word (Hebrew abbreviations like בע"מ) is part of the word.
  * `%` and `_` also split terms: Prisma's SQLite `contains` does not escape
  * LIKE wildcards, so "100%" searches for "100" rather than for anything.
  */
 export function splitTerms(text: string | undefined): string[] {
   const seen = new Set<string>()
   const out: string[] = []
-  for (const t of (text ?? '').split(/[\s%_]+/)) {
-    const key = t.toLowerCase()
-    if (!t || seen.has(key)) continue
-    seen.add(key)
-    out.push(t)
-    if (out.length === MAX_TERMS) break
+  for (const token of (text ?? '').match(/"[^"]+"(?=\s|$)|\S+/g) ?? []) {
+    const phrase = /^".+"$/.test(token)
+    const body = phrase ? token.slice(1, -1).trim().replace(/\s+/g, ' ') : token.replace(/^"+|"+$/g, '')
+    for (const t of body.split(/[%_]+/)) {
+      const term = t.trim()
+      const key = term.toLowerCase()
+      if (!term || seen.has(key)) continue
+      seen.add(key)
+      out.push(term)
+      if (out.length === MAX_TERMS) return out
+    }
   }
   return out
 }
@@ -192,7 +202,7 @@ function validDay(v: string | undefined): string | undefined {
 
 /**
  * Filters from /search or /api/search params:
- * q, amount (exact or range, see parseAmountRange), min, max, from, to
+ * q, match=any (one term is enough), amount (exact or range, see parseAmountRange), min, max, from, to
  * (YYYY-MM-DD), account (repeatable), category (repeatable), uncategorized=1, ignored=1,
  * cursor, limit.
  */
@@ -201,6 +211,7 @@ export function parseSearchParams(sp: ParamSource): SearchFilters {
 
   const text = getOne(sp, 'q')?.trim()
   if (text) filters.text = text
+  if (getOne(sp, 'match') === 'any') filters.textMode = 'any'
 
   const amountInput = getOne(sp, 'amount')?.trim()
   if (amountInput) {
@@ -252,6 +263,7 @@ export function toSearchParams(
 ): URLSearchParams {
   const sp = new URLSearchParams()
   if (f.text) sp.set('q', f.text)
+  if (f.text && f.textMode === 'any') sp.set('match', 'any')
   if (f.amountInput) sp.set('amount', f.amountInput)
   else if (f.amount) {
     if (f.amount.min !== undefined) sp.set('min', String(f.amount.min))
@@ -350,12 +362,14 @@ function textBlock(
   aliasField: string,
   aliasMatches: AliasMatch[][] | undefined
 ) {
-  return splitTerms(f.text).map((term, i) => ({
+  const terms = splitTerms(f.text).map((term, i) => ({
     OR: [
       ...fields.map(field => ({ [field]: { contains: term } })),
       ...aliasConditions(aliasMatches?.[i], aliasField),
     ],
   }))
+  // withAmountFallback ANDs the blocks, so "any" is one block of every term
+  return f.textMode === 'any' && terms.length > 1 ? [{ OR: terms }] : terms
 }
 
 /** Text terms, OR'ed with an amount match when the whole query is one number. */

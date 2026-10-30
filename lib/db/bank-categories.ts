@@ -170,36 +170,39 @@ export async function setBankCategoryMany(params: {
   ids: string[]
   category: string | null
 }): Promise<SetBankCategoryResult> {
-  const ids = [...new Set(params.ids)]
-  return prisma.$transaction(async db => {
-    const rows = await db.bankTransaction.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, description: true, originalDescription: true, debit: true, credit: true },
-    })
-    if (rows.length !== ids.length) throw new BankCategoryError('לא נמצא', 404)
-    if (rows.some(isCardPaymentRow)) {
-      throw new BankCategoryError('לתשלום לחברת האשראי אין קטגוריה: הפירוט שלו בכרטיס', 400)
-    }
-    if (params.category !== null) {
-      const cat = await db.category.findUnique({ where: { name: params.category } })
-      const directions = new Set(rows.map(directionOf))
-      for (const direction of directions) {
-        if (!cat || cat.kind !== CATEGORY_KIND_OF[direction]) {
-          throw new BankCategoryError(
-            directions.size > 1
-              ? 'נבחרו הוצאות והכנסות יחד: קטגוריה מתאימה רק לאחד מהכיוונים'
-              : direction === 'OUT' ? 'קטגוריית הוצאה לא קיימת' : 'קטגוריית הכנסה לא קיימת',
-            400
-          )
-        }
+  return prisma.$transaction(db => applyBankCategoryMany(db, params.ids, params.category))
+}
+
+/** setBankCategoryMany inside a transaction the caller holds (lib/db/bulk-category.ts adds card rows to it) */
+export async function applyBankCategoryMany(db: Db, idList: string[], category: string | null): Promise<SetBankCategoryResult> {
+  const ids = [...new Set(idList)]
+  const rows = await db.bankTransaction.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, description: true, originalDescription: true, debit: true, credit: true },
+  })
+  if (rows.length !== ids.length) throw new BankCategoryError('לא נמצא', 404)
+  if (rows.some(isCardPaymentRow)) {
+    throw new BankCategoryError('לתשלום לחברת האשראי אין קטגוריה: הפירוט שלו בכרטיס', 400)
+  }
+  if (category !== null) {
+    const cat = await db.category.findUnique({ where: { name: category } })
+    const directions = new Set(rows.map(directionOf))
+    for (const direction of directions) {
+      if (!cat || cat.kind !== CATEGORY_KIND_OF[direction]) {
+        throw new BankCategoryError(
+          directions.size > 1
+            ? 'נבחרו הוצאות והכנסות יחד: קטגוריה מתאימה רק לאחד מהכיוונים'
+            : direction === 'OUT' ? 'קטגוריית הוצאה לא קיימת' : 'קטגוריית הכנסה לא קיימת',
+          400
+        )
       }
     }
-    await db.bankTransaction.updateMany({
-      where: { id: { in: ids } },
-      data: { category: params.category, categoryManual: true },
-    })
-    return { updatedIds: ids }
+  }
+  await db.bankTransaction.updateMany({
+    where: { id: { in: ids } },
+    data: { category, categoryManual: true },
   })
+  return { updatedIds: ids }
 }
 
 const bankRowSelect = {
