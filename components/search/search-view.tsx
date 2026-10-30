@@ -34,13 +34,16 @@ interface FormState {
   includeIgnored: boolean
 }
 
+/** The category field's value for "no category" (the uncategorized=1 filter) */
+const NONE = '__none'
+
 const toForm = (f: SearchFilters): FormState => ({
   text: f.text ?? '',
   amountInput: f.amountInput ?? '',
   from: f.from ?? '',
   to: f.to ?? '',
   accountIds: f.accountIds ?? [],
-  category: f.categories?.[0] ?? '',
+  category: f.uncategorized ? NONE : (f.categories?.[0] ?? ''),
   includeIgnored: f.includeIgnored,
 })
 
@@ -51,7 +54,8 @@ const formQuery = (s: FormState) =>
     from: s.from || undefined,
     to: s.to || undefined,
     accountIds: s.accountIds,
-    categories: s.category ? [s.category] : [],
+    categories: s.category && s.category !== NONE ? [s.category] : [],
+    uncategorized: s.category === NONE,
     includeIgnored: s.includeIgnored,
   }).toString()
 
@@ -68,7 +72,7 @@ export function SearchView({ filters, queryString, page, accounts, categories }:
   const lastPushed = useRef(queryString)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const advancedActive = Boolean(
-    filters.amountInput || filters.from || filters.to || filters.accountIds?.length || filters.categories?.length || filters.includeIgnored
+    filters.amountInput || filters.from || filters.to || filters.accountIds?.length || filters.categories?.length || filters.uncategorized || filters.includeIgnored
   )
   const [showFilters, setShowFilters] = useState(advancedActive)
 
@@ -174,6 +178,7 @@ export function SearchView({ filters, queryString, page, accounts, categories }:
               <span className="text-xs text-muted-foreground">קטגוריה</span>
               <select value={form.category} onChange={e => update({ category: e.target.value })} className="h-9 w-full">
                 <option value="">כל הקטגוריות</option>
+                <option value={NONE}>ללא קטגוריה</option>
                 {categories.map(c => (
                   <option key={c} value={c}>
                     {c}
