@@ -73,7 +73,8 @@ export function CategoryPicker({
   amount: string
   amountTone: 'expense' | 'income'
   categories: PickerCategory[]
-  current: string | null
+  /** The row's category (null = none); undefined starts with nothing picked (several rows at once) */
+  current: string | null | undefined
   /** "ללא קטגוריה" is a choice (bank rows) */
   allowNone?: boolean
   /** What the choice applies to; none = this row only, nothing to ask */
@@ -122,7 +123,7 @@ export function CategoryPicker({
 
 function PickerBody({ categories, current, allowNone, scopes, defaultScope, note, suggestion, extraAction, onSave }: {
   categories: PickerCategory[]
-  current: string | null
+  current: string | null | undefined
   allowNone?: boolean
   scopes?: PickerScope[]
   defaultScope?: string
@@ -131,7 +132,7 @@ function PickerBody({ categories, current, allowNone, scopes, defaultScope, note
   extraAction?: { label: string; onClick: (category: string | null) => void }
   onSave: (category: string | null, scope: string | null) => Promise<void> | void
 }) {
-  const [picked, setPicked] = useState<string | null>(current)
+  const [picked, setPicked] = useState<string | null | undefined>(current)
   const initialScope = defaultScope ?? scopes?.[0]?.id ?? null
   const [scope, setScope] = useState<string | null>(initialScope)
   const [query, setQuery] = useState('')
@@ -141,13 +142,13 @@ function PickerBody({ categories, current, allowNone, scopes, defaultScope, note
     [categories, query]
   )
   const colorOf = (name: string) => categories.find(c => c.name === name)?.color
-  // Applying the same category more widely is a change too
-  const changed = picked !== current || scope !== initialScope
+  // Applying the same category more widely is a change too; nothing picked yet is not
+  const changed = picked !== undefined && (picked !== current || scope !== initialScope)
 
   async function save() {
     setSaving(true)
     try {
-      await onSave(picked, scopes?.length ? scope : null)
+      if (picked !== undefined) await onSave(picked, scopes?.length ? scope : null)
     } finally {
       setSaving(false)
     }
@@ -231,7 +232,7 @@ function PickerBody({ categories, current, allowNone, scopes, defaultScope, note
         </button>
         {extraAction && (
           <button
-            onClick={() => extraAction.onClick(picked)}
+            onClick={() => extraAction.onClick(picked ?? null)}
             className="h-11 px-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             {extraAction.label}

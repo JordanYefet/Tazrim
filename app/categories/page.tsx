@@ -58,7 +58,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
       <CategoriesView
         expense={items(expense, spent)}
         income={items(income, inMonthly)}
-        pending={pendingIssuerCategories(issuer)}
+        pending={pendingIssuerCategories(issuer, [...expense, ...income].map(c => c.name))}
         choices={{ issuer, merchants, descriptions: { OUT: outDescriptions, IN: inDescriptions } }}
         generic={generic}
         aliases={asJson(aliases)}

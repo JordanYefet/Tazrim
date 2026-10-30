@@ -39,4 +39,8 @@ describe('pendingIssuerCategories', () => {
   it('lists the issuer categories still waiting for one of yours', () => {
     expect(pendingIssuerCategories(issuer)).toEqual([{ provider: 'max', sourceCategory: 'FAKE PETS', count: 2, category: null }])
   })
+
+  it('leaves out an unmapped issuer category already named like one of yours', () => {
+    expect(pendingIssuerCategories(issuer, ['FAKE PETS'])).toEqual([])
+  })
 })
