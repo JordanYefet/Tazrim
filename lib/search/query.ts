@@ -77,9 +77,19 @@ export interface SearchFilters {
   to?: string
   accountIds?: string[]
   categories?: string[]
+  /** Only rows without a category: bank rows with none (not the card payment), card rows outside your categories */
+  uncategorized?: boolean
   includeIgnored: boolean
   cursor?: SearchCursor
   limit: number
+}
+
+/** What the uncategorized filter needs from the database (lib/db/uncategorized.ts) */
+export interface UncategorizedContext {
+  /** Your category names: a card row with none of them is uncategorized */
+  categories: string[]
+  /** The bank's card-payment rows (found by a pattern a where can't express) */
+  cardPaymentIds: string[]
 }
 
 /** A TransactionAlias whose display name matched a term: rows with this original name match too. */
@@ -183,7 +193,7 @@ function validDay(v: string | undefined): string | undefined {
 /**
  * Filters from /search or /api/search params:
  * q, amount (exact or range, see parseAmountRange), min, max, from, to
- * (YYYY-MM-DD), account (repeatable), category (repeatable), ignored=1,
+ * (YYYY-MM-DD), account (repeatable), category (repeatable), uncategorized=1, ignored=1,
  * cursor, limit.
  */
 export function parseSearchParams(sp: ParamSource): SearchFilters {
@@ -219,6 +229,9 @@ export function parseSearchParams(sp: ParamSource): SearchFilters {
   const categories = getAll(sp, 'category').filter(Boolean)
   if (categories.length) filters.categories = categories
 
+  const uncategorized = getOne(sp, 'uncategorized')
+  if (uncategorized === '1' || uncategorized === 'true') filters.uncategorized = true
+
   const ignored = getOne(sp, 'ignored')
   filters.includeIgnored = ignored === '1' || ignored === 'true'
 
@@ -248,6 +261,7 @@ export function toSearchParams(
   if (f.to) sp.set('to', f.to)
   for (const a of f.accountIds ?? []) sp.append('account', a)
   for (const c of f.categories ?? []) sp.append('category', c)
+  if (f.uncategorized) sp.set('uncategorized', '1')
   if (f.includeIgnored) sp.set('ignored', '1')
   if (opts.cursor) sp.set('cursor', opts.cursor)
   if (opts.limit) sp.set('limit', String(opts.limit))
@@ -257,7 +271,7 @@ export function toSearchParams(
 /** False when nothing would narrow the search: then we show the empty state instead of every row. */
 export function hasCriteria(f: SearchFilters): boolean {
   return Boolean(
-    splitTerms(f.text).length || f.amount || f.amountInvalid || f.from || f.to || f.accountIds?.length || f.categories?.length
+    splitTerms(f.text).length || f.amount || f.amountInvalid || f.from || f.to || f.accountIds?.length || f.categories?.length || f.uncategorized
   )
 }
 
@@ -362,10 +376,16 @@ const bankAmount = (r: AmountRange) => ({
  */
 export function buildBankWhere(
   f: SearchFilters,
-  aliasMatches?: AliasMatch[][]
+  aliasMatches?: AliasMatch[][],
+  uncategorized?: UncategorizedContext
 ): Prisma.BankTransactionWhereInput | null {
   const and: object[] = []
   if (f.categories?.length) and.push({ category: { in: f.categories } })
+  if (f.uncategorized) {
+    and.push({ category: null })
+    // The card payment never takes a category, so it isn't missing one
+    if (uncategorized?.cardPaymentIds.length) and.push({ id: { notIn: uncategorized.cardPaymentIds } })
+  }
   if (f.accountIds?.length) and.push({ accountId: { in: f.accountIds } })
   if (!f.includeIgnored) and.push({ ignored: false })
   const dates = dayRange(f)
@@ -389,7 +409,8 @@ const cardAmount = (r: AmountRange) => ({
 /** Where for CreditCardTransaction. Amounts match charges and refunds by magnitude. */
 export function buildCardWhere(
   f: SearchFilters,
-  aliasMatches?: AliasMatch[][]
+  aliasMatches?: AliasMatch[][],
+  uncategorized?: UncategorizedContext
 ): Prisma.CreditCardTransactionWhereInput {
   const and: object[] = []
   if (f.accountIds?.length) and.push({ accountId: { in: f.accountIds } })
@@ -411,6 +432,8 @@ export function buildCardWhere(
       OR: [{ categoryOverride: { in: f.categories } }, { categoryOverride: null, category: { in: f.categories } }],
     })
   }
+  // A card row always carries a category: it lacks one of yours while it shows the issuer's own (unmapped)
+  if (f.uncategorized) and.push({ categoryOverride: null, category: { notIn: uncategorized?.categories ?? [] } })
   if (f.cursor) and.push(afterCursor('transactionDate', 'card', f.cursor))
   return { AND: and } as Prisma.CreditCardTransactionWhereInput
 }

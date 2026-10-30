@@ -13,14 +13,27 @@ export function bankCategoryAnalysisHref(accountId: string | undefined, params?:
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** A search of these accounts for one category over the period (bank rows by date, card rows by purchase date). */
-function categorySearchHref(accountIds: string[], category: string, year: string, month?: number): string {
+/** Search params for these accounts over the period (bank rows by date, card rows by purchase date). */
+function periodSearchParams(accountIds: string[], year: string, month?: number): URLSearchParams {
   const y = Number(year)
   const sp = new URLSearchParams()
   sp.set('from', month ? `${year}-${pad(month)}-01` : `${year}-01-01`)
   sp.set('to', month ? `${year}-${pad(month)}-${pad(new Date(y, month, 0).getDate())}` : `${year}-12-31`)
   for (const id of accountIds) sp.append('account', id)
+  return sp
+}
+
+/** A search of these accounts for one category over the period. */
+function categorySearchHref(accountIds: string[], category: string, year: string, month?: number): string {
+  const sp = periodSearchParams(accountIds, year, month)
   sp.set('category', category)
+  return `/search?${sp}`
+}
+
+/** A search of these accounts for the transactions without a category over the period. */
+export function uncategorizedSearchHref({ accountIds, year, month }: { accountIds: string[]; year: string; month?: number }): string {
+  const sp = periodSearchParams(accountIds, year, month)
+  sp.set('uncategorized', '1')
   return `/search?${sp}`
 }
 

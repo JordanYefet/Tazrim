@@ -11,6 +11,7 @@
  */
 import { prisma } from './client'
 import { manualLabels } from './manual-recurring'
+import { uncategorizedContext } from './uncategorized'
 import {
   buildBankWhere,
   buildCardWhere,
@@ -46,12 +47,15 @@ async function aliasMatchesFor(terms: string[]): Promise<AliasMatch[][]> {
 export async function searchTransactions(filters: SearchFilters): Promise<SearchPage> {
   if (!hasCriteria(filters) || filters.amountInvalid) return { results: [], nextCursor: null, total: 0 }
 
-  const aliasMatches = await aliasMatchesFor(splitTerms(filters.text))
+  const [aliasMatches, uncategorized] = await Promise.all([
+    aliasMatchesFor(splitTerms(filters.text)),
+    filters.uncategorized ? uncategorizedContext() : undefined,
+  ])
   const { cursor: _cursor, ...withoutCursor } = filters
-  const bankWhere = buildBankWhere(filters, aliasMatches)
-  const cardWhere = buildCardWhere(filters, aliasMatches)
-  const bankCountWhere = buildBankWhere(withoutCursor, aliasMatches)
-  const cardCountWhere = buildCardWhere(withoutCursor, aliasMatches)
+  const bankWhere = buildBankWhere(filters, aliasMatches, uncategorized)
+  const cardWhere = buildCardWhere(filters, aliasMatches, uncategorized)
+  const bankCountWhere = buildBankWhere(withoutCursor, aliasMatches, uncategorized)
+  const cardCountWhere = buildCardWhere(withoutCursor, aliasMatches, uncategorized)
   const take = filters.limit + 1
 
   const [bankRows, cardRows, bankTotal, cardTotal, accounts] = await Promise.all([
