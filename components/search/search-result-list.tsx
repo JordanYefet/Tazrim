@@ -40,10 +40,12 @@ interface Props {
   idPrefix?: string
   /** Per-row control beside the link (e.g. mark as recurring); not inside the link */
   actions?: (result: SearchResult) => ReactNode
+  /** The category is shown by `actions` (a pill that opens the category window), not as a chip in the link */
+  categoryInActions?: boolean
 }
 
 /** Search hits: description, date, account, category chip and signed amount; each row links to its account page. */
-export function SearchResultList({ results, terms, activeIndex, onNavigate, onHover, compact, idPrefix = 'search-result', actions }: Props) {
+export function SearchResultList({ results, terms, activeIndex, onNavigate, onHover, compact, idPrefix = 'search-result', actions, categoryInActions }: Props) {
   return (
     <ul className="flex flex-col divide-y divide-border/60" role={activeIndex !== undefined ? 'listbox' : undefined}>
       {results.map((r, i) => {
@@ -88,7 +90,7 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                   <span className="tabular-nums">{displayDate(r.date)}</span>
                   <span aria-hidden className="sm:hidden">·</span>
                   <span className="truncate sm:hidden">{r.accountName}</span>
-                  {r.category && (
+                  {r.category && !categoryInActions && (
                     <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
                       {r.category}
                     </span>

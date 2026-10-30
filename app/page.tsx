@@ -5,9 +5,12 @@ import Link from 'next/link'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { monthName } from '@/lib/utils/date'
 import { CategoryInsights } from '@/components/dashboard/category-insights'
-import { getCCCategoryMonthly } from '@/lib/db/cards'
-import { getBankCategoryMonthly } from '@/lib/db/bank-categories'
-import { mergeCategoryMonthly } from '@/lib/insights/bank-categories'
+import { getCCCategoryMonthly, getCCCategoryStats } from '@/lib/db/cards'
+import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
+import { mergeCategoryMonthly, mergeCategoryStats, UNCATEGORIZED } from '@/lib/insights/bank-categories'
+import { countUncategorized } from '@/lib/db/uncategorized'
+import { CategoryDonut } from '@/components/cards/category-donut'
+import { UncategorizedCard } from '@/components/dashboard/uncategorized-card'
 import {
   insightsScopeOptions,
   resolveInsightsScope,
@@ -19,6 +22,7 @@ import {
   bankCategoryTransactionsHref,
   categoryTransactionsHref,
   combinedCategoryTransactionsHref,
+  uncategorizedSearchHref,
 } from '@/lib/accounts/category-links'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { bankMonthTotal, cardBreakdown, cardLabel, monthTotal } from '@/lib/utils/year-summary'
@@ -54,13 +58,28 @@ export default async function DashboardPage({
   const sources = { bankIds: activeBanks, cardIds: activeCards }
   const scope = resolveInsightsScope(params.card, sources)
 
-  const [allCategoryMonthly, recurring, latest] = await Promise.all([
+  const [allCategoryMonthly, recurring, latest, cardStats, bankStats, uncategorized] = await Promise.all([
     // Every source, as one year: the colors follow its ranking, so they don't shift when filtering
     scopedCategoryMonthly({ kind: 'all' }, sources, Number(year)),
     // as of the latest statements, not the selected period
     getRecurringSeries({ accountId: activeIds }),
     latestTransactionDate(),
+    // The combined donut: the period's card charges and bank debits by category
+    activeCards.length ? getCCCategoryStats(activeCards, Number(year), month) : {},
+    activeBanks.length ? getBankCategoryStats(activeBanks, Number(year), month, 'OUT') : {},
+    countUncategorized(activeIds),
   ])
+  // Bank and cards share the categories, so one donut holds both; the card payment is left out inside
+  const donutStats = mergeCategoryStats(cardStats, bankStats)
+  // A slice opens its transactions in search; "ללא קטגוריה" opens the uncategorized ones
+  const donutHrefs: Record<string, string> = {}
+  for (const c of Object.keys(donutStats)) {
+    const href =
+      c === UNCATEGORIZED
+        ? uncategorizedSearchHref({ accountIds: activeIds, year, month })
+        : combinedCategoryTransactionsHref({ accountIds: activeIds, category: c, year, month })
+    if (href) donutHrefs[c] = href
+  }
   const categoryMonthly =
     scope.kind === 'all' ? allCategoryMonthly : await scopedCategoryMonthly(scope, sources, Number(year))
 
@@ -170,8 +189,21 @@ export default async function DashboardPage({
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <RecurringCard series={recurring.subscriptions} total={recurring.total} />
+            <CategoryDonut
+              pagePath="/"
+              title="הוצאות לפי קטגוריה · בנק וכרטיסים"
+              data={Object.fromEntries(Object.entries(donutStats).map(([k, v]) => [k, v.total]))}
+              stats={donutStats}
+              colors={categoryColors}
+              categoryHrefs={donutHrefs}
+            />
+            {/* What deserves a look sits beside the donut, at full height */}
             <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
+          </div>
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <RecurringCard series={recurring.subscriptions} total={recurring.total} />
+            {/* Compact, not stretched to the recurring list's height */}
+            <UncategorizedCard bank={uncategorized.bank} card={uncategorized.card} />
           </div>
         </>
       ) : (

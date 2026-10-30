@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronRight, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronRight, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { AccountForm, type CreatedAccount, type EditableAccount } from './add-account-form'
 import { RemapColumns } from './remap-columns'
@@ -22,17 +22,28 @@ export interface EditDialogAccount extends EditableAccount {
  * with a file, or edit the saved mapping without one (ENG-69). A sheet from
  * the bottom on phones, a centred window on wider screens.
  */
+export interface AccountManage {
+  archived: boolean
+  /** The last account of its kind can't be deleted */
+  lastOfKind: boolean
+  onArchiveToggle: () => Promise<void>
+  onDelete: () => void
+}
+
 export function EditAccountDialog({
   account,
   onOpenChange,
   onSaved,
   onImported,
+  manage,
 }: {
   account: EditDialogAccount | null
   onOpenChange: (open: boolean) => void
   onSaved: (account: CreatedAccount) => void
   /** A re-import changed rows */
   onImported: () => void
+  /** Archive (or restore) and delete, at the end of the edit view (/settings: the row has no buttons of its own) */
+  manage?: AccountManage
 }) {
   const [view, setView] = useState<'edit' | 'remap' | 'mapping'>('edit')
   const [editingProfile, setEditingProfile] = useState<string | null>(null)
@@ -103,6 +114,7 @@ export function EditAccountDialog({
                       onRemap={() => setView('remap')}
                     />
                   )}
+                  {manage && <ManageSection manage={manage} />}
                 </AccountForm>
               ) : view === 'mapping' && editingProfile ? (
                 <div className="space-y-4">
@@ -142,5 +154,50 @@ export function EditAccountDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+/** Archive (or restore) and delete, as labelled rows at the end of the edit view */
+function ManageSection({ manage }: { manage: AccountManage }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <ul className="overflow-hidden rounded-xl bg-muted/40 divide-y divide-border/60" aria-busy={busy}>
+      <li>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => { setBusy(true); try { await manage.onArchiveToggle() } finally { setBusy(false) } }}
+          className="flex min-h-[56px] w-full items-center gap-3 px-3.5 py-2 text-start transition-colors hover:bg-muted disabled:opacity-60"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground" aria-hidden>
+            {manage.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px]">{manage.archived ? 'שחזור מהארכיון' : 'העברה לארכיון'}</span>
+            <span className="block text-xs text-muted-foreground">
+              {manage.archived ? 'יחזור להופיע בהעלאת קבצים ובסיכומים' : 'לא יופיע בהעלאת קבצים ובסיכומים; הנתונים נשמרים'}
+            </span>
+          </span>
+        </button>
+      </li>
+      <li>
+        <button
+          type="button"
+          disabled={busy || manage.lastOfKind}
+          onClick={manage.onDelete}
+          className="flex min-h-[56px] w-full items-center gap-3 px-3.5 py-2 text-start transition-colors hover:bg-muted disabled:opacity-50"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive" aria-hidden>
+            <Trash2 className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] text-destructive">מחיקת החשבון</span>
+            <span className="block text-xs text-muted-foreground">
+              {manage.lastOfKind ? 'אי אפשר למחוק את החשבון האחרון מסוגו' : 'מוחק גם את כל התנועות שלו'}
+            </span>
+          </span>
+        </button>
+      </li>
+    </ul>
   )
 }

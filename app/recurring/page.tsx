@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ChevronDown } from 'lucide-react'
 import { RecurringList, type RecurringListItem } from '@/components/insights/recurring-list'
-import { SeriesActions } from '@/components/recurring/series-actions'
+import { SeriesRow } from '@/components/recurring/series-window'
 import { getRecurringSeries, type AppliedSeries } from '@/lib/db/recurring'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 
@@ -9,24 +9,9 @@ export const dynamic = 'force-dynamic'
 
 interface SearchParams { account?: string }
 
-function actionsFor(s: RecurringListItem) {
-  const a = s as AppliedSeries
-  return (
-    <SeriesActions
-      seriesKey={a.key}
-      baseKey={a.baseKey}
-      accountId={a.accountId ?? null}
-      overrideKey={a.overrideKey}
-      status={a.status}
-      name={a.name}
-      detectedName={a.detectedName}
-      cadence={a.cadence}
-      merchant={a.merchant}
-      transactionIds={a.transactionIds}
-      latestAmount={a.latestAmount}
-      manual={a.manual}
-    />
-  )
+// A row opens the series' window with its actions (components/recurring/series-window.tsx)
+function rowFor(s: RecurringListItem, content: React.ReactNode) {
+  return <SeriesRow series={s as AppliedSeries}>{content}</SeriesRow>
 }
 
 function Collapsible({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
@@ -67,7 +52,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
         series={r.subscriptions}
         total={r.total}
         accountNames={accountNames}
-        actions={actionsFor}
+        wrapRow={rowFor}
       />
 
       {r.installments.length > 0 && (
@@ -77,7 +62,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
           series={r.installments}
           total={r.installmentsTotal}
           accountNames={accountNames}
-          actions={actionsFor}
+          wrapRow={rowFor}
         />
       )}
 
@@ -87,7 +72,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
           subtitle="החיוב החודשי של הכרטיס בבנק כבר כולל את החיובים בכרטיס, ולכן לא נספר בסך הכול."
           series={r.cardPayments}
           accountNames={accountNames}
-          actions={actionsFor}
+          wrapRow={rowFor}
         />
       )}
 
@@ -98,7 +83,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
           subtitle="לא היה חיוב יותר מחודשיים"
           series={r.inactive}
           accountNames={accountNames}
-          actions={actionsFor}
+          wrapRow={rowFor}
         />
       </Collapsible>
 
@@ -109,7 +94,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
           subtitle="לא נספרים בסך הכול. אפשר לשחזר."
           series={r.dismissed}
           accountNames={accountNames}
-          actions={actionsFor}
+          wrapRow={rowFor}
         />
       </Collapsible>
 

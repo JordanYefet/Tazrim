@@ -43,6 +43,25 @@ export function isRealCategory(name: string): boolean {
   return name !== UNCATEGORIZED && name !== CARD_PAYMENT_CATEGORY
 }
 
+/**
+ * Sums category -> { total, count } of several sources (cards and bank, say) for one
+ * donut. The bank's card payment is left out: the card charges are its breakdown.
+ */
+export function mergeCategoryStats(
+  ...parts: Record<string, { total: number; count: number }>[]
+): Record<string, { total: number; count: number }> {
+  const out: Record<string, { total: number; count: number }> = {}
+  for (const part of parts) {
+    for (const [cat, s] of Object.entries(part)) {
+      if (cat === CARD_PAYMENT_CATEGORY) continue
+      out[cat] ??= { total: 0, count: 0 }
+      out[cat].total += s.total
+      out[cat].count += s.count
+    }
+  }
+  return out
+}
+
 /** Sums category -> month amounts of several sources (cards and bank, say). */
 export function mergeCategoryMonthly(...parts: CategoryMonthly[]): CategoryMonthly {
   const out: CategoryMonthly = {}

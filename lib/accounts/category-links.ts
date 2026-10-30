@@ -1,26 +1,47 @@
-import { accountHref, accountPath, withQuery, type QueryInput } from './routes'
+import { accountHref, withQuery, type QueryInput } from './routes'
 import { isRealCategory } from '@/lib/insights/bank-categories'
 
-/** The category analysis page: one card's (`/cards/<id>/categories`) or every card's (`/cards/categories`). */
-export function categoryAnalysisHref(cardId: string | undefined, params?: QueryInput): string {
-  return withQuery(`${accountPath('CREDIT_CARD', cardId)}/categories`, params)
+/**
+ * The category analysis page (/analysis), bank and cards together. Its scope is in the
+ * path: nothing = everything, `bank`, `cards`, or one account's id.
+ */
+export function analysisHref(scope: string | undefined, params?: QueryInput): string {
+  return withQuery(scope ? `/analysis/${encodeURIComponent(scope)}` : '/analysis', params)
 }
 
-/** The bank category analysis page: one account's (`/banks/<id>/categories`) or every bank account's. */
+/** The analysis of one card, or of every card */
+export function categoryAnalysisHref(cardId: string | undefined, params?: QueryInput): string {
+  return analysisHref(cardId ?? 'cards', params)
+}
+
+/** The analysis of one bank account, or of every bank account */
 export function bankCategoryAnalysisHref(accountId: string | undefined, params?: QueryInput): string {
-  return withQuery(`${accountPath('BANK', accountId)}/categories`, params)
+  return analysisHref(accountId ?? 'bank', params)
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** A search of these accounts for one category over the period (bank rows by date, card rows by purchase date). */
-function categorySearchHref(accountIds: string[], category: string, year: string, month?: number): string {
+/** Search params for these accounts over the period (bank rows by date, card rows by purchase date). */
+function periodSearchParams(accountIds: string[], year: string, month?: number): URLSearchParams {
   const y = Number(year)
   const sp = new URLSearchParams()
   sp.set('from', month ? `${year}-${pad(month)}-01` : `${year}-01-01`)
   sp.set('to', month ? `${year}-${pad(month)}-${pad(new Date(y, month, 0).getDate())}` : `${year}-12-31`)
   for (const id of accountIds) sp.append('account', id)
+  return sp
+}
+
+/** A search of these accounts for one category over the period. */
+function categorySearchHref(accountIds: string[], category: string, year: string, month?: number): string {
+  const sp = periodSearchParams(accountIds, year, month)
   sp.set('category', category)
+  return `/search?${sp}`
+}
+
+/** A search of these accounts for the transactions without a category over the period. */
+export function uncategorizedSearchHref({ accountIds, year, month }: { accountIds: string[]; year: string; month?: number }): string {
+  const sp = periodSearchParams(accountIds, year, month)
+  sp.set('uncategorized', '1')
   return `/search?${sp}`
 }
 

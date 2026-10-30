@@ -1,52 +1,7 @@
-import { CreditCard, Upload } from 'lucide-react'
-import { CategoryAnalysis } from '@/components/cards/category-analysis'
-import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { listAccounts } from '@/lib/db/accounts'
-import { getCCCategoryMonthly } from '@/lib/db/cards'
-import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
-import { withResolvedPeriod } from '@/lib/period-server'
+import { redirect } from 'next/navigation'
+import { analysisHref } from '@/lib/accounts/category-links'
 
-interface SearchParams { year?: string; month?: string }
-
-/**
- * Every active card's spending by category, together. This static segment
- * wins over /cards/[accountId], so "categories" never reaches it as an id.
- */
-export default async function AllCardsCategoriesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await withResolvedPeriod(await searchParams)
-  const year = params.year
-  const month = params.month ? Number(params.month) : undefined
-
-  const accounts = await listAccounts({ kind: 'CREDIT_CARD' })
-  const ids = accounts.map(a => a.id)
-  const monthly = ids.length ? await getCCCategoryMonthly(ids, Number(year)) : {}
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeading
-        period={{ year: Number(year), month }}
-        title={accounts.length > 1 ? `ניתוח לפי קטגוריה · ${accounts.length} כרטיסים` : 'ניתוח לפי קטגוריה'}
-      />
-      {accounts.length === 0 ? (
-        <EmptyState
-          icon={CreditCard}
-          title="אין כרטיסי אשראי"
-          text="הוסף כרטיס או העלה פירוט חיובים כדי לראות כאן את החיובים לפי קטגוריה."
-          actions={[
-            { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
-            { href: '/settings#accounts', label: 'ניהול חשבונות' },
-          ]}
-        />
-      ) : (
-        <CategoryAnalysis
-          categoryHref={category => categoryTransactionsHref({ cardIds: ids, category, year, month })}
-          monthly={monthly}
-          year={year}
-          month={month}
-          basePath={categoryAnalysisHref(undefined)}
-          emptyText="העלה פירוט חיובים מחברת האשראי כדי לראות כאן את החיובים לפי קטגוריה וחודש."
-        />
-      )}
-    </div>
-  )
+/** Moved: every card's analysis is a scope of /analysis (bank and cards together); old links keep working. */
+export default async function AllCardsCategoriesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  redirect(analysisHref('cards', await searchParams))
 }

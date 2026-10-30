@@ -4,7 +4,10 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage } from '@/lib/search/query'
+import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult } from '@/lib/search/query'
+import { formatCurrency } from '@/lib/utils/currency'
+import { isCardPaymentRow } from '@/lib/insights/bank-categories'
+import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
 import { SearchResultList } from './search-result-list'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import { SearchEmptyState, SearchNoResults } from './search-states'
@@ -22,6 +25,18 @@ interface Props {
   page: SearchPage
   accounts: AccountOption[]
   categories: string[]
+  /** What a result's category window needs */
+  picker: PickerData
+}
+
+interface PickerData {
+  /** Category names by kind: card charges and bank debits take expense ones, bank credits income ones */
+  expense: string[]
+  income: string[]
+  /** Each category's chart colour */
+  colors: Record<string, string>
+  /** Bank descriptions categorised row by row, never by a rule */
+  generic: string[]
 }
 
 interface FormState {
@@ -34,13 +49,16 @@ interface FormState {
   includeIgnored: boolean
 }
 
+/** The category field's value for "no category" (the uncategorized=1 filter) */
+const NONE = '__none'
+
 const toForm = (f: SearchFilters): FormState => ({
   text: f.text ?? '',
   amountInput: f.amountInput ?? '',
   from: f.from ?? '',
   to: f.to ?? '',
   accountIds: f.accountIds ?? [],
-  category: f.categories?.[0] ?? '',
+  category: f.uncategorized ? NONE : (f.categories?.[0] ?? ''),
   includeIgnored: f.includeIgnored,
 })
 
@@ -51,7 +69,8 @@ const formQuery = (s: FormState) =>
     from: s.from || undefined,
     to: s.to || undefined,
     accountIds: s.accountIds,
-    categories: s.category ? [s.category] : [],
+    categories: s.category && s.category !== NONE ? [s.category] : [],
+    uncategorized: s.category === NONE,
     includeIgnored: s.includeIgnored,
   }).toString()
 
@@ -61,14 +80,14 @@ const field =
   'h-9 w-full rounded-lg border border-border bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring [color-scheme:light] dark:[color-scheme:dark]'
 
 /** /search: filters (kept in the URL) and the results, with "load more" through /api/search. */
-export function SearchView({ filters, queryString, page, accounts, categories }: Props) {
+export function SearchView({ filters, queryString, page, accounts, categories, picker }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(() => toForm(filters))
   const [pending, startTransition] = useTransition()
   const lastPushed = useRef(queryString)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const advancedActive = Boolean(
-    filters.amountInput || filters.from || filters.to || filters.accountIds?.length || filters.categories?.length || filters.includeIgnored
+    filters.amountInput || filters.from || filters.to || filters.accountIds?.length || filters.categories?.length || filters.uncategorized || filters.includeIgnored
   )
   const [showFilters, setShowFilters] = useState(advancedActive)
 
@@ -174,6 +193,7 @@ export function SearchView({ filters, queryString, page, accounts, categories }:
               <span className="text-xs text-muted-foreground">קטגוריה</span>
               <select value={form.category} onChange={e => update({ category: e.target.value })} className="h-9 w-full">
                 <option value="">כל הקטגוריות</option>
+                <option value={NONE}>ללא קטגוריה</option>
                 {categories.map(c => (
                   <option key={c} value={c}>
                     {c}
@@ -237,15 +257,41 @@ export function SearchView({ filters, queryString, page, accounts, categories }:
         ) : page.results.length === 0 ? (
           filters.amountInvalid ? null : <SearchNoResults ignoredHidden={!filters.includeIgnored} />
         ) : (
-          <Results key={queryString} initial={page} queryString={queryString} terms={terms} />
+          <Results key={queryString} initial={page} queryString={queryString} terms={terms} picker={picker} uncategorizedOnly={!!filters.uncategorized} />
         )}
       </div>
     </div>
   )
 }
 
-function Results({ initial, queryString, terms }: { initial: SearchPage; queryString: string; terms: string[] }) {
+function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
+  initial: SearchPage
+  queryString: string
+  terms: string[]
+  picker: PickerData
+  /** The list is "ללא קטגוריה": a result that gets a category leaves it */
+  uncategorizedOnly: boolean
+}) {
   const [results, setResults] = useState(initial.results)
+  const [removed, setRemoved] = useState(0)
+  const [picking, setPicking] = useState<SearchResult | null>(null)
+  // A card row's category may be the issuer's own (unmapped): that is no category of yours
+  const yours = new Set([...picker.expense, ...picker.income])
+  const known = (category?: string) => (category && yours.has(category) ? category : null)
+
+  /** After a save: this row (and with a wider scope, the matching loaded rows) get the category */
+  function applied(target: SearchResult, category: string | null, wide: boolean) {
+    const hit = (r: SearchResult) =>
+      r.id === target.id ||
+      (wide && r.source === target.source && r.accountId === target.accountId && (r.originalDescription ?? r.description) === (target.originalDescription ?? target.description))
+    if (uncategorizedOnly && category !== null) {
+      const gone = results.filter(hit).length
+      setResults(prev => prev.filter(r => !hit(r)))
+      setRemoved(n => n + gone)
+    } else {
+      setResults(prev => prev.map(r => (hit(r) ? { ...r, category: category ?? undefined } : r)))
+    }
+  }
   const [cursor, setCursor] = useState(initial.nextCursor)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -272,19 +318,33 @@ function Results({ initial, queryString, terms }: { initial: SearchPage; querySt
   return (
     <section className="rounded-xl surface p-2 sm:p-3">
       <p className="px-2 pb-2 text-xs text-muted-foreground tabular-nums" aria-live="polite">
-        {initial.total === 1 ? 'תוצאה אחת' : `${initial.total} תוצאות`}
-        {initial.total > results.length ? ` · מוצגות ${results.length}` : ''}
+        {initial.total - removed === 1 ? 'תוצאה אחת' : `${initial.total - removed} תוצאות`}
+        {initial.total - removed > results.length ? ` · מוצגות ${results.length}` : ''}
       </p>
       <SearchResultList
         results={results}
         terms={terms}
-        // Mark as recurring (ENG-71): expenses only; the slot keeps the amounts aligned
+        categoryInActions
+        // The category pill (opens the category window, as in the tables) and mark as recurring
+        // (ENG-71, expenses only); fixed slots keep the amounts aligned
         actions={r => (
-          <span className="flex h-8 w-7 items-center justify-center">
-            {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} seriesName={r.recurringLabel} />}
+          <span className="flex items-center gap-1">
+            {!r.ignored && !isCardPayment(r) && (
+              <CategoryPill
+                name={known(r.category)}
+                color={known(r.category) ? picker.colors[r.category!] : undefined}
+                sourceName={known(r.category) ? undefined : r.category}
+                onClick={() => setPicking(r)}
+                className="max-w-28 sm:max-w-36"
+              />
+            )}
+            <span className="flex h-8 w-7 items-center justify-center">
+              {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} seriesName={r.recurringLabel} />}
+            </span>
           </span>
         )}
       />
+      <ResultCategoryWindow result={picking} picker={picker} onClose={() => setPicking(null)} onApplied={applied} />
       {cursor && (
         <div className="px-2 pt-2">
           <button
@@ -301,3 +361,86 @@ function Results({ initial, queryString, terms }: { initial: SearchPage; querySt
     </section>
   )
 }
+
+/** A bank row's payment to a card company never takes a category */
+const isCardPayment = (r: SearchResult) =>
+  r.source === 'bank' && r.amount > 0 && isCardPaymentRow({ description: r.description, originalDescription: r.originalDescription ?? r.description, debit: r.amount })
+
+/** A search result's category window: the same one the bank and card tables open */
+function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
+  result: SearchResult | null
+  picker: PickerData
+  onClose: () => void
+  onApplied: (result: SearchResult, category: string | null, wide: boolean) => void
+}) {
+  // The last result stays while the window animates out
+  const [last, setLast] = useState<SearchResult | null>(result)
+  if (result && result !== last) setLast(result)
+  const r = result ?? last
+  const [error, setError] = useState<string | null>(null)
+  if (!r) return null
+  const bank = r.source === 'bank'
+  const income = r.amount < 0
+  const original = r.originalDescription ?? r.description
+  const generic = bank && picker.generic.includes(original)
+  const names = income ? picker.income : picker.expense
+
+  async function save(category: string | null, scope: string | null) {
+    if (!r) return
+    const wide = scope === 'rule' || scope === 'merchant'
+    const res = bank
+      ? await fetch(`/api/bank/transactions/${r.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, categoryScope: wide ? 'rule' : 'row' }),
+        })
+      : await fetch(`/api/cards/${encodeURIComponent(r.accountId)}/transactions/${r.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categoryOverride: category, categoryScope: wide ? 'merchant' : 'row' }),
+        })
+    if (!res.ok) {
+      setError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setError(null)
+    onClose()
+    onApplied(r, category, wide)
+  }
+
+  return (
+    <>
+      <CategoryPicker
+        open={!!result}
+        onOpenChange={o => !o && onClose()}
+        context={`${bank ? (income ? 'תנועה נכנסת' : 'תנועה יוצאת') : 'חיוב'} · ${r.accountName} · ${displayDay(r.date)}`}
+        title={r.description}
+        amount={formatCurrency(Math.abs(r.amount))}
+        amountTone={income ? 'income' : 'expense'}
+        categories={names.map(name => ({ name, color: picker.colors[name] }))}
+        createKind={income ? 'INCOME' : 'EXPENSE'}
+        current={r.category && (picker.expense.includes(r.category) || picker.income.includes(r.category)) ? r.category : null}
+        allowNone={bank}
+        scopes={
+          generic
+            ? undefined
+            : bank
+              ? [
+                  { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
+                  { id: 'rule', title: `כל התנועות ${income ? 'הנכנסות' : 'היוצאות'} "${original}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
+                ]
+              : [
+                  { id: 'row', title: 'רק החיוב הזה', sub: `שאר החיובים מ${r.description} לא משתנים` },
+                  { id: 'merchant', title: `כל החיובים מ${r.description}`, sub: 'בכל הכרטיסים של החברה, וגם בקבצים הבאים' },
+                ]
+        }
+        note={generic ? `"${original}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
+        onSave={save}
+      />
+      {error && <p role="alert" className="px-2 pt-2 text-sm text-destructive">{error}</p>}
+    </>
+  )
+}
+
+/** DD.MM.YYYY from the result's YYYY-MM-DD key */
+const displayDay = (key: string) => key.split('-').reverse().join('.')

@@ -24,6 +24,8 @@ interface Props {
   accountNames?: Record<string, string>
   /** Per-row slot for confirm/dismiss/rename controls */
   actions?: (series: RecurringListItem) => ReactNode
+  /** Wraps each row's content, e.g. in a button that opens the series' window (/recurring) */
+  wrapRow?: (series: RecurringListItem, content: ReactNode) => ReactNode
   className?: string
 }
 
@@ -36,12 +38,17 @@ const CADENCE_LABEL: Record<Cadence, string> = {
 
 const badge = 'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium'
 
-function Row({ s, actions, accountNames }: { s: RecurringListItem; actions?: Props['actions']; accountNames?: Props['accountNames'] }) {
+function Row({ s, actions, wrapRow, accountNames }: {
+  s: RecurringListItem
+  actions?: Props['actions']
+  wrapRow?: Props['wrapRow']
+  accountNames?: Props['accountNames']
+}) {
   const SourceIcon = s.source === 'bank' ? Landmark : CreditCard
   const account = s.accountId ? accountNames?.[s.accountId] : undefined
   const renamed = s.detectedName && s.detectedName !== s.name
-  return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 hover:bg-muted/50">
+  const content = (
+    <>
       <SourceIcon
         className="h-4 w-4 shrink-0 text-muted-foreground"
         aria-label={s.source === 'bank' ? 'בנק' : 'כרטיס אשראי'}
@@ -95,6 +102,12 @@ function Row({ s, actions, accountNames }: { s: RecurringListItem; actions?: Pro
           <div className="text-xs text-muted-foreground line-through">{formatCurrency(s.priceIncrease.from)}</div>
         )}
       </div>
+    </>
+  )
+  if (wrapRow) return <li>{wrapRow(s, content)}</li>
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 hover:bg-muted/50">
+      {content}
       {actions && (
         // own line on phones, inline from sm up
         <div className="flex basis-full justify-end sm:basis-auto">{actions(s)}</div>
@@ -112,6 +125,7 @@ export function RecurringList({
   emptyText = 'עדיין לא זוהו חיובים קבועים. צריך לפחות שלושה חיובים דומים בהפרש של חודש.',
   accountNames,
   actions,
+  wrapRow,
   className,
 }: Props) {
   return (
@@ -137,7 +151,7 @@ export function RecurringList({
       ) : (
         <ul className="-mx-2 flex flex-col">
           {series.map(s => (
-            <Row key={s.key} s={s} actions={actions} accountNames={accountNames} />
+            <Row key={s.key} s={s} actions={actions} wrapRow={wrapRow} accountNames={accountNames} />
           ))}
         </ul>
       )}

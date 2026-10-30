@@ -23,7 +23,8 @@ export async function PATCH(
   // Rules belong to the card's provider, so they cover every card of that provider
   const provider = tx.account.provider
 
-  if (body.categoryOverride) {
+  // 'row' sets this charge only; the default covers the merchant's charges and later files
+  if (body.categoryOverride && body.categoryScope !== 'row') {
     await bulkUpdateCCCategory(tx.originalMerchantName, body.categoryOverride, provider)
     await upsertAlias({
       provider,
@@ -38,7 +39,7 @@ export async function PATCH(
       provider,
       originalName: tx.originalMerchantName,
       displayName: body.merchantName,
-      categoryOverride: body.categoryOverride,
+      categoryOverride: body.categoryScope === 'row' ? undefined : body.categoryOverride,
     })
   }
 

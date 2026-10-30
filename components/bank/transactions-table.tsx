@@ -11,9 +11,10 @@ import type { UnusualFlag } from '@/lib/insights/unusual'
 import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
-import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
+import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
+import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 
@@ -30,12 +31,15 @@ interface BankTx {
   category: string | null
   categoryManual: boolean
   ignored: boolean
+  /** An uncategorized row's likely category (lib/insights/category-suggestions); never applied by itself */
+  suggestion?: { category: string; fromAmount: number; fromDate: string }
 }
 
 interface Category { id: string; name: string }
 
-/** A category picked on a row, waiting for "this row" or "every such row" */
-interface PendingCategory { id: string; category: string | null }
+
+/** Rows that take a category: the card payment and ignored rows have none */
+const selectable = (tx: BankTx) => !tx.ignored && !isCardPaymentRow(tx)
 
 export function BankTransactionsTable({
   accountId,
@@ -50,6 +54,8 @@ export function BankTransactionsTable({
   incomeCategories = [],
   activeCategory,
   flowFilter,
+  genericDescriptions = [],
+  categoryColors = {},
 }: {
   /** The bank account these rows belong to */
   accountId: string
@@ -71,6 +77,10 @@ export function BankTransactionsTable({
   recurring?: Record<string, RowSeries>
   /** Optional columns to show (the page reads the cookie, lib/tables/columns.ts) */
   initialColumns?: string[]
+  /** Each category's chart colour, for its dot in the row and the picker */
+  categoryColors?: Record<string, string>
+  /** Descriptions categorised row by row, never by a rule (lib/db/generic-descriptions.ts) */
+  genericDescriptions?: string[]
 }) {
   const [columns, setColumns] = useState(initialColumns as BankColumn[])
   const router = useRouter()
@@ -79,8 +89,12 @@ export function BankTransactionsTable({
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editing, setEditing] = useState<{ id: string; field: 'note'; value: string } | null>(null)
-  const [pending, setPending] = useState<PendingCategory | null>(null)
+  // The row whose category window is open
+  const [picking, setPicking] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
+  const [generic, setGeneric] = useState(() => new Set(genericDescriptions))
+  // Rows ticked for one category at once; the page remounts the table on a new data set, which clears it
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
 
@@ -107,15 +121,13 @@ export function BankTransactionsTable({
     setEditing(null)
   }
 
-  async function saveCategory(scope: 'row' | 'rule') {
-    if (!pending) return
-    const { id, category } = pending
+  async function saveCategory(scope: 'row' | 'rule', target: { id: string; category: string | null }) {
+    const { id, category } = target
     const res = await fetch(`/api/bank/transactions/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category, categoryScope: scope }),
     })
-    setPending(null)
     if (!res.ok) {
       setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
       return
@@ -129,9 +141,84 @@ export function BankTransactionsTable({
         changed.has(t.id) ? { ...t, category, categoryManual: scope === 'row' && t.id === id } : t
       )
     )
+    // The page's totals and donuts count categories too
+    router.refresh()
+  }
+
+  /** Marks a row's description generic (its rules go), then saves the category picked in the window for that row */
+  async function markGeneric(tx: BankTx, category: string | null) {
+    const res = await fetch('/api/bank/generic-descriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: tx.originalDescription }),
+    })
+    setPicking(null)
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'הסימון נכשל')
+      return
+    }
+    const cleared = new Set((await res.json()).clearedIds as string[])
+    setGeneric(prev => new Set(prev).add(tx.originalDescription))
+    setTransactions(prev => prev.map(t => (cleared.has(t.id) ? { ...t, category: null } : t)))
+    // Saving refreshes the page's totals and donuts, which counted the cleared rule categories too
+    if (category !== null) await saveCategory('row', { id: tx.id, category })
+    else router.refresh()
+  }
+
+  const pickingTx = picking ? transactions.find(t => t.id === picking) : undefined
+
+  const selectableRows = transactions.filter(selectable)
+  const allSelected = selectableRows.length > 0 && selectableRows.every(t => selected.has(t.id))
+
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(selectableRows.map(t => t.id)))
+  }
+
+  async function saveBulkCategory(category: string | null) {
+    const ids = [...selected]
+    const res = await fetch('/api/bank/transactions/bulk-category', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, category }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    const changed = new Set((await res.json() as { updatedIds: string[] }).updatedIds)
+    setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, category, categoryManual: true } : t)))
+    setSelected(new Set())
+    router.refresh()
+  }
+
+  /** A suggestion's click: this row only, as "רק תנועה זו" would save it */
+  async function acceptSuggestion(id: string, category: string) {
+    const res = await fetch(`/api/bank/transactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, categoryScope: 'row' }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    setTransactions(prev => prev.map(t => (t.id === id ? { ...t, category, categoryManual: true } : t)))
+    router.refresh()
   }
 
   async function toggleIgnored(tx: BankTx) {
+    // An ignored row takes no category, so it leaves the selection
+    if (!tx.ignored) setSelected(prev => (prev.has(tx.id) ? new Set([...prev].filter(id => id !== tx.id)) : prev))
     const ignored = !tx.ignored
     await fetch(`/api/bank/transactions/${tx.id}`, {
       method: 'PATCH',
@@ -217,12 +304,36 @@ export function BankTransactionsTable({
 
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
 
+      {selected.size > 0 && (
+        <BulkCategoryBar
+          rows={transactions.filter(t => selected.has(t.id))}
+          expenseCategories={expenseCategories}
+          incomeCategories={incomeCategories}
+          colors={categoryColors}
+          onApply={saveBulkCategory}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
+
       {/* Table */}
       <div className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="w-0 py-2.5 ps-4 pe-0">
+                  <label className="-m-3 inline-flex p-3 align-middle">
+                    <input
+                      type="checkbox"
+                      aria-label="בחירת כל התנועות שנטענו"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = selected.size > 0 && !allSelected }}
+                      disabled={selectableRows.length === 0}
+                      onChange={toggleAll}
+                      className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default"
+                    />
+                  </label>
+                </th>
                 {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
@@ -234,9 +345,23 @@ export function BankTransactionsTable({
                   key={tx.id}
                   className={cn(
                     'border-b transition-colors hover:bg-muted/30',
-                    tx.ignored && 'opacity-40'
+                    tx.ignored && 'opacity-40',
+                    selected.has(tx.id) && 'bg-primary/5'
                   )}
                 >
+                  <td className="w-0 py-2.5 ps-4 pe-0">
+                    {/* The padding widens the tap target past the small box, for phones */}
+                    <label className="-m-3 inline-flex p-3 align-middle">
+                      <input
+                        type="checkbox"
+                        aria-label={`בחירת ${tx.description}`}
+                        checked={selected.has(tx.id)}
+                        disabled={!selectable(tx)}
+                        onChange={() => toggleSelected(tx.id)}
+                        className="accent-primary h-4 w-4 cursor-pointer disabled:cursor-default disabled:opacity-30"
+                      />
+                    </label>
+                  </td>
                   <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground text-xs">{formatDate(tx.date)}</td>
                   <td className="py-2.5 px-4 min-w-[140px]">
                     {tx.ignored ? (
@@ -265,11 +390,9 @@ export function BankTransactionsTable({
                   <td className="py-2.5 px-4 min-w-[140px] align-top">
                     <CategoryCell
                       tx={tx}
-                      categories={directionOf(tx) === 'OUT' ? expenseCategories : incomeCategories}
-                      pending={pending?.id === tx.id ? pending : null}
-                      onPick={category => setPending({ id: tx.id, category })}
-                      onSave={saveCategory}
-                      onCancel={() => setPending(null)}
+                      color={tx.category ? categoryColors[tx.category] : undefined}
+                      onOpen={() => setPicking(tx.id)}
+                      onSuggest={category => acceptSuggestion(tx.id, category)}
                     />
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
@@ -343,30 +466,82 @@ export function BankTransactionsTable({
           </button>
         </div>
       )}
+
+      {/* One window for every row's category pill; the card table opens the same one */}
+      <BankCategoryWindow
+        tx={pickingTx}
+        generic={!!pickingTx && generic.has(pickingTx.originalDescription)}
+        categories={pickingTx && directionOf(pickingTx) === 'IN' ? incomeCategories : expenseCategories}
+        colors={categoryColors}
+        onClose={() => setPicking(null)}
+        onSave={async (tx, category, scope) => {
+          setPicking(null)
+          await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
+        }}
+        onMarkGeneric={markGeneric}
+      />
     </div>
   )
 }
 
+/** The category window of one bank row (components/categories/category-picker.tsx) */
+function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, onMarkGeneric }: {
+  tx: BankTx | undefined
+  generic: boolean
+  categories: Category[]
+  colors: Record<string, string>
+  onClose: () => void
+  onSave: (tx: BankTx, category: string | null, scope: string | null) => Promise<void>
+  onMarkGeneric: (tx: BankTx, category: string | null) => void
+}) {
+  // The last row stays while the window animates out
+  const [last, setLast] = useState<BankTx | undefined>(tx)
+  if (tx && tx !== last) setLast(tx)
+  const shown = tx ?? last
+  const out = shown ? directionOf(shown) === 'OUT' : true
+  const direction = out ? 'היוצאות' : 'הנכנסות'
+  return (
+    <CategoryPicker
+      open={!!tx}
+      onOpenChange={o => !o && onClose()}
+      context={`${out ? 'תנועה יוצאת' : 'תנועה נכנסת'} בבנק · ${shown ? formatDate(shown.date) : ''}`}
+      title={shown?.description ?? ''}
+      amount={shown ? formatCurrency(out ? shown.debit : shown.credit) : ''}
+      amountTone={out ? 'expense' : 'income'}
+      categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+      createKind={out ? 'EXPENSE' : 'INCOME'}
+      current={shown?.category ?? null}
+      allowNone
+      scopes={
+        generic || !shown
+          ? undefined
+          : [
+              { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
+              { id: 'rule', title: `כל התנועות ${direction} "${shown.originalDescription}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
+            ]
+      }
+      note={generic && shown ? `"${shown.originalDescription}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
+      suggestion={
+        shown?.suggestion && !shown.category
+          ? { category: shown.suggestion.category, reason: `כמו ${formatCurrency(shown.suggestion.fromAmount)} ב־${formatDate(shown.suggestion.fromDate)}` }
+          : undefined
+      }
+      extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
+      onSave={(category, scope) => (shown ? onSave(shown, category, scope) : undefined)}
+    />
+  )
+}
+
 /**
- * A row's category: a picker of the row's kind (expense for debits, income
- * for credits), then a choice of this row only or every row with the same
- * description in the same direction (a rule, also applied to future imports).
+ * A row's category: a pill that opens the category window (CategoryPicker, as on the
+ * card table), with the suggestion under it while the row has none.
  * The card payment has none: its breakdown is the card's own categories.
  */
-function CategoryCell({
-  tx,
-  categories,
-  pending,
-  onPick,
-  onSave,
-  onCancel,
-}: {
+function CategoryCell({ tx, color, onOpen, onSuggest }: {
   tx: BankTx
-  categories: Category[]
-  pending: PendingCategory | null
-  onPick: (category: string | null) => void
-  onSave: (scope: 'row' | 'rule') => void
-  onCancel: () => void
+  color?: string
+  onOpen: () => void
+  onSuggest: (category: string) => void
 }) {
   if (isCardPaymentRow(tx)) {
     return <span className="text-xs text-muted-foreground" title="הפירוט לפי קטגוריה נמצא בכרטיס">{CARD_PAYMENT_CATEGORY}</span>
@@ -374,45 +549,91 @@ function CategoryCell({
   if (tx.ignored) {
     return <span className="line-through text-muted-foreground text-xs">{tx.category ?? ''}</span>
   }
-  const value = pending ? pending.category : tx.category
-  // A category the list no longer has (renamed or deleted) still shows
-  const missing = tx.category && !categories.some(c => c.name === tx.category)
-  const direction = directionOf(tx) === 'OUT' ? 'היוצאות' : 'הנכנסות'
   return (
-    <div className="space-y-1.5">
-      <select
-        // one width for every row, so the column lines up (a long name is cut by the select)
-        className={cn('w-36 text-xs', !value && 'text-muted-foreground')}
-        value={value ?? ''}
-        aria-label="קטגוריה"
-        onChange={e => onPick(e.target.value || null)}
-      >
-        <option value="">{UNCATEGORIZED}</option>
-        {missing && <option value={tx.category!}>{tx.category}</option>}
-        {categories.map(c => (
-          <option key={c.id} value={c.name}>{c.name}</option>
-        ))}
-      </select>
-      {pending && (
-        <div className="flex flex-wrap items-center gap-1 text-xs">
-          <button
-            onClick={() => onSave('row')}
-            className="rounded-md border px-2 py-0.5 hover:bg-muted transition-colors"
-          >
-            רק תנועה זו
-          </button>
-          <button
-            onClick={() => onSave('rule')}
-            className="max-w-[16rem] truncate rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/20 transition-colors"
-            title="גם לתנועות שיועלו בהמשך"
-          >
-            כל התנועות {direction} <bdi>{tx.originalDescription}</bdi>
-          </button>
-          <button onClick={onCancel} aria-label="ביטול" className="p-0.5 text-muted-foreground hover:text-foreground">
-            <X className="h-3 w-3" />
-          </button>
-        </div>
+    <div className="flex flex-col items-start gap-1">
+      <CategoryPill name={tx.category} color={color} onClick={onOpen} />
+      {/* A quiet guess under the pill while the row has no category */}
+      {tx.suggestion && !tx.category && (
+        <button
+          onClick={() => onSuggest(tx.suggestion!.category)}
+          title={`כמו ${formatCurrency(tx.suggestion.fromAmount)} ב־${formatDate(tx.suggestion.fromDate)}`}
+          className="block max-w-40 truncate rounded-full border border-dashed border-foreground/20 px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+        >
+          <bdi>{tx.suggestion.category}</bdi>?
+        </button>
       )}
+    </div>
+  )
+}
+
+/**
+ * One category for every ticked row, each as a manual choice: for generic
+ * descriptions such as cheques, where a rule can't tell the rows apart. The
+ * list follows the rows' direction, so debits and credits together can't take one.
+ */
+function BulkCategoryBar({
+  rows,
+  expenseCategories,
+  incomeCategories,
+  colors,
+  onApply,
+  onClear,
+}: {
+  rows: BankTx[]
+  expenseCategories: Category[]
+  incomeCategories: Category[]
+  colors: Record<string, string>
+  onApply: (category: string | null) => Promise<void>
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const directions = new Set(rows.map(directionOf))
+  const mixed = directions.size > 1
+  const income = directions.has('IN')
+  const categories = income ? incomeCategories : expenseCategories
+  const total = rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0)
+
+  return (
+    <div className="sticky top-16 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl surface-overlay px-3 py-2 text-sm">
+      <span className="font-medium">
+        {rows.length === 1 ? 'נבחרה תנועה אחת' : <>נבחרו <span className="tabular-nums">{rows.length}</span> תנועות</>}
+      </span>
+      {mixed ? (
+        <span className="text-xs text-muted-foreground">בחרו תנועות מאותו כיוון</span>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-[0.97]"
+        >
+          בחר קטגוריה
+        </button>
+      )}
+      <button
+        onClick={onClear}
+        className="ms-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        <X className="h-3 w-3" />
+        ניקוי הבחירה
+      </button>
+
+      {/* The rows' category window, for all of them at once: each gets it as its own choice */}
+      <CategoryPicker
+        open={open}
+        onOpenChange={setOpen}
+        context={income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'}
+        title={rows.length === 1 ? 'תנועה אחת' : `${rows.length} תנועות`}
+        amount={formatCurrency(total)}
+        amountTone={income ? 'income' : 'expense'}
+        categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
+        createKind={income ? 'INCOME' : 'EXPENSE'}
+        current={undefined}
+        allowNone
+        note="כל תנועה שנבחרה תקבל את הקטגוריה הזאת, כבחירה שלה בלבד."
+        onSave={async category => {
+          setOpen(false)
+          await onApply(category)
+        }}
+      />
     </div>
   )
 }

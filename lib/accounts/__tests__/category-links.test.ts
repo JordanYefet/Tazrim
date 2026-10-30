@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  analysisHref,
   bankCategoryAnalysisHref,
   bankCategoryTransactionsHref,
   categoryAnalysisHref,
@@ -9,15 +10,14 @@ import {
 import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED } from '@/lib/insights/bank-categories'
 
 // Made-up ids and categories only
-describe('categoryAnalysisHref', () => {
-  it("opens one card's category page, keeping the period", () => {
-    expect(categoryAnalysisHref('acct_test_card', { year: '2025', month: '3' })).toBe(
-      '/cards/acct_test_card/categories?year=2025&month=3'
-    )
+describe('analysis links', () => {
+  it('opens the analysis of everything, keeping the period', () => {
+    expect(analysisHref(undefined, { year: '2025', month: '3' })).toBe('/analysis?year=2025&month=3')
   })
 
-  it('opens the all-cards category page', () => {
-    expect(categoryAnalysisHref(undefined, { year: '2025' })).toBe('/cards/categories?year=2025')
+  it("opens one card's analysis, or every card's", () => {
+    expect(categoryAnalysisHref('acct_test_card', { year: '2025', month: '3' })).toBe('/analysis/acct_test_card?year=2025&month=3')
+    expect(categoryAnalysisHref(undefined, { year: '2025' })).toBe('/analysis/cards?year=2025')
   })
 })
 
@@ -39,9 +39,9 @@ describe('categoryTransactionsHref', () => {
 })
 
 describe('bank category links', () => {
-  it('opens the bank category page, one account or all', () => {
-    expect(bankCategoryAnalysisHref('acct_test_bank', { year: '2025' })).toBe('/banks/acct_test_bank/categories?year=2025')
-    expect(bankCategoryAnalysisHref(undefined, { year: '2025', month: '2' })).toBe('/banks/categories?year=2025&month=2')
+  it("opens one bank account's analysis, or every bank account's", () => {
+    expect(bankCategoryAnalysisHref('acct_test_bank', { year: '2025' })).toBe('/analysis/acct_test_bank?year=2025')
+    expect(bankCategoryAnalysisHref(undefined, { year: '2025', month: '2' })).toBe('/analysis/bank?year=2025&month=2')
   })
 
   it("filters one account's page, buckets included", () => {
