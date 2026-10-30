@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Building2, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashboard, Repeat, Settings, Tag, Upload } from 'lucide-react'
+import { Building2, ChartPie, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashboard, Repeat, Settings, Tag, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
@@ -20,6 +20,7 @@ const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDa
 
 const MORE_LINKS = [
   { href: '/upload', label: 'העלאת קבצים', icon: Upload },
+  { href: '/analysis', label: 'ניתוח לפי קטגוריה', hint: 'הוצאות והכנסות לפי קטגוריה, בנק וכרטיסים', icon: ChartPie },
   { href: '/categories', label: 'קטגוריות', icon: Tag },
   { href: '/settings', label: 'הגדרות', hint: 'ערכת נושא · ניהול חשבונות', icon: Settings },
   { href: '/about', label: 'אודות', hint: 'הסיפור, פרטיות ויצירת קשר', icon: Info },

@@ -275,6 +275,9 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
   const [results, setResults] = useState(initial.results)
   const [removed, setRemoved] = useState(0)
   const [picking, setPicking] = useState<SearchResult | null>(null)
+  // A card row's category may be the issuer's own (unmapped): that is no category of yours
+  const yours = new Set([...picker.expense, ...picker.income])
+  const known = (category?: string) => (category && yours.has(category) ? category : null)
 
   /** After a save: this row (and with a wider scope, the matching loaded rows) get the category */
   function applied(target: SearchResult, category: string | null, wide: boolean) {
@@ -327,7 +330,13 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
         actions={r => (
           <span className="flex items-center gap-1">
             {!r.ignored && !isCardPayment(r) && (
-              <CategoryPill name={r.category ?? null} color={r.category ? picker.colors[r.category] : undefined} onClick={() => setPicking(r)} className="max-w-28 sm:max-w-36" />
+              <CategoryPill
+                name={known(r.category)}
+                color={known(r.category) ? picker.colors[r.category!] : undefined}
+                sourceName={known(r.category) ? undefined : r.category}
+                onClick={() => setPicking(r)}
+                className="max-w-28 sm:max-w-36"
+              />
             )}
             <span className="flex h-8 w-7 items-center justify-center">
               {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} seriesName={r.recurringLabel} />}
@@ -409,7 +418,7 @@ function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
         amount={formatCurrency(Math.abs(r.amount))}
         amountTone={income ? 'income' : 'expense'}
         categories={names.map(name => ({ name, color: picker.colors[name] }))}
-        current={r.category ?? null}
+        current={r.category && (picker.expense.includes(r.category) || picker.income.includes(r.category)) ? r.category : null}
         allowNone={bank}
         scopes={
           generic

@@ -3,6 +3,7 @@
 import { createContext, useContext } from 'react'
 import {
   Building2,
+  ChartPie,
   CreditCard,
   LayoutDashboard,
   Info,
@@ -65,6 +66,7 @@ export const MAIN_NAV: NavItem[] = [
   SECTION_ITEMS.cards,
   { type: 'link', href: '/recurring', label: 'חיובים קבועים', icon: Repeat },
   { type: 'link', href: '/upload', label: 'העלאת קבצים', icon: Upload },
+  { type: 'link', href: '/analysis', label: 'ניתוח לפי קטגוריה', icon: ChartPie },
   { type: 'link', href: '/categories', label: 'קטגוריות', icon: Tag },
 ]
 

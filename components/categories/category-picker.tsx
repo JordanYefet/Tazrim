@@ -21,16 +21,19 @@ export interface PickerScope {
 const NO_COLOR = 'hsl(var(--muted-foreground) / 0.35)'
 
 /** A table row's category: a pill that opens the picker (no dropdown in the row) */
-export function CategoryPill({ name, color, onClick, className }: {
+export function CategoryPill({ name, color, sourceName, onClick, className }: {
   /** null = uncategorised */
   name: string | null
   color?: string
+  /** An uncategorised card row's category in the issuer's file (none of yours), shown on hover */
+  sourceName?: string
   onClick: () => void
   className?: string
 }) {
   return (
     <button
       onClick={onClick}
+      title={!name && sourceName ? `בקובץ: ${sourceName}` : undefined}
       className={cn(
         'inline-flex h-7 max-w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
         name ? 'bg-muted/60' : 'border border-dashed text-muted-foreground',
