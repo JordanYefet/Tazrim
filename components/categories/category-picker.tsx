@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, Plus, Search, TextSearch } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { UNCATEGORIZED } from '@/lib/insights/bank-categories'
+import { normalizeKeyword, validKeyword, MIN_KEYWORD_LENGTH } from '@/lib/insights/keyword-rules'
 
 export interface PickerCategory {
   name: string
@@ -17,6 +18,26 @@ export interface PickerScope {
   id: string
   title: string
   sub: string
+  /**
+   * A contains-text rule (lib/insights/keyword-rules.ts): picking this scope shows a
+   * text field, pre-filled with `suggestion`, and how many rows of `kind` it reaches
+   */
+  contains?: { suggestion: string; kind: 'EXPENSE' | 'INCOME' }
+}
+
+/** The scope id of a contains-text rule in a row's window */
+export const CONTAINS_SCOPE = 'contains'
+
+/** The scope of a contains-text rule, for a row whose text is `text` */
+export function containsScope(text: string, kind: 'EXPENSE' | 'INCOME', suggestion: string): PickerScope {
+  return {
+    id: CONTAINS_SCOPE,
+    title: 'כל התנועות שמכילות…',
+    sub: kind === 'EXPENSE'
+      ? 'חיובים בכרטיס ותנועות יוצאות בבנק, גם בקבצים הבאים'
+      : 'תנועות נכנסות בבנק, גם בקבצים הבאים',
+    contains: { suggestion: suggestion || text, kind },
+  }
 }
 
 const NO_COLOR = 'hsl(var(--muted-foreground) / 0.35)'
@@ -92,7 +113,8 @@ export function CategoryPicker({
   extraAction?: { label: string; onClick: (category: string | null) => void }
   /** The kind a category made here gets ("+ חדשה" beside the search); none = no creating */
   createKind?: 'EXPENSE' | 'INCOME'
-  onSave: (category: string | null, scope: string | null) => Promise<void> | void
+  /** `pattern`: the text of a contains-text scope, when that is the one picked */
+  onSave: (category: string | null, scope: string | null, pattern?: string) => Promise<void> | void
 }) {
   return (
     <AppDialog
@@ -139,7 +161,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
   suggestion?: { category: string; reason: string }
   extraAction?: { label: string; onClick: (category: string | null) => void }
   createKind?: 'EXPENSE' | 'INCOME'
-  onSave: (category: string | null, scope: string | null) => Promise<void> | void
+  onSave: (category: string | null, scope: string | null, pattern?: string) => Promise<void> | void
 }) {
   const router = useRouter()
   // Categories made in this window join the list at once (the page refreshes behind it)
@@ -176,13 +198,19 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
     [categories, query]
   )
   const colorOf = (name: string) => categories.find(c => c.name === name)?.color
+  const contains = scopes?.find(s => s.id === scope)?.contains
+  const [pattern, setPattern] = useState(() => scopes?.find(s => s.contains)?.contains?.suggestion ?? '')
+  // A contains rule needs a category and enough text
+  const containsReady = !contains || (picked !== null && validKeyword(pattern))
   // Applying the same category more widely is a change too; nothing picked yet is not
-  const changed = picked !== undefined && (picked !== current || scope !== initialScope)
+  const changed = picked !== undefined && (picked !== current || scope !== initialScope) && containsReady
 
   async function save() {
     setSaving(true)
     try {
-      if (picked !== undefined) await onSave(picked, scopes?.length ? scope : null)
+      if (picked !== undefined) {
+        await onSave(picked, scopes?.length ? scope : null, contains ? normalizeKeyword(pattern) : undefined)
+      }
     } finally {
       setSaving(false)
     }
@@ -295,6 +323,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
               </button>
             )
           })}
+          {contains && <ContainsField pattern={pattern} onChange={setPattern} kind={contains.kind} />}
         </div>
       )}
       {note && <p className="rounded-xl bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">{note}</p>}
@@ -316,6 +345,70 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+/** How many rows a text reaches, from /api/category-keyword-rules/preview; null while counting */
+function useKeywordCount(pattern: string, kind: 'EXPENSE' | 'INCOME') {
+  const [count, setCount] = useState<{ matches: number; applies: number } | null>(null)
+  useEffect(() => {
+    if (!validKeyword(pattern)) { setCount(null); return }
+    const abort = new AbortController()
+    // Counted once typing pauses
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/category-keyword-rules/preview?${new URLSearchParams({ pattern: normalizeKeyword(pattern), kind })}`,
+          { signal: abort.signal }
+        )
+        if (res.ok) setCount(await res.json())
+      } catch {
+        // Aborted by the next keystroke
+      }
+    }, 250)
+    return () => { clearTimeout(timer); abort.abort() }
+  }, [pattern, kind])
+  return validKeyword(pattern) ? count : null
+}
+
+/** The live count beside a contains-text field: "12 תנועות", and how many keep a category of their own */
+export function KeywordCount({ pattern, kind, className }: { pattern: string; kind: 'EXPENSE' | 'INCOME'; className?: string }) {
+  const count = useKeywordCount(pattern, kind)
+  const text = !validKeyword(pattern)
+    ? `לפחות ${MIN_KEYWORD_LENGTH} תווים`
+    : !count
+      ? 'סופר…'
+      : count.matches === 0
+        ? 'אין עדיין תנועות כאלה'
+        : `${count.matches === 1 ? 'תנועה אחת' : `${count.matches} תנועות`}${
+            count.matches - count.applies === 1
+              ? ' · אחת עם קטגוריה משלה לא תשתנה'
+              : count.matches > count.applies ? ` · ${count.matches - count.applies} עם קטגוריה משלהן לא ישתנו` : ''
+          }`
+  return (
+    <span aria-live="polite" className={cn('text-xs tabular-nums text-muted-foreground', className)}>
+      {text}
+    </span>
+  )
+}
+
+/** The text of a contains-text scope, under the scopes, with its live count */
+function ContainsField({ pattern, onChange, kind }: { pattern: string; onChange: (v: string) => void; kind: 'EXPENSE' | 'INCOME' }) {
+  return (
+    <div className="contains-field space-y-1.5 rounded-xl bg-emerald-500/5 p-3 ring-1 ring-inset ring-emerald-500/30">
+      <label className="relative block">
+        <span className="sr-only">הטקסט שהתנועות מכילות</span>
+        <TextSearch className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <input
+          dir="auto"
+          autoFocus
+          className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+          value={pattern}
+          onChange={e => onChange(e.target.value)}
+        />
+      </label>
+      <KeywordCount pattern={pattern} kind={kind} className="block px-1" />
     </div>
   )
 }

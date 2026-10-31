@@ -8,6 +8,9 @@ import { getBankCategoryRules, ruleCategoryFor } from './bank-categories'
 import { bankRowCategory, type BankDirection } from '../insights/bank-categories'
 import { localDay } from '../upload/card-dedupe'
 import { monthEndBalances } from '../insights/account-overview'
+import { loadKeywordRules } from './keyword-rules'
+import { listGenericDescriptions } from './generic-descriptions'
+import { resolveRuleCategory } from '../insights/keyword-rules'
 
 /** An uploaded bank row that was not imported because the account already has it. */
 export interface SkippedBankRow {
@@ -32,6 +35,8 @@ export async function upsertBankTransactions(
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
   const aliasMap = await getAliasMap(account.provider, db)
   const rules = await getBankCategoryRules(account.provider, db)
+  const keywordRules = await loadKeywordRules(db)
+  const generic = new Set(await listGenericDescriptions(db))
 
   let created = 0
   let skipped = 0
@@ -66,8 +71,12 @@ export async function upsertBankTransactions(
         date: tx.date,
         originalDescription: tx.originalDescription,
         description,
-        // A category rule saved for this description and direction
-        category: ruleCategoryFor(rules, { ...tx, description }),
+        // A category rule saved for this description and direction, else a contains-text rule's
+        category: resolveRuleCategory(
+          { source: 'bank', ...tx, description, generic: generic.has(tx.originalDescription) },
+          ruleCategoryFor(rules, { ...tx, description }),
+          keywordRules
+        ),
         debit: tx.debit,
         credit: tx.credit,
         balance: tx.balance,

@@ -298,6 +298,11 @@ html {
 .categories-list--from-right { --categories-from: 12px; }
 @keyframes categories-list-in { from { opacity: 0; transform: translateX(var(--categories-from, 0)); } }
 
+/* A row's category window: the contains-text field drops in a short way under the
+   scopes when that scope is picked (components/categories/category-picker.tsx) */
+.contains-field { animation: contains-field-in var(--motion-base) var(--ease-ui) backwards; }
+@keyframes contains-field-in { from { opacity: 0; transform: translateY(-4px); } }
+
 /* Phone tab bar: a web approximation of Apple's glass material (not an
    official Apple style). Content stays visible through a tinted, blurred,
    saturated layer; a bright rim and a soft top sheen give it an edge. */
@@ -409,6 +414,7 @@ html {
   .recharts-bar-rectangle path, .month-slot { transition: none; }
   /* The list only fades in */
   .categories-list { --categories-from: 0; }
+  .contains-field { animation: none; }
 }
 
 /* iOS zooms the page into any field under 16px when it gets focus, and stays

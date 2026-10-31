@@ -86,12 +86,19 @@ const CARD_MERCHANTS = {
     ['חנות אלקטרוניקה', 'חשמל ומחשבים', 40, 160, 1],
   ],
 }
-// Per card: [merchant, category, amount, day of month]
+// Per card: [merchant, category, amount, day of month]. {id} becomes a new made-up
+// id every month, as some issuers print one in the merchant name: no exact merchant
+// rule can catch those, so the contains-text rule below does (and DEMO CLOUD is left
+// for trying one)
 const CARD_FIXED = {
-  acct_max: [['חברת סלולר', 'שירותי תקשורת', 59, 12]],
+  acct_max: [
+    ['חברת סלולר', 'שירותי תקשורת', 59, 12],
+    ['DEMO CLOUD C{id} SAMPLETON', 'חשמל ומחשבים', 9.9, 20],
+  ],
   acct_cal: [
     ['שירות סטרימינג', 'פנאי, בידור וספורט', 49.9, 3],
     ['אפליקציית מוזיקה', 'פנאי, בידור וספורט', 21.9, 7],
+    ['ACME MUSIC P{id} TESTVILLE', 'פנאי, בידור וספורט', 19.9, 9],
   ],
   acct_isracard: [['חדר כושר שכונתי', 'פנאי, בידור וספורט', 229, 1]],
 }
@@ -155,7 +162,8 @@ for (let m = 0; m < lastMonth; m++) {
     }
     for (const [merchant, category, lo, hi, times] of CARD_MERCHANTS[card.id])
       for (let i = 0; i < times; i++) add(merchant, category, between(lo, hi), 1 + Math.floor(rand() * daysInMonth))
-    for (const [merchant, category, amount, d] of CARD_FIXED[card.id]) add(merchant, category, amount, d)
+    for (const [merchant, category, amount, d] of CARD_FIXED[card.id])
+      add(merchant.replace('{id}', hash(`${card.id}|${merchant}|${m}`).slice(0, 8).toUpperCase()), category, amount, d)
     // One unusually large purchase, so the "unusual" card has something to show
     if (m === lastMonth - 1 && card.id === 'acct_isracard') add('חנות אלקטרוניקה', 'חשמל ומחשבים', 3890, 18)
   }
@@ -245,6 +253,13 @@ for (const r of bankRows) {
   rules.set(`${provider}|${r.originalDescription}|${direction}`, { provider, originalDescription: r.originalDescription, direction, category: r.category })
 }
 await prisma.bankCategoryRule.createMany({ data: [...rules.values()] })
+// A contains-text rule (as "כל התנועות שמכילות…" saves one), applied to the charges it matches
+const KEYWORD_RULES = [{ pattern: 'ACME MUSIC', category: 'שירותי תקשורת' }]
+await prisma.categoryKeywordRule.createMany({ data: KEYWORD_RULES })
+for (const r of cardRows) {
+  const rule = KEYWORD_RULES.find(k => r.originalMerchantName.toLowerCase().includes(k.pattern.toLowerCase()))
+  if (rule) r.categoryOverride = rule.category
+}
 await prisma.bankTransaction.createMany({ data: bankRows })
 await prisma.creditCardTransaction.createMany({ data: cardRows })
 await prisma.uploadHistory.createMany({
