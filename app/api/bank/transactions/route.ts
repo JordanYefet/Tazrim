@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getBankTransactions } from '@/lib/db/bank'
 import { withCategorySuggestions } from '@/lib/db/category-suggestions'
 import { parseBankFlow } from '@/lib/insights/bank-categories'
+import { accountIdsParam } from '@/lib/accounts/routes'
 
 /**
- * `accountId` = one bank account (the /banks/[accountId] page); omitted = every bank account.
+ * `accountId` = one bank account (the /banks/[accountId] page), repeated for several
+ * (the /banks table); omitted = every bank account.
  * An uncategorized row may carry a `suggestion` (lib/insights/category-suggestions).
  */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
-  const accountId = sp.get('accountId') ?? undefined
+  const accountId = accountIdsParam(sp)
   const year = sp.get('year') ? Number(sp.get('year')) : undefined
   const month = sp.get('month') ? Number(sp.get('month')) : undefined
   const search = sp.get('search') ?? undefined

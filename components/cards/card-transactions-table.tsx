@@ -15,9 +15,11 @@ import { ColumnPicker } from '@/components/ui/column-picker'
 import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
+import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 
 interface CCTx {
   id: string
+  accountId?: string
   transactionDate: string
   billingDate: string
   merchantName: string
@@ -63,6 +65,7 @@ interface Category { id: string; name: string }
 
 export function CardTransactionsTable({
   accountId,
+  accounts,
   transactions: initial,
   categories,
   activeCategory,
@@ -73,9 +76,18 @@ export function CardTransactionsTable({
   recurring = {},
   initialColumns = [],
   categoryColors = {},
-}: {
-  /** The card these rows belong to */
-  accountId: string
+}: (
+  | {
+      /** The card these rows belong to */
+      accountId: string
+      accounts?: never
+    }
+  | {
+      accountId?: never
+      /** The /cards table: every card's charges together; with more than one, each row names its card */
+      accounts: TableAccount[]
+    }
+) & {
   transactions: CCTx[]
   categories: Category[]
   activeCategory?: string
@@ -110,12 +122,21 @@ export function CardTransactionsTable({
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('CREDIT_CARD', accountId)
-  const api = `/api/cards/${encodeURIComponent(accountId)}/transactions`
+  const scope = tableScope(accountId, accounts)
+  // A charge is changed through its own card, whichever page lists it
+  const cardOf = (tx: CCTx) => tx.accountId ?? accountId ?? ''
+  const api = (cardId: string) => `/api/cards/${encodeURIComponent(cardId)}/transactions`
+  // The merchant rule covers the cards of the charge's company (its provider), not every card listed
+  const companyOf = (tx: CCTx) => scope.byId.get(cardOf(tx))?.provider ?? cardOf(tx)
 
   async function loadMore() {
     if (!fetchParams) return
     setLoadingMore(true)
-    const res = await fetch(`${api}?${fetchParams}&skip=${transactions.length}`)
+    const res = await fetch(
+      accountId
+        ? `${api(accountId)}?${fetchParams}&skip=${transactions.length}`
+        : `/api/cards/transactions?${fetchParams}&${scope.query}&skip=${transactions.length}`
+    )
     const more: CCTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
     setHasMore(more.length === 50)
@@ -124,14 +145,16 @@ export function CardTransactionsTable({
 
   /** 'row' sets this charge only; 'merchant' every charge of the merchant, and later files too */
   async function saveCategory(tx: CCTx, categoryOverride: string, scope: 'row' | 'merchant') {
-    await fetch(`${api}/${tx.id}`, {
+    await fetch(`${api(cardOf(tx))}/${tx.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ categoryOverride, categoryScope: scope }),
     })
     setTransactions(prev =>
       prev.map(t =>
-        (scope === 'row' ? t.id === tx.id : t.originalMerchantName === tx.originalMerchantName) ? { ...t, categoryOverride } : t
+        (scope === 'row' ? t.id === tx.id : t.originalMerchantName === tx.originalMerchantName && companyOf(t) === companyOf(tx))
+          ? { ...t, categoryOverride }
+          : t
       )
     )
     // The page's totals and donuts count categories too
@@ -153,20 +176,35 @@ export function CardTransactionsTable({
     setSelected(allSelected ? new Set() : new Set(selectableRows.map(t => t.id)))
   }
 
-  /** Every ticked charge gets the category as its own choice (no merchant rule) */
+  /**
+   * Every ticked charge gets the category as its own choice (no merchant rule).
+   * Each card's charges go through that card, so on /cards one save per card ticked.
+   */
   async function saveBulkCategory(category: string | null) {
     if (category === null) return
-    const res = await fetch(`${api}/bulk-category`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [...selected], category }),
-    })
-    if (!res.ok) {
-      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
+    const byCard = new Map<string, string[]>()
+    for (const t of transactions) {
+      if (selected.has(t.id)) byCard.set(cardOf(t), [...(byCard.get(cardOf(t)) ?? []), t.id])
+    }
+    const changed = new Set<string>()
+    for (const [cardId, ids] of byCard) {
+      const res = await fetch(`${api(cardId)}/bulk-category`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, category }),
+      })
+      if (!res.ok) {
+        setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+        // Cards saved before this one keep the category
+        if (changed.size) {
+          setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride: category } : t)))
+          router.refresh()
+        }
+        return
+      }
+      for (const id of (await res.json() as { updatedIds: string[] }).updatedIds) changed.add(id)
     }
     setCategoryError(null)
-    const changed = new Set((await res.json() as { updatedIds: string[] }).updatedIds)
     setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride: category } : t)))
     setSelected(new Set())
     router.refresh()
@@ -176,7 +214,7 @@ export function CardTransactionsTable({
     // A hidden charge takes no category, so it leaves the selection
     if (!tx.ignored) setSelected(prev => (prev.has(tx.id) ? new Set([...prev].filter(id => id !== tx.id)) : prev))
     const ignored = !tx.ignored
-    await fetch(`${api}/${tx.id}`, {
+    await fetch(`${api(cardOf(tx))}/${tx.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ignored }),
@@ -291,7 +329,16 @@ export function CardTransactionsTable({
                   </label>
                 </th>
                 {/* Billing date first: rows belong to the month they are billed in (ENG-46) */}
-                {['תאריך חיוב', 'תאריך עסקה', 'שם בית עסק', 'קטגוריה', 'סכום חיוב', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
+                {[
+                  'תאריך חיוב',
+                  'תאריך עסקה',
+                  'שם בית עסק',
+                  ...(scope.several ? ['כרטיס'] : []),
+                  'קטגוריה',
+                  'סכום חיוב',
+                  ...columns.map(c => LABEL[c]),
+                  '',
+                ].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -345,6 +392,11 @@ export function CardTransactionsTable({
                       )
                     )}
                   </td>
+                  {scope.several && (
+                    <td className="py-2.5 px-4">
+                      <AccountTag account={scope.byId.get(cardOf(tx))} />
+                    </td>
+                  )}
                   <td className="py-2.5 px-4 min-w-[140px]">
                     {tx.ignored ? (
                       <span className="line-through text-muted-foreground text-xs">

@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers'
 import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
+import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { cn } from '@/lib/utils/cn'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
@@ -6,12 +8,19 @@ import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { CardStackTotal } from '@/components/cards/card-wallet'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
+import { getCategories } from '@/lib/db/categories'
+import { asJson } from '@/lib/db/summary'
+import { getUnusualFlagMap } from '@/lib/db/unusual'
+import { getRecurringSeries } from '@/lib/db/recurring'
+import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { CategoryDonut } from '@/components/cards/category-donut'
+import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
+import type { TableAccount } from '@/components/accounts/account-tag'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref, categoryTransactionsHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import {
   cardPeriodTotals,
   lastMonthWithData,
@@ -24,7 +33,46 @@ import { CARD_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
 import { withResolvedPeriod } from '@/lib/period-server'
 
-interface SearchParams { year?: string; month?: string }
+interface SearchParams {
+  year?: string
+  month?: string
+  // The table's filters, as on a card's page (they narrow the table; the donut marks the category)
+  search?: string
+  merchant?: string
+  category?: string
+  showIgnored?: string
+}
+
+/** Every listed card's charges for the table: the same query and flags as a card's page (app/cards/[accountId]/page.tsx) */
+async function getTableData(ids: string[], params: SearchParams & { year: string }) {
+  const year = Number(params.year)
+  const month = params.month ? Number(params.month) : undefined
+  const [txs, categories, insights] = await Promise.all([
+    // Same query as /api/cards/transactions?accountId=… (first page of 50 unless a month is selected)
+    getCCTransactions({
+      accountId: ids,
+      year,
+      month,
+      search: params.search,
+      merchant: params.merchant,
+      category: params.category,
+      showIgnored: params.showIgnored === 'true',
+      take: month ? undefined : 50,
+    }),
+    getCategories('EXPENSE'),
+    // Flags for the whole year, so rows loaded with "load more" get badges too
+    getRecurringSeries().then(async r => ({
+      flags: await getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } }),
+      recurring: recurringNameMap(r.series, ids),
+    })),
+  ])
+  return {
+    transactions: asJson(txs),
+    categories: asJson(categories),
+    unusual: insights.flags.card,
+    recurring: insights.recurring,
+  }
+}
 
 // One color per card in the stacked chart (the nav's order); the first card keeps the dashboard's card color
 
@@ -87,6 +135,22 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     )
   }
 
+  // The table below the charts: every card's charges
+  const table = await getTableData(ids, params)
+  const tableAccounts: TableAccount[] = perCard.map(c => ({
+    id: c.account.id,
+    name: c.account.displayName,
+    color: c.color,
+    provider: c.account.provider,
+  }))
+  const categoryColors = categoryColorMap(rankCategories(categoryMonthly))
+  const fetchSp = new URLSearchParams({ year })
+  if (params.search) fetchSp.set('search', params.search)
+  if (params.merchant) fetchSp.set('merchant', params.merchant)
+  if (params.category) fetchSp.set('category', params.category)
+  if (params.showIgnored) fetchSp.set('showIgnored', params.showIgnored)
+  const hasMore = !month && table.transactions.length >= 50
+
   // The stack itself is the wallet in app/cards/layout.tsx; this page fills
   // the grid around it (components/cards/card-wallet.tsx, .wallet-shell)
   return (
@@ -133,7 +197,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         {hasData ? (
           <>
             {/* The same pair as on a card's page: the months, and the categories (every card's
-                together) with the category analysis link; a category opens its transactions */}
+                together) with the category analysis link; a category filters the table below */}
             <div className="grid gap-4 lg:grid-cols-2">
               <MonthlySpendingChart
                 series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
@@ -144,11 +208,9 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
                 pagePath="/cards"
                 data={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
                 stats={categoryStats}
-                colors={categoryColorMap(rankCategories(categoryMonthly))}
+                selectedCategory={params.category}
+                colors={categoryColors}
                 analysisHref={categoryAnalysisHref(undefined, period)}
-                categoryHrefs={Object.fromEntries(
-                  Object.keys(categoryStats).map(c => [c, categoryTransactionsHref({ cardIds: ids, category: c, year, month })])
-                )}
               />
             </div>
           </>
@@ -158,6 +220,24 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             title={`אין חיובי כרטיס לשנת ${year}`}
             text="העלה פירוט חיובים מחברת האשראי כדי לראות כאן את החיובים החודשיים."
             actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+          />
+        )}
+
+        {/* Every card's charges together, as on a card's page */}
+        {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
+          <CardTransactionsTable
+            key={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')}
+            accounts={tableAccounts}
+            transactions={table.transactions}
+            categories={table.categories}
+            categoryColors={categoryColors}
+            activeCategory={params.category}
+            showIgnored={params.showIgnored === 'true'}
+            hasMore={hasMore}
+            fetchParams={hasMore ? fetchSp.toString() : undefined}
+            unusual={table.unusual}
+            recurring={table.recurring}
+            initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
           />
         )}
       </div>

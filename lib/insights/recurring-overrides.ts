@@ -107,13 +107,15 @@ export interface RowSeries {
 }
 
 /**
- * Transaction id → the kept series it belongs to, for one account: lets a transaction
- * table show which rows are already recurring, and label the manual ones (ENG-71).
+ * Transaction id → the kept series it belongs to, for one account or several (the
+ * /banks and /cards tables): lets a transaction table show which rows are already
+ * recurring, and label the manual ones (ENG-71).
  */
-export function recurringNameMap(series: AppliedSeries[], accountId: string): Record<string, RowSeries> {
+export function recurringNameMap(series: AppliedSeries[], accountId: string | string[]): Record<string, RowSeries> {
+  const ids = new Set(Array.isArray(accountId) ? accountId : [accountId])
   const out: Record<string, RowSeries> = {}
   for (const s of series) {
-    if (s.status === 'dismissed' || s.accountId !== accountId) continue
+    if (s.status === 'dismissed' || !s.accountId || !ids.has(s.accountId)) continue
     for (const id of s.transactionIds) out[id] = { name: s.name, manual: !!s.manual }
   }
   return out
