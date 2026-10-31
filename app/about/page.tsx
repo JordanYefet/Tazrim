@@ -66,7 +66,8 @@ function ExternalLink({
 /** Who made Tazrim and why, how it treats your data, the license and how to get in touch (ENG-59). */
 export default function AboutPage() {
   return (
-    <article className="mx-auto max-w-2xl min-w-0 space-y-12 pb-4 md:pt-4">
+    // Header static, the sections and footer rise in on the page beat (.page-in)
+    <article className="page-in mx-auto max-w-2xl min-w-0 space-y-12 pb-4 md:pt-4">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">אודות תזרים</h1>
         <p className="text-muted-foreground">

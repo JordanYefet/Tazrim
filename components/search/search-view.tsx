@@ -131,7 +131,7 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
   const criteria = hasCriteria(filters)
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="page-in mx-auto max-w-3xl space-y-4">
       <h1 className="text-2xl font-bold">חיפוש</h1>
 
       <div className="space-y-3 rounded-xl surface p-3 sm:p-4">

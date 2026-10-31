@@ -74,91 +74,95 @@ export default async function AnalysisPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeading period={{ year: Number(year), month }} title="ניתוח לפי קטגוריה" />
 
-      {banks.length + cards.length === 0 ? (
-        <EmptyState
-          icon={PieChart}
-          title="אין חשבונות"
-          text="הוסף חשבון בנק או כרטיס אשראי והעלה קבצים כדי לראות כאן את ההוצאות וההכנסות לפי קטגוריה."
-          actions={[
-            { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
-            { href: '/settings#accounts', label: 'ניהול חשבונות' },
-          ]}
-        />
-      ) : (
-        <>
-          {options.length > 0 && (
-            // The same pills as the account switcher on /banks and /cards: opaque, the account's face,
-            // one row that scrolls sideways on phones
-            <nav aria-label="סינון לפי חשבון" className="-mx-4 md:mx-0">
-              <ul className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5 md:flex-wrap md:overflow-visible md:px-0">
-                {options.map(o => {
-                  const active = o.value === scope.value
-                  const account = accountsById.get(o.value)
-                  return (
-                    <li key={o.value || 'all'} className="shrink-0">
-                      <Link
-                        href={analysisHref(o.value || undefined, period)}
-                        scroll={false}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          'surface',
-                          active
-                            ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        )}
-                      >
-                        {account && (
-                          <AccountMini
-                            kind={account.kind as 'BANK' | 'CREDIT_CARD'}
-                            provider={account.provider}
-                            network={account.cardNetwork}
-                            colorChoice={account.color}
-                            className="w-[22px]"
-                          />
-                        )}
-                        {o.label}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            </nav>
-          )}
+      {/* The heading is a div (PageHeading), so the entrance goes on the content's own wrapper;
+          a chip remounts the page (the scope is a route segment) and replays it, a month doesn't */}
+      <div className="page-in space-y-6">
+        {banks.length + cards.length === 0 ? (
+          <EmptyState
+            icon={PieChart}
+            title="אין חשבונות"
+            text="הוסף חשבון בנק או כרטיס אשראי והעלה קבצים כדי לראות כאן את ההוצאות וההכנסות לפי קטגוריה."
+            actions={[
+              { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
+              { href: '/settings#accounts', label: 'ניהול חשבונות' },
+            ]}
+          />
+        ) : (
+          <>
+            {options.length > 0 && (
+              // The same pills as the account switcher on /banks and /cards: opaque, the account's face,
+              // one row that scrolls sideways on phones
+              <nav aria-label="סינון לפי חשבון" className="-mx-4 md:mx-0">
+                <ul className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5 md:flex-wrap md:overflow-visible md:px-0">
+                  {options.map(o => {
+                    const active = o.value === scope.value
+                    const account = accountsById.get(o.value)
+                    return (
+                      <li key={o.value || 'all'} className="shrink-0">
+                        <Link
+                          href={analysisHref(o.value || undefined, period)}
+                          scroll={false}
+                          aria-current={active ? 'page' : undefined}
+                          className={cn(
+                            'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            'surface',
+                            active
+                              ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                          )}
+                        >
+                          {account && (
+                            <AccountMini
+                              kind={account.kind as 'BANK' | 'CREDIT_CARD'}
+                              provider={account.provider}
+                              network={account.cardNetwork}
+                              colorChoice={account.color}
+                              className="w-[22px]"
+                            />
+                          )}
+                          {o.label}
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </nav>
+            )}
 
-          <section aria-labelledby="analysis-expense" className="space-y-4">
-            <h2 id="analysis-expense" className="text-base font-semibold">הוצאות</h2>
-            <CategoryAnalysis
-              monthly={expense}
-              year={year}
-              month={month}
-              basePath={basePath}
-              categoryHref={href}
-              emptyTitle={`אין הוצאות לשנת ${year}`}
-              emptyText="העלה פירוט חיובים או קובץ תנועות מהבנק כדי לראות כאן את ההוצאות לפי קטגוריה וחודש."
-              unit={cardIds.length && !bankIds.length ? 'חיובים' : 'תנועות'}
-            />
-          </section>
-
-          {bankIds.length > 0 && (
-            <section aria-labelledby="analysis-income" className="space-y-4">
-              <h2 id="analysis-income" className="text-base font-semibold">הכנסות</h2>
+            <section aria-labelledby="analysis-expense" className="space-y-4">
+              <h2 id="analysis-expense" className="text-base font-semibold">הוצאות</h2>
               <CategoryAnalysis
-                monthly={inMonthly}
+                monthly={expense}
                 year={year}
                 month={month}
                 basePath={basePath}
                 categoryHref={href}
-                emptyTitle={`אין הכנסות לשנת ${year}`}
-                emptyText="העלה קובץ תנועות מהבנק כדי לראות כאן את ההכנסות לפי קטגוריה וחודש."
-                chartTitle="הכנסות לפי קטגוריה לאורך השנה"
-                unit="תנועות"
+                emptyTitle={`אין הוצאות לשנת ${year}`}
+                emptyText="העלה פירוט חיובים או קובץ תנועות מהבנק כדי לראות כאן את ההוצאות לפי קטגוריה וחודש."
+                unit={cardIds.length && !bankIds.length ? 'חיובים' : 'תנועות'}
               />
             </section>
-          )}
-        </>
-      )}
+
+            {bankIds.length > 0 && (
+              <section aria-labelledby="analysis-income" className="space-y-4">
+                <h2 id="analysis-income" className="text-base font-semibold">הכנסות</h2>
+                <CategoryAnalysis
+                  monthly={inMonthly}
+                  year={year}
+                  month={month}
+                  basePath={basePath}
+                  categoryHref={href}
+                  emptyTitle={`אין הכנסות לשנת ${year}`}
+                  emptyText="העלה קובץ תנועות מהבנק כדי לראות כאן את ההכנסות לפי קטגוריה וחודש."
+                  chartTitle="הכנסות לפי קטגוריה לאורך השנה"
+                  unit="תנועות"
+                />
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -380,7 +380,7 @@ export function AccountForm(props: CreateProps | EditProps) {
         <button
           type="submit"
           disabled={saving || lastFourInvalid || !displayName.trim() || !provider}
-          className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
+          className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
         >
           {saving ? 'שומר…' : editing ? 'שמור שינויים' : 'הוסף חשבון'}
         </button>

@@ -72,6 +72,8 @@ export function CategoriesView({
 }) {
   const router = useRouter()
   const [kind, setKind] = useState<Kind>('EXPENSE')
+  // The list slides only on a tab switch; on arrival it rises with the page (.page-in)
+  const [switched, setSwitched] = useState(false)
   const [open, setOpen] = useState<Open>(null)
   // A fresh new-category form per opening (not on closing: that would cut the window's exit short)
   const [createRun, setCreateRun] = useState(0)
@@ -100,7 +102,7 @@ export function CategoriesView({
 
   return (
     <div className="space-y-5">
-      <SegmentedKind kind={kind} onChange={k => setKind(k)} counts={{ EXPENSE: expense.length, INCOME: income.length }} />
+      <SegmentedKind kind={kind} onChange={k => { setKind(k); setSwitched(true) }} counts={{ EXPENSE: expense.length, INCOME: income.length }} />
 
       {kind === 'EXPENSE' && pending.length > 0 && (
         <button
@@ -119,7 +121,10 @@ export function CategoriesView({
       )}
 
       {/* Keyed on the kind, so the switch slides the list in from its tab's side (income is on the left) */}
-      <div key={kind} className={cn('categories-list space-y-1.5', kind === 'INCOME' ? 'categories-list--from-left' : 'categories-list--from-right')}>
+      <div
+        key={kind}
+        className={cn('space-y-1.5', switched && ['categories-list', kind === 'INCOME' ? 'categories-list--from-left' : 'categories-list--from-right'])}
+      >
         <p className="px-4 text-xs font-medium text-muted-foreground">{KIND_HINT[kind]}</p>
         <ul className="overflow-hidden rounded-2xl surface divide-y">
           {categories.map(c => (

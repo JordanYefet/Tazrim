@@ -17,11 +17,13 @@ export function UploadPageClient({ accounts }: { accounts: UploadAccount[] }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl min-w-0 space-y-6">
-      <div>
+    // page-in: the content under the heading rises in once on arrival; the wrapper is never re-keyed, so the flow's steps don't replay it
+    <div className="page-in mx-auto max-w-5xl min-w-0 space-y-6">
+      {/* a <header>, so .page-in keeps the heading and its subtitle still */}
+      <header>
         <h1 className="mb-1 text-2xl font-semibold tracking-tight">העלאת קבצים</h1>
         <p className="text-muted-foreground text-sm">בחר חשבון, העלה קובץ ייצוא ובדוק אותו לפני הייבוא</p>
-      </div>
+      </header>
 
       <UploadFlow accounts={accounts} onImported={imported} />
 
