@@ -16,11 +16,13 @@ import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
+import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 
 interface BankTx {
   id: string
+  accountId?: string
   date: string
   originalDescription: string
   description: string
@@ -44,6 +46,7 @@ const selectable = (tx: BankTx) => !tx.ignored && !isCardPaymentRow(tx)
 
 export function BankTransactionsTable({
   accountId,
+  accounts,
   transactions: initial,
   showIgnored,
   hasMore: initialHasMore,
@@ -57,9 +60,20 @@ export function BankTransactionsTable({
   flowFilter,
   genericDescriptions = [],
   categoryColors = {},
-}: {
-  /** The bank account these rows belong to */
-  accountId: string
+}: (
+  | {
+      /** The bank account these rows belong to */
+      accountId: string
+      accounts?: never
+    }
+  | {
+      accountId?: never
+      /** The /banks table: every account's rows together. With more than one, each row
+          names its account and the running balance goes (balances of different accounts
+          interleaved mean nothing; the balance chart above has them) */
+      accounts: TableAccount[]
+    }
+) & {
   transactions: BankTx[]
   /** Picked from on debits */
   expenseCategories?: Category[]
@@ -98,11 +112,12 @@ export function BankTransactionsTable({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
+  const scope = tableScope(accountId, accounts)
 
   async function loadMore() {
     if (!fetchParams) return
     setLoadingMore(true)
-    const res = await fetch(`/api/bank/transactions?${fetchParams}&accountId=${encodeURIComponent(accountId)}&skip=${transactions.length}`)
+    const res = await fetch(`/api/bank/transactions?${fetchParams}&${scope.query}&skip=${transactions.length}`)
     const more: BankTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
     setHasMore(more.length === 50)
@@ -335,7 +350,18 @@ export function BankTransactionsTable({
                     />
                   </label>
                 </th>
-                {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
+                {[
+                  'תאריך',
+                  'תיאור',
+                  ...(scope.several ? ['חשבון'] : []),
+                  'קטגוריה',
+                  'חובה',
+                  'זכות',
+                  ...(scope.several ? [] : ['יתרה']),
+                  'הערה',
+                  ...columns.map(c => LABEL[c]),
+                  '',
+                ].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -388,6 +414,11 @@ export function BankTransactionsTable({
                       )
                     )}
                   </td>
+                  {scope.several && (
+                    <td className="py-2.5 px-4">
+                      <AccountTag account={tx.accountId ? scope.byId.get(tx.accountId) : undefined} />
+                    </td>
+                  )}
                   <td className="py-2.5 px-4 min-w-[140px] align-top">
                     <CategoryCell
                       tx={tx}
@@ -402,7 +433,9 @@ export function BankTransactionsTable({
                   <td className="py-2.5 px-4 text-[hsl(var(--income))] font-medium tabular-nums">
                     {tx.credit > 0 ? formatCurrency(tx.credit) : ''}
                   </td>
-                  <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
+                  {!scope.several && (
+                    <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
+                  )}
                   <td className="py-2.5 px-4 min-w-[120px]">
                     {editing?.id === tx.id && editing.field === 'note' ? (
                       <input
