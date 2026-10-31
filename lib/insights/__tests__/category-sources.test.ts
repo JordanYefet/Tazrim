@@ -33,6 +33,12 @@ describe('categorySources', () => {
     const s = categorySources({ issuer, aliases, bankRules })
     expect(Object.keys(s).sort()).toEqual(['Car', 'Food', 'Home', 'Salary'])
   })
+
+  it('puts contains-text rules last', () => {
+    const keywordRules = [{ id: 'k1', pattern: 'FAKE GROCER', category: 'Food' }]
+    const s = categorySources({ issuer, aliases, bankRules, keywordRules })
+    expect(s.Food.at(-1)).toEqual({ type: 'keyword', id: 'k1', pattern: 'FAKE GROCER' })
+  })
 })
 
 describe('pendingIssuerCategories', () => {

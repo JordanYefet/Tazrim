@@ -13,7 +13,8 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
-import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
+import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 
@@ -62,6 +63,8 @@ function optionalCell(tx: CCTx, key: CardColumn) {
 }
 
 interface Category { id: string; name: string }
+
+type CardScope = 'row' | 'merchant' | 'contains'
 
 export function CardTransactionsTable({
   accountId,
@@ -143,8 +146,28 @@ export function CardTransactionsTable({
     setLoadingMore(false)
   }
 
-  /** 'row' sets this charge only; 'merchant' every charge of the merchant, and later files too */
-  async function saveCategory(tx: CCTx, categoryOverride: string, scope: 'row' | 'merchant') {
+  /**
+   * 'row' sets this charge only; 'merchant' every charge of the merchant, and later files too;
+   * 'contains' every transaction whose text contains `pattern` (a contains-text rule)
+   */
+  async function saveCategory(tx: CCTx, categoryOverride: string, scope: CardScope, pattern?: string) {
+    if (scope === 'contains') {
+      const res = await fetch('/api/category-keyword-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern, category: categoryOverride, fromRow: { source: 'card', id: tx.id } }),
+      })
+      if (!res.ok) {
+        setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+        return
+      }
+      setCategoryError(null)
+      // The rule reaches other cards and the bank too; these are the loaded rows it changed
+      const changed = new Set((await res.json() as { cardIds: string[] }).cardIds)
+      setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride } : t)))
+      router.refresh()
+      return
+    }
     await fetch(`${api(cardOf(tx))}/${tx.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -483,9 +506,9 @@ export function CardTransactionsTable({
         categories={categories}
         colors={categoryColors}
         onClose={() => setPicking(null)}
-        onSave={async (tx, category, scope) => {
+        onSave={async (tx, category, scope, pattern) => {
           setPicking(null)
-          await saveCategory(tx, category, scope)
+          await saveCategory(tx, category, scope, pattern)
         }}
       />
     </div>
@@ -498,7 +521,7 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
   categories: Category[]
   colors: Record<string, string>
   onClose: () => void
-  onSave: (tx: CCTx, category: string, scope: 'row' | 'merchant') => Promise<void>
+  onSave: (tx: CCTx, category: string, scope: CardScope, pattern?: string) => Promise<void>
 }) {
   // The last charge stays while the window animates out
   const [last, setLast] = useState<CCTx | undefined>(tx)
@@ -520,10 +543,15 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
           ? [
               { id: 'row', title: 'רק החיוב הזה', sub: `שאר החיובים מ${shown.merchantName} לא משתנים` },
               { id: 'merchant', title: `כל החיובים מ${shown.merchantName}`, sub: 'בכל הכרטיסים של החברה, וגם בקבצים הבאים' },
+              containsScope(shown.originalMerchantName, 'EXPENSE', suggestKeyword(shown.originalMerchantName)),
             ]
           : undefined
       }
-      onSave={(category, scope) => (shown && category ? onSave(shown, category, scope === 'merchant' ? 'merchant' : 'row') : undefined)}
+      onSave={(category, scope, pattern) =>
+        shown && category
+          ? onSave(shown, category, scope === 'merchant' ? 'merchant' : scope === CONTAINS_SCOPE ? 'contains' : 'row', pattern)
+          : undefined
+      }
     />
   )
 }

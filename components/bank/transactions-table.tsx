@@ -14,7 +14,8 @@ import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
-import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
+import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 
@@ -158,6 +159,26 @@ export function BankTransactionsTable({
       )
     )
     // The page's totals and donuts count categories too
+    router.refresh()
+  }
+
+  /** "כל התנועות שמכילות…": saves a contains-text rule, which this row follows from now on */
+  async function saveContainsRule(tx: BankTx, category: string, pattern: string) {
+    const res = await fetch('/api/category-keyword-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pattern, category, fromRow: { source: 'bank', id: tx.id } }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    // The rule reaches other accounts and the cards too; these are the loaded rows it changed
+    const changed = new Set((await res.json() as { bankIds: string[] }).bankIds)
+    setTransactions(prev =>
+      prev.map(t => (changed.has(t.id) ? { ...t, category } : t.id === tx.id ? { ...t, categoryManual: false } : t))
+    )
     router.refresh()
   }
 
@@ -508,9 +529,10 @@ export function BankTransactionsTable({
         categories={pickingTx && directionOf(pickingTx) === 'IN' ? incomeCategories : expenseCategories}
         colors={categoryColors}
         onClose={() => setPicking(null)}
-        onSave={async (tx, category, scope) => {
+        onSave={async (tx, category, scope, pattern) => {
           setPicking(null)
-          await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
+          if (scope === CONTAINS_SCOPE && category && pattern) await saveContainsRule(tx, category, pattern)
+          else await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
         }}
         onMarkGeneric={markGeneric}
       />
@@ -525,7 +547,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
   categories: Category[]
   colors: Record<string, string>
   onClose: () => void
-  onSave: (tx: BankTx, category: string | null, scope: string | null) => Promise<void>
+  onSave: (tx: BankTx, category: string | null, scope: string | null, pattern?: string) => Promise<void>
   onMarkGeneric: (tx: BankTx, category: string | null) => void
 }) {
   // The last row stays while the window animates out
@@ -552,6 +574,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           : [
               { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
               { id: 'rule', title: `כל התנועות ${direction} "${shown.originalDescription}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
+              containsScope(shown.originalDescription, out ? 'EXPENSE' : 'INCOME', suggestKeyword(shown.originalDescription)),
             ]
       }
       note={generic && shown ? `"${shown.originalDescription}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
@@ -561,7 +584,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           : undefined
       }
       extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
-      onSave={(category, scope) => (shown ? onSave(shown, category, scope) : undefined)}
+      onSave={(category, scope, pattern) => (shown ? onSave(shown, category, scope, pattern) : undefined)}
     />
   )
 }

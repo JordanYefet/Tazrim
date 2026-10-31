@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils/cn'
 import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult, type TextMode } from '@/lib/search/query'
 import { formatCurrency } from '@/lib/utils/currency'
 import { isCardPaymentRow } from '@/lib/insights/bank-categories'
-import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
+import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { SearchResultList } from './search-result-list'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
@@ -310,11 +311,16 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
   const yours = new Set([...picker.expense, ...picker.income])
   const known = (category?: string) => (category && yours.has(category) ? category : null)
 
-  /** After a save: this row (and with a wider scope, the matching loaded rows) get the category */
-  function applied(target: SearchResult, category: string | null, wide: boolean) {
+  /**
+   * After a save: this row (and with a wider scope, the matching loaded rows) get the
+   * category. `changed`: the rows a contains-text rule changed, as `source:id` keys.
+   */
+  function applied(target: SearchResult, category: string | null, wide: boolean, changed?: Set<string>) {
     const hit = (r: SearchResult) =>
-      r.id === target.id ||
-      (wide && r.source === target.source && r.accountId === target.accountId && (r.originalDescription ?? r.description) === (target.originalDescription ?? target.description))
+      changed
+        ? changed.has(keyOf(r))
+        : r.id === target.id ||
+          (wide && r.source === target.source && r.accountId === target.accountId && (r.originalDescription ?? r.description) === (target.originalDescription ?? target.description))
     if (uncategorizedOnly && category !== null) {
       const gone = results.filter(hit).length
       setResults(prev => prev.filter(r => !hit(r)))
@@ -588,7 +594,7 @@ function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
   result: SearchResult | null
   picker: PickerData
   onClose: () => void
-  onApplied: (result: SearchResult, category: string | null, wide: boolean) => void
+  onApplied: (result: SearchResult, category: string | null, wide: boolean, changed?: Set<string>) => void
 }) {
   // The last result stays while the window animates out
   const [last, setLast] = useState<SearchResult | null>(result)
@@ -602,8 +608,24 @@ function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
   const generic = bank && picker.generic.includes(original)
   const names = income ? picker.income : picker.expense
 
-  async function save(category: string | null, scope: string | null) {
+  async function save(category: string | null, scope: string | null, pattern?: string) {
     if (!r) return
+    if (scope === CONTAINS_SCOPE) {
+      const res = await fetch('/api/category-keyword-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern, category, fromRow: { source: r.source, id: r.id } }),
+      })
+      if (!res.ok) {
+        setError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+        return
+      }
+      setError(null)
+      onClose()
+      const { cardIds, bankIds } = (await res.json()) as { cardIds: string[]; bankIds: string[] }
+      onApplied(r, category, true, new Set([...cardIds.map(id => `card:${id}`), ...bankIds.map(id => `bank:${id}`)]))
+      return
+    }
     const wide = scope === 'rule' || scope === 'merchant'
     const res = bank
       ? await fetch(`/api/bank/transactions/${r.id}`, {
@@ -645,10 +667,12 @@ function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
               ? [
                   { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
                   { id: 'rule', title: `כל התנועות ${income ? 'הנכנסות' : 'היוצאות'} "${original}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
+                  containsScope(original, income ? 'INCOME' : 'EXPENSE', suggestKeyword(original)),
                 ]
               : [
                   { id: 'row', title: 'רק החיוב הזה', sub: `שאר החיובים מ${r.description} לא משתנים` },
                   { id: 'merchant', title: `כל החיובים מ${r.description}`, sub: 'בכל הכרטיסים של החברה, וגם בקבצים הבאים' },
+                  containsScope(original, 'EXPENSE', suggestKeyword(original)),
                 ]
         }
         note={generic ? `"${original}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
