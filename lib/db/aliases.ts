@@ -1,5 +1,6 @@
 import { prisma, type Db } from './client'
 import { PROVIDERS } from './accounts'
+import { keywordFallback } from './keyword-rules'
 
 /**
  * Merchant / description rules are keyed by provider ("leumi", "max", ...),
@@ -9,7 +10,8 @@ export interface AliasInput {
   provider: string
   originalName: string
   displayName: string
-  categoryOverride?: string
+  /** undefined leaves the rule's category as it is; null removes it */
+  categoryOverride?: string | null
 }
 
 const LEGACY_SOURCES: Record<string, string> = {
@@ -61,11 +63,18 @@ export async function upsertAliasAndBulkUpdate(params: AliasInput) {
 
   // Card rows: the rule carries a category. Bank rows: it renames the description.
   // A provider only has rows in one of the two tables, so at most one of these touches anything.
+  // Charges whose category was picked by hand keep theirs.
+  const merchantRows = { originalMerchantName: params.originalName, categoryManual: false, ...ofProvider }
   if (params.categoryOverride) {
     await prisma.creditCardTransaction.updateMany({
-      where: { originalMerchantName: params.originalName, ...ofProvider },
+      where: merchantRows,
       data: { categoryOverride: params.categoryOverride },
     })
+  } else if (params.categoryOverride === null) {
+    // The rule's category went: its charges take what a contains-text rule gives them, or
+    // none (the issuer's category shows again)
+    const next = (await keywordFallback(prisma))({ source: 'card', originalMerchantName: params.originalName })
+    await prisma.creditCardTransaction.updateMany({ where: merchantRows, data: { categoryOverride: next } })
   }
 
   await prisma.bankTransaction.updateMany({

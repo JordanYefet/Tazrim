@@ -6,6 +6,8 @@ import { getCardRules } from './aliases'
 import { nameMatch, type NameFilter } from './name-filter'
 import { getCategoryMap, mappedCategory } from './category-mappings'
 import { cardDedupeKey, localDay, planCardImport } from '../upload/card-dedupe'
+import { loadKeywordRules } from './keyword-rules'
+import { resolveRuleCategory } from '../insights/keyword-rules'
 
 // Every function that takes an AccountFilter reads one card (an id), several
 // cards (a list of ids) or every card (undefined).
@@ -69,6 +71,7 @@ export async function upsertCCTransactions(
   const account = await db.account.findUniqueOrThrow({ where: { id: accountId } })
   const rules = await getCardRules(account.provider, db)
   const categories = await getCategoryMap(account.provider, db)
+  const keywordRules = await loadKeywordRules(db)
 
   const times = transactions.map(t => t.transactionDate.getTime())
   const stored = await db.creditCardTransaction.findMany({
@@ -100,8 +103,12 @@ export async function upsertCCTransactions(
       // Yours: the issuer's category through its mapping (ENG-75), or its own name
       category: mappedCategory(categories, tx.category),
       sourceCategory: tx.category,
-      // A category set on the merchant before (Cal files carry none)
-      categoryOverride: rule?.categoryOverride ?? null,
+      // A category set on the merchant before (Cal files carry none), else a contains-text rule's
+      categoryOverride: resolveRuleCategory(
+        { source: 'card', originalMerchantName: tx.originalMerchantName },
+        rule?.categoryOverride ?? null,
+        keywordRules
+      ),
       chargedAmount: tx.chargedAmount,
       originalAmount: tx.originalAmount,
       originalCurrency: tx.originalCurrency,
@@ -182,7 +189,7 @@ export async function getCCTransactions(params: {
 
 export async function updateCCTransaction(
   id: string,
-  data: { merchantName?: string; category?: string; categoryOverride?: string; ignored?: boolean }
+  data: { merchantName?: string; category?: string; categoryOverride?: string; categoryManual?: boolean; ignored?: boolean }
 ) {
   return prisma.creditCardTransaction.update({ where: { id }, data })
 }
@@ -205,14 +212,17 @@ export async function getCCCategorySummary(accountId: AccountFilter, year: numbe
   return byCategory
 }
 
-/** Sets the category of every row with this merchant, on every card of `provider` (or every card). */
+/**
+ * Sets the category of every row with this merchant, on every card of `provider` (or
+ * every card). Rows whose category was picked by hand keep theirs.
+ */
 export async function bulkUpdateCCCategory(
   originalMerchantName: string,
   categoryOverride: string,
   provider?: string
 ) {
   return prisma.creditCardTransaction.updateMany({
-    where: { originalMerchantName, ...(provider ? { account: { provider } } : {}) },
+    where: { originalMerchantName, categoryManual: false, ...(provider ? { account: { provider } } : {}) },
     data: { categoryOverride },
   })
 }

@@ -1,20 +1,24 @@
 // What fills each category automatically (the categories page): an issuer's category
-// mapped to it, a merchant rule that sets it, or a bank rule for a description.
+// mapped to it, a merchant rule that sets it, a bank rule for a description, or a
+// contains-text rule.
 
 export type CategorySource =
   | { type: 'issuer'; provider: string; sourceCategory: string; count: number }
   | { type: 'merchant'; provider: string; originalName: string; displayName: string }
   | { type: 'bank'; provider: string; originalDescription: string; direction: string }
+  | { type: 'keyword'; id: string; pattern: string }
 
 interface IssuerRow { provider: string; sourceCategory: string; count: number; category: string | null }
 interface AliasRow { provider: string; originalName: string; displayName: string; categoryOverride: string | null }
 interface BankRuleRow { provider: string; originalDescription: string; direction: string; category: string }
+interface KeywordRuleRow { id: string; pattern: string; category: string }
 
-/** category name -> its automatic sources, issuer mappings first, then merchants, then bank rules */
-export function categorySources({ issuer, aliases, bankRules }: {
+/** category name -> its automatic sources, issuer mappings first, then merchants, bank rules, contains-text rules */
+export function categorySources({ issuer, aliases, bankRules, keywordRules = [] }: {
   issuer: IssuerRow[]
   aliases: AliasRow[]
   bankRules: BankRuleRow[]
+  keywordRules?: KeywordRuleRow[]
 }): Record<string, CategorySource[]> {
   const out: Record<string, CategorySource[]> = {}
   const add = (category: string, source: CategorySource) => (out[category] ??= []).push(source)
@@ -29,6 +33,7 @@ export function categorySources({ issuer, aliases, bankRules }: {
   for (const r of bankRules) {
     add(r.category, { type: 'bank', provider: r.provider, originalDescription: r.originalDescription, direction: r.direction })
   }
+  for (const r of keywordRules) add(r.category, { type: 'keyword', id: r.id, pattern: r.pattern })
   return out
 }
 

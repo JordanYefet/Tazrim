@@ -17,6 +17,8 @@ export async function PATCH(
   const updated = await updateCCTransaction(id, {
     merchantName: body.merchantName,
     categoryOverride: body.categoryOverride,
+    // Picked for this charge only: no rule overwrites it. Saved for the merchant: it follows the rule
+    ...(body.categoryOverride ? { categoryManual: body.categoryScope === 'row' } : {}),
     ignored: body.ignored,
   })
 

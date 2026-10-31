@@ -14,8 +14,9 @@ export const MAX_BULK = 2000
 
 /**
  * Sets `category` as the override of every listed card charge (only those of
- * `accountId` when given), inside the caller's transaction. A card charge
- * always shows a category, so there is no clearing: it must be an expense one.
+ * `accountId` when given), inside the caller's transaction, as a pick by hand that
+ * no rule overwrites. A card charge always shows a category, so there is no
+ * clearing: it must be an expense one.
  */
 export async function applyCardCategoryMany(db: Db, idList: string[], category: string | null, accountId?: string) {
   const ids = [...new Set(idList)]
@@ -24,7 +25,7 @@ export async function applyCardCategoryMany(db: Db, idList: string[], category: 
   if (found !== ids.length) throw new BankCategoryError('לא נמצא', 404)
   const cat = await db.category.findUnique({ where: { name: category } })
   if (!cat || cat.kind !== 'EXPENSE') throw new BankCategoryError('קטגוריית הוצאה לא קיימת', 400)
-  await db.creditCardTransaction.updateMany({ where: { id: { in: ids } }, data: { categoryOverride: category } })
+  await db.creditCardTransaction.updateMany({ where: { id: { in: ids } }, data: { categoryOverride: category, categoryManual: true } })
   return { updatedIds: ids }
 }
 

@@ -1,5 +1,6 @@
 import type { CategoryKind } from '@prisma/client'
 import { prisma } from './client'
+import { deleteKeywordRules } from './keyword-rules'
 
 export type { CategoryKind }
 
@@ -14,7 +15,7 @@ export async function createCategory(name: string, kind: CategoryKind = 'EXPENSE
 
 /**
  * Renames a category everywhere its name is stored: bank and card rows (with the
- * overrides set by hand), merchant rules, bank rules and issuer mappings. A card row
+ * overrides set by hand), merchant rules, bank rules, contains-text rules and issuer mappings. A card row
  * whose issuer category is unmapped carries the issuer's own name as its category; when
  * that name is the old one, the issuer category gets mapped to the new name, so the
  * next file of that provider arrives under it too.
@@ -44,12 +45,23 @@ export async function renameCategory(id: string, name: string) {
     await db.transactionAlias.updateMany({ where: { categoryOverride: old }, data: { categoryOverride: name } })
     await db.bankTransaction.updateMany({ where: { category: old }, data: { category: name } })
     await db.bankCategoryRule.updateMany({ where: { category: old }, data: { category: name } })
+    await db.categoryKeywordRule.updateMany({ where: { category: old }, data: { category: name } })
     return updated
   })
 }
 
+/**
+ * Deletes a category. Its contains-text rules go with it (they would keep giving new
+ * rows a category that no longer exists), and the rows they set take what the other
+ * rules give them, or none. Rows set by hand, and by the other rules, keep the name.
+ */
 export async function deleteCategory(id: string) {
-  return prisma.category.delete({ where: { id } })
+  return prisma.$transaction(async db => {
+    const category = await db.category.delete({ where: { id } })
+    const rules = await db.categoryKeywordRule.findMany({ where: { category: category.name }, select: { id: true } })
+    if (rules.length) await deleteKeywordRules(rules.map(r => r.id), db)
+    return category
+  })
 }
 
 /** A `kind` value from a request, or undefined when it is missing or unknown */
