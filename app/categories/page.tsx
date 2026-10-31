@@ -5,6 +5,7 @@ import { getIssuerCategories } from '@/lib/db/category-mappings'
 import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { getBankCategoryMonthly, listBankCategoryRules } from '@/lib/db/bank-categories'
 import { listBankDescriptions, listCardMerchants } from '@/lib/db/category-choices'
+import { listKeywordRules } from '@/lib/db/keyword-rules'
 import { getCCCategoryMonthly } from '@/lib/db/cards'
 import { listAccounts } from '@/lib/db/accounts'
 import { asJson } from '@/lib/db/summary'
@@ -24,13 +25,14 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
   const bankIds = banks.map(a => a.id)
   const cardIds = cards.map(a => a.id)
 
-  const [expense, income, aliases, issuer, generic, bankRules, cardMonthly, outMonthly, inMonthly, merchants, outDescriptions, inDescriptions] = await Promise.all([
+  const [expense, income, aliases, issuer, generic, bankRules, keywordRules, cardMonthly, outMonthly, inMonthly, merchants, outDescriptions, inDescriptions] = await Promise.all([
     getCategories('EXPENSE'),
     getCategories('INCOME'),
     getAliases(),
     getIssuerCategories(),
     listGenericDescriptions(),
     listBankCategoryRules(),
+    listKeywordRules(),
     cardIds.length ? getCCCategoryMonthly(cardIds, Number(year)) : {},
     // The card payment is left out: the card charges are its breakdown (as on the overview)
     bankIds.length ? getBankCategoryMonthly(bankIds, Number(year), 'OUT', { cardPayments: 'exclude' }) : {},
@@ -41,7 +43,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
   ])
 
   const spent = mergeCategoryMonthly(cardMonthly, outMonthly)
-  const sources = categorySources({ issuer, aliases, bankRules })
+  const sources = categorySources({ issuer, aliases, bankRules, keywordRules })
   const items = (list: { id: string; name: string }[], monthly: CategoryMonthly): CategoryItem[] => {
     const colors = categoryColorMap(rankCategories(monthly))
     return list.map(c => ({

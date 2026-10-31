@@ -72,7 +72,11 @@ model CreditCardTransaction {
   category             String
   /// The category as the issuer's file had it ("" when the file has none)
   sourceCategory       String   @default("")
+  /// Wins over `category`: set by a merchant rule (TransactionAlias), a contains-text
+  /// rule (CategoryKeywordRule), a pick on this row or a bulk pick
   categoryOverride     String?
+  /// The override was picked on this row by hand (or in bulk), so no rule ever overwrites it
+  categoryManual       Boolean  @default(false)
   chargedAmount        Float
   originalAmount       Float
   originalCurrency     String
@@ -152,6 +156,20 @@ model BankCategoryRule {
   category            String
 
   @@unique([provider, originalDescription, direction])
+}
+
+/// "Every transaction whose text contains <pattern> is <category>": global (every
+/// provider), matched case-insensitively against a card's originalMerchantName and a
+/// bank row's originalDescription. The category's kind picks the rows: an expense
+/// one covers card charges and bank debits, an income one bank credits. An exact
+/// rule (TransactionAlias / BankCategoryRule) and a pick by hand win over it; card
+/// payments and generic descriptions never take one (lib/insights/keyword-rules.ts).
+model CategoryKeywordRule {
+  id        String   @id @default(uuid())
+  /// Trimmed, inner whitespace collapsed (normalizeKeyword)
+  pattern   String   @unique
+  category  String
+  createdAt DateTime @default(now())
 }
 
 /// A bank description that only says how money moved (a cheque, a transfer, a cash

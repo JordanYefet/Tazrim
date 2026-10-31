@@ -16,14 +16,15 @@ const WIPE_ORDER = {
   ManualRecurringSeries: 4,
   TransactionAlias: 5,
   BankCategoryRule: 6,
-  GenericDescription: 7,
-  CategoryMapping: 8,
-  Category: 9,
-  ImportProfile: 10,
-  UploadHistory: 11,
-  BankTransaction: 12,
-  CreditCardTransaction: 13,
-  Account: 14,
+  CategoryKeywordRule: 7,
+  GenericDescription: 8,
+  CategoryMapping: 9,
+  Category: 10,
+  ImportProfile: 11,
+  UploadHistory: 12,
+  BankTransaction: 13,
+  CreditCardTransaction: 14,
+  Account: 15,
 } satisfies Record<Prisma.ModelName, number>
 
 export type WipeTable = keyof typeof WIPE_ORDER

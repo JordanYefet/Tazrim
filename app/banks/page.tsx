@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers'
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
+import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { cn } from '@/lib/utils/cn'
 import { bankStats } from '@/components/bank/bank-summary-cards'
 import { StatPanel } from '@/components/dashboard/summary-cards'
@@ -8,10 +10,24 @@ import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accoun
 import { listAccounts } from '@/lib/db/accounts'
 import { getBankBalancePoints, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { BalanceChart } from '@/components/bank/balance-chart'
+import { BankTransactionsTable } from '@/components/bank/transactions-table'
+import { FlowFilter } from '@/components/bank/flow-filter'
+import type { TableAccount } from '@/components/accounts/account-tag'
+import { getBankCategoryMonthly } from '@/lib/db/bank-categories'
+import { withCategorySuggestions } from '@/lib/db/category-suggestions'
+import { getCategories } from '@/lib/db/categories'
+import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
+import { getUnusualFlagMap } from '@/lib/db/unusual'
+import { getRecurringSeries } from '@/lib/db/recurring'
+import { asJson } from '@/lib/db/summary'
+import { parseBankFlow } from '@/lib/insights/bank-categories'
+import { rankCategories } from '@/lib/insights/category-insights'
+import { recurringNameMap } from '@/lib/insights/recurring-overrides'
+import { categoryColorMap } from '@/lib/utils/category-colors'
 import { combinedBalance } from '@/lib/insights/combined-balance'
 import { BANK_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
-import { accountHref } from '@/lib/accounts/routes'
+import { accountHref, accountPath } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { CardStackTotal } from '@/components/cards/card-wallet'
 import {
@@ -24,7 +40,63 @@ import {
 import { monthName } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
 
-interface SearchParams { year?: string; month?: string }
+interface SearchParams {
+  year?: string
+  month?: string
+  // The table's filters, as on an account's page (they narrow the table only)
+  search?: string
+  merchant?: string
+  category?: string
+  /** in = income only, out = expenses only */
+  flow?: string
+  showIgnored?: string
+}
+
+/**
+ * Every listed account's rows for the table: the same query, flags and categories
+ * as an account's page (app/banks/[accountId]/page.tsx), over all of them
+ */
+async function getTableData(ids: string[], params: SearchParams & { year: string }) {
+  const year = Number(params.year)
+  const month = params.month ? Number(params.month) : undefined
+  const [txs, insights, categories, genericDescriptions] = await Promise.all([
+    // Same query as /api/bank/transactions?accountId=… (first page of 50 unless a month is selected)
+    getBankTransactions({
+      accountId: ids,
+      year,
+      month,
+      search: params.search,
+      merchant: params.merchant,
+      category: params.category,
+      direction: parseBankFlow(params.flow),
+      showIgnored: params.showIgnored === 'true',
+      take: month ? undefined : 50,
+    }).then(withCategorySuggestions),
+    // Flags for the whole year, so rows loaded with "load more" get badges too
+    getRecurringSeries().then(async r => ({
+      flags: await getUnusualFlagMap({ since: `${year}-01-01`, until: `${year}-12-31`, recurring: { ids: r.transactionIds } }),
+      recurring: recurringNameMap(r.series, ids),
+    })),
+    // The pills' colours, ranked by the year across the accounts (as the analysis page does)
+    Promise.all([
+      getBankCategoryMonthly(ids, year, 'OUT'),
+      getBankCategoryMonthly(ids, year, 'IN'),
+      getCategories('EXPENSE'),
+      getCategories('INCOME'),
+    ]),
+    listGenericDescriptions(),
+  ])
+  const [expenseMonthly, incomeMonthly, expenseCategories, incomeCategories] = categories
+  return {
+    transactions: asJson(txs),
+    unusual: insights.flags.bank,
+    recurring: insights.recurring,
+    categoryColors: { ...categoryColorMap(rankCategories(incomeMonthly)), ...categoryColorMap(rankCategories(expenseMonthly)) },
+    expenseCategories: asJson(expenseCategories),
+    incomeCategories: asJson(incomeCategories),
+    genericDescriptions,
+  }
+}
 
 /** Every (non-archived) bank account: the wallet's stack (layout), the combined summary beside it. */
 export default async function BanksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -79,6 +151,23 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
       </div>
     )
   }
+
+  // The table below the charts: every account's rows
+  const table = await getTableData(accounts.map(a => a.id), params)
+  const tableAccounts: TableAccount[] = perAccount.map(({ account, color }) => ({
+    id: account.id,
+    name: account.displayName,
+    color,
+    provider: account.provider,
+  }))
+  const flow = parseBankFlow(params.flow)
+  const fetchSp = new URLSearchParams({ year })
+  if (params.search) fetchSp.set('search', params.search)
+  if (params.merchant) fetchSp.set('merchant', params.merchant)
+  if (params.category) fetchSp.set('category', params.category)
+  if (params.flow) fetchSp.set('flow', params.flow)
+  if (params.showIgnored) fetchSp.set('showIgnored', params.showIgnored)
+  const hasMore = !month && table.transactions.length >= 50
 
   // The accounts themselves are the wallet in app/banks/layout.tsx; this page
   // fills the grid around it, as /cards does (components/cards/card-wallet.tsx, .wallet-shell)
@@ -136,6 +225,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             <IncomeExpenseChart
               data={chartData}
               selectedMonth={month}
+              flow={flow}
               subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
             />
             <BalanceChart
@@ -144,6 +234,28 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               analysisHref={bankCategoryAnalysisHref(undefined, period)}
             />
           </div>
+        )}
+
+        {/* Every account's rows together, as on an account's page; card payments stay,
+            as bank money going out */}
+        {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
+          <BankTransactionsTable
+            key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
+            accounts={tableAccounts}
+            transactions={table.transactions}
+            showIgnored={params.showIgnored === 'true'}
+            hasMore={hasMore}
+            fetchParams={hasMore ? fetchSp.toString() : undefined}
+            unusual={table.unusual}
+            recurring={table.recurring}
+            initialColumns={parseColumns((await cookies()).get(columnsCookie('bank'))?.value, 'bank')}
+            expenseCategories={table.expenseCategories}
+            incomeCategories={table.incomeCategories}
+            categoryColors={table.categoryColors}
+            genericDescriptions={table.genericDescriptions}
+            activeCategory={params.category}
+            flowFilter={<FlowFilter basePath={accountPath('BANK')} params={params} current={flow} />}
+          />
         )}
       </div>
     </div>

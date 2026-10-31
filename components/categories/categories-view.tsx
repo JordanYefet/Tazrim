@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, ArrowLeftRight, ChevronLeft, CreditCard, Landmark, Plus, Search, Store } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, ChevronLeft, CreditCard, Landmark, Plus, Search, Store, TextSearch } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/lib/accounts/brands'
 import { AppDialog } from '@/components/ui/app-dialog'
@@ -10,6 +10,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { GenericDescriptions } from './generic-descriptions'
 import { IssuerCategories } from './issuer-categories'
 import { MerchantMappings } from './merchant-mappings'
+import { KeywordCount } from './category-picker'
+import { normalizeKeyword, validKeyword } from '@/lib/insights/keyword-rules'
 import type { CategorySource } from '@/lib/insights/category-sources'
 import type { IssuerCategory } from '@/lib/db/category-mappings'
 import type { BankDescription, CardMerchant } from '@/lib/db/category-choices'
@@ -312,9 +314,9 @@ export interface SourceChoices {
   descriptions: { OUT: BankDescription[]; IN: BankDescription[] }
 }
 
-type GroupType = 'issuer' | 'merchant' | 'bank'
+type GroupType = 'issuer' | 'merchant' | 'bank' | 'keyword'
 
-/** The three kinds of source, each with its own colour and icon so they read apart at a glance */
+/** The kinds of source, each with its own colour and icon so they read apart at a glance */
 const GROUPS: Record<GroupType, { title: string; sub: string; add: string; icon: React.ReactNode; tone: string; chip: string }> = {
   issuer: {
     title: 'קטגוריות של חברות האשראי',
@@ -340,6 +342,14 @@ const GROUPS: Record<GroupType, { title: string; sub: string; add: string; icon:
     tone: 'bg-sky-500',
     chip: 'bg-sky-500/10 ring-sky-500/30',
   },
+  keyword: {
+    title: 'טקסט בתנועה',
+    sub: 'כל התנועות שמכילות את הטקסט, בכרטיסים ובבנק',
+    add: 'טקסט',
+    icon: <TextSearch className="h-4 w-4" aria-hidden />,
+    tone: 'bg-emerald-500',
+    chip: 'bg-emerald-500/10 ring-emerald-500/30',
+  },
 }
 
 /** A source of one of the groups, as a key, a label and its own data */
@@ -350,17 +360,27 @@ interface SourceRef {
   source: CategorySource
 }
 
-const keyOf = (s: CategorySource) =>
-  s.type === 'issuer' ? `i|${s.provider}|${s.sourceCategory}` : s.type === 'merchant' ? `m|${s.provider}|${s.originalName}` : `b|${s.provider}|${s.direction}|${s.originalDescription}`
+function keyOf(s: CategorySource): string {
+  switch (s.type) {
+    case 'issuer': return `i|${s.provider}|${s.sourceCategory}`
+    case 'merchant': return `m|${s.provider}|${s.originalName}`
+    case 'bank': return `b|${s.provider}|${s.direction}|${s.originalDescription}`
+    // A pattern is one rule whatever its case
+    case 'keyword': return `k|${s.pattern.toLowerCase()}`
+  }
+}
 
 function refOf(s: CategorySource): SourceRef {
   if (s.type === 'issuer') return { key: keyOf(s), label: s.sourceCategory, sub: providerLabel(s.provider), source: s }
   if (s.type === 'merchant') return { key: keyOf(s), label: s.displayName, sub: providerLabel(s.provider), source: s }
+  if (s.type === 'keyword') return { key: keyOf(s), label: s.pattern, source: s }
   return { key: keyOf(s), label: s.originalDescription, sub: providerLabel(s.provider), source: s }
 }
 
 /** Everything one group could add for a category of this kind, minus what it already has */
 function choicesFor(type: GroupType, kind: Kind, choices: SourceChoices, taken: Set<string>): SourceRef[] {
+  // A contains-text rule is typed, not picked from a list
+  if (type === 'keyword') return []
   const all: SourceRef[] =
     type === 'issuer'
       ? choices.issuer.map(r => refOf({ type: 'issuer', provider: r.provider, sourceCategory: r.sourceCategory, count: r.count }))
@@ -384,11 +404,13 @@ async function addSource(s: CategorySource, category: string): Promise<string | 
             headers: json,
             body: JSON.stringify({ provider: s.provider, originalName: s.originalName, displayName: s.displayName, categoryOverride: category }),
           })
-        : await fetch('/api/bank/category-rules', {
-            method: 'POST',
-            headers: json,
-            body: JSON.stringify({ provider: s.provider, originalDescription: s.originalDescription, direction: s.direction, category }),
-          })
+        : s.type === 'keyword'
+          ? await fetch('/api/category-keyword-rules', { method: 'POST', headers: json, body: JSON.stringify({ pattern: s.pattern, category }) })
+          : await fetch('/api/bank/category-rules', {
+              method: 'POST',
+              headers: json,
+              body: JSON.stringify({ provider: s.provider, originalDescription: s.originalDescription, direction: s.direction, category }),
+            })
   return res.ok ? null : ((await res.json().catch(() => null))?.error ?? 'השיוך נכשל')
 }
 
@@ -403,20 +425,25 @@ async function removeSource(s: CategorySource): Promise<boolean> {
             headers: json,
             body: JSON.stringify({ provider: s.provider, originalName: s.originalName, displayName: s.displayName, categoryOverride: null }),
           })
-        : await fetch('/api/bank/category-rules', {
-            method: 'DELETE',
-            headers: json,
-            body: JSON.stringify({ provider: s.provider, originalDescription: s.originalDescription, direction: s.direction }),
-          })
+        : s.type === 'keyword'
+          ? await fetch(`/api/category-keyword-rules/${encodeURIComponent(s.id)}`, { method: 'DELETE' })
+          : await fetch('/api/bank/category-rules', {
+              method: 'DELETE',
+              headers: json,
+              body: JSON.stringify({ provider: s.provider, originalDescription: s.originalDescription, direction: s.direction }),
+            })
   return res.ok
 }
 
 /**
  * One kind of source: its own colour and icon, its sources as pills (tap to select,
- * then remove below, as on the one-by-one list), and "+ add" opening a search in place.
+ * then remove below, as on the one-by-one list), and "+ add" opening a search in place
+ * (for contains-text rules, a text field with how many rows it reaches).
  */
-function SourceGroup({ type, items, options, onAdd, onRemove }: {
+function SourceGroup({ type, kind, items, options, onAdd, onRemove }: {
   type: GroupType
+  /** The category's kind: which rows a contains-text rule counts */
+  kind: Kind
   items: SourceRef[]
   options: SourceRef[]
   onAdd: (ref: SourceRef) => void
@@ -427,6 +454,17 @@ function SourceGroup({ type, items, options, onAdd, onRemove }: {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const found = query.trim() ? options.filter(o => o.label.includes(query.trim())).slice(0, 8) : options.slice(0, 8)
+  // Contains-text rules are typed: "+ טקסט" is always there, and the field adds what it holds
+  const typed = type === 'keyword'
+  const canAdd = typed || options.length > 0
+  const typedRef = typed && validKeyword(query) ? refOf({ type: 'keyword', id: '', pattern: normalizeKeyword(query) }) : null
+  const typedTaken = !!typedRef && items.some(r => r.key === typedRef.key)
+
+  function addTyped() {
+    if (!typedRef || typedTaken) return
+    onAdd(typedRef)
+    setQuery('')
+  }
 
   return (
     <section className="overflow-hidden rounded-2xl ring-1 ring-inset ring-border">
@@ -434,7 +472,9 @@ function SourceGroup({ type, items, options, onAdd, onRemove }: {
         <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white', g.tone)}>{g.icon}</span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">{g.title}</span>
-          <span className="block text-xs text-muted-foreground">{g.sub}</span>
+          <span className="block text-xs text-muted-foreground">
+            {typed && kind === 'INCOME' ? 'כל התנועות הנכנסות בבנק שמכילות את הטקסט' : g.sub}
+          </span>
         </span>
       </div>
       <div className="space-y-3 p-3.5">
@@ -456,7 +496,7 @@ function SourceGroup({ type, items, options, onAdd, onRemove }: {
               </button>
             )
           })}
-          {!adding && options.length > 0 && (
+          {!adding && canAdd && (
             <button
               onClick={() => setAdding(true)}
               className="inline-flex h-8 items-center justify-center gap-1 rounded-full border border-dashed px-3.5 text-sm text-primary transition-colors hover:border-primary/50 hover:bg-primary/5"
@@ -465,7 +505,7 @@ function SourceGroup({ type, items, options, onAdd, onRemove }: {
               {g.add}
             </button>
           )}
-          {items.length === 0 && !adding && options.length === 0 && <span className="text-sm text-muted-foreground">אין מה לשייך</span>}
+          {items.length === 0 && !adding && !canAdd && <span className="text-sm text-muted-foreground">אין מה לשייך</span>}
         </div>
 
         {selected.size > 0 && (
@@ -482,7 +522,43 @@ function SourceGroup({ type, items, options, onAdd, onRemove }: {
           </div>
         )}
 
-        {adding && (
+        {adding && typed && (
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">הטקסט שהתנועות מכילות</span>
+                <TextSearch className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <input
+                  autoFocus
+                  dir="auto"
+                  placeholder="למשל ACME MUSIC"
+                  className="h-9 w-full rounded-xl border bg-background ps-9 pe-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); addTyped() }
+                    if (e.key === 'Escape') { setAdding(false); setQuery('') }
+                  }}
+                />
+              </label>
+              <button
+                onClick={addTyped}
+                disabled={!typedRef || typedTaken}
+                className="h-9 shrink-0 rounded-xl bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
+              >
+                הוספה
+              </button>
+              <button onClick={() => { setAdding(false); setQuery('') }} className="h-9 shrink-0 rounded-xl bg-muted px-3 text-sm">סיום</button>
+            </div>
+            {typedTaken ? (
+              <span className="block px-1 text-xs text-muted-foreground">כבר ברשימה</span>
+            ) : (
+              <KeywordCount pattern={query} kind={kind} className="block px-1" />
+            )}
+          </div>
+        )}
+
+        {adding && !typed && (
           <div className="space-y-2">
             <div className="flex gap-2">
               <label className="relative flex-1">
@@ -522,7 +598,7 @@ function SourceGroup({ type, items, options, onAdd, onRemove }: {
 }
 
 /** The groups a category of this kind can have: cards are expenses, so income has only the bank */
-const groupsFor = (kind: Kind): GroupType[] => (kind === 'EXPENSE' ? ['issuer', 'merchant', 'bank'] : ['bank'])
+const groupsFor = (kind: Kind): GroupType[] => (kind === 'EXPENSE' ? ['issuer', 'merchant', 'bank', 'keyword'] : ['bank', 'keyword'])
 
 /** One category's window: what fills it automatically, by kind of source; rename and delete */
 function CategoryDetails({ category, kind, choices, onChanged, onDeleted }: {
@@ -578,6 +654,7 @@ function CategoryDetails({ category, kind, choices, onChanged, onDeleted }: {
         <SourceGroup
           key={type}
           type={type}
+          kind={kind}
           items={refs.filter(r => r.source.type === type)}
           options={choicesFor(type, kind, choices, taken)}
           onAdd={add}
@@ -670,6 +747,7 @@ function NewCategoryForm({ initialKind, choices, onCreated }: {
         <SourceGroup
           key={`${kind}|${type}`}
           type={type}
+          kind={kind}
           items={kept.filter(r => r.source.type === type)}
           options={choicesFor(type, kind, choices, taken)}
           onAdd={ref => setPicked(prev => [...prev, ref])}

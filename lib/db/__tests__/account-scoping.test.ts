@@ -93,8 +93,11 @@ describe('bank transactions', () => {
     ])
   })
 
-  it('are read per account or across all bank accounts', async () => {
+  it('are read per account, per list of accounts, or across all bank accounts', async () => {
     expect((await bank.getBankTransactions({ accountId: 'acct_leumi', year: 2030 })).length).toBe(1)
+    expect((await bank.getBankTransactions({ accountId: ['acct_leumi', 'acct_test_bank2'], year: 2030 })).length).toBe(2)
+    expect((await bank.getBankTransactions({ accountId: ['acct_test_bank2'], year: 2030 })).map(t => t.accountId)).toEqual(['acct_test_bank2'])
+    expect((await bank.getBankTransactions({ accountId: [], year: 2030 })).length).toBe(0)
     expect((await bank.getBankTransactions({ year: 2030 })).length).toBe(2)
     expect((await bank.getBankMonthlySummary(2030, 'acct_test_bank2'))[1]).toEqual({ income: 0, expense: 5 })
     expect((await bank.getBankMonthlySummary(2030))[1]).toEqual({ income: 0, expense: 10 })

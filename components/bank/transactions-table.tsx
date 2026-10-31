@@ -14,13 +14,16 @@ import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
-import { CategoryPicker, CategoryPill } from '@/components/categories/category-picker'
+import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
+import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
+import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 
 interface BankTx {
   id: string
+  accountId?: string
   date: string
   originalDescription: string
   description: string
@@ -44,6 +47,7 @@ const selectable = (tx: BankTx) => !tx.ignored && !isCardPaymentRow(tx)
 
 export function BankTransactionsTable({
   accountId,
+  accounts,
   transactions: initial,
   showIgnored,
   hasMore: initialHasMore,
@@ -57,9 +61,20 @@ export function BankTransactionsTable({
   flowFilter,
   genericDescriptions = [],
   categoryColors = {},
-}: {
-  /** The bank account these rows belong to */
-  accountId: string
+}: (
+  | {
+      /** The bank account these rows belong to */
+      accountId: string
+      accounts?: never
+    }
+  | {
+      accountId?: never
+      /** The /banks table: every account's rows together. With more than one, each row
+          names its account and the running balance goes (balances of different accounts
+          interleaved mean nothing; the balance chart above has them) */
+      accounts: TableAccount[]
+    }
+) & {
   transactions: BankTx[]
   /** Picked from on debits */
   expenseCategories?: Category[]
@@ -98,11 +113,12 @@ export function BankTransactionsTable({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
+  const scope = tableScope(accountId, accounts)
 
   async function loadMore() {
     if (!fetchParams) return
     setLoadingMore(true)
-    const res = await fetch(`/api/bank/transactions?${fetchParams}&accountId=${encodeURIComponent(accountId)}&skip=${transactions.length}`)
+    const res = await fetch(`/api/bank/transactions?${fetchParams}&${scope.query}&skip=${transactions.length}`)
     const more: BankTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
     setHasMore(more.length === 50)
@@ -143,6 +159,26 @@ export function BankTransactionsTable({
       )
     )
     // The page's totals and donuts count categories too
+    router.refresh()
+  }
+
+  /** "כל התנועות שמכילות…": saves a contains-text rule, which this row follows from now on */
+  async function saveContainsRule(tx: BankTx, category: string, pattern: string) {
+    const res = await fetch('/api/category-keyword-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pattern, category, fromRow: { source: 'bank', id: tx.id } }),
+    })
+    if (!res.ok) {
+      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+      return
+    }
+    setCategoryError(null)
+    // The rule reaches other accounts and the cards too; these are the loaded rows it changed
+    const changed = new Set((await res.json() as { bankIds: string[] }).bankIds)
+    setTransactions(prev =>
+      prev.map(t => (changed.has(t.id) ? { ...t, category } : t.id === tx.id ? { ...t, categoryManual: false } : t))
+    )
     router.refresh()
   }
 
@@ -335,7 +371,18 @@ export function BankTransactionsTable({
                     />
                   </label>
                 </th>
-                {['תאריך', 'תיאור', 'קטגוריה', 'חובה', 'זכות', 'יתרה', 'הערה', ...columns.map(c => LABEL[c]), ''].map((h, i) => (
+                {[
+                  'תאריך',
+                  'תיאור',
+                  ...(scope.several ? ['חשבון'] : []),
+                  'קטגוריה',
+                  'חובה',
+                  'זכות',
+                  ...(scope.several ? [] : ['יתרה']),
+                  'הערה',
+                  ...columns.map(c => LABEL[c]),
+                  '',
+                ].map((h, i) => (
                   <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -388,6 +435,11 @@ export function BankTransactionsTable({
                       )
                     )}
                   </td>
+                  {scope.several && (
+                    <td className="py-2.5 px-4">
+                      <AccountTag account={tx.accountId ? scope.byId.get(tx.accountId) : undefined} />
+                    </td>
+                  )}
                   <td className="py-2.5 px-4 min-w-[140px] align-top">
                     <CategoryCell
                       tx={tx}
@@ -402,7 +454,9 @@ export function BankTransactionsTable({
                   <td className="py-2.5 px-4 text-[hsl(var(--income))] font-medium tabular-nums">
                     {tx.credit > 0 ? formatCurrency(tx.credit) : ''}
                   </td>
-                  <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
+                  {!scope.several && (
+                    <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
+                  )}
                   <td className="py-2.5 px-4 min-w-[120px]">
                     {editing?.id === tx.id && editing.field === 'note' ? (
                       <input
@@ -475,9 +529,10 @@ export function BankTransactionsTable({
         categories={pickingTx && directionOf(pickingTx) === 'IN' ? incomeCategories : expenseCategories}
         colors={categoryColors}
         onClose={() => setPicking(null)}
-        onSave={async (tx, category, scope) => {
+        onSave={async (tx, category, scope, pattern) => {
           setPicking(null)
-          await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
+          if (scope === CONTAINS_SCOPE && category && pattern) await saveContainsRule(tx, category, pattern)
+          else await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
         }}
         onMarkGeneric={markGeneric}
       />
@@ -492,7 +547,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
   categories: Category[]
   colors: Record<string, string>
   onClose: () => void
-  onSave: (tx: BankTx, category: string | null, scope: string | null) => Promise<void>
+  onSave: (tx: BankTx, category: string | null, scope: string | null, pattern?: string) => Promise<void>
   onMarkGeneric: (tx: BankTx, category: string | null) => void
 }) {
   // The last row stays while the window animates out
@@ -519,6 +574,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           : [
               { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
               { id: 'rule', title: `כל התנועות ${direction} "${shown.originalDescription}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
+              containsScope(shown.originalDescription, out ? 'EXPENSE' : 'INCOME', suggestKeyword(shown.originalDescription)),
             ]
       }
       note={generic && shown ? `"${shown.originalDescription}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
@@ -528,7 +584,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           : undefined
       }
       extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
-      onSave={(category, scope) => (shown ? onSave(shown, category, scope) : undefined)}
+      onSave={(category, scope, pattern) => (shown ? onSave(shown, category, scope, pattern) : undefined)}
     />
   )
 }

@@ -11,6 +11,7 @@ import {
 } from '../insights/bank-categories'
 import type { CategoryMonthly } from '../insights/category-insights'
 import { isGenericDescription, listGenericDescriptions } from './generic-descriptions'
+import { keywordFallback } from './keyword-rules'
 
 const ruleKey = (direction: BankDirection, originalDescription: string) => `${direction}|${originalDescription}`
 
@@ -103,19 +104,42 @@ async function applyBankRule(rule: { provider: string; originalDescription: stri
         create: { ...key, category: rule.category },
       })
     }
-    const affected = await db.bankTransaction.findMany({
-      where: {
-        originalDescription: rule.originalDescription,
-        account: { provider: rule.provider, kind: 'BANK' as const },
-        categoryManual: false,
-        ...directionWhere(rule.direction),
-      },
-      select: { id: true, description: true, originalDescription: true, debit: true },
-    })
-    const ids = affected.filter(r => !isCardPaymentRow(r)).map(r => r.id)
-    await db.bankTransaction.updateMany({ where: { id: { in: ids } }, data: { category: rule.category } })
-    return { updatedIds: ids }
+    return { updatedIds: await setRuleRows(db, rule) }
   })
+}
+
+/**
+ * Gives a provider's non-manual rows of one description and direction the rule's
+ * category, or with none (the rule went) what a contains-text rule gives them. Card
+ * payments never take one. Returns the rows it set.
+ */
+async function setRuleRows(
+  db: Db,
+  rule: { provider: string; originalDescription: string; direction: BankDirection; category: string | null }
+): Promise<string[]> {
+  const affected = await db.bankTransaction.findMany({
+    where: {
+      originalDescription: rule.originalDescription,
+      account: { provider: rule.provider, kind: 'BANK' as const },
+      categoryManual: false,
+      ...directionWhere(rule.direction),
+    },
+    select: { id: true, description: true, originalDescription: true, debit: true, credit: true },
+  })
+  const rows = affected.filter(r => !isCardPaymentRow(r))
+  if (rule.category !== null) {
+    await db.bankTransaction.updateMany({ where: { id: { in: rows.map(r => r.id) } }, data: { category: rule.category } })
+    return rows.map(r => r.id)
+  }
+  const fallback = await keywordFallback(db)
+  const generic = await isGenericDescription(rule.originalDescription, db)
+  const byCategory = new Map<string | null, string[]>()
+  for (const r of rows) {
+    const next = fallback({ source: 'bank', ...r, generic })
+    byCategory.set(next, [...(byCategory.get(next) ?? []), r.id])
+  }
+  for (const [category, ids] of byCategory) await db.bankTransaction.updateMany({ where: { id: { in: ids } }, data: { category } })
+  return rows.map(r => r.id)
 }
 
 /** A rule added from the categories page: "every <description> going <direction> is <category>" */
@@ -142,23 +166,16 @@ export async function listBankCategoryRules() {
 
 /**
  * Removes one rule (from the categories page) and clears the categories it set:
- * that provider's non-manual rows of the description, in its direction. Rows chosen
- * by hand keep theirs, as when a rule is cleared from the table.
+ * that provider's non-manual rows of the description, in its direction, go back to
+ * what a contains-text rule gives them, or none. Rows chosen by hand keep theirs, as
+ * when a rule is cleared from the table.
  */
 export async function removeBankCategoryRule(rule: { provider: string; originalDescription: string; direction: string }) {
   const direction = rule.direction === 'IN' ? 'IN' : 'OUT'
-  await prisma.$transaction([
-    prisma.bankCategoryRule.deleteMany({ where: { provider: rule.provider, originalDescription: rule.originalDescription, direction } }),
-    prisma.bankTransaction.updateMany({
-      where: {
-        originalDescription: rule.originalDescription,
-        account: { provider: rule.provider, kind: 'BANK' },
-        categoryManual: false,
-        ...directionWhere(direction),
-      },
-      data: { category: null },
-    }),
-  ])
+  await prisma.$transaction(async db => {
+    await db.bankCategoryRule.deleteMany({ where: { provider: rule.provider, originalDescription: rule.originalDescription, direction } })
+    await setRuleRows(db, { provider: rule.provider, originalDescription: rule.originalDescription, direction, category: null })
+  })
 }
 
 /**
