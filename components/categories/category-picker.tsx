@@ -34,8 +34,8 @@ export function containsScope(text: string, kind: 'EXPENSE' | 'INCOME', suggesti
     id: CONTAINS_SCOPE,
     title: 'כל התנועות שמכילות…',
     sub: kind === 'EXPENSE'
-      ? 'חיובים בכרטיס ותנועות יוצאות בבנק, גם בקבצים הבאים; מה שבחרת ידנית לא משתנה'
-      : 'תנועות נכנסות בבנק, גם בקבצים הבאים; מה שבחרת ידנית לא משתנה',
+      ? 'חיובים בכרטיס ותנועות יוצאות בבנק, גם בקבצים הבאים'
+      : 'תנועות נכנסות בבנק, גם בקבצים הבאים',
     contains: { suggestion: suggestion || text, kind },
   }
 }
@@ -382,7 +382,9 @@ export function KeywordCount({ pattern, kind, className }: { pattern: string; ki
       : count.matches === 0
         ? 'אין עדיין תנועות כאלה'
         : `${count.matches === 1 ? 'תנועה אחת' : `${count.matches} תנועות`}${
-            count.matches > count.applies ? ` · ${count.matches - count.applies} עם קטגוריה משלהן לא ישתנו` : ''
+            count.matches - count.applies === 1
+              ? ' · אחת עם קטגוריה משלה לא תשתנה'
+              : count.matches > count.applies ? ` · ${count.matches - count.applies} עם קטגוריה משלהן לא ישתנו` : ''
           }`
   return (
     <span aria-live="polite" className={cn('text-xs tabular-nums text-muted-foreground', className)}>
