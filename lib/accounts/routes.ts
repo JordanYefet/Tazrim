@@ -57,6 +57,16 @@ export function settingsAccountsHref(params: QueryInput): string {
   return `${withQuery('/settings', params)}#accounts`
 }
 
+/**
+ * The accounts a transactions API call covers (`?accountId=`, repeated for several):
+ * one id, a list (the /banks and /cards tables), or undefined (no param) for every account.
+ */
+export function accountIdsParam(sp: URLSearchParams): string | string[] | undefined {
+  const ids = sp.getAll('accountId').filter(Boolean)
+  if (ids.length === 0) return undefined
+  return ids.length === 1 ? ids[0] : ids
+}
+
 /** Whether a nav item is the current section: "/" exactly, others with their sub-pages. */
 export function isNavActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/'

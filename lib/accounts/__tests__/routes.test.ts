@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountHref,
+  accountIdsParam,
   accountPath,
   isNavActive,
   legacyAccountRedirect,
@@ -111,5 +112,14 @@ describe('settingsAccountsHref', () => {
   it('keeps ?new= and any other param (the old /accounts redirect)', () => {
     expect(settingsAccountsHref({ new: 'card' })).toBe('/settings?new=card#accounts')
     expect(settingsAccountsHref({ new: 'BANK', extra: ['a', 'b'] })).toBe('/settings?new=BANK&extra=a&extra=b#accounts')
+  })
+})
+
+describe('accountIdsParam', () => {
+  it('reads one account, several, or none (every account)', () => {
+    expect(accountIdsParam(new URLSearchParams('accountId=acct_a&year=2030'))).toBe('acct_a')
+    expect(accountIdsParam(new URLSearchParams('accountId=acct_a&accountId=acct_b'))).toEqual(['acct_a', 'acct_b'])
+    expect(accountIdsParam(new URLSearchParams('year=2030'))).toBeUndefined()
+    expect(accountIdsParam(new URLSearchParams('accountId='))).toBeUndefined()
   })
 })

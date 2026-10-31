@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyOverrides, summarizeRecurring, recurringTransactionIds, type RecurringOverrideInput } from '../recurring-overrides'
+import { applyOverrides, recurringNameMap, summarizeRecurring, recurringTransactionIds, type RecurringOverrideInput } from '../recurring-overrides'
 import type { RecurringSeries } from '../recurring'
 
 // Made-up series only
@@ -115,5 +115,29 @@ describe('summarizeRecurring', () => {
     expect(ids.has(streamly.transactionIds[0])).toBe(true)
     expect(ids.has('card|acc-1|sofaco|monthly:1')).toBe(true)
     expect(ids.has('card|acc-1|tvbox|monthly:1')).toBe(false)
+  })
+})
+
+describe('recurringNameMap', () => {
+  const all = applyOverrides(
+    [
+      series({ key: 'card|acc-1|streamly|monthly', accountId: 'acc-1' }),
+      series({ key: 'card|acc-2|gymco|monthly', name: 'GymCo', accountId: 'acc-2' }),
+      series({ key: 'card|acc-3|tvbox|monthly', name: 'TVBox', accountId: 'acc-3' }),
+      series({ key: 'card|acc-1|ended|monthly', name: 'Ended', accountId: 'acc-1' }),
+    ],
+    [override({ key: 'card|acc-1|ended|monthly', status: 'dismissed' })]
+  )
+
+  it('maps the rows of one account, leaving dismissed series out', () => {
+    const map = recurringNameMap(all, 'acc-1')
+    expect(map['card|acc-1|streamly|monthly:1']).toEqual({ name: 'Streamly', manual: false })
+    expect(Object.keys(map)).toHaveLength(3)
+  })
+
+  it('maps the rows of several accounts (the /cards table) and no others', () => {
+    const names = new Set(Object.values(recurringNameMap(all, ['acc-1', 'acc-2'])).map(r => r.name))
+    expect(names).toEqual(new Set(['Streamly', 'GymCo']))
+    expect(recurringNameMap(all, [])).toEqual({})
   })
 })
