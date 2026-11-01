@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTrack } from '@/components/ui/segmented'
 import { columnLabel } from '@/lib/utils/column-label'
 import type { RawCell, RawWorkbookPreview } from '@/lib/parsers/raw-grid'
 
@@ -60,16 +61,24 @@ export function RawGridPreview({
   return (
     <div className={cn('min-w-0 space-y-3', className)}>
       {workbook.sheets.length > 1 && (
-        <div role="tablist" aria-label="גיליונות" className="flex gap-1 overflow-x-auto bg-muted rounded-lg p-1">
+        <SegmentedTrack
+          role="tablist"
+          aria-label="גיליונות"
+          active={String(active)}
+          thumbClassName="rounded-md bg-card shadow-e1"
+          className="flex gap-1 overflow-x-auto bg-muted rounded-lg p-1"
+        >
           {workbook.sheets.map((s, i) => (
             <button
               key={`${i}-${s.name}`}
               role="tab"
               type="button"
+              data-segment={i}
+              data-on={i === active || undefined}
               aria-selected={i === active}
               onClick={() => setActive(i)}
               className={cn(
-                'shrink-0 py-1.5 px-3 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                'shrink-0 py-1.5 px-3 rounded-md text-sm font-medium transition-colors duration-base ease-ui whitespace-nowrap',
                 i === active
                   ? 'bg-card text-foreground shadow-e1'
                   : 'text-muted-foreground hover:text-foreground'
@@ -79,7 +88,7 @@ export function RawGridPreview({
               <span className="ms-1.5 text-xs text-muted-foreground tabular-nums">{nf.format(s.rowCount)}</span>
             </button>
           ))}
-        </div>
+        </SegmentedTrack>
       )}
 
       {sheet.rowCount === 0 ? (
@@ -150,7 +159,7 @@ export function RawGridPreview({
                           aria-label={`שורה ${r + 1}: סמן כשורת הכותרת`}
                           title="סמן כשורת הכותרת"
                           className={cn(
-                            'flex min-h-7 w-full items-center justify-center px-2 transition-[background-color,transform] duration-quick ease-out',
+                            'flex min-h-7 w-full items-center justify-center px-2 transition-[background-color,transform] duration-quick ease-ui',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-95',
                             tone !== 'header' && 'hover:bg-primary/15 hover:text-foreground'
                           )}

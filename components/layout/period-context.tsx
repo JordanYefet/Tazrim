@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { cookieAssignment } from '@/lib/nav/state'
 import {
   PERIOD_COOKIE,
+  currentMonth,
   formatPeriodCookie,
   isPeriodPath,
   periodFromParams,
@@ -24,19 +25,44 @@ import {
 interface PeriodContextValue {
   period: Period
   remember: (p: Period) => void
+  /** This calendar month: the header's "back to this month" button */
+  today: Period
 }
 
 const PeriodContext = createContext<PeriodContextValue>({
   period: { year: new Date().getFullYear() },
   remember: () => {},
+  today: currentMonth(),
 })
 
 function writePeriodCookie(p: Period) {
   document.cookie = cookieAssignment(PERIOD_COOKIE, formatPeriodCookie(p))
 }
 
-export function PeriodProvider({ initial, children }: { initial: Period; children: React.ReactNode }) {
+export function PeriodProvider({
+  initial,
+  today: serverToday,
+  children,
+}: {
+  initial: Period
+  /** This month by the server's clock, so the first paint matches the server's HTML */
+  today: Period
+  children: React.ReactNode
+}) {
   const [period, setPeriod] = useState<Period>(initial)
+  const [today, setToday] = useState<Period>(serverToday)
+
+  // Then the browser's clock wins (they differ only around midnight on the 1st, or a
+  // browser in another zone), checked again when the app comes back to the front
+  useEffect(() => {
+    const check = () => {
+      const now = currentMonth()
+      setToday(prev => (samePeriod(prev, now) ? prev : now))
+    }
+    check()
+    document.addEventListener('visibilitychange', check)
+    return () => document.removeEventListener('visibilitychange', check)
+  }, [])
 
   const remember = useCallback((p: Period) => {
     const next = p.month ? { year: p.year, month: p.month } : { year: p.year }
@@ -44,13 +70,18 @@ export function PeriodProvider({ initial, children }: { initial: Period; childre
     writePeriodCookie(next)
   }, [])
 
-  const value = useMemo(() => ({ period, remember }), [period, remember])
+  const value = useMemo(() => ({ period, remember, today }), [period, remember, today])
   return <PeriodContext.Provider value={value}>{children}</PeriodContext.Provider>
 }
 
 /** The remembered period (what the current page shows, or showed last). */
 export function usePeriod(): Period {
   return useContext(PeriodContext).period
+}
+
+/** This calendar month (server's clock on the first paint, then the browser's). */
+export function useToday(): Period {
+  return useContext(PeriodContext).today
 }
 
 export function useRememberPeriod(): (p: Period) => void {

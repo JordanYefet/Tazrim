@@ -33,7 +33,7 @@ export function RailFlyout({
   children: React.ReactElement
 }) {
   const periodHref = usePeriodHref()
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+  const [pos, setPos] = useState<{ top: number; right: number; height: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
   const skipFocusOpen = useRef(false)
@@ -43,7 +43,7 @@ export function RailFlyout({
   function show() {
     window.clearTimeout(closeTimer.current)
     const r = wrapRef.current?.getBoundingClientRect()
-    if (r) setPos({ top: r.top, right: window.innerWidth - r.left })
+    if (r) setPos({ top: r.top, right: window.innerWidth - r.left, height: r.height })
   }
 
   function hide(delay = CLOSE_DELAY_MS) {
@@ -130,6 +130,8 @@ export function RailFlyout({
             id={panelId}
             role="group"
             aria-label={item.label}
+            // Grows out of the icon: the panel starts 8px above it (top: pos.top - 8)
+            style={{ '--origin-y': `${8 + pos.height / 2}px` } as React.CSSProperties}
             className="flyout-in flex max-h-[calc(100vh-2rem)] w-56 flex-col gap-0.5 overflow-y-auto rounded-xl surface-overlay bg-card/95 p-2 backdrop-blur-xl [@media(prefers-reduced-transparency:reduce)]:bg-card"
           >
             <p className="mx-2.5 mb-1 mt-0.5 text-xs font-semibold text-muted-foreground">{item.label}</p>

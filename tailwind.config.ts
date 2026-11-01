@@ -55,13 +55,16 @@ const config: Config = {
         },
       },
       // Motion tokens (app/globals.css and lib/motion.ts, ENG-67)
+      // Defaults for a bare transition-* class: the app's clock, not Tailwind's 150ms ease-in-out
       transitionDuration: {
+        DEFAULT: 'var(--motion-quick)',
         quick: 'var(--motion-quick)',
         fast: 'var(--motion-fast)',
         base: 'var(--motion-base)',
         page: 'var(--motion-page)',
       },
       transitionTimingFunction: {
+        DEFAULT: 'var(--ease-ui)',
         ui: 'var(--ease-ui)',
         spring: 'var(--ease-spring)',
       },

@@ -97,7 +97,7 @@ export function SaveProfile({
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick ease-out hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
+            className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick ease-ui hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
           >
             {saving ? 'שומר...' : basedOn ? 'עדכן מיפוי' : 'שמור מיפוי'}
           </button>

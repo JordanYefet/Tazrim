@@ -3,9 +3,10 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { cn } from '@/lib/utils/cn'
+import { useOpenOrigin } from './open-origin'
 
 const BUTTON =
-  'inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium transition-[background-color,transform] duration-quick ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium transition-[background-color,transform] duration-quick ease-ui active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:pointer-events-none disabled:opacity-50'
 
 export interface ConfirmOptions {
   title: ReactNode
@@ -30,8 +31,8 @@ interface ConfirmDialogProps extends ConfirmOptions {
 }
 
 /**
- * The app's confirmation window: a compact card that rises from the bottom
- * on phones (above the tab bar) and sits centered on wider screens.
+ * The app's confirmation window: a compact card at the bottom on phones (above
+ * the tab bar), centered on wider screens; it grows out of the tapped button.
  */
 export function ConfirmDialog({
   open,
@@ -48,13 +49,15 @@ export function ConfirmDialog({
   error,
   children,
 }: ConfirmDialogProps) {
+  const originRef = useOpenOrigin()
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
+          ref={originRef}
           dir="rtl"
-          className="confirm-dialog fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-sm rounded-3xl surface-overlay p-5 text-card-foreground focus:outline-none sm:inset-x-4 sm:top-0 sm:bottom-0 sm:my-auto sm:h-fit"
+          className="app-window fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-sm rounded-3xl surface-overlay p-5 text-card-foreground focus:outline-none sm:inset-x-4 sm:top-0 sm:bottom-0 sm:my-auto sm:h-fit"
         >
           <form
             onSubmit={e => {

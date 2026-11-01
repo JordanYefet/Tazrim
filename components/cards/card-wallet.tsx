@@ -85,9 +85,9 @@ const STAGGER_MS = 24
  * Calls `land` when an animation is LAND_AT through (or at once without one),
  * so what appears on the moving card lands with it rather than after it.
  */
-function whenLanding(anim: Animation | null, land: () => void) {
+function whenLanding(anim: Animation | null, land: () => void, duration = SPRING.duration) {
   if (!anim) return land()
-  const timer = window.setTimeout(land, SPRING.duration * LAND_AT)
+  const timer = window.setTimeout(land, duration * LAND_AT)
   anim.addEventListener('cancel', () => window.clearTimeout(timer))
 }
 const INTENT_EVENT = 'tazrim:wallet-route'
@@ -186,6 +186,46 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number }):
       delay: opts.delay ?? 0,
       fill: 'backwards',
     }
+  )
+  anim.addEventListener('finish', () => {
+    if (!el.getAnimations().length) el.style.willChange = ''
+  })
+  return anim
+}
+
+/** One card's page to another's: the cards trade places where the open card is, nothing travels */
+const SWAP_MS = MOTION.base
+
+/**
+ * Switching straight from one open card to another (ENG-56 follow-up): the
+ * chosen card fades in over the open one, in place, instead of rising from
+ * below; the card it covers stays opaque under it (half-transparent cards
+ * would show through each other) and goes to its hidden place once covered.
+ * Returns null when the card can't swap in place (it is on screen elsewhere,
+ * mid-motion), so the caller moves it instead.
+ */
+function swapCard(el: HTMLElement, to: CardPlacement, role: 'in' | 'out'): Animation | null | undefined {
+  const cs = getComputedStyle(el)
+  const fromOpacity = Number(cs.opacity)
+  if (role === 'in' && fromOpacity > 0.01) return undefined
+  const from = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform)
+  from.m42 += currentShift(el)
+  for (const a of el.getAnimations()) a.cancel()
+  el.style.translate = ''
+  el.style.transform = to.transform
+  el.style.opacity = String(to.opacity)
+  requestGlassBake()
+  if (prefersReducedMotion()) return null
+  el.style.willChange = 'opacity'
+  const anim = el.animate(
+    role === 'in'
+      ? [{ opacity: 0 }, { opacity: String(to.opacity) }]
+      : // Held where it was, fully shown, until the new card covers it
+        [
+          { transform: from.toString(), opacity: String(fromOpacity) },
+          { transform: from.toString(), opacity: String(fromOpacity) },
+        ],
+    { duration: SWAP_MS, easing: EASE.ui, fill: 'backwards' }
   )
   anim.addEventListener('finish', () => {
     if (!el.getAnimations().length) el.style.willChange = ''
@@ -483,15 +523,18 @@ function Wallet({
     }
     // Leaving the stack, the cards nearest the chosen one go first; coming back, the same
     const order = mode.kind === 'open' ? [...stackOrder].reverse() : stackOrder
+    // A card's page to another card's page: swap in place (swapCard)
+    const swapFrom = prev.kind === 'open' && mode.kind === 'open' ? prev.id : null
     let k = 0
     for (const id of order) {
       const el = elements.current.get(id)
       const to = place.get(id)
       if (!el || !to) continue
       const moving = mode.kind === 'open' ? id === mode.id : prev.kind === 'open' && id === prev.id
-      const anim = moveCard(el, to, { delay: moving ? 0 : STAGGER_MS * k++ })
+      const swapped = swapFrom && (id === openId || id === swapFrom) ? swapCard(el, to, id === openId ? 'in' : 'out') : undefined
+      const anim = swapped !== undefined ? swapped : moveCard(el, to, { delay: moving ? 0 : STAGGER_MS * k++ })
       if (openId && id === openId) {
-        whenLanding(anim, () => setSettledId(openId))
+        whenLanding(anim, () => setSettledId(openId), swapped !== undefined ? SWAP_MS : SPRING.duration)
       }
     }
     for (const c of cards) {

@@ -8,6 +8,7 @@ import { NetBalance, StatPanel } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
+import { DataSwap } from '@/components/ui/data-swap'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankHeroBalance } from '@/components/cards/card-wallet'
 import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
@@ -16,7 +17,7 @@ import { withCategorySuggestions } from '@/lib/db/category-suggestions'
 import { getCategories } from '@/lib/db/categories'
 import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { CategoryDonut } from '@/components/cards/category-donut'
-import { CollapsiblePair } from '@/components/ui/collapsible-pair'
+import { DimmablePair } from '@/components/ui/dimmable-pair'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -211,9 +212,9 @@ export default async function BankAccountPage({
             <BalanceChart data={balancePoints} analysisHref={bankCategoryAnalysisHref(account.id, period)} />
           </div>
           {/* Where the money came from (start side) and where it went; a slice filters the table.
-              The switch collapses the other side instead of dropping it. */}
-          <CollapsiblePair
-            show={flow === 'IN' ? 'first' : flow === 'OUT' ? 'second' : 'both'}
+              Filtering to one side dims the other in place, so the layout stays put. */}
+          <DimmablePair
+            dim={flow === 'IN' ? 'second' : flow === 'OUT' ? 'first' : undefined}
             first={
               <CategoryDonut
                 pagePath={accountPath('BANK', account.id)}
@@ -241,6 +242,8 @@ export default async function BankAccountPage({
       )}
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
+        // Stays mounted while the keyed table remounts, so the new rows ease in
+        <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')} height>
         <BankTransactionsTable
           key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
           accountId={account.id}
@@ -256,8 +259,9 @@ export default async function BankAccountPage({
           categoryColors={{ ...incomeColors, ...expenseColors }}
           genericDescriptions={genericDescriptions}
           activeCategory={params.category}
-          flowFilter={<FlowFilter basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
+          flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />
+        </DataSwap>
       )}
       </div>
     </div>

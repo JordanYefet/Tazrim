@@ -60,7 +60,7 @@ function RailTip({ show, label, children }: { show: boolean; label: string; chil
         <Tooltip.Content
           side="left"
           sideOffset={10}
-          className="z-50 rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background shadow-e2"
+          className="rail-tip z-50 rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background shadow-e2"
         >
           {label}
         </Tooltip.Content>

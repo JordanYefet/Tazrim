@@ -3,6 +3,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTrack } from '@/components/ui/segmented'
 import { CREATABLE, KIND_META, KNOWN_PROVIDERS, type CreatableKindValue } from './account-kinds'
 import { BankElement, PaymentCard } from './account-element'
 import { ColorPicker } from './color-picker'
@@ -196,7 +197,13 @@ export function AccountForm(props: CreateProps | EditProps) {
       <div className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:items-start md:gap-6">
         <div className="space-y-4 md:sticky md:top-0">
           {!editing && (
-            <div role="radiogroup" aria-label="סוג חשבון" className="inline-flex rounded-lg border bg-muted/50 p-1 gap-1">
+            <SegmentedTrack
+              role="radiogroup"
+              aria-label="סוג חשבון"
+              active={kind}
+              thumbClassName="rounded-md bg-card shadow-e1"
+              className="inline-flex rounded-lg border bg-muted/50 p-1 gap-1"
+            >
               {CREATABLE.map(k => {
                 const meta = KIND_META.find(m => m.kind === k)!
                 const Icon = meta.icon
@@ -206,10 +213,12 @@ export function AccountForm(props: CreateProps | EditProps) {
                     key={k}
                     type="button"
                     role="radio"
+                    data-segment={k}
+                    data-on={selected || undefined}
                     aria-checked={selected}
                     onClick={() => chooseKind(k)}
                     className={cn(
-                      'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                      'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors duration-base ease-ui',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       selected ? 'bg-card shadow-e1 font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'
                     )}
@@ -219,7 +228,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                   </button>
                 )
               })}
-            </div>
+            </SegmentedTrack>
           )}
           {/* Live preview: the element the account will get, reacting to every field (ENG-56/57) */}
           <div className="acct-preview flex justify-center rounded-xl bg-muted/50 px-4 py-6 sm:py-8">
@@ -380,7 +389,7 @@ export function AccountForm(props: CreateProps | EditProps) {
         <button
           type="submit"
           disabled={saving || lastFourInvalid || !displayName.trim() || !provider}
-          className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
+          className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
         >
           {saving ? 'שומר…' : editing ? 'שמור שינויים' : 'הוסף חשבון'}
         </button>

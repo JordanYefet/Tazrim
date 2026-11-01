@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Archive, ArchiveRestore, ChevronRight, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { useOpenOrigin } from '@/components/ui/open-origin'
 import { AccountForm, type CreatedAccount, type EditableAccount } from './add-account-form'
 import { RemapColumns } from './remap-columns'
 import { ImportSection, type ImportState } from './import-section'
@@ -45,6 +46,7 @@ export function EditAccountDialog({
   /** Archive (or restore) and delete, at the end of the edit view (/settings: the row has no buttons of its own) */
   manage?: AccountManage
 }) {
+  const originRef = useOpenOrigin()
   const [view, setView] = useState<'edit' | 'remap' | 'mapping'>('edit')
   const [editingProfile, setEditingProfile] = useState<string | null>(null)
   // Keep the last account while the window animates out
@@ -73,11 +75,12 @@ export function EditAccountDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
+          ref={originRef}
           dir="rtl"
           aria-describedby={undefined}
           className={cn(
-            'confirm-dialog fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl surface-overlay p-5 text-card-foreground focus:outline-none',
-            // Centred without a transform, so the rise animation owns transform
+            'app-window app-window--sheet fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl surface-overlay p-5 text-card-foreground focus:outline-none',
+            // Centred without a transform, so the entrance owns transform
             'sm:inset-x-4 sm:inset-y-0 sm:my-auto sm:h-fit sm:max-h-[88dvh] sm:rounded-3xl sm:p-6',
             view !== 'edit' ? 'sm:max-w-4xl' : 'pb-0 sm:max-w-xl sm:pb-0 md:max-w-3xl'
           )}

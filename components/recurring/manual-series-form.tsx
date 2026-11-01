@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ArrowUp, Loader2, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTrack } from '@/components/ui/segmented'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/date'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -241,23 +242,31 @@ export function ManualSeriesForm({
         </div>
         <div className="space-y-1.5">
           <span id={`${id}-cadence`} className="text-sm font-medium">תדירות</span>
-          <div role="radiogroup" aria-labelledby={`${id}-cadence`} className="flex gap-1 rounded-lg border bg-muted/50 p-1">
+          <SegmentedTrack
+            role="radiogroup"
+            aria-labelledby={`${id}-cadence`}
+            active={cadence}
+            thumbClassName="rounded-md bg-card shadow-e1"
+            className="flex gap-1 rounded-lg border bg-muted/50 p-1"
+          >
             {CADENCE_OPTIONS.map(c => (
               <button
                 key={c.value}
                 type="button"
                 role="radio"
+                data-segment={c.value}
+                data-on={cadence === c.value || undefined}
                 aria-checked={cadence === c.value}
                 onClick={() => set({ cadence: c.value })}
                 className={cn(
-                  'flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors duration-base ease-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   cadence === c.value ? 'bg-card font-medium text-foreground shadow-e1' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {c.label}
               </button>
             ))}
-          </div>
+          </SegmentedTrack>
         </div>
       </div>
 

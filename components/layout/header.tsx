@@ -5,9 +5,10 @@ import { SearchButton } from '@/components/search/search-button'
 import { CommandSearch } from '@/components/search/command-search'
 import { useHeaderHidden } from '@/hooks/use-header-hidden'
 import { cn } from '@/lib/utils/cn'
-import { isPeriodPath, periodQuery, type Period } from '@/lib/period'
-import { useCurrentPeriod, useRememberPeriod } from './period-context'
+import { isPeriodPath, periodQuery, samePeriod, type Period } from '@/lib/period'
+import { useCurrentPeriod, useRememberPeriod, useToday } from './period-context'
 import { PeriodPicker } from './period-picker'
+import { TodayButton } from './today-button'
 import { ReadOnlyBadge } from './read-only-guard'
 
 /**
@@ -25,6 +26,7 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
   const remember = useRememberPeriod()
   // The URL's period on a period page, else the remembered one
   const current = useCurrentPeriod()
+  const today = useToday()
 
   function update(next: Period) {
     // Remembered at once (cookie too), so every page opened from here on shows it
@@ -43,7 +45,8 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
       <header
         data-hidden={hidden || undefined}
         className={cn(
-          'sticky top-0 z-30 grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 bar-glass border-b px-4 py-2.5',
+          // A narrower gap on phones leaves room for the "this month" button at 360px
+          'sticky top-0 z-30 grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-4 bar-glass border-b px-4 py-2.5',
           '[@media(prefers-reduced-transparency:reduce)]:bg-card',
           'transition-transform duration-fast ease-ui',
           'data-[hidden]:-translate-y-full focus-within:!translate-y-0',
@@ -53,7 +56,11 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
         {/* The start column is as wide as the end one, so the period sits in the middle;
             in read-only mode (the demo) it says so */}
         <div className="flex min-w-0 items-center">{readOnly && <ReadOnlyBadge />}</div>
-        <PeriodPicker period={{ year: current.year, month: current.month }} onChange={update} />
+        {/* The picker and, away from this month, the way back to it; the pair stays centred */}
+        <div data-period-controls className="flex items-center">
+          <PeriodPicker period={{ year: current.year, month: current.month }} onChange={update} />
+          <TodayButton show={!samePeriod(current, today)} onClick={() => update(today)} />
+        </div>
 
         <div className="flex items-center justify-end gap-2">
           <SearchButton />

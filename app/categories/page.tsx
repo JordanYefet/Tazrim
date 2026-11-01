@@ -55,7 +55,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="page-in mx-auto max-w-2xl space-y-5">
       <h1 className="text-[28px] font-bold leading-tight tracking-tight">קטגוריות</h1>
       <CategoriesView
         expense={items(expense, spent)}

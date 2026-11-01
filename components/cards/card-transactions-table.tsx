@@ -12,6 +12,7 @@ import { accountPath } from '@/lib/accounts/routes'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
+import { useColumnMotion } from '@/hooks/use-column-motion'
 import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -39,6 +40,8 @@ interface CCTx {
 }
 
 const LABEL = Object.fromEntries(CARD_COLUMNS.map(c => [c.key, c.label])) as Record<CardColumn, string>
+const CARD_KEYS = CARD_COLUMNS.map(c => c.key)
+const TH = 'text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide'
 
 /** An optional column's cell (lib/tables/columns.ts) */
 function optionalCell(tx: CCTx, key: CardColumn) {
@@ -107,6 +110,7 @@ export function CardTransactionsTable({
   categoryColors?: Record<string, string>
 }) {
   const [columns, setColumns] = useState(initialColumns as CardColumn[])
+  const { shown: shownColumns, cellClass: columnClass } = useColumnMotion(CARD_KEYS, columns)
   // The row whose category window is open
   const [picking, setPicking] = useState<string | null>(null)
   // A row's category, when it is one of yours (an unmapped issuer category is none)
@@ -332,8 +336,8 @@ export function CardTransactionsTable({
         />
       )}
 
-      {/* Table */}
-      <div className="rounded-xl surface overflow-hidden">
+      {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
+      <div data-swap className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -359,11 +363,14 @@ export function CardTransactionsTable({
                   ...(scope.several ? ['כרטיס'] : []),
                   'קטגוריה',
                   'סכום חיוב',
-                  ...columns.map(c => LABEL[c]),
-                  '',
                 ].map((h, i) => (
-                  <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
+                  <th key={i} className={TH}>{h}</th>
                 ))}
+                {/* Optional columns slide in and fade out as they're picked (useColumnMotion) */}
+                {shownColumns.map(c => (
+                  <th key={c} className={cn(TH, columnClass(c))}>{LABEL[c]}</th>
+                ))}
+                <th className={TH} />
               </tr>
             </thead>
             <tbody>
@@ -447,11 +454,12 @@ export function CardTransactionsTable({
                       </span>
                     )}
                   </td>
-                  {columns.map(c => (
+                  {shownColumns.map(c => (
                     <td
                       key={c}
                       className={cn(
                         'py-2.5 px-4 text-xs text-muted-foreground',
+                        columnClass(c),
                         c === 'notes' ? 'min-w-[140px]' : 'whitespace-nowrap',
                         tx.ignored && 'line-through'
                       )}

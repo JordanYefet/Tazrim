@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ArrowUp, BadgeCheck, CreditCard, Landmark, Repeat, Sparkles } from 'lucide-react'
-import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
+import { formatCurrency } from '@/lib/utils/currency'
+import { RollingNumber } from '@/components/ui/rolling-number'
 import { formatDate } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 import type { Cadence, RecurringSeries } from '@/lib/insights/recurring'
@@ -140,7 +141,10 @@ export function RecurringList({
         </div>
         {total !== undefined && (
           <div className="shrink-0 text-end">
-            <div className="text-lg font-semibold tabular-nums">{formatCurrencyWhole(total)}</div>
+            {/* The box's headline figure rolls in with the page, like the summary cards */}
+            <div className="text-lg font-semibold tabular-nums">
+              <RollingNumber value={total} />
+            </div>
             <div className="text-xs text-muted-foreground">בחודש</div>
           </div>
         )}

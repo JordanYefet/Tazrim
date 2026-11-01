@@ -45,7 +45,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const profiles = profileRows.map(toProfileView)
 
   return (
-    <div className="mx-auto max-w-3xl min-w-0 space-y-10">
+    // page-in: the sections under the heading rise in on arrival, as on every page
+    <div className="page-in mx-auto max-w-3xl min-w-0 space-y-10">
       <h1 className="text-2xl font-semibold tracking-tight">הגדרות</h1>
 
       <section id="appearance" aria-labelledby="appearance-title" className="space-y-3">

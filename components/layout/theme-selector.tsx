@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTrack } from '@/components/ui/segmented'
 import { THEME_OPTIONS, normalizeTheme, stepTheme, type ThemeValue } from '@/lib/utils/theme'
 
 const ICONS: Record<ThemeValue, typeof Sun> = { light: Sun, dark: Moon, system: Monitor }
@@ -34,10 +35,12 @@ export function ThemeSelector() {
   }
 
   return (
-    <div
+    <SegmentedTrack
       role="radiogroup"
       aria-label="ערכת נושא"
       onKeyDown={onKeyDown}
+      active={mounted ? current : null}
+      thumbClassName="rounded-md bg-card shadow-e1"
       className="flex items-center gap-0.5 p-0.5 rounded-lg bg-muted border border-border h-8 w-[5.75rem] shrink-0"
     >
       {mounted && THEME_OPTIONS.map(({ value, label }) => {
@@ -49,13 +52,15 @@ export function ThemeSelector() {
             ref={el => { refs.current[value] = el }}
             type="button"
             role="radio"
+            data-segment={value}
+            data-on={selected || undefined}
             aria-checked={selected}
             aria-label={label}
             title={label}
             tabIndex={selected ? 0 : -1}
             onClick={() => setTheme(value)}
             className={cn(
-              'flex-1 h-full rounded-md flex items-center justify-center transition-colors',
+              'flex-1 h-full rounded-md flex items-center justify-center transition-colors duration-base ease-ui',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               selected
                 ? 'bg-card text-foreground shadow-e1'
@@ -66,6 +71,6 @@ export function ThemeSelector() {
           </button>
         )
       })}
-    </div>
+    </SegmentedTrack>
   )
 }
