@@ -475,18 +475,18 @@ export function BankElement({
 }
 
 /**
- * A bank account as the head of a panel (the accounts list in /settings):
- * the bank element's band, its face and material, with the caller's content
- * in it, and the panel's body (the cards the account pays) under it on the
- * element's own surface. The band is a button when `onOpen` is given.
+ * A bank account as the head of a panel (the accounts list in /settings): a
+ * plain surface, the bank's colour only on its inline-start edge and in its
+ * mini face, and the caller's content beside the face. The body (the cards
+ * the account pays) sits under a hairline. The head is a button when
+ * `onOpen` is given. Styles: "Bank panels" in app/globals.css.
  */
 export function BankPanel({
   provider,
   color,
   colorChoice,
-  label,
   onOpen,
-  band,
+  head,
   className,
   children,
 }: {
@@ -494,39 +494,38 @@ export function BankPanel({
   color?: string
   /** Account.color (ENG-66) */
   colorChoice?: string | null
-  /** The band button's label */
-  label?: string
   onOpen?: () => void
-  /** What the band shows (name, meta, figures) */
-  band: ReactNode
+  /** What the head shows beside the face (name, meta, figures) */
+  head: ReactNode
   className?: string
-  /** The body; none leaves the band alone */
+  /** The body; none leaves the head alone */
   children?: ReactNode
 }) {
   const face = faceFor('BANK', provider, color, colorChoice)
-  const bandContent = (
+  // The edge reads the face's own colours; glass has none, so it takes the glass tint
+  const edge = (face.glass
+    ? { '--edge-a': 'var(--acct-glass)', '--edge-b': 'var(--acct-glass)' }
+    : { '--edge-a': face.stops[0], '--edge-b': face.stops[1] }) as CSSProperties
+  const headContent = (
     <>
-      {!face.glass && <Material />}
-      {band}
+      <AccountMini kind="BANK" provider={provider} color={color} colorChoice={colorChoice} className="w-[52px]" />
+      {head}
     </>
   )
   return (
-    <div className={cn('acct-bank acct-bank--panel acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
-      {/* The baked lens: the list is static, and live blur lags on phones */}
-      {face.glass && <GlassSurface baked />}
+    <div className={cn('acct-panel rounded-xl surface', className)} style={edge}>
       {onOpen ? (
         <button
           type="button"
           onClick={onOpen}
-          aria-label={label}
-          className="acct-bank__band block w-[calc(100%+2px)] text-start transition-[filter] duration-fast ease-ui hover:brightness-[1.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80"
+          className="acct-panel__head acct-panel__hit w-full text-start transition-[transform,background-color] duration-quick ease-ui active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
-          {bandContent}
+          {headContent}
         </button>
       ) : (
-        <div className="acct-bank__band">{bandContent}</div>
+        <div className="acct-panel__head">{headContent}</div>
       )}
-      {children}
+      {children && <div className="border-t">{children}</div>}
     </div>
   )
 }

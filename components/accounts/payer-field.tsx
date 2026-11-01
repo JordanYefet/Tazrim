@@ -175,13 +175,11 @@ export function PayerMenu({
   ctx,
   value,
   onChange,
-  align = 'start',
   children,
 }: {
   ctx: PayerContext
   value: string | null
   onChange: (id: string | null) => void
-  align?: 'start' | 'end'
   children: ReactNode
 }) {
   const banks = ctx.banks.filter(b => !b.archived || b.id === value)
@@ -190,7 +188,7 @@ export function PayerMenu({
       <DropdownMenu.Trigger asChild>{children}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          align={align}
+          align="start"
           sideOffset={6}
           collisionPadding={12}
           className="menu-panel z-50 min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[min(22rem,calc(100vw-1.5rem))] rounded-xl surface-overlay p-1 text-sm text-card-foreground shadow-e2"

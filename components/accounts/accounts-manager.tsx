@@ -11,7 +11,7 @@ import { AddAccountForm, type CreatedAccount } from './add-account-form'
 import { EditAccountDialog } from './edit-account-dialog'
 import { DeleteAccountDialog } from './delete-account-dialog'
 import { AccountMini, BankPanel } from './account-element'
-import { PayerMenu, payerSuggestion, type PayerContext } from './payer-field'
+import { payerSuggestion, type PayerContext } from './payer-field'
 import { Reveal } from '@/components/ui/reveal'
 import { networkLabel } from '@/lib/accounts/brands'
 import { fromName, toName, type PayerEvidence } from '@/lib/accounts/payer-suggestion'
@@ -216,33 +216,36 @@ export function AccountsManager({
                   provider={bank.provider}
                   color={bank.positionColor}
                   colorChoice={bank.color}
-                  label={`עריכה: ${bank.displayName}`}
                   onOpen={() => setEditing(bank)}
-                  band={
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="block min-w-0">
-                        <span className="acct-bank__name block"><bdi>{bank.displayName}</bdi></span>
-                        <span className="acct-bank__bank block truncate">
+                  head={
+                    <>
+                      <span className="block min-w-0 flex-1">
+                        <span className="block truncate text-base font-semibold tracking-[-0.01em]">
+                          <span className="sr-only">עריכה: </span>
+                          <bdi>{bank.displayName}</bdi>
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
                           {providerLabel(bank.provider)} · <span className="tabular-nums">{n(bank.transactionCount)}</span> תנועות
                           {!bank.importSupported && ' · ייבוא עדיין לא נתמך'}
                         </span>
                       </span>
-                      <span className="block shrink-0 text-end">
-                        <span className="acct-bank__bank block">{paid.length ? `משלם ${cardsCount(paid.length)}` : 'אין כרטיסים'}</span>
+                      {/* Pinned to the top corner: the count stays put with or without a number under it */}
+                      <span className="block shrink-0 self-start text-end">
+                        <span className="block text-xs text-muted-foreground">{paid.length ? `משלם ${cardsCount(paid.length)}` : 'אין כרטיסים'}</span>
                         {bank.bankAccountNumber && (
-                          <span className="mt-0.5 block text-[15px] font-medium tabular-nums">
+                          <span className="mt-0.5 block text-[13px] font-medium tabular-nums">
                             <span className="sr-only">מספר חשבון </span>
                             <bdi dir="ltr">{bank.bankAccountNumber}</bdi>
                           </span>
                         )}
                       </span>
-                    </span>
+                    </>
                   }
                 >
                   {paid.length > 0 && (
                     <ul className="divide-y" aria-label={`הכרטיסים ש${bank.displayName} משלם`}>
                       {paid.map(c => (
-                        <PaidCardRow key={c.id} card={c} payerId={bank.id} arrives={ready} payer={payer} onEdit={() => setEditing(c)} onMove={id => link(c, id)} />
+                        <PaidCardRow key={c.id} card={c} arrives={ready} onEdit={() => setEditing(c)} />
                       ))}
                     </ul>
                   )}
@@ -537,46 +540,24 @@ function CardFace({ card }: { card: ManagedAccount }) {
 }
 
 /**
- * A card in its bank's panel: the row opens its window; "העברה לחשבון אחר"
- * re-links it from a menu. `arrives`: it mounted after the list (it just
- * moved here), so it slides in.
+ * A card in its bank's panel: one button that opens its window (its payer is
+ * changed there). `arrives`: it mounted after the list (it just moved here),
+ * so it fades in.
  */
-function PaidCardRow({
-  card,
-  payerId,
-  arrives,
-  payer,
-  onEdit,
-  onMove,
-}: {
-  card: ManagedAccount
-  /** The bank account whose panel it is in */
-  payerId: string
-  arrives: boolean
-  payer: PayerContext
-  onEdit: () => void
-  onMove: (payerAccountId: string | null) => void
-}) {
+function PaidCardRow({ card, arrives, onEdit }: { card: ManagedAccount; arrives: boolean; onEdit: () => void }) {
   // Decided once, at mount: re-renders never replay it
   const [enter] = useState(arrives)
   return (
-    <li className={cn('flex items-center', enter && 'acct-row-in')}>
+    <li className={cn(enter && 'acct-row-in')}>
       <button
         type="button"
         onClick={onEdit}
-        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-muted/40 active:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:px-6"
+        className="acct-panel__row acct-panel__hit flex w-full items-center gap-3 text-start transition-[transform,background-color] duration-quick ease-ui active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <CardFace card={card} />
         <CardText card={card} />
+        <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
       </button>
-      <PayerMenu ctx={payer} value={payerId} onChange={onMove} align="end">
-        <button
-          type="button"
-          className="me-2 shrink-0 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted md:me-4"
-        >
-          העברה לחשבון אחר
-        </button>
-      </PayerMenu>
     </li>
   )
 }

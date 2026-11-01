@@ -853,18 +853,43 @@ html {
 .acct-bank__spark { color: color-mix(in oklab, var(--face-b) 72%, hsl(var(--foreground))); }
 .dark .acct-bank__spark { color: color-mix(in oklab, var(--face-a) 80%, white); }
 
-/* The bank panel in /settings' accounts list (BankPanel): the band as a list
-   head, a size down from the element on /banks; its cards sit on the body */
-.acct-bank--panel { box-shadow: var(--elevation-1); }
-.acct-bank--panel .acct-bank__band { padding: 14px 16px; }
-.acct-bank--panel .acct-bank__name { font-size: 17px; }
-.acct-bank--panel .acct-bank__bank { font-size: 12px; }
-@media (min-width: 768px) { .acct-bank--panel .acct-bank__band { padding: 16px 24px; } }
+/* ── Bank panels: /settings' accounts list (BankPanel) ──
+   A quiet surface card: the bank's colour only on the inline-start edge and
+   in the head's mini face, so a list of banks doesn't shout. --edge-a/b are
+   set inline from the face (the glass tint for glass). The panel itself is
+   not a face: glass styling stays on the mini. */
+.acct-panel {
+  overflow: hidden;
+  border-inline-start: 4px solid var(--edge-b);
+}
+/* Dark mode: a step toward the lit stop, so deep brand colours still read on the dark surface */
+.dark .acct-panel { border-inline-start-color: color-mix(in oklab, var(--edge-b) 55%, var(--edge-a)); }
+.acct-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.acct-panel__row { padding: 12px 16px; }
+@media (min-width: 768px) {
+  .acct-panel__head { padding: 16px 24px; }
+  .acct-panel__row { padding: 12px 24px; }
+}
+/* Hover only where there is a real hover (touch would leave it stuck after a tap) */
+@media (hover: hover) and (pointer: fine) {
+  .acct-panel__hit:hover { background-color: hsl(var(--muted) / 0.45); }
+}
+/* Reduced motion: the press darkens instead of shrinking */
+@media (prefers-reduced-motion: reduce) {
+  .acct-panel__hit:active { transform: none; background-color: hsl(var(--muted) / 0.7); }
+}
 
 /* A card row arriving in its group (linked, moved or added): settles down into place */
 .acct-row-in { animation: acct-row-in var(--motion-base) var(--ease-ui) backwards; }
 @keyframes acct-row-in { from { opacity: 0; transform: translateY(-6px); } }
-@media (prefers-reduced-motion: reduce) { .acct-row-in { animation: none; } }
+/* Reduced motion: it still arrives, as a fade */
+@keyframes acct-row-in-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .acct-row-in { animation-name: acct-row-in-fade; } }
 
 /* Mini faces for pills and lists */
 .acct-mini {

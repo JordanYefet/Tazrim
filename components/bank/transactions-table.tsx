@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -21,6 +21,7 @@ import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 import { CardPaymentBadges } from '@/components/bank/card-payment-badge'
 import type { BadgeCard } from '@/lib/accounts/payment-badge'
+import { useTargetRow } from '@/hooks/use-target-row'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 const BANK_KEYS = BANK_COLUMNS.map(c => c.key)
@@ -123,6 +124,9 @@ export function BankTransactionsTable({
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
   const scope = tableScope(accountId, accounts)
+  // A link's `?tx=` row (the card page's "paid from" chip) is brought into view and lit once
+  const tableRef = useRef<HTMLDivElement>(null)
+  useTargetRow(tableRef, transactions.map(t => t.id))
 
   async function loadMore() {
     if (!fetchParams) return
@@ -362,7 +366,7 @@ export function BankTransactionsTable({
       )}
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
-      <div data-swap className="rounded-xl surface overflow-hidden">
+      <div ref={tableRef} data-swap className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -403,6 +407,7 @@ export function BankTransactionsTable({
               {transactions.map(tx => (
                 <tr
                   key={tx.id}
+                  data-row-id={tx.id}
                   className={cn(
                     'border-b transition-colors hover:bg-muted/30',
                     tx.ignored && 'opacity-40',
