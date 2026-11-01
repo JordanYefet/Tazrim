@@ -490,6 +490,18 @@ html {
   .contains-field { animation: none; }
 }
 
+/* Optional table columns (hooks/use-column-motion.ts, the "עמודות" picker): a
+   new column's cells settle in from the side it grows out of, a removed one
+   fades before it leaves the table */
+.col-in { animation: col-in var(--motion-base) var(--ease-ui) backwards; }
+@keyframes col-in { from { opacity: 0; transform: translateX(8px); } }
+[dir='ltr'] .col-in { animation-name: col-in-ltr; }
+@keyframes col-in-ltr { from { opacity: 0; transform: translateX(-8px); } }
+.col-out { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .col-in, .col-out { animation: none; }
+}
+
 /* A page arriving (every page, one entrance): the heading is already there;
    everything under it rises 6px and fades in on the page beat, together (no
    stagger), while its numbers roll and its charts draw (lib/motion.ts). Put

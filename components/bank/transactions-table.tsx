@@ -13,6 +13,7 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
+import { useColumnMotion } from '@/hooks/use-column-motion'
 import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -20,6 +21,8 @@ import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
+const BANK_KEYS = BANK_COLUMNS.map(c => c.key)
+const TH = 'text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide'
 
 interface BankTx {
   id: string
@@ -99,6 +102,7 @@ export function BankTransactionsTable({
   genericDescriptions?: string[]
 }) {
   const [columns, setColumns] = useState(initialColumns as BankColumn[])
+  const { shown: shownColumns, cellClass: columnClass } = useColumnMotion(BANK_KEYS, columns)
   const router = useRouter()
   const params = useSearchParams()
   const [transactions, setTransactions] = useState(initial)
@@ -380,11 +384,14 @@ export function BankTransactionsTable({
                   'זכות',
                   ...(scope.several ? [] : ['יתרה']),
                   'הערה',
-                  ...columns.map(c => LABEL[c]),
-                  '',
                 ].map((h, i) => (
-                  <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
+                  <th key={i} className={TH}>{h}</th>
                 ))}
+                {/* Optional columns slide in and fade out as they're picked (useColumnMotion) */}
+                {shownColumns.map(c => (
+                  <th key={c} className={cn(TH, columnClass(c))}>{LABEL[c]}</th>
+                ))}
+                <th className={TH} />
               </tr>
             </thead>
             <tbody>
@@ -476,8 +483,8 @@ export function BankTransactionsTable({
                       </span>
                     )}
                   </td>
-                  {columns.includes('reference') && (
-                    <td className={cn('py-2.5 px-4 whitespace-nowrap text-xs text-muted-foreground tabular-nums', tx.ignored && 'line-through')}>
+                  {shownColumns.includes('reference') && (
+                    <td className={cn('py-2.5 px-4 whitespace-nowrap text-xs text-muted-foreground tabular-nums', columnClass('reference'), tx.ignored && 'line-through')}>
                       {tx.reference && <span dir="ltr">{tx.reference}</span>}
                     </td>
                   )}
