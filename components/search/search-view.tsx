@@ -552,7 +552,7 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
                 color={known(r.category) ? picker.colors[r.category!] : undefined}
                 sourceName={known(r.category) ? undefined : r.category}
                 onClick={() => setPicking(r)}
-                className="max-w-28 sm:max-w-36"
+                className="w-28 sm:w-40"
               />
             )}
             <span className="flex h-8 w-7 items-center justify-center">
