@@ -279,6 +279,16 @@ html {
 @keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 @keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
 
+/* The header's month / year panel (components/layout/period-picker.tsx): it
+   grows down out of its button, from the button's centre (--pp-left; the
+   phone panel starts 0.75rem in), and folds back into it on close */
+.period-panel { transform-origin: calc(var(--pp-left) - 0.75rem) 0; }
+@media (min-width: 768px) { .period-panel { transform-origin: 50% 0; } }
+.period-panel[data-state='open'] { animation: period-panel-in var(--motion-base) var(--ease-ui); }
+.period-panel[data-state='closed'] { animation: period-panel-out var(--motion-fast) var(--ease-ui) forwards; }
+@keyframes period-panel-in { from { opacity: 0; transform: translateY(-6px) scale(0.94); } }
+@keyframes period-panel-out { to { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+
 /* Confirmation windows (components/ui/confirm-dialog.tsx): rise a short way
    from below and settle; leave the same way, a little quicker */
 .confirm-dialog { transform-origin: 50% 100%; }
@@ -408,6 +418,7 @@ html {
   /* Instant: the capsule jumps to the new tab, sheets and dialogs appear and go (ENG-67) */
   .tab-highlight { transition: none; }
   .sheet[data-state='open'], .sheet[data-state='closed'],
+  .period-panel[data-state='open'], .period-panel[data-state='closed'],
   .confirm-dialog[data-state='open'], .confirm-dialog[data-state='closed'],
   .sheet-scrim[data-state='open'], .sheet-scrim[data-state='closed'],
   .dialog-scrim[data-state='open'], .dialog-scrim[data-state='closed'] { animation: none; }

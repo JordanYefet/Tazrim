@@ -21,7 +21,7 @@ const LATER = 'border border-dashed border-foreground/[0.12] text-muted-foregrou
 /**
  * The header's period: one month back / forward on the arrows (crossing years;
  * a whole year when all months are shown), and the month grid on the middle
- * button: a panel under it on md+, a sheet from the bottom on phones.
+ * button: a panel under it that grows out of the button (.period-panel).
  */
 export function PeriodPicker({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
   const [open, setOpen] = useState(false)
@@ -77,17 +77,14 @@ export function PeriodPicker({ period, onChange }: { period: Period; onChange: (
             }}
             style={{ '--pp-top': `${anchor.top}px`, '--pp-left': `${anchor.center}px` } as React.CSSProperties}
             className={cn(
-              'sheet fixed z-50 flex flex-col gap-3 rounded-3xl p-4 surface-overlay text-card-foreground focus:outline-none',
-              // Phones: a sheet above the bottom bar
-              'inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]',
+              'period-panel fixed z-50 flex flex-col gap-3 rounded-3xl p-4 surface-overlay text-card-foreground focus:outline-none',
+              // Phones: the screen's width, under the button
+              'inset-x-3 top-[var(--pp-top)]',
               // md+: centred under the button
-              'md:inset-x-auto md:bottom-auto md:left-[calc(var(--pp-left)-9.25rem)] md:top-[var(--pp-top)] md:w-[18.5rem] md:rounded-2xl md:p-3.5 md:origin-top'
+              'md:inset-x-auto md:left-[calc(var(--pp-left)-9.25rem)] md:w-[18.5rem] md:rounded-2xl md:p-3.5'
             )}
           >
             <Dialog.Title className="sr-only">בחירת תקופה</Dialog.Title>
-            <div aria-hidden className="flex justify-center md:hidden">
-              <span className="h-1 w-9 rounded-full bg-border" />
-            </div>
             <div className="flex items-center justify-between">
               <button type="button" aria-label="השנה הקודמת" onClick={() => setViewYear(y => y - 1)} className={ARROW}>
                 <ChevronRight className="h-4 w-4" aria-hidden />
