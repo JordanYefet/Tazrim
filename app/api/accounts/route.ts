@@ -10,7 +10,7 @@ export async function GET() {
 
 /**
  * Body: { kind: 'BANK' | 'CREDIT_CARD', provider, displayName, cardLastFour?, cardNetwork?, color?,
- * payerAccountId? (cards: a non-archived bank account id, or null), paidCardIds? (bank accounts:
+ * bankAccountNumber? (bank accounts: digits with '-', '/' or spaces, 4-20 digits), payerAccountId? (cards: a non-archived bank account id, or null), paidCardIds? (bank accounts:
  * non-archived card ids, linked to the new account) }. 201 with the account.
  */
 export async function POST(req: Request) {

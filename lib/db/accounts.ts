@@ -100,6 +100,7 @@ export class AccountValidationError extends Error {
       | 'provider'
       | 'displayName'
       | 'cardLastFour'
+      | 'bankAccountNumber'
       | 'cardNetwork'
       | 'archived'
       | 'color'
@@ -117,6 +118,8 @@ export interface NewAccountInput {
   provider: unknown
   displayName: unknown
   cardLastFour?: unknown
+  /** Bank accounts: the account number, optional */
+  bankAccountNumber?: unknown
   cardNetwork?: unknown
   color?: unknown
   /** Cards: the bank account that pays it (null = unknown / not managed here) */
@@ -176,6 +179,25 @@ export function normalizeCardLastFour(value: unknown, kind: string): string | nu
   return s
 }
 
+/**
+ * Bank accounts only: the account number as Israeli banks write it (digits with
+ * '-', '/' or spaces between, e.g. "12-345-678901"), 4 to 20 digits. Kept as
+ * typed, whitespace collapsed; null / '' clear it.
+ */
+export function normalizeBankAccountNumber(value: unknown, kind: string): string | null {
+  if (value === undefined || value === null) return null
+  const s = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value
+  if (s === '') return null
+  if (kind !== 'BANK') {
+    throw new AccountValidationError('bankAccountNumber', 'מספר חשבון רלוונטי רק לחשבונות בנק')
+  }
+  const digits = typeof s === 'string' && /^\d+(?: ?[-/ ] ?\d+)*$/.test(s) ? s.replace(/\D/g, '').length : 0
+  if (digits < 4 || digits > 20) {
+    throw new AccountValidationError('bankAccountNumber', 'מספר חשבון לא תקין (ספרות, אפשר עם מקף או לוכסן)')
+  }
+  return s as string
+}
+
 export function normalizeDisplayName(value: unknown): string {
   const name = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
   if (!name) throw new AccountValidationError('displayName', 'שם החשבון נדרש')
@@ -221,6 +243,7 @@ export function validateNewAccount(input: NewAccountInput): {
   provider: string
   displayName: string
   cardLastFour: string | null
+  bankAccountNumber: string | null
   cardNetwork: CardNetwork | null
   color: string | null
 } {
@@ -231,9 +254,10 @@ export function validateNewAccount(input: NewAccountInput): {
   const provider = normalizeProvider(input.provider)
   const displayName = normalizeDisplayName(input.displayName)
   const cardLastFour = normalizeCardLastFour(input.cardLastFour, kind)
+  const bankAccountNumber = normalizeBankAccountNumber(input.bankAccountNumber, kind)
   const cardNetwork = normalizeCardNetwork(input.cardNetwork, kind)
   const color = normalizeAccountColor(input.color)
-  return { kind: kind as CreatableKind, provider, displayName, cardLastFour, cardNetwork, color }
+  return { kind: kind as CreatableKind, provider, displayName, cardLastFour, bankAccountNumber, cardNetwork, color }
 }
 
 export async function createAccount(input: NewAccountInput): Promise<Account> {
@@ -281,6 +305,8 @@ export interface AccountUpdateInput {
   displayName?: unknown
   provider?: unknown
   cardLastFour?: unknown
+  /** Bank accounts: the account number, or null / '' to clear it */
+  bankAccountNumber?: unknown
   cardNetwork?: unknown
   color?: unknown
   archived?: unknown
@@ -307,7 +333,7 @@ export type UpdateAccountResult =
  * AccountValidationError for a bad field.
  */
 export async function updateAccount(id: string, input: AccountUpdateInput): Promise<UpdateAccountResult> {
-  const fields = ['displayName', 'provider', 'cardLastFour', 'cardNetwork', 'color', 'archived', 'payerAccountId'] as const
+  const fields = ['displayName', 'provider', 'cardLastFour', 'bankAccountNumber', 'cardNetwork', 'color', 'archived', 'payerAccountId'] as const
   if (fields.every(f => input[f] === undefined)) return { status: 'nothing_to_update' }
 
   const account = await prisma.account.findUnique({
@@ -320,6 +346,7 @@ export async function updateAccount(id: string, input: AccountUpdateInput): Prom
     displayName?: string
     provider?: string
     cardLastFour?: string | null
+    bankAccountNumber?: string | null
     cardNetwork?: CardNetwork | null
     color?: string | null
     archived?: boolean
@@ -328,6 +355,9 @@ export async function updateAccount(id: string, input: AccountUpdateInput): Prom
   if (input.displayName !== undefined) data.displayName = normalizeDisplayName(input.displayName)
   if (input.provider !== undefined) data.provider = normalizeProvider(input.provider)
   if (input.cardLastFour !== undefined) data.cardLastFour = normalizeCardLastFour(input.cardLastFour, account.kind)
+  if (input.bankAccountNumber !== undefined) {
+    data.bankAccountNumber = normalizeBankAccountNumber(input.bankAccountNumber, account.kind)
+  }
   if (input.cardNetwork !== undefined) data.cardNetwork = normalizeCardNetwork(input.cardNetwork, account.kind)
   if (input.color !== undefined) data.color = normalizeAccountColor(input.color)
   if (input.archived !== undefined) {
@@ -365,18 +395,6 @@ export async function listAccountsWithCounts(): Promise<AccountWithCounts[]> {
     counts: _count,
     transactionCount: _count.bankTransactions + _count.creditCardTransactions,
   }))
-}
-
-/**
- * Each bank account's balance after its latest row (the accounts list's
- * bank panels), by account id. Accounts with no rows are left out.
- */
-export async function latestBankBalances(): Promise<Map<string, number>> {
-  const rows = await prisma.$queryRaw<{ accountId: string; balance: number }[]>`
-    SELECT b."accountId", b."balance" FROM "BankTransaction" b
-    WHERE b."date" = (SELECT MAX(x."date") FROM "BankTransaction" x WHERE x."accountId" = b."accountId")
-    GROUP BY b."accountId"`
-  return new Map(rows.map(r => [r.accountId, Number(r.balance)]))
 }
 
 export interface DeletedCounts extends AccountCounts {

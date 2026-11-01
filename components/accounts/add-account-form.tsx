@@ -26,6 +26,8 @@ export interface EditableAccount {
   provider: string
   displayName: string
   cardLastFour: string | null
+  /** Bank accounts: the account number, as typed */
+  bankAccountNumber: string | null
   cardNetwork: string | null
   color: string | null
   transactionCount: number
@@ -48,6 +50,13 @@ const chip = (selected: boolean) =>
       ? 'border-primary/50 bg-primary/10 font-medium text-primary'
       : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
   )
+
+// The server's rule (normalizeBankAccountNumber): digits with '-', '/' or spaces between, 4 to 20 digits
+const accountNumberValid = (v: string) => {
+  const s = v.trim().replace(/\s+/g, ' ')
+  const digits = s.replace(/\D/g, '').length
+  return /^\d+(?: ?[-/ ] ?\d+)*$/.test(s) && digits >= 4 && digits <= 20
+}
 
 const n = (v: number) => v.toLocaleString('he-IL')
 
@@ -100,6 +109,7 @@ export function AccountForm(props: CreateProps | EditProps) {
   const [otherProvider, setOtherProvider] = useState(initialProvider.other)
   const [displayName, setDisplayName] = useState(editing?.displayName ?? '')
   const [lastFour, setLastFour] = useState(editing?.cardLastFour ?? '')
+  const [accountNumber, setAccountNumber] = useState(editing?.bankAccountNumber ?? '')
   // '' = other / unknown. Follows the issuer (Amex) until the user picks one.
   const [network, setNetwork] = useState<string>(
     editing ? editing.cardNetwork ?? '' : impliedNetwork(defaultProvider(initialKind)) ?? ''
@@ -117,6 +127,7 @@ export function AccountForm(props: CreateProps | EditProps) {
 
   const provider = providerChoice === OTHER ? otherProvider.trim().toLowerCase() : providerChoice
   const lastFourInvalid = kind === 'CREDIT_CARD' && lastFour !== '' && !/^\d{4}$/.test(lastFour)
+  const accountNumberInvalid = kind === 'BANK' && accountNumber.trim() !== '' && !accountNumberValid(accountNumber)
   // Merchant rules are keyed by provider: say what changes before saving (ENG-65)
   const providerChanged = !!editing && !!provider && provider !== editing.provider
   const warnProvider = providerChanged && editing!.transactionCount > 0
@@ -151,6 +162,7 @@ export function AccountForm(props: CreateProps | EditProps) {
       if (lastFour !== (account.cardLastFour ?? '')) body.cardLastFour = lastFour || null
       if (network !== (account.cardNetwork ?? '')) body.cardNetwork = network || null
     }
+    if (kind === 'BANK' && accountNumber.trim() !== (account.bankAccountNumber ?? '')) body.bankAccountNumber = accountNumber.trim() || null
     if (color !== account.color) body.color = color
     if (kind === 'CREDIT_CARD' && payerCtx && payer !== account.payerAccountId) body.payerAccountId = payer
     return body
@@ -158,7 +170,7 @@ export function AccountForm(props: CreateProps | EditProps) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (saving || lastFourInvalid) return
+    if (saving || lastFourInvalid || accountNumberInvalid) return
     let request: { url: string; method: string; body: Record<string, unknown> }
     if (editing) {
       const body = editBody(editing)
@@ -177,6 +189,7 @@ export function AccountForm(props: CreateProps | EditProps) {
           displayName,
           cardLastFour: kind === 'CREDIT_CARD' && lastFour ? lastFour : undefined,
           cardNetwork: kind === 'CREDIT_CARD' && network ? network : undefined,
+          bankAccountNumber: kind === 'BANK' && accountNumber.trim() ? accountNumber : undefined,
           color: color ?? undefined,
           payerAccountId: showPayer && payer ? payer : undefined,
           paidCardIds: showPaidCards && paidCards.length ? paidCards : undefined,
@@ -344,6 +357,31 @@ export function AccountForm(props: CreateProps | EditProps) {
                 {fieldError('displayName') && <p className="text-xs text-destructive">{fieldError('displayName')}</p>}
               </div>
 
+              {kind === 'BANK' && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`${id}-number`} className="text-sm font-medium">
+                    מספר חשבון <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                  </label>
+                  <input
+                    id={`${id}-number`}
+                    className={cn(inputClass, 'tabular-nums text-start')}
+                    dir="ltr"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={40}
+                    placeholder="12-345-678901"
+                    value={accountNumber}
+                    // Digits and the separators banks print between them
+                    onChange={e => setAccountNumber(e.target.value.replace(/[^\d\-/ ]/g, ''))}
+                    aria-invalid={accountNumberInvalid || !!fieldError('bankAccountNumber')}
+                    aria-describedby={`${id}-number-hint`}
+                  />
+                  <p id={`${id}-number-hint`} className={cn('text-xs', accountNumberInvalid || fieldError('bankAccountNumber') ? 'text-destructive' : 'text-muted-foreground')}>
+                    {fieldError('bankAccountNumber') ?? (accountNumberInvalid ? 'ספרות בלבד, אפשר עם מקף או לוכסן' : 'מופיע ליד החשבון ברשימה')}
+                  </p>
+                </div>
+              )}
+
               {kind === 'CREDIT_CARD' && (
                 <div className="space-y-1.5">
                   <label htmlFor={`${id}-last4`} className="text-sm font-medium">
@@ -436,7 +474,7 @@ export function AccountForm(props: CreateProps | EditProps) {
       >
         <button
           type="submit"
-          disabled={saving || lastFourInvalid || !displayName.trim() || !provider}
+          disabled={saving || lastFourInvalid || accountNumberInvalid || !displayName.trim() || !provider}
           className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
         >
           {saving ? 'שומר…' : editing ? 'שמור שינויים' : 'הוסף חשבון'}

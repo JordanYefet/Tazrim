@@ -186,3 +186,30 @@ describe('card payer (payerAccountId)', () => {
     expect(payerOf('acct_max')).toBeNull()
   })
 })
+
+describe('bank account number (bankAccountNumber)', () => {
+  it('saves a new bank account\'s number as typed, and refuses one on a card or a malformed one', async () => {
+    const res = await list.POST(json('POST', { kind: 'BANK', provider: 'leumi', displayName: 'Numbered bank', bankAccountNumber: '  12-345-678901 ' }))
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ bankAccountNumber: '12-345-678901' })
+    const blank = await list.POST(json('POST', { kind: 'BANK', provider: 'leumi', displayName: 'Unnumbered bank', bankAccountNumber: '  ' }))
+    expect(await blank.json()).toMatchObject({ bankAccountNumber: null })
+    const onCard = await list.POST(json('POST', { kind: 'CREDIT_CARD', provider: 'max', displayName: 'x', bankAccountNumber: '12-345-678901' }))
+    expect(onCard.status).toBe(400)
+    expect((await onCard.json()).field).toBe('bankAccountNumber')
+    for (const bad of ['123', 'abc-1234', '12--345', '-12345', '1'.repeat(21), 12345]) {
+      const r = await list.POST(json('POST', { kind: 'BANK', provider: 'leumi', displayName: 'x', bankAccountNumber: bad }))
+      expect((await r.json()).field).toBe('bankAccountNumber')
+    }
+  })
+
+  it('sets, keeps the "/" and space forms, and clears on PATCH; refuses on a card', async () => {
+    const slash = await item.PATCH(json('PATCH', { bankAccountNumber: '345/678901' }), ctx('acct_leumi'))
+    expect(await slash.json()).toMatchObject({ bankAccountNumber: '345/678901' })
+    const spaced = await item.PATCH(json('PATCH', { bankAccountNumber: '12  345   678901' }), ctx('acct_leumi'))
+    expect(await spaced.json()).toMatchObject({ bankAccountNumber: '12 345 678901' })
+    expect((await item.PATCH(json('PATCH', { bankAccountNumber: '1234' }), ctx('acct_max'))).status).toBe(400)
+    const cleared = await item.PATCH(json('PATCH', { bankAccountNumber: '' }), ctx('acct_leumi'))
+    expect(await cleared.json()).toMatchObject({ bankAccountNumber: null })
+  })
+})

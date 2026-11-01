@@ -14,7 +14,6 @@ import { AccountMini, BankPanel } from './account-element'
 import { PayerMenu, payerSuggestion, type PayerContext } from './payer-field'
 import { Reveal } from '@/components/ui/reveal'
 import { networkLabel } from '@/lib/accounts/brands'
-import { formatCurrency } from '@/lib/utils/currency'
 import { fromName, toName, type PayerEvidence } from '@/lib/accounts/payer-suggestion'
 
 export interface ManagedAccount {
@@ -23,6 +22,8 @@ export interface ManagedAccount {
   provider: string
   displayName: string
   cardLastFour: string | null
+  /** Bank accounts: the account number, as typed (shown on its panel) */
+  bankAccountNumber: string | null
   cardNetwork: string | null
   /** Account.color (ENG-66) */
   color: string | null
@@ -36,8 +37,6 @@ export interface ManagedAccount {
   positionColor?: string
   /** Cards: the bank account that pays it */
   payerAccountId: string | null
-  /** Bank accounts: the balance after the latest row */
-  latestBalance?: number
 }
 
 const iconButton =
@@ -230,8 +229,11 @@ export function AccountsManager({
                       </span>
                       <span className="block shrink-0 text-end">
                         <span className="acct-bank__bank block">{paid.length ? `משלם ${cardsCount(paid.length)}` : 'אין כרטיסים'}</span>
-                        {bank.latestBalance !== undefined && (
-                          <span className="mt-0.5 block text-[15px] font-semibold tabular-nums">{formatCurrency(bank.latestBalance)}</span>
+                        {bank.bankAccountNumber && (
+                          <span className="mt-0.5 block text-[15px] font-medium tabular-nums">
+                            <span className="sr-only">מספר חשבון </span>
+                            <bdi dir="ltr">{bank.bankAccountNumber}</bdi>
+                          </span>
                         )}
                       </span>
                     </span>

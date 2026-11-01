@@ -8,8 +8,8 @@ const notFound = () => NextResponse.json({ error: 'החשבון לא נמצא' }
 
 /**
  * Body: any of { displayName, provider, cardLastFour, cardNetwork, color,
- * archived, payerAccountId }, at least one (payerAccountId: cards only, a
- * non-archived bank account id or null); every field is validated before anything is saved.
+ * archived, payerAccountId, bankAccountNumber }, at least one (payerAccountId: cards only, a
+ * non-archived bank account id or null; bankAccountNumber: bank accounts only, null / '' clears it); every field is validated before anything is saved.
  * Changing the provider of an account that has transactions needs
  * `confirmProviderChange: true` (409 PROVIDER_CHANGE_UNCONFIRMED otherwise),
  * since merchant rules are keyed by provider.

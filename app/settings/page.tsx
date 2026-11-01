@@ -1,4 +1,4 @@
-import { latestBankBalances, listAccountsWithCounts } from '@/lib/db/accounts'
+import { listAccountsWithCounts } from '@/lib/db/accounts'
 import { getCardPayerEvidence, localToday } from '@/lib/db/card-payers'
 import { isImportSupported } from '@/lib/upload/import'
 import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
@@ -24,11 +24,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     return colors[position[kind]++ % colors.length]
   }
   const now = new Date()
-  const [profileRows, rows, payerEvidence, balances] = await Promise.all([
+  const [profileRows, rows, payerEvidence] = await Promise.all([
     listImportProfiles(),
     listAccountsWithCounts(),
     getCardPayerEvidence(now),
-    latestBankBalances(),
   ])
   const ownProfile = (a: { id: string; kind: string }) => {
     const p = profileRows.find(p => p.accountId === a.id && p.accountKind === a.kind)
@@ -40,6 +39,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     provider: a.provider,
     displayName: a.displayName,
     cardLastFour: a.cardLastFour,
+    bankAccountNumber: a.bankAccountNumber,
     cardNetwork: a.cardNetwork,
     color: a.color,
     archived: a.archived,
@@ -49,7 +49,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     importProfile: ownProfile(a),
     positionColor: positionColor(a.kind, a.archived),
     payerAccountId: a.payerAccountId,
-    latestBalance: balances.get(a.id),
   }))
   const profiles = profileRows.map(toProfileView)
 
