@@ -12,6 +12,7 @@ import { isReadOnly } from '@/lib/read-only'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
 import { PeriodProvider } from '@/components/layout/period-context'
 import { getPeriod } from '@/lib/period-server'
+import { currentMonth } from '@/lib/period'
 import { listAccounts } from '@/lib/db/accounts'
 import { BRAND } from '@/lib/brand/colors'
 import { BackgroundProvider } from '@/components/background/background-provider'
@@ -68,7 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Providers>
           <BackgroundProvider initial={background}>
-          <PeriodProvider initial={initialPeriod}>
+          <PeriodProvider initial={initialPeriod} today={currentMonth()}>
             <NavSectionsProvider sections={sections}>
               <div className="flex min-h-screen">
                 <Sidebar

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  currentMonth,
   formatPeriodCookie,
+  isCurrentMonth,
   stepPeriod,
   isPeriodPath,
   parsePeriodCookie,
@@ -159,5 +161,22 @@ describe('stepPeriod', () => {
   it('steps a whole year when all months are shown', () => {
     expect(stepPeriod({ year: 2026 }, 1)).toEqual({ year: 2027 })
     expect(stepPeriod({ year: 2026 }, -1)).toEqual({ year: 2025 })
+  })
+})
+
+describe('currentMonth / isCurrentMonth', () => {
+  it('is the calendar month of now', () => {
+    expect(currentMonth(now)).toEqual({ year: 2030, month: 10 })
+    expect(currentMonth(new Date(2030, 0, 1))).toEqual({ year: 2030, month: 1 })
+  })
+
+  it('only this month of this year counts', () => {
+    expect(isCurrentMonth({ year: 2030, month: 10 }, now)).toBe(true)
+    expect(isCurrentMonth({ year: 2030, month: 9 }, now)).toBe(false)
+    expect(isCurrentMonth({ year: 2029, month: 10 }, now)).toBe(false)
+  })
+
+  it('the whole current year is not this month', () => {
+    expect(isCurrentMonth({ year: 2030 }, now)).toBe(false)
   })
 })

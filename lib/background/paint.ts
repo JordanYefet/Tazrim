@@ -1,6 +1,6 @@
 /*
  * Paints the page background (ENG-72) into a 2D canvas, the same composition
- * the page shows (lib/background/tile-svg.ts on <body>), so a glass element
+ * the page shows (lib/background/tile-svg.ts on <html>), so a glass element
  * can bake what is behind it (components/glass). Browser only (Path2D).
  *
  * `region` is in document CSS px (the tile is anchored at the document's top

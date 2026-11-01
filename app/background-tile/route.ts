@@ -1,7 +1,7 @@
 import { parseTileQuery, tileSvg } from '@/lib/background/tile-svg'
 
 /*
- * The page background tile (ENG-72): an SVG the stylesheet repeats on <body>
+ * The page background tile (ENG-72): an SVG the stylesheet repeats on <html>
  * (lib/background/tile-svg.ts). Its URL names everything it depends on, so
  * the browser may keep it for good.
  */

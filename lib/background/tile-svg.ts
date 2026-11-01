@@ -1,6 +1,6 @@
 /*
  * The page background as an SVG tile (ENG-72, round 3): a CSS
- * background-image on <body> that repeats down the document and scrolls with
+ * background-image on <html> that repeats down the document and scrolls with
  * it, so the browser rasterises it once and glass elements can bake what is
  * behind them (components/glass). Pure: used by the tile route
  * (app/background-tile/route.ts) for the first paint and by the client as a

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ListChecks, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { SegmentedTrack } from '@/components/ui/segmented'
+import { Reveal } from '@/components/ui/reveal'
 import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult, type TextMode } from '@/lib/search/query'
 import { formatCurrency } from '@/lib/utils/currency'
 import { isCardPaymentRow } from '@/lib/insights/bank-categories'
@@ -141,7 +142,8 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
     <div className="page-in mx-auto max-w-3xl space-y-4">
       <h1 className="text-2xl font-bold">חיפוש</h1>
 
-      <div className="space-y-3 rounded-xl surface p-3 sm:p-4">
+      {/* No space-y here: the blocks below open and close in place, so each carries its own top padding */}
+      <div className="rounded-xl surface p-3 sm:p-4">
         <div className="flex items-center gap-2">
           <label className="relative flex-1">
             <span className="sr-only">טקסט חופשי</span>
@@ -162,7 +164,7 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
             aria-expanded={showFilters}
             aria-controls="search-filters"
             className={cn(
-              'relative flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors',
+              'relative flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors duration-fast ease-ui',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               showFilters ? 'bg-primary/10 text-primary border-primary/30' : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
@@ -174,7 +176,7 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
         </div>
 
         {/* Several words: all of them (the default) or any one; quotes keep a phrase whole */}
-        {splitTerms(form.text).length > 1 && (
+        <Reveal open={splitTerms(form.text).length > 1} className="pt-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
             <SegmentedTrack
               role="radiogroup"
@@ -206,10 +208,10 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
               ביטוי מדויק: <bdi>"בין מירכאות"</bdi>
             </span>
           </div>
-        )}
+        </Reveal>
 
-        {showFilters && (
-          <div id="search-filters" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Reveal open={showFilters} id="search-filters" className="pt-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <label className="col-span-2 space-y-1 sm:col-span-1">
               <span className="text-xs text-muted-foreground">סכום</span>
               <input
@@ -295,7 +297,7 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
               )}
             </div>
           </div>
-        )}
+        </Reveal>
       </div>
 
       <div ref={resultsRef} className={cn('transition-opacity', pending && 'opacity-60')} aria-busy={pending}>

@@ -1349,9 +1349,11 @@ aside.bar-glass { box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.6), -8px 0 24px 
    or soft ribbons. <html data-bg data-bg-palette> and the tile's URL
    (--bg-tile-light / --bg-tile-dark) come from a cookie, so the server
    paints the right one. The tile (lib/background/tile-svg.ts) is a
-   background image of <body>: it scrolls with the document and is
+   background image of <html>: it scrolls with the document and is
    rasterised once, so nothing redraws while the page scrolls, and what
-   sits behind a glass element stays put (the glass is baked once). */
+   sits behind a glass element stays put (the glass is baked once).
+   On <html> rather than <body> so a z-index -1 layer can sit above it and
+   under everything else: the cross-fade on a change (.bg-crossfade). */
 html[data-bg='lines'] { background-color: #ffffff; }
 html.dark[data-bg='lines'] { background-color: #0b1120; }
 html[data-bg='ribbons'] { background-color: #eef2f7; }
@@ -1360,26 +1362,38 @@ html.dark[data-bg='ribbons'] { background-color: #05060f; }
 html[data-bg='lines'] body::before,
 html[data-bg='ribbons'] body::before { display: none; }
 
-html[data-bg='lines'] body,
-html[data-bg='ribbons'] body {
+html[data-bg='lines'],
+html[data-bg='ribbons'] {
   background-image: var(--bg-tile-light);
   background-position: 0 0;
   background-repeat: repeat;
 }
-html.dark[data-bg='lines'] body,
-html.dark[data-bg='ribbons'] body { background-image: var(--bg-tile-dark); }
+html.dark[data-bg='lines'],
+html.dark[data-bg='ribbons'] { background-image: var(--bg-tile-dark); }
 /* Ribbons: as wide as the page, repeated down it */
-html[data-bg='ribbons'] body { background-size: 100% auto; background-repeat: repeat-y; }
+html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-y; }
 
 /* Reduced transparency or more contrast: the plain backdrop */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  html[data-bg='lines'] body,
-  html[data-bg='ribbons'] body,
-  html.dark[data-bg='lines'] body,
-  html.dark[data-bg='ribbons'] body { background-image: none; }
+  html[data-bg='lines'],
+  html[data-bg='ribbons'],
+  html.dark[data-bg='lines'],
+  html.dark[data-bg='ribbons'] { background-image: none; }
   html[data-bg='lines'] body::before,
   html[data-bg='ribbons'] body::before { display: block; }
   html[data-bg] { background-color: hsl(var(--background)); }
+}
+
+/* Background cross-fade (components/background/crossfade.ts): a picked
+   background replaces the old one under a short-lived copy of the old,
+   which fades out. z-index -1 at the end of <body>: above the page
+   background (<html>, body::before) and under all content. Only opacity
+   animates, so it runs on the compositor while the glass re-bakes. */
+.bg-crossfade {
+  position: absolute;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Settings → רקע (components/settings/background-settings.tsx) */
