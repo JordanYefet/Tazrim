@@ -28,7 +28,8 @@ export function UnusualList({ items, onDismiss, title = 'תנועות חריגו
     <section dir="rtl" className="flex flex-col rounded-xl surface p-4 sm:p-6">
       <h3 className="text-base font-semibold">{title}</h3>
       {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-      <div className="mt-4">
+      {/* data-swap: the rows ease in when the dashboard swaps the period (components/ui/data-swap.tsx) */}
+      <div data-swap className="mt-4">
         {shown.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">לא נמצאו תנועות חריגות.</p>
         ) : (

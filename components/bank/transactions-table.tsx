@@ -352,8 +352,8 @@ export function BankTransactionsTable({
         />
       )}
 
-      {/* Table */}
-      <div className="rounded-xl surface overflow-hidden">
+      {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
+      <div data-swap className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

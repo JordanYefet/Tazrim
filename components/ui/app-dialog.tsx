@@ -3,10 +3,12 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { useOpenOrigin } from './open-origin'
 
 /**
  * The app's window (the account editor's, components/accounts/edit-account-dialog.tsx):
- * a sheet from the bottom on phones, a centred window on wider screens, rising in.
+ * a sheet from the bottom on phones (rising from under the tap), a centred window
+ * on wider screens (growing out of the tap, components/ui/open-origin.ts).
  * Every other window builds on this one, so they stay the same.
  */
 export function AppDialog({
@@ -22,16 +24,18 @@ export function AppDialog({
   className?: string
   children: React.ReactNode
 }) {
+  const originRef = useOpenOrigin()
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
+          ref={originRef}
           dir="rtl"
           aria-describedby={undefined}
           className={cn(
-            'confirm-dialog fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl surface-overlay p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-card-foreground focus:outline-none',
-            // Centred without a transform, so the rise animation owns transform
+            'app-window app-window--sheet fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl surface-overlay p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-card-foreground focus:outline-none',
+            // Centred without a transform, so the entrance owns transform
             'sm:inset-x-4 sm:inset-y-0 sm:my-auto sm:h-fit sm:max-h-[88dvh] sm:max-w-lg sm:rounded-3xl sm:p-6',
             className
           )}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeftRight, ChevronLeft, CreditCard, Landmark, Plus, Search, Store, TextSearch } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTrack } from '@/components/ui/segmented'
 import { providerLabel } from '@/lib/accounts/brands'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -241,25 +242,24 @@ export function CategoriesView({
 /** Expense / income, with a thumb that slides between them */
 function SegmentedKind({ kind, onChange, counts }: { kind: Kind; onChange: (k: Kind) => void; counts?: Record<Kind, number> }) {
   return (
-    <div role="tablist" aria-label="סוג קטגוריה" className="relative grid grid-cols-2 rounded-xl bg-muted p-[3px]">
-      <span
-        aria-hidden
-        className={cn(
-          'absolute inset-y-[3px] start-[3px] w-[calc(50%-3px)] rounded-[9px] bg-card shadow-sm',
-          'transition-transform duration-base ease-ui motion-reduce:transition-none',
-          // RTL: the second half is to the left
-          kind === 'INCOME' && '-translate-x-full'
-        )}
-      />
+    <SegmentedTrack
+      role="tablist"
+      aria-label="סוג קטגוריה"
+      active={kind}
+      thumbClassName="rounded-[9px] bg-card shadow-sm"
+      className="grid grid-cols-2 rounded-xl bg-muted p-[3px]"
+    >
       {(['EXPENSE', 'INCOME'] as const).map(k => (
         <button
           key={k}
           role="tab"
+          data-segment={k}
+          data-on={kind === k || undefined}
           aria-selected={kind === k}
           onClick={() => onChange(k)}
           className={cn(
-            'relative z-10 flex h-9 items-center justify-center gap-2 rounded-[9px] text-[15px] transition-colors duration-base',
-            kind === k ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground hover:text-foreground'
+            'flex h-9 items-center justify-center gap-2 rounded-[9px] text-[15px] transition-colors duration-base',
+            kind === k ? 'bg-card font-semibold text-foreground shadow-sm' : 'font-medium text-muted-foreground hover:text-foreground'
           )}
         >
           <span className={cn('h-2 w-2 rounded-full', KIND_DOT[k])} aria-hidden />
@@ -267,7 +267,7 @@ function SegmentedKind({ kind, onChange, counts }: { kind: Kind; onChange: (k: K
           {counts && <span className="text-xs font-normal tabular-nums text-muted-foreground">{counts[k]}</span>}
         </button>
       ))}
-    </div>
+    </SegmentedTrack>
   )
 }
 

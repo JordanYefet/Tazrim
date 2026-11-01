@@ -11,6 +11,7 @@ import { listAccounts } from '@/lib/db/accounts'
 import { getBankBalancePoints, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
+import { DataSwap } from '@/components/ui/data-swap'
 import { FlowFilter } from '@/components/bank/flow-filter'
 import type { TableAccount } from '@/components/accounts/account-tag'
 import { getBankCategoryMonthly } from '@/lib/db/bank-categories'
@@ -239,23 +240,26 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         {/* Every account's rows together, as on an account's page; card payments stay,
             as bank money going out */}
         {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
-          <BankTransactionsTable
-            key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
-            accounts={tableAccounts}
-            transactions={table.transactions}
-            showIgnored={params.showIgnored === 'true'}
-            hasMore={hasMore}
-            fetchParams={hasMore ? fetchSp.toString() : undefined}
-            unusual={table.unusual}
-            recurring={table.recurring}
-            initialColumns={parseColumns((await cookies()).get(columnsCookie('bank'))?.value, 'bank')}
-            expenseCategories={table.expenseCategories}
-            incomeCategories={table.incomeCategories}
-            categoryColors={table.categoryColors}
-            genericDescriptions={table.genericDescriptions}
-            activeCategory={params.category}
-            flowFilter={<FlowFilter basePath={accountPath('BANK')} params={params} current={flow} />}
-          />
+          // Stays mounted while the keyed table remounts, so the new rows ease in
+          <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')} height>
+            <BankTransactionsTable
+              key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
+              accounts={tableAccounts}
+              transactions={table.transactions}
+              showIgnored={params.showIgnored === 'true'}
+              hasMore={hasMore}
+              fetchParams={hasMore ? fetchSp.toString() : undefined}
+              unusual={table.unusual}
+              recurring={table.recurring}
+              initialColumns={parseColumns((await cookies()).get(columnsCookie('bank'))?.value, 'bank')}
+              expenseCategories={table.expenseCategories}
+              incomeCategories={table.incomeCategories}
+              categoryColors={table.categoryColors}
+              genericDescriptions={table.genericDescriptions}
+              activeCategory={params.category}
+              flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK')} params={params} current={flow} />}
+            />
+          </DataSwap>
         )}
       </div>
     </div>

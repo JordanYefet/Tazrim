@@ -39,7 +39,7 @@ export function ColumnPicker({
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 min-w-44 rounded-xl surface-overlay p-1 text-sm text-card-foreground shadow-e2"
+          className="menu-panel z-50 min-w-44 rounded-xl surface-overlay p-1 text-sm text-card-foreground shadow-e2"
         >
           <DropdownMenu.Label className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">עמודות נוספות בטבלה</DropdownMenu.Label>
           {columns.map(c => (

@@ -2,9 +2,10 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
+import { useDataSwap } from '@/hooks/use-data-swap'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { Suspense, useRef } from 'react'
 import { formatCurrency } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
@@ -51,6 +52,10 @@ function CategoryDonutInner({
     .sort((a, b) => b.value - a.value)
   // Stable per-category colors when provided, so they match the trend chart
   const colorOf = (name: string, i: number) => colors?.[name] ?? COLORS[i % COLORS.length]
+  // The ring animates itself; the legend eases in when another period or filter
+  // brings other categories or another order (same rows: only their numbers roll)
+  const legendRef = useRef<HTMLDivElement>(null)
+  useDataSwap(legendRef, chartData.map(d => d.name).join('\n'))
 
   function handleClick(entry: { name: string }) {
     // A page without a table of its own (/cards) opens the category's transactions instead
@@ -113,7 +118,7 @@ function CategoryDonutInner({
         </div>
 
         {/* Legend as a table: category | count | amount, on one grid so the columns line up */}
-        <div className="flex w-full min-w-0 flex-1 flex-col gap-0.5">
+        <div ref={legendRef} className="flex w-full min-w-0 flex-1 flex-col gap-0.5">
           {chartData.map((entry, i) => {
             const count = stats?.[entry.name]?.count
             return (

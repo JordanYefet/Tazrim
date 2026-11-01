@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils/cn'
 import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
 import { usePeriodHref } from './period-context'
+import { useOpenOrigin } from '@/components/ui/open-origin'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -35,7 +36,7 @@ function TabIcon({ active, icon: Icon }: { active: boolean; icon: typeof LayoutD
     <Icon
       aria-hidden
       strokeWidth={active ? 2.2 : 1.8}
-      className="h-6 w-6 transition-transform duration-quick ease-out group-active:scale-[0.88]"
+      className="h-6 w-6 transition-transform duration-quick ease-ui group-active:scale-[0.88]"
     />
   )
 }
@@ -48,6 +49,8 @@ export function BottomNav() {
   const pathname = usePathname()
   const periodHref = usePeriodHref()
   const [moreOpen, setMoreOpen] = useState(false)
+  // The sheet rises out of the "עוד" tab: its x from the tap (or the focused tab)
+  const sheetOrigin = useOpenOrigin()
 
   // A link in the sheet navigates; close it once the page changes
   useEffect(() => setMoreOpen(false), [pathname])
@@ -97,6 +100,7 @@ export function BottomNav() {
           {/* The pill sits above the scrim, so "עוד" stays visible (and tappable to close) */}
           <Dialog.Overlay className="sheet-scrim fixed inset-0 z-40 bg-black/45 md:hidden" />
           <Dialog.Content
+            ref={sheetOrigin}
             dir="rtl"
             aria-describedby={undefined}
             className="sheet fixed inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] z-50 overflow-hidden rounded-3xl surface-overlay text-card-foreground focus:outline-none md:hidden"

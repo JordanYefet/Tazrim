@@ -7,6 +7,7 @@ import { CardHeroTotal } from '@/components/cards/card-wallet'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
+import { DataSwap } from '@/components/ui/data-swap'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlyCounts, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
@@ -193,20 +194,23 @@ export default async function CardAccountPage({
         )}
 
         {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (
-          <CardTransactionsTable
-            key={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')}
-            accountId={account.id}
-            transactions={transactions}
-            categories={categories}
-            categoryColors={categoryColors}
-            activeCategory={params.category}
-            showIgnored={params.showIgnored === 'true'}
-            hasMore={hasMore}
-            fetchParams={hasMore ? fetchSp.toString() : undefined}
-            unusual={unusual}
-            recurring={recurring}
-            initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
-          />
+          // Stays mounted while the keyed table remounts, so the new rows ease in
+          <DataSwap swapKey={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')} height>
+            <CardTransactionsTable
+              key={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')}
+              accountId={account.id}
+              transactions={transactions}
+              categories={categories}
+              categoryColors={categoryColors}
+              activeCategory={params.category}
+              showIgnored={params.showIgnored === 'true'}
+              hasMore={hasMore}
+              fetchParams={hasMore ? fetchSp.toString() : undefined}
+              unusual={unusual}
+              recurring={recurring}
+              initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
+            />
+          </DataSwap>
         )}
       </div>
     </div>

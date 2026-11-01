@@ -259,45 +259,86 @@ html {
   scroll-padding-top: 4.5rem;
 }
 
-/* Rail flyout: a quick fade and settle from the rail side, no overshoot */
-.flyout-in {
-  transform-origin: right top;
-  animation: flyout-in var(--motion-quick) var(--ease-ui);
+/* Popups, one motion language (components/ui/open-origin.ts):
+   - windows (.app-window: AppDialog, ConfirmDialog, the ⌘K search) grow out
+     of the tap that opened them (--origin-x / --origin-y, set on open; the
+     centre when unknown) and fold back toward it on close
+   - anchored panels (.period-panel, .flyout-in, .menu-panel, .rail-tip) grow
+     out of their trigger's edge on one keyframe pair, nudged by --panel-dx /
+     --panel-dy toward the trigger
+   - sheets on the bottom edge (.sheet, AppDialog on phones) rise from under
+     the tap's x
+   - every scrim fades the same */
+
+/* Anchored panels */
+@keyframes panel-in {
+  from { opacity: 0; transform: translate(var(--panel-dx, 0px), var(--panel-dy, 0px)) scale(var(--panel-scale, 0.94)); }
 }
-@keyframes flyout-in {
-  from { opacity: 0; transform: translateX(4px) scale(0.98); }
+/* Back toward the trigger, a shorter way */
+@keyframes panel-out {
+  to { opacity: 0; transform: translate(calc(var(--panel-dx, 0px) * 2 / 3), calc(var(--panel-dy, 0px) * 2 / 3)) scale(0.97); }
 }
 
-/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the pill's
-   last slot, at the left edge under RTL), and back into it on close */
-.sheet { transform-origin: 90% 100%; }
-[dir='rtl'] .sheet { transform-origin: 10% 100%; }
-.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-ui); }
-.sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
-.sheet-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
-.sheet-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
-@keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
-@keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
+/* Rail flyout: a quick fade and settle out of its icon (--origin-y, set by
+   rail-flyout.tsx), no overshoot; hover-opened, so quick and a small scale */
+.flyout-in {
+  --panel-dx: 4px;
+  --panel-scale: 0.98;
+  transform-origin: right var(--origin-y, top);
+  animation: panel-in var(--motion-quick) var(--ease-ui);
+}
+
+/* The rail's name tooltips: the first one settles out of its icon the same
+   way; moving between icons (instant-open) just shows the next */
+.rail-tip[data-state='delayed-open'] {
+  --panel-dx: 4px;
+  --panel-scale: 0.98;
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation: panel-in var(--motion-quick) var(--ease-ui);
+}
+
+/* Radix dropdowns (the "עמודות" column picker): out of the trigger's edge */
+.menu-panel { --panel-dy: -6px; transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
+.menu-panel[data-side='top'] { --panel-dy: 6px; }
+.menu-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
+.menu-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
 
 /* The header's month / year panel (components/layout/period-picker.tsx): it
    grows down out of its button, from the button's centre (--pp-left; the
    phone panel starts 0.75rem in), and folds back into it on close */
-.period-panel { transform-origin: calc(var(--pp-left) - 0.75rem) 0; }
+.period-panel { --panel-dy: -6px; transform-origin: calc(var(--pp-left) - 0.75rem) 0; }
 @media (min-width: 768px) { .period-panel { transform-origin: 50% 0; } }
-.period-panel[data-state='open'] { animation: period-panel-in var(--motion-base) var(--ease-ui); }
-.period-panel[data-state='closed'] { animation: period-panel-out var(--motion-fast) var(--ease-ui) forwards; }
-@keyframes period-panel-in { from { opacity: 0; transform: translateY(-6px) scale(0.94); } }
-@keyframes period-panel-out { to { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+.period-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
+.period-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
 
-/* Confirmation windows (components/ui/confirm-dialog.tsx): rise a short way
-   from below and settle; leave the same way, a little quicker */
-.confirm-dialog { transform-origin: 50% 100%; }
-.confirm-dialog[data-state='open'] { animation: confirm-in var(--motion-base) var(--ease-ui); }
-.confirm-dialog[data-state='closed'] { animation: confirm-out var(--motion-fast) var(--ease-ui) forwards; }
-.dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
-.dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
-@keyframes confirm-in { from { opacity: 0; transform: translateY(20px) scale(0.97); } }
-@keyframes confirm-out { to { opacity: 0; transform: translateY(12px) scale(0.98); } }
+/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the tap's x;
+   without one, the pill's last slot, at the left edge under RTL), and back
+   into it on close */
+.sheet { transform-origin: var(--origin-x, 90%) 100%; }
+[dir='rtl'] .sheet { transform-origin: var(--origin-x, 10%) 100%; }
+.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-ui); }
+.sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
+@keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
+
+/* Windows: no translate, so the scale alone carries them out of the tap (and
+   open-origin.ts can find the untransformed box from the centre) */
+.app-window { transform-origin: var(--origin-x, 50%) var(--origin-y, 50%); }
+.app-window[data-state='open'] { animation: window-in var(--motion-base) var(--ease-ui); }
+.app-window[data-state='closed'] { animation: window-out var(--motion-fast) var(--ease-ui) forwards; }
+@keyframes window-in { from { opacity: 0; transform: scale(0.94); } }
+@keyframes window-out { to { opacity: 0; transform: scale(0.96); } }
+/* AppDialog on phones sits on the bottom edge: it rises like the "עוד"
+   sheet, from under the tap's x (below Tailwind's sm) */
+@media (max-width: 639.98px) {
+  .app-window--sheet { transform-origin: var(--origin-x, 50%) 100%; }
+  .app-window--sheet[data-state='open'] { animation-name: sheet-in; }
+  .app-window--sheet[data-state='closed'] { animation-name: sheet-out; }
+}
+
+/* Scrims: one fade for every popup */
+.sheet-scrim[data-state='open'], .dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
+.sheet-scrim[data-state='closed'], .dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
@@ -389,6 +430,26 @@ html {
   .glass-pill { background: hsl(var(--card)); border-color: hsl(var(--border)); }
 }
 
+/* Segmented controls (components/ui/segmented.tsx): one thumb slides to the
+   picked option. It sits under the options (isolate + z-index -1, so the
+   options need no positioning) and is hidden until measured; once it is
+   placed, the picked option stops painting its own pre-hydration highlight. */
+.segmented { position: relative; isolation: isolate; }
+.segmented__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: transform var(--motion-base) var(--ease-ui), width var(--motion-base) var(--ease-ui),
+    height var(--motion-base) var(--ease-ui);
+}
+.segmented:not([data-thumb]) > .segmented__thumb { opacity: 0; }
+.segmented[data-thumb] > [data-segment][data-on] { background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .segmented__thumb { transition: none; }
+}
+
 /* Picking a month on a bar chart: bars dim and brighten softly instead of
    snapping. Opacity only, so it stays on under reduced motion. */
 .recharts-bar-rectangle path {
@@ -414,12 +475,13 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flyout-in { animation: none; }
+  .flyout-in, .rail-tip[data-state='delayed-open'] { animation: none; }
   /* Instant: the capsule jumps to the new tab, sheets and dialogs appear and go (ENG-67) */
   .tab-highlight { transition: none; }
   .sheet[data-state='open'], .sheet[data-state='closed'],
   .period-panel[data-state='open'], .period-panel[data-state='closed'],
-  .confirm-dialog[data-state='open'], .confirm-dialog[data-state='closed'],
+  .menu-panel[data-state='open'], .menu-panel[data-state='closed'],
+  .app-window[data-state='open'], .app-window[data-state='closed'],
   .sheet-scrim[data-state='open'], .sheet-scrim[data-state='closed'],
   .dialog-scrim[data-state='open'], .dialog-scrim[data-state='closed'] { animation: none; }
   .recharts-bar-rectangle path, .month-slot { transition: none; }

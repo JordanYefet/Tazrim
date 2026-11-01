@@ -405,7 +405,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={!account || busy}
-            className="px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-quick ease-out active:scale-[0.97] disabled:opacity-50"
+            className="px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-quick ease-ui active:scale-[0.97] disabled:opacity-50"
           >
             {files.length ? 'הוסף קבצים' : 'בחר קובץ'}
           </button>
@@ -522,7 +522,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                     disabled={busy || reading || (queue.length === 0 && !shownFix)}
                     aria-disabled={queue.length === 0 || undefined}
                     className={cn(
-                      'px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-quick ease-out active:scale-[0.97] disabled:opacity-50',
+                      'px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-[background-color,transform] duration-quick ease-ui active:scale-[0.97] disabled:opacity-50',
                       queue.length === 0 && 'opacity-50'
                     )}
                   >
@@ -560,7 +560,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
                 {progress && progress.n > 1 && (
                   <div aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary transition-transform duration-fast ease-out ltr:origin-left rtl:origin-right"
+                      className="h-full rounded-full bg-primary transition-transform duration-fast ease-ui ltr:origin-left rtl:origin-right"
                       style={{ transform: `scaleX(${(progress.k - 1 + 0.5) / progress.n})` }}
                     />
                   </div>

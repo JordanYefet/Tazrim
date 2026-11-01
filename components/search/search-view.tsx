@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListChecks, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTrack } from '@/components/ui/segmented'
 import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult, type TextMode } from '@/lib/search/query'
 import { formatCurrency } from '@/lib/utils/currency'
 import { isCardPaymentRow } from '@/lib/insights/bank-categories'
@@ -13,6 +14,7 @@ import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { SearchResultList } from './search-result-list'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import { SearchEmptyState, SearchNoResults } from './search-states'
+import { useDataSwap } from '@/hooks/use-data-swap'
 
 interface AccountOption {
   id: string
@@ -129,6 +131,11 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
 
   const terms = splitTerms(filters.text)
   const criteria = hasCriteria(filters)
+  // The results ease in when they change; keyed on the hits, not the query, so a
+  // keystroke that finds the same rows plays nothing
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const resultsKey = !criteria ? '' : `${page.total}:${page.results.map(r => `${r.source}:${r.id}`).join(',')}`
+  useDataSwap(resultsRef, resultsKey, { height: true })
 
   return (
     <div className="page-in mx-auto max-w-3xl space-y-4">
@@ -169,16 +176,24 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
         {/* Several words: all of them (the default) or any one; quotes keep a phrase whole */}
         {splitTerms(form.text).length > 1 && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-            <div role="radiogroup" aria-label="התאמת המילים" className="inline-flex rounded-lg border bg-card p-0.5">
+            <SegmentedTrack
+              role="radiogroup"
+              aria-label="התאמת המילים"
+              active={form.textMode}
+              thumbClassName="rounded-md bg-primary/10"
+              className="inline-flex rounded-lg border bg-card p-0.5"
+            >
               {([['all', 'כל המילים'], ['any', 'אחת מהמילים']] as const).map(([mode, label]) => (
                 <button
                   key={mode}
                   type="button"
                   role="radio"
+                  data-segment={mode}
+                  data-on={form.textMode === mode || undefined}
                   aria-checked={form.textMode === mode}
                   onClick={() => update({ textMode: mode })}
                   className={cn(
-                    'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                    'rounded-md px-3 py-1 text-xs font-medium transition-colors duration-base ease-ui',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     form.textMode === mode ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
@@ -186,7 +201,7 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
                   {label}
                 </button>
               ))}
-            </div>
+            </SegmentedTrack>
             <span>
               ביטוי מדויק: <bdi>"בין מירכאות"</bdi>
             </span>
@@ -283,7 +298,7 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
         )}
       </div>
 
-      <div className={cn('transition-opacity', pending && 'opacity-60')} aria-busy={pending}>
+      <div ref={resultsRef} className={cn('transition-opacity', pending && 'opacity-60')} aria-busy={pending}>
         {!criteria ? (
           <SearchEmptyState />
         ) : page.results.length === 0 ? (

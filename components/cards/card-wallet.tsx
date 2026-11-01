@@ -523,8 +523,8 @@ function Wallet({
     }
     // Leaving the stack, the cards nearest the chosen one go first; coming back, the same
     const order = mode.kind === 'open' ? [...stackOrder].reverse() : stackOrder
-    // A card's page to another card's page (credit cards): swap in place (swapCard)
-    const swapFrom = kind === 'cards' && prev.kind === 'open' && mode.kind === 'open' ? prev.id : null
+    // A card's page to another card's page: swap in place (swapCard)
+    const swapFrom = prev.kind === 'open' && mode.kind === 'open' ? prev.id : null
     let k = 0
     for (const id of order) {
       const el = elements.current.get(id)
@@ -556,7 +556,7 @@ function Wallet({
         for (const el of [pocketRef.current, ...elements.current.values()]) if (el) shiftCard(el, { to: ahead })
       }
     }
-  }, [mode, place, stackOrder, cards, heightMode.kind, kind])
+  }, [mode, place, stackOrder, cards, heightMode.kind])
 
   // The wallet itself moved on the page (the new page's heading is taller or
   // shorter): carry the cards across so they don't jump, then let them settle
