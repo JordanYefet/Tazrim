@@ -55,15 +55,16 @@ export function CategoryPill({ name, color, sourceName, onClick, className }: {
   return (
     <button
       onClick={onClick}
-      title={!name && sourceName ? `בקובץ: ${sourceName}` : undefined}
+      title={!name && sourceName ? `בקובץ: ${sourceName}` : (name ?? undefined)}
       className={cn(
-        'inline-flex h-7 max-w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
+        // One width for every category, so a column of pills lines up: room for the longest starting category; a longer custom name truncates (full name on hover)
+        'inline-flex h-7 w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
         name ? 'bg-muted/60' : 'border border-dashed text-muted-foreground',
         className
       )}
     >
       {name && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color ?? NO_COLOR }} aria-hidden />}
-      <bdi className="truncate">{name ?? UNCATEGORIZED}</bdi>
+      <bdi className="min-w-0 flex-1 truncate text-start">{name ?? UNCATEGORIZED}</bdi>
       <ChevronDown className="h-3 w-3 shrink-0 opacity-50" aria-hidden />
     </button>
   )

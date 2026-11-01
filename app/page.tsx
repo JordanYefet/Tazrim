@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { monthName } from '@/lib/utils/date'
 import { CategoryInsights } from '@/components/dashboard/category-insights'
+import { DataSwap } from '@/components/ui/data-swap'
 import { getCCCategoryMonthly, getCCCategoryStats } from '@/lib/db/cards'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { mergeCategoryMonthly, mergeCategoryStats, UNCATEGORIZED } from '@/lib/insights/bank-categories'
@@ -145,7 +146,8 @@ export default async function DashboardPage({
   const query = new URLSearchParams({ year, ...(month ? { month: String(month) } : {}) }).toString()
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    // page-in: everything under the title eases in on the page beat, the empty state too
+    <div className="page-in mx-auto max-w-7xl space-y-6">
       {/* Remembers the period across the app (ENG-63) */}
       <PeriodSync year={Number(year)} month={month} />
       {/* The header's pickers show the period; the title doesn't repeat it (ENG-64) */}
@@ -198,7 +200,11 @@ export default async function DashboardPage({
               categoryHrefs={donutHrefs}
             />
             {/* What deserves a look sits beside the donut, at full height */}
-            <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
+            {/* The card remounts per range (its dismissals reset); the wrapper stays and eases the
+                new rows in. grid: the card still fills the row's height */}
+            <DataSwap className="grid" swapKey={`${range.since}|${range.until}`}>
+              <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
+            </DataSwap>
           </div>
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <RecurringCard series={recurring.subscriptions} total={recurring.total} />

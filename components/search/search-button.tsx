@@ -27,6 +27,7 @@ export function SearchButton() {
       <button
         type="button"
         onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}
+        data-search-trigger
         aria-label="חיפוש תנועות"
         aria-keyshortcuts="Meta+K Control+K"
         className={cn(box, 'hidden px-2.5 text-sm md:flex')}

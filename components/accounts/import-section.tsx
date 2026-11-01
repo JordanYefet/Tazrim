@@ -14,7 +14,7 @@ export interface ImportState {
 }
 
 const button =
-  'inline-flex h-9 shrink-0 items-center rounded-lg border bg-card px-3 text-sm font-medium transition-[background-color,transform] duration-150 hover:bg-muted active:scale-[0.97] disabled:opacity-50'
+  'inline-flex h-9 shrink-0 items-center rounded-lg border bg-card px-3 text-sm font-medium transition-[background-color,transform] duration-quick hover:bg-muted active:scale-[0.97] disabled:opacity-50'
 
 export function ImportSection({
   state,

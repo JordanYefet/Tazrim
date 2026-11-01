@@ -16,6 +16,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
+import { DataSwap } from '@/components/ui/data-swap'
 import type { TableAccount } from '@/components/accounts/account-tag'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -225,20 +226,23 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
 
         {/* Every card's charges together, as on a card's page */}
         {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
-          <CardTransactionsTable
-            key={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')}
-            accounts={tableAccounts}
-            transactions={table.transactions}
-            categories={table.categories}
-            categoryColors={categoryColors}
-            activeCategory={params.category}
-            showIgnored={params.showIgnored === 'true'}
-            hasMore={hasMore}
-            fetchParams={hasMore ? fetchSp.toString() : undefined}
-            unusual={table.unusual}
-            recurring={table.recurring}
-            initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
-          />
+          // Stays mounted while the keyed table remounts, so the new rows ease in
+          <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')} height>
+            <CardTransactionsTable
+              key={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')}
+              accounts={tableAccounts}
+              transactions={table.transactions}
+              categories={table.categories}
+              categoryColors={categoryColors}
+              activeCategory={params.category}
+              showIgnored={params.showIgnored === 'true'}
+              hasMore={hasMore}
+              fetchParams={hasMore ? fetchSp.toString() : undefined}
+              unusual={table.unusual}
+              recurring={table.recurring}
+              initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
+            />
+          </DataSwap>
         )}
       </div>
     </div>

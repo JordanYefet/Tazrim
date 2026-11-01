@@ -8,11 +8,14 @@ import { ArrowLeft, Loader2, Search } from 'lucide-react'
 import { splitTerms, transactionHref, type SearchPage } from '@/lib/search/query'
 import { SearchResultList } from './search-result-list'
 import { SearchEmptyState, SearchNoResults } from './search-states'
+import { useOpenOrigin } from '@/components/ui/open-origin'
 
 /** Dispatch on window to open the dialog from anywhere (the header button does). */
 export const OPEN_SEARCH_EVENT = 'tazrim:open-search'
 const LIMIT = 8
 const DEBOUNCE_MS = 200
+// ⌘K grows the window out of the header's search button (hidden on phones: centre)
+const searchTrigger = () => document.querySelector('[data-search-trigger]')
 
 /**
  * ⌘K / Ctrl+K command-style search with live results from /api/search.
@@ -26,6 +29,7 @@ export function CommandSearch() {
   const [loading, setLoading] = useState(false)
   const [active, setActive] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const originRef = useOpenOrigin(searchTrigger)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -101,11 +105,12 @@ export function CommandSearch() {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+        <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
         <Dialog.Content
+          ref={originRef}
           dir="rtl"
           aria-describedby={undefined}
-          className="fixed inset-x-3 top-[12vh] z-50 mx-auto flex max-h-[70vh] max-w-xl flex-col md:max-w-[720px] overflow-hidden rounded-xl surface-overlay text-card-foreground focus:outline-none"
+          className="app-window fixed inset-x-3 top-[12vh] z-50 mx-auto flex max-h-[70vh] max-w-xl flex-col md:max-w-[720px] overflow-hidden rounded-xl surface-overlay text-card-foreground focus:outline-none"
         >
           <Dialog.Title className="sr-only">חיפוש תנועות</Dialog.Title>
           <div className="flex items-center gap-2 border-b px-3">

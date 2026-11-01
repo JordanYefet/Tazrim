@@ -259,35 +259,86 @@ html {
   scroll-padding-top: 4.5rem;
 }
 
-/* Rail flyout: a quick fade and settle from the rail side, no overshoot */
-.flyout-in {
-  transform-origin: right top;
-  animation: flyout-in var(--motion-quick) var(--ease-ui);
+/* Popups, one motion language (components/ui/open-origin.ts):
+   - windows (.app-window: AppDialog, ConfirmDialog, the ⌘K search) grow out
+     of the tap that opened them (--origin-x / --origin-y, set on open; the
+     centre when unknown) and fold back toward it on close
+   - anchored panels (.period-panel, .flyout-in, .menu-panel, .rail-tip) grow
+     out of their trigger's edge on one keyframe pair, nudged by --panel-dx /
+     --panel-dy toward the trigger
+   - sheets on the bottom edge (.sheet, AppDialog on phones) rise from under
+     the tap's x
+   - every scrim fades the same */
+
+/* Anchored panels */
+@keyframes panel-in {
+  from { opacity: 0; transform: translate(var(--panel-dx, 0px), var(--panel-dy, 0px)) scale(var(--panel-scale, 0.94)); }
 }
-@keyframes flyout-in {
-  from { opacity: 0; transform: translateX(4px) scale(0.98); }
+/* Back toward the trigger, a shorter way */
+@keyframes panel-out {
+  to { opacity: 0; transform: translate(calc(var(--panel-dx, 0px) * 2 / 3), calc(var(--panel-dy, 0px) * 2 / 3)) scale(0.97); }
 }
 
-/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the pill's
-   last slot, at the left edge under RTL), and back into it on close */
-.sheet { transform-origin: 90% 100%; }
-[dir='rtl'] .sheet { transform-origin: 10% 100%; }
+/* Rail flyout: a quick fade and settle out of its icon (--origin-y, set by
+   rail-flyout.tsx), no overshoot; hover-opened, so quick and a small scale */
+.flyout-in {
+  --panel-dx: 4px;
+  --panel-scale: 0.98;
+  transform-origin: right var(--origin-y, top);
+  animation: panel-in var(--motion-quick) var(--ease-ui);
+}
+
+/* The rail's name tooltips: the first one settles out of its icon the same
+   way; moving between icons (instant-open) just shows the next */
+.rail-tip[data-state='delayed-open'] {
+  --panel-dx: 4px;
+  --panel-scale: 0.98;
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation: panel-in var(--motion-quick) var(--ease-ui);
+}
+
+/* Radix dropdowns (the "עמודות" column picker): out of the trigger's edge */
+.menu-panel { --panel-dy: -6px; transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
+.menu-panel[data-side='top'] { --panel-dy: 6px; }
+.menu-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
+.menu-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
+
+/* The header's month / year panel (components/layout/period-picker.tsx): it
+   grows down out of its button, from the button's centre (--pp-left; the
+   phone panel starts 0.75rem in), and folds back into it on close */
+.period-panel { --panel-dy: -6px; transform-origin: calc(var(--pp-left) - 0.75rem) 0; }
+@media (min-width: 768px) { .period-panel { transform-origin: 50% 0; } }
+.period-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
+.period-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
+
+/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the tap's x;
+   without one, the pill's last slot, at the left edge under RTL), and back
+   into it on close */
+.sheet { transform-origin: var(--origin-x, 90%) 100%; }
+[dir='rtl'] .sheet { transform-origin: var(--origin-x, 10%) 100%; }
 .sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-ui); }
 .sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
-.sheet-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
-.sheet-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 @keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
 
-/* Confirmation windows (components/ui/confirm-dialog.tsx): rise a short way
-   from below and settle; leave the same way, a little quicker */
-.confirm-dialog { transform-origin: 50% 100%; }
-.confirm-dialog[data-state='open'] { animation: confirm-in var(--motion-base) var(--ease-ui); }
-.confirm-dialog[data-state='closed'] { animation: confirm-out var(--motion-fast) var(--ease-ui) forwards; }
-.dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
-.dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
-@keyframes confirm-in { from { opacity: 0; transform: translateY(20px) scale(0.97); } }
-@keyframes confirm-out { to { opacity: 0; transform: translateY(12px) scale(0.98); } }
+/* Windows: no translate, so the scale alone carries them out of the tap (and
+   open-origin.ts can find the untransformed box from the centre) */
+.app-window { transform-origin: var(--origin-x, 50%) var(--origin-y, 50%); }
+.app-window[data-state='open'] { animation: window-in var(--motion-base) var(--ease-ui); }
+.app-window[data-state='closed'] { animation: window-out var(--motion-fast) var(--ease-ui) forwards; }
+@keyframes window-in { from { opacity: 0; transform: scale(0.94); } }
+@keyframes window-out { to { opacity: 0; transform: scale(0.96); } }
+/* AppDialog on phones sits on the bottom edge: it rises like the "עוד"
+   sheet, from under the tap's x (below Tailwind's sm) */
+@media (max-width: 639.98px) {
+  .app-window--sheet { transform-origin: var(--origin-x, 50%) 100%; }
+  .app-window--sheet[data-state='open'] { animation-name: sheet-in; }
+  .app-window--sheet[data-state='closed'] { animation-name: sheet-out; }
+}
+
+/* Scrims: one fade for every popup */
+.sheet-scrim[data-state='open'], .dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
+.sheet-scrim[data-state='closed'], .dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
@@ -379,6 +430,26 @@ html {
   .glass-pill { background: hsl(var(--card)); border-color: hsl(var(--border)); }
 }
 
+/* Segmented controls (components/ui/segmented.tsx): one thumb slides to the
+   picked option. It sits under the options (isolate + z-index -1, so the
+   options need no positioning) and is hidden until measured; once it is
+   placed, the picked option stops painting its own pre-hydration highlight. */
+.segmented { position: relative; isolation: isolate; }
+.segmented__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: transform var(--motion-base) var(--ease-ui), width var(--motion-base) var(--ease-ui),
+    height var(--motion-base) var(--ease-ui);
+}
+.segmented:not([data-thumb]) > .segmented__thumb { opacity: 0; }
+.segmented[data-thumb] > [data-segment][data-on] { background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .segmented__thumb { transition: none; }
+}
+
 /* Picking a month on a bar chart: bars dim and brighten softly instead of
    snapping. Opacity only, so it stays on under reduced motion. */
 .recharts-bar-rectangle path {
@@ -404,17 +475,42 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flyout-in { animation: none; }
+  .flyout-in, .rail-tip[data-state='delayed-open'] { animation: none; }
   /* Instant: the capsule jumps to the new tab, sheets and dialogs appear and go (ENG-67) */
   .tab-highlight { transition: none; }
   .sheet[data-state='open'], .sheet[data-state='closed'],
-  .confirm-dialog[data-state='open'], .confirm-dialog[data-state='closed'],
+  .period-panel[data-state='open'], .period-panel[data-state='closed'],
+  .menu-panel[data-state='open'], .menu-panel[data-state='closed'],
+  .app-window[data-state='open'], .app-window[data-state='closed'],
   .sheet-scrim[data-state='open'], .sheet-scrim[data-state='closed'],
   .dialog-scrim[data-state='open'], .dialog-scrim[data-state='closed'] { animation: none; }
   .recharts-bar-rectangle path, .month-slot { transition: none; }
   /* The list only fades in */
   .categories-list { --categories-from: 0; }
   .contains-field { animation: none; }
+}
+
+/* Optional table columns (hooks/use-column-motion.ts, the "עמודות" picker): a
+   new column's cells settle in from the side it grows out of, a removed one
+   fades before it leaves the table */
+.col-in { animation: col-in var(--motion-base) var(--ease-ui) backwards; }
+@keyframes col-in { from { opacity: 0; transform: translateX(8px); } }
+[dir='ltr'] .col-in { animation-name: col-in-ltr; }
+@keyframes col-in-ltr { from { opacity: 0; transform: translateX(-8px); } }
+.col-out { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .col-in, .col-out { animation: none; }
+}
+
+/* A page arriving (every page, one entrance): the heading is already there;
+   everything under it rises 6px and fades in on the page beat, together (no
+   stagger), while its numbers roll and its charts draw (lib/motion.ts). Put
+   .page-in on the page's wrapper: its children except the h1 / header ease in.
+   The wallet pages (/cards, /banks) do the same with __beside / __rest. */
+.page-in > :not(h1, header) { animation: page-in var(--motion-page) var(--ease-ui) backwards; }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .page-in > :not(h1, header) { animation: none; }
 }
 
 /* iOS zooms the page into any field under 16px when it gets focus, and stays
@@ -866,10 +962,10 @@ html {
      taller (no contribution to the row; stretched to it), so the halves end level */
   .wallet-shell__beside--fit { height: 0; min-height: 100%; }
 }
-/* A page's own content eases in when it arrives (the wallet is already there) */
+/* A page's own content eases in when it arrives (the wallet is already there),
+   the same entrance as every other page (.page-in) */
 .wallet-shell__beside,
-.wallet-shell__rest { animation: wallet-content-in var(--motion-page) var(--ease-ui) backwards; }
-@keyframes wallet-content-in { from { opacity: 0; transform: translateY(6px); } }
+.wallet-shell__rest { animation: page-in var(--motion-page) var(--ease-ui) backwards; }
 
 /* The wallet: cards are absolutely placed in a box whose height follows the
    mode. Positions are CSS (container units) so the server render is already
@@ -1265,9 +1361,11 @@ aside.bar-glass { box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.6), -8px 0 24px 
    or soft ribbons. <html data-bg data-bg-palette> and the tile's URL
    (--bg-tile-light / --bg-tile-dark) come from a cookie, so the server
    paints the right one. The tile (lib/background/tile-svg.ts) is a
-   background image of <body>: it scrolls with the document and is
+   background image of <html>: it scrolls with the document and is
    rasterised once, so nothing redraws while the page scrolls, and what
-   sits behind a glass element stays put (the glass is baked once). */
+   sits behind a glass element stays put (the glass is baked once).
+   On <html> rather than <body> so a z-index -1 layer can sit above it and
+   under everything else: the cross-fade on a change (.bg-crossfade). */
 html[data-bg='lines'] { background-color: #ffffff; }
 html.dark[data-bg='lines'] { background-color: #0b1120; }
 html[data-bg='ribbons'] { background-color: #eef2f7; }
@@ -1276,26 +1374,38 @@ html.dark[data-bg='ribbons'] { background-color: #05060f; }
 html[data-bg='lines'] body::before,
 html[data-bg='ribbons'] body::before { display: none; }
 
-html[data-bg='lines'] body,
-html[data-bg='ribbons'] body {
+html[data-bg='lines'],
+html[data-bg='ribbons'] {
   background-image: var(--bg-tile-light);
   background-position: 0 0;
   background-repeat: repeat;
 }
-html.dark[data-bg='lines'] body,
-html.dark[data-bg='ribbons'] body { background-image: var(--bg-tile-dark); }
+html.dark[data-bg='lines'],
+html.dark[data-bg='ribbons'] { background-image: var(--bg-tile-dark); }
 /* Ribbons: as wide as the page, repeated down it */
-html[data-bg='ribbons'] body { background-size: 100% auto; background-repeat: repeat-y; }
+html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-y; }
 
 /* Reduced transparency or more contrast: the plain backdrop */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  html[data-bg='lines'] body,
-  html[data-bg='ribbons'] body,
-  html.dark[data-bg='lines'] body,
-  html.dark[data-bg='ribbons'] body { background-image: none; }
+  html[data-bg='lines'],
+  html[data-bg='ribbons'],
+  html.dark[data-bg='lines'],
+  html.dark[data-bg='ribbons'] { background-image: none; }
   html[data-bg='lines'] body::before,
   html[data-bg='ribbons'] body::before { display: block; }
   html[data-bg] { background-color: hsl(var(--background)); }
+}
+
+/* Background cross-fade (components/background/crossfade.ts): a picked
+   background replaces the old one under a short-lived copy of the old,
+   which fades out. z-index -1 at the end of <body>: above the page
+   background (<html>, body::before) and under all content. Only opacity
+   animates, so it runs on the compositor while the glass re-bakes. */
+.bg-crossfade {
+  position: absolute;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Settings → רקע (components/settings/background-settings.tsx) */
@@ -1353,7 +1463,7 @@ html[data-bg='ribbons'] body { background-size: 100% auto; background-repeat: re
   height: 1.875rem;
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.25);
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--motion-quick) var(--ease-ui);
 }
 .dark .color-swatch__dot { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16); }
 .color-swatch:active .color-swatch__dot { transform: scale(0.92); }
@@ -1365,7 +1475,7 @@ html[data-bg='ribbons'] body { background-size: 100% auto; background-repeat: re
   box-shadow: 0 0 0 2px hsl(var(--primary));
   opacity: 0;
   transform: scale(0.9);
-  transition: opacity 160ms ease-out, transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: opacity var(--motion-quick) var(--ease-ui), transform var(--motion-quick) var(--ease-ui);
 }
 .color-swatch[aria-checked='true']::after { opacity: 1; transform: none; }
 .color-swatch:focus-visible { outline: none; }

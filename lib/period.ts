@@ -160,3 +160,13 @@ export function stepPeriod(period: Period, delta: -1 | 1): Period {
   const index = period.year * 12 + (period.month - 1) + delta
   return { year: Math.floor(index / 12), month: (index % 12) + 1 }
 }
+
+/** This calendar month (local time: the server runs in TZ=Asia/Jerusalem, like the imports). */
+export function currentMonth(now: Date = new Date()): Period {
+  return { year: now.getFullYear(), month: now.getMonth() + 1 }
+}
+
+/** Whether `p` is this month; the whole current year is not (it is a different view). */
+export function isCurrentMonth(p: Period, now: Date = new Date()): boolean {
+  return samePeriod(p, currentMonth(now))
+}

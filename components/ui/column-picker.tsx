@@ -39,7 +39,7 @@ export function ColumnPicker({
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 min-w-44 rounded-xl surface-overlay p-1 text-sm text-card-foreground shadow-e2"
+          className="menu-panel z-50 min-w-44 rounded-xl surface-overlay p-1 text-sm text-card-foreground shadow-e2"
         >
           <DropdownMenu.Label className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">עמודות נוספות בטבלה</DropdownMenu.Label>
           {columns.map(c => (
@@ -49,10 +49,14 @@ export function ColumnPicker({
               // keep the menu open, so several can be ticked in a row
               onSelect={e => e.preventDefault()}
               onCheckedChange={on => toggle(c.key, on === true)}
-              className="flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none data-[highlighted]:bg-muted"
+              className="group flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none transition-colors data-[highlighted]:bg-muted"
             >
-              <span className="flex h-4 w-4 items-center justify-center rounded border border-border data-[state=checked]:border-primary">
-                <DropdownMenu.ItemIndicator>
+              {/* Ticking fills the box and pops the check in; unticking shrinks it away (kept mounted for that) */}
+              <span className="flex h-4 w-4 items-center justify-center rounded border border-border transition-[background-color,border-color] duration-fast ease-ui group-data-[state=checked]:border-primary group-data-[state=checked]:bg-primary/10">
+                <DropdownMenu.ItemIndicator
+                  forceMount
+                  className="flex transition-[opacity,transform] duration-fast ease-ui data-[state=unchecked]:scale-50 data-[state=unchecked]:opacity-0 motion-reduce:transition-none"
+                >
                   <Check className="h-3 w-3 text-primary" aria-hidden />
                 </DropdownMenu.ItemIndicator>
               </span>

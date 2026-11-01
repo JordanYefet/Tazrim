@@ -11,6 +11,7 @@ import {
   type BackgroundPalette,
 } from '@/lib/background/setting'
 import { useBackground } from '@/components/background/background-provider'
+import { Reveal } from '@/components/ui/reveal'
 
 /*
  * Settings → רקע (ENG-72, the Settings mockup): the page background, applied
@@ -25,13 +26,18 @@ function arrowStep(e: KeyboardEvent): 1 | -1 | 0 {
   return 0
 }
 
+const LINES_OPTIONS_ID = 'background-lines-options'
+
+/** The thumbnail's lines follow a palette change instead of jumping */
+const STROKE_EASE = 'transition-[stroke] duration-fast ease-ui motion-reduce:transition-none'
+
 function Thumb({ kind, colors }: { kind: BackgroundKind; colors: readonly [string, string] }) {
   return (
     <span className={cn('pattern-thumb', `pattern-thumb--${kind}`)} aria-hidden>
       {kind === 'lines' && (
         <svg width="100%" height="64" viewBox="0 0 100 64" preserveAspectRatio="xMidYMid slice" fill="none" strokeLinecap="round" strokeWidth="5">
-          <path d="M-5 20 C 10 0, 30 0, 38 22 S 60 60, 78 44 S 80 10, 70 4" stroke={colors[0]} opacity="0.28" />
-          <path d="M8 70 C 0 50, 30 40, 50 52 S 90 70, 105 40" stroke={colors[1]} opacity="0.28" />
+          <path d="M-5 20 C 10 0, 30 0, 38 22 S 60 60, 78 44 S 80 10, 70 4" stroke={colors[0]} opacity="0.28" className={STROKE_EASE} />
+          <path d="M8 70 C 0 50, 30 40, 50 52 S 90 70, 105 40" stroke={colors[1]} opacity="0.28" className={STROKE_EASE} />
         </svg>
       )}
       {kind === 'ribbons' && (
@@ -77,31 +83,34 @@ export function BackgroundSettings() {
         <p className="text-[13px] text-muted-foreground">דוגמה עדינה מאחורי כל הדפים. חשבונות עם צבע &quot;זכוכית&quot; נראים דרכה.</p>
       </div>
 
-      <div role="radiogroup" aria-label="סוג רקע" onKeyDown={onKindKey} className="grid grid-cols-3 gap-2.5">
-        {BACKGROUND_KINDS.map(k => {
-          const selected = setting.kind === k.value
-          return (
-            <button
-              key={k.value}
-              ref={el => {
-                kindRefs.current[k.value] = el
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => update({ kind: k.value })}
-              className="pattern-choice flex flex-col gap-1.5 rounded-[14px] p-1.5"
-            >
-              <Thumb kind={k.value} colors={palette.light} />
-              <span className="text-center text-[13px] font-semibold">{k.label}</span>
-            </button>
-          )
-        })}
-      </div>
+      {/* No gap between the tiles and the line options: their spacing is inside the Reveal, so it closes too */}
+      <div>
+        <div role="radiogroup" aria-label="סוג רקע" onKeyDown={onKindKey} className="grid grid-cols-3 gap-2.5">
+          {BACKGROUND_KINDS.map(k => {
+            const selected = setting.kind === k.value
+            return (
+              <button
+                key={k.value}
+                ref={el => {
+                  kindRefs.current[k.value] = el
+                }}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                aria-controls={k.value === 'lines' ? LINES_OPTIONS_ID : undefined}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => update({ kind: k.value })}
+                className="pattern-choice flex flex-col gap-1.5 rounded-[14px] p-1.5"
+              >
+                <Thumb kind={k.value} colors={palette.light} />
+                <span className="text-center text-[13px] font-semibold">{k.label}</span>
+              </button>
+            )
+          })}
+        </div>
 
-      {setting.kind === 'lines' && (
-        <div className="flex flex-col gap-3.5">
+        {/* Kept mounted so it closes with motion */}
+        <Reveal open={setting.kind === 'lines'} id={LINES_OPTIONS_ID} className="flex flex-col gap-3.5 pt-4">
           <label className="flex flex-col gap-1.5 text-sm font-semibold">
             <span className="flex justify-between">
               <span>עוצמה</span>
@@ -148,8 +157,8 @@ export function BackgroundSettings() {
               })}
             </div>
           </div>
-        </div>
-      )}
+        </Reveal>
+      </div>
     </div>
   )
 }

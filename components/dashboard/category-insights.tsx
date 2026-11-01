@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Sparkles, Zap } from 'lucide-react'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { monthName } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
+import { DataSwap } from '@/components/ui/data-swap'
 import type { CategoryInsight, CategoryInsights as Insights } from '@/lib/insights/category-insights'
 import type { ScopeOption } from '@/lib/insights/insights-scope'
 
@@ -111,62 +112,69 @@ export function CategoryInsights({
       </p>
       {options.length > 1 && <ScopeFilter options={options} selected={selected} query={query} />}
 
-      {!insights ? (
-        <p className="my-auto py-6 text-center text-sm text-muted-foreground text-pretty">
-          {month
-            ? `אין מספיק נתונים להשוואה של ${monthName(month)}. צריך הוצאות גם לפחות בשני חודשים קודמים.`
-            : 'עדיין אין הוצאות לשנה זו.'}
-        </p>
-      ) : insights.items.length === 0 ? (
-        <p className="my-auto py-6 text-center text-sm text-muted-foreground">
-          אין שינויים משמעותיים — ההוצאות בכל הקטגוריות קרובות לממוצע.
-        </p>
-      ) : (
-        <ul className="-mx-2 flex flex-col">
-          {insights.items.map(item => {
-            const href = hrefs[item.category]
-            const row = 'flex items-center gap-3 rounded-lg px-2 py-2.5'
-            const content = (
-              <>
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: colors[item.category] }}
-                    aria-hidden
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{item.category}</span>
-                    <span className="block text-xs text-muted-foreground tabular-nums">
-                      {item.kind === 'new'
-                        ? 'לא היו הוצאות בחודשים הקודמים'
-                        : (
-                          <>
-                            ממוצע <RollingNumber value={item.average} /> ·{' '}
-                            <RollingNumber value={Math.abs(item.delta)} /> {item.delta > 0 ? 'יותר' : 'פחות'}
-                          </>
-                        )}
+      {/* Another month or source eases the rows in when they are other categories or in
+          another order; rows that stay only roll their numbers. flex-1: the empty notes centre in it */}
+      <DataSwap
+        className="flex flex-1 flex-col"
+        swapKey={!insights ? `none:${month}` : insights.items.map(i => i.category).join('\n') || 'flat'}
+      >
+        {!insights ? (
+          <p className="my-auto py-6 text-center text-sm text-muted-foreground text-pretty">
+            {month
+              ? `אין מספיק נתונים להשוואה של ${monthName(month)}. צריך הוצאות גם לפחות בשני חודשים קודמים.`
+              : 'עדיין אין הוצאות לשנה זו.'}
+          </p>
+        ) : insights.items.length === 0 ? (
+          <p className="my-auto py-6 text-center text-sm text-muted-foreground">
+            אין שינויים משמעותיים — ההוצאות בכל הקטגוריות קרובות לממוצע.
+          </p>
+        ) : (
+          <ul className="-mx-2 flex flex-col">
+            {insights.items.map(item => {
+              const href = hrefs[item.category]
+              const row = 'flex items-center gap-3 rounded-lg px-2 py-2.5'
+              const content = (
+                <>
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: colors[item.category] }}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{item.category}</span>
+                      <span className="block text-xs text-muted-foreground tabular-nums">
+                        {item.kind === 'new'
+                          ? 'לא היו הוצאות בחודשים הקודמים'
+                          : (
+                            <>
+                              ממוצע <RollingNumber value={item.average} /> ·{' '}
+                              <RollingNumber value={Math.abs(item.delta)} /> {item.delta > 0 ? 'יותר' : 'פחות'}
+                            </>
+                          )}
+                      </span>
                     </span>
-                  </span>
-                  <RollingNumber value={item.current} className="text-sm font-semibold" />
-                  <Badge item={item} />
-              </>
-            )
-            return (
-              <li key={item.category}>
-                {href ? (
-                  <Link
-                    href={href}
-                    className={cn(row, 'transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
-                  >
-                    {content}
-                  </Link>
-                ) : (
-                  <div className={row}>{content}</div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                    <RollingNumber value={item.current} className="text-sm font-semibold" />
+                    <Badge item={item} />
+                </>
+              )
+              return (
+                <li key={item.category}>
+                  {href ? (
+                    <Link
+                      href={href}
+                      className={cn(row, 'transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className={row}>{content}</div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </DataSwap>
     </section>
   )
 }

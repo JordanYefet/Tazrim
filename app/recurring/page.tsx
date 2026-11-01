@@ -36,15 +36,16 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
   const accountNames = multipleAccounts ? r.accountNames : undefined
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
+    // page-in eases in everything but the <header>, so the title block stays put
+    <div className="page-in mx-auto max-w-4xl space-y-6">
+      <header>
         <p className="text-sm font-medium text-muted-foreground">לפי כל התנועות שהועלו</p>
         <h1 className="text-2xl font-semibold tracking-tight">חיובים קבועים</h1>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">
           חיובים שחוזרים בסכום דומה כל חודש. אשרו את מה שנכון, הסתירו את מה שלא, ושנו שם כדי שיהיה ברור.
           חיוב שלא זוהה אפשר לסמן מכל תנועה, גם כשהסכום שלו משתנה.
         </p>
-      </div>
+      </header>
 
       <RecurringList
         title="מנויים וחיובים קבועים"

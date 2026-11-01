@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useDataSwap } from '@/hooks/use-data-swap'
 
 interface UploadRecord {
   id: string
@@ -22,11 +23,19 @@ const KIND_COLORS: Record<string, string> = {
 export function UploadHistoryTable({ refresh }: { refresh: number }) {
   const [history, setHistory] = useState<UploadRecord[]>([])
   const { confirm, dialog } = useConfirm()
+  // Each fetch that lands eases the list in (the first one too: it replaces the
+  // empty state after the page has arrived); deleting a row does not
+  const [loads, setLoads] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+  useDataSwap(ref, loads, { height: true })
 
   useEffect(() => {
     fetch('/api/upload/history')
       .then(r => r.json())
-      .then(setHistory)
+      .then(rows => {
+        setHistory(rows)
+        setLoads(n => n + 1)
+      })
   }, [refresh])
 
   async function deleteRecord(id: string, fileName: string) {
@@ -41,17 +50,17 @@ export function UploadHistoryTable({ refresh }: { refresh: number }) {
 
   if (!history.length) {
     return (
-      <>
+      <div ref={ref}>
         <div className="text-center py-10 text-muted-foreground text-sm">
           לא הועלו קבצים עדיין
         </div>
         {dialog}
-      </>
+      </div>
     )
   }
 
   return (
-    <>
+    <div ref={ref}>
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -89,6 +98,6 @@ export function UploadHistoryTable({ refresh }: { refresh: number }) {
         </div>
       </div>
       {dialog}
-    </>
+    </div>
   )
 }
