@@ -9,6 +9,7 @@ import { AccountForm, type CreatedAccount, type EditableAccount } from './add-ac
 import { RemapColumns } from './remap-columns'
 import { ImportSection, type ImportState } from './import-section'
 import { ProfileEditor } from '@/components/import/profile-editor'
+import type { PayerContext } from './payer-field'
 
 export interface EditDialogAccount extends EditableAccount {
   /** The account's own saved mapping */
@@ -37,8 +38,11 @@ export function EditAccountDialog({
   onSaved,
   onImported,
   manage,
+  payer,
 }: {
   account: EditDialogAccount | null
+  /** The bank accounts and payment rows for a card's "משולם מחשבון" */
+  payer?: PayerContext
   onOpenChange: (open: boolean) => void
   onSaved: (account: CreatedAccount) => void
   /** A re-import changed rows */
@@ -99,6 +103,7 @@ export function EditAccountDialog({
                   mode="edit"
                   account={shown}
                   fallbackColor={shown.positionColor}
+                  payer={payer}
                   onSaved={onSaved}
                   onCancel={() => change(false)}
                   heading={

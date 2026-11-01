@@ -16,6 +16,8 @@ import { SearchResultList } from './search-result-list'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import { SearchEmptyState, SearchNoResults } from './search-states'
 import { useDataSwap } from '@/hooks/use-data-swap'
+import { CardPaymentBadges } from '@/components/bank/card-payment-badge'
+import type { BadgeCard } from '@/lib/accounts/payment-badge'
 
 interface AccountOption {
   id: string
@@ -30,6 +32,8 @@ interface Props {
   page: SearchPage
   accounts: AccountOption[]
   categories: string[]
+  /** Every card (archived too): a bank card-payment result links to the card(s) it paid */
+  cards?: BadgeCard[]
   /** What a result's category window needs */
   picker: PickerData
 }
@@ -88,7 +92,7 @@ const field =
   'h-9 w-full rounded-lg border border-border bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring [color-scheme:light] dark:[color-scheme:dark]'
 
 /** /search: filters (kept in the URL) and the results, with "load more" through /api/search. */
-export function SearchView({ filters, queryString, page, accounts, categories, picker }: Props) {
+export function SearchView({ filters, queryString, page, accounts, categories, cards = [], picker }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(() => toForm(filters))
   const [pending, startTransition] = useTransition()
@@ -306,18 +310,19 @@ export function SearchView({ filters, queryString, page, accounts, categories, p
         ) : page.results.length === 0 ? (
           filters.amountInvalid ? null : <SearchNoResults ignoredHidden={!filters.includeIgnored} />
         ) : (
-          <Results key={queryString} initial={page} queryString={queryString} terms={terms} picker={picker} uncategorizedOnly={!!filters.uncategorized} />
+          <Results key={queryString} initial={page} queryString={queryString} terms={terms} picker={picker} cards={cards} uncategorizedOnly={!!filters.uncategorized} />
         )}
       </div>
     </div>
   )
 }
 
-function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
+function Results({ initial, queryString, terms, picker, cards, uncategorizedOnly }: {
   initial: SearchPage
   queryString: string
   terms: string[]
   picker: PickerData
+  cards: BadgeCard[]
   /** The list is "ללא קטגוריה": a result that gets a category leaves it */
   uncategorizedOnly: boolean
 }) {
@@ -554,6 +559,18 @@ function Results({ initial, queryString, terms, picker, uncategorizedOnly }: {
                 onClick={() => setPicking(r)}
                 className="w-28 sm:w-40"
               />
+            )}
+            {/* A card payment has no category: in the pill's place, the card(s) it paid,
+                each opening that card's month (outside the row's link, never nested in it) */}
+            {!r.ignored && isCardPayment(r) && (
+              <span className="flex min-h-8 w-28 items-center sm:w-40">
+                <CardPaymentBadges
+                  descriptions={[r.originalDescription, r.description]}
+                  bankAccountId={r.accountId}
+                  date={r.date}
+                  cards={cards}
+                />
+              </span>
             )}
             <span className="flex h-8 w-7 items-center justify-center">
               {r.amount > 0 && !r.ignored && <MarkRecurringButton source={r.source} transactionId={r.id} seriesName={r.recurringLabel} />}

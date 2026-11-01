@@ -26,6 +26,13 @@ model Account {
   /// hex, or "glass". Null means the brand default (issuer/bank face, else positional).
   color                  String?
   archived               Boolean                 @default(false)
+  /// A credit card's paying bank account: its monthly charge leaves that account
+  /// (the bank row names the card company, lib/insights/card-payment.ts). Null for
+  /// bank accounts and for cards whose payer is unknown or not managed here.
+  payerAccountId         String?
+  payer                  Account?                @relation("CardPayer", fields: [payerAccountId], references: [id], onDelete: SetNull)
+  /// A bank account's cards (the inverse of payer)
+  paidCards              Account[]               @relation("CardPayer")
   createdAt              DateTime                @default(now())
   bankTransactions       BankTransaction[]
   creditCardTransactions CreditCardTransaction[]

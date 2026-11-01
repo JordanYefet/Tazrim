@@ -146,3 +146,43 @@ describe('DELETE /api/accounts/[id]', () => {
     expect((await res.json()).code).toBe('LAST_OF_KIND')
   })
 })
+
+describe('card payer (payerAccountId)', () => {
+  const payerOf = (id: string) => db.query<{ payerAccountId: string | null }>(`SELECT payerAccountId FROM "Account" WHERE id = '${id}'`)[0]?.payerAccountId
+
+  it('links a new card to a bank account, and refuses one on a bank or to a non-bank', async () => {
+    const res = await list.POST(json('POST', { kind: 'CREDIT_CARD', provider: 'max', displayName: 'Payer card', payerAccountId: 'acct_leumi' }))
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ payerAccountId: 'acct_leumi' })
+    const onBank = await list.POST(json('POST', { kind: 'BANK', provider: 'leumi', displayName: 'x', payerAccountId: 'acct_leumi' }))
+    expect(onBank.status).toBe(400)
+    expect((await onBank.json()).field).toBe('payerAccountId')
+    const toCard = await list.POST(json('POST', { kind: 'CREDIT_CARD', provider: 'max', displayName: 'x', payerAccountId: 'acct_max' }))
+    expect((await toCard.json()).field).toBe('payerAccountId')
+  })
+
+  it('sets, refuses an archived payer, and clears on PATCH', async () => {
+    db.exec(`INSERT INTO "Account" ("id","kind","provider","displayName","archived","createdAt") VALUES
+      ('acct_old_bank', 'BANK', 'discount', 'Old fake bank', true, 1900000000000);`)
+    const set = await item.PATCH(json('PATCH', { payerAccountId: 'acct_leumi' }), ctx('acct_max'))
+    expect(await set.json()).toMatchObject({ payerAccountId: 'acct_leumi' })
+    const archived = await item.PATCH(json('PATCH', { payerAccountId: 'acct_old_bank' }), ctx('acct_max'))
+    expect(archived.status).toBe(400)
+    expect(payerOf('acct_max')).toBe('acct_leumi')
+    expect((await item.PATCH(json('PATCH', { payerAccountId: 'acct_leumi' }), ctx('acct_leumi'))).status).toBe(400)
+    const cleared = await item.PATCH(json('PATCH', { payerAccountId: null }), ctx('acct_max'))
+    expect(await cleared.json()).toMatchObject({ payerAccountId: null })
+  })
+
+  it('a new bank account takes the cards it pays (paidCardIds)', async () => {
+    const res = await list.POST(json('POST', { kind: 'BANK', provider: 'hapoalim', displayName: 'Fake bank 2', paidCardIds: ['acct_max'] }))
+    expect(res.status).toBe(201)
+    const bank = await res.json()
+    expect(payerOf('acct_max')).toBe(bank.id)
+    const bad = await list.POST(json('POST', { kind: 'BANK', provider: 'hapoalim', displayName: 'x', paidCardIds: ['acct_leumi'] }))
+    expect((await bad.json()).field).toBe('paidCardIds')
+    // Deleting the payer unlinks its cards (onDelete SetNull)
+    expect((await item.DELETE(json('DELETE'), ctx(bank.id))).status).toBe(200)
+    expect(payerOf('acct_max')).toBeNull()
+  })
+})

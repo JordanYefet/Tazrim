@@ -19,6 +19,8 @@ import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/c
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
+import { CardPaymentBadges } from '@/components/bank/card-payment-badge'
+import type { BadgeCard } from '@/lib/accounts/payment-badge'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 const BANK_KEYS = BANK_COLUMNS.map(c => c.key)
@@ -64,6 +66,7 @@ export function BankTransactionsTable({
   flowFilter,
   genericDescriptions = [],
   categoryColors = {},
+  cards = [],
 }: (
   | {
       /** The bank account these rows belong to */
@@ -100,6 +103,8 @@ export function BankTransactionsTable({
   categoryColors?: Record<string, string>
   /** Descriptions categorised row by row, never by a rule (lib/db/generic-descriptions.ts) */
   genericDescriptions?: string[]
+  /** Every card (archived too): a card-payment row links to the card(s) it paid */
+  cards?: BadgeCard[]
 }) {
   const [columns, setColumns] = useState(initialColumns as BankColumn[])
   const { shown: shownColumns, cellClass: columnClass } = useColumnMotion(BANK_KEYS, columns)
@@ -428,6 +433,16 @@ export function BankTransactionsTable({
                       >
                         {tx.description}
                       </span>
+                    )}
+                    {/* A card payment: the card(s) it paid, each opening that card's month */}
+                    {!tx.ignored && isCardPaymentRow(tx) && (
+                      <CardPaymentBadges
+                        descriptions={[tx.originalDescription, tx.description]}
+                        bankAccountId={tx.accountId ?? accountId}
+                        date={tx.date}
+                        cards={cards}
+                        className="ms-1.5"
+                      />
                     )}
                     {!tx.ignored && unusual[tx.id]?.map(f => (
                       <UnusualBadge key={f.reason} flag={f} className="ms-1.5 align-middle" />

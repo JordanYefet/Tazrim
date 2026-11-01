@@ -39,6 +39,7 @@ import {
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
 import { monthName } from '@/lib/utils/date'
+import { badgeCards } from '@/lib/accounts/payment-badge'
 import { withResolvedPeriod } from '@/lib/period-server'
 
 interface SearchParams {
@@ -154,7 +155,11 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   }
 
   // The table below the charts: every account's rows
-  const table = await getTableData(accounts.map(a => a.id), params)
+  // Archived cards too: an old card-payment row still links to the card it paid
+  const [table, cardAccounts] = await Promise.all([
+    getTableData(accounts.map(a => a.id), params),
+    listAccounts({ kind: 'CREDIT_CARD', includeArchived: true }),
+  ])
   const tableAccounts: TableAccount[] = perAccount.map(({ account, color }) => ({
     id: account.id,
     name: account.displayName,
@@ -256,6 +261,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               incomeCategories={table.incomeCategories}
               categoryColors={table.categoryColors}
               genericDescriptions={table.genericDescriptions}
+              cards={badgeCards(cardAccounts)}
               activeCategory={params.category}
               flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK')} params={params} current={flow} />}
             />

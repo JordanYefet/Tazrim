@@ -853,6 +853,19 @@ html {
 .acct-bank__spark { color: color-mix(in oklab, var(--face-b) 72%, hsl(var(--foreground))); }
 .dark .acct-bank__spark { color: color-mix(in oklab, var(--face-a) 80%, white); }
 
+/* The bank panel in /settings' accounts list (BankPanel): the band as a list
+   head, a size down from the element on /banks; its cards sit on the body */
+.acct-bank--panel { box-shadow: var(--elevation-1); }
+.acct-bank--panel .acct-bank__band { padding: 14px 16px; }
+.acct-bank--panel .acct-bank__name { font-size: 17px; }
+.acct-bank--panel .acct-bank__bank { font-size: 12px; }
+@media (min-width: 768px) { .acct-bank--panel .acct-bank__band { padding: 16px 24px; } }
+
+/* A card row arriving in its group (linked, moved or added): settles down into place */
+.acct-row-in { animation: acct-row-in var(--motion-base) var(--ease-ui) backwards; }
+@keyframes acct-row-in { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .acct-row-in { animation: none; } }
+
 /* Mini faces for pills and lists */
 .acct-mini {
   position: relative;

@@ -1,4 +1,5 @@
-import { listAccountsWithCounts } from '@/lib/db/accounts'
+import { latestBankBalances, listAccountsWithCounts } from '@/lib/db/accounts'
+import { getCardPayerEvidence, localToday } from '@/lib/db/card-payers'
 import { isImportSupported } from '@/lib/upload/import'
 import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
 import { parseNewKind } from '@/components/accounts/account-kinds'
@@ -22,12 +23,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     if (!colors || archived) return undefined
     return colors[position[kind]++ % colors.length]
   }
-  const profileRows = await listImportProfiles()
+  const now = new Date()
+  const [profileRows, rows, payerEvidence, balances] = await Promise.all([
+    listImportProfiles(),
+    listAccountsWithCounts(),
+    getCardPayerEvidence(now),
+    latestBankBalances(),
+  ])
   const ownProfile = (a: { id: string; kind: string }) => {
     const p = profileRows.find(p => p.accountId === a.id && p.accountKind === a.kind)
     return p ? { id: p.id, name: p.name } : null
   }
-  const accounts: ManagedAccount[] = (await listAccountsWithCounts()).map(a => ({
+  const accounts: ManagedAccount[] = rows.map(a => ({
     id: a.id,
     kind: a.kind,
     provider: a.provider,
@@ -41,6 +48,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     importSupported: isImportSupported(a),
     importProfile: ownProfile(a),
     positionColor: positionColor(a.kind, a.archived),
+    payerAccountId: a.payerAccountId,
+    latestBalance: balances.get(a.id),
   }))
   const profiles = profileRows.map(toProfileView)
 
@@ -62,7 +71,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </section>
 
       <section id="accounts" aria-label="ניהול חשבונות">
-        <AccountsManager accounts={accounts} initialNewKind={parseNewKind(newParam)} />
+        <AccountsManager
+          accounts={accounts}
+          initialNewKind={parseNewKind(newParam)}
+          payerEvidence={payerEvidence}
+          today={localToday(now)}
+        />
       </section>
 
       <section id="import-profiles" aria-labelledby="import-profiles-title">

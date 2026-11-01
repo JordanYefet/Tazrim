@@ -473,3 +473,60 @@ export function BankElement({
     </Tag>
   )
 }
+
+/**
+ * A bank account as the head of a panel (the accounts list in /settings):
+ * the bank element's band, its face and material, with the caller's content
+ * in it, and the panel's body (the cards the account pays) under it on the
+ * element's own surface. The band is a button when `onOpen` is given.
+ */
+export function BankPanel({
+  provider,
+  color,
+  colorChoice,
+  label,
+  onOpen,
+  band,
+  className,
+  children,
+}: {
+  provider: string
+  color?: string
+  /** Account.color (ENG-66) */
+  colorChoice?: string | null
+  /** The band button's label */
+  label?: string
+  onOpen?: () => void
+  /** What the band shows (name, meta, figures) */
+  band: ReactNode
+  className?: string
+  /** The body; none leaves the band alone */
+  children?: ReactNode
+}) {
+  const face = faceFor('BANK', provider, color, colorChoice)
+  const bandContent = (
+    <>
+      {!face.glass && <Material />}
+      {band}
+    </>
+  )
+  return (
+    <div className={cn('acct-bank acct-bank--panel acct-face', className)} style={faceStyle(face)} {...faceData(face)}>
+      {/* The baked lens: the list is static, and live blur lags on phones */}
+      {face.glass && <GlassSurface baked />}
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={label}
+          className="acct-bank__band block w-[calc(100%+2px)] text-start transition-[filter] duration-fast ease-ui hover:brightness-[1.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80"
+        >
+          {bandContent}
+        </button>
+      ) : (
+        <div className="acct-bank__band">{bandContent}</div>
+      )}
+      {children}
+    </div>
+  )
+}
