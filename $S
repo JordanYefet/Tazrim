@@ -1,0 +1,35 @@
+## What
+**Data.** A card now records the bank account that pays it: `Account.payerAccountId`, a self-relation that's cleared if the bank account is deleted. The migration is `20261101120000_card_payer`. `lib/accounts/card-payer.ts` matches a bank row's card payment to its card or cards. Cards linked to that bank come first, then unlinked cards of the same company; a card another bank pays is never matched.
+
+**/bank (option C, without the breakdown).** A card-payment row gets a small card badge: the card face plus "name · last four". It opens that card for the month of the bank row (`/cards/<id>?year&month`), and that period beats the remembered one. If several cards match there's one badge each. It shows on /banks, /banks/<id> and search results; on phones only the face and last four show.
+
+**Settings** (follows the mockups, including the bank-panel change from the comment):
+- **Adding a card:** "משולם מחשבון" offers the bank accounts as tiles plus "לא יודע". The account whose rows pay that card company is preselected, with a line saying why.
+- **Adding a bank account:** it can take its cards (optional; a card linked elsewhere is moved).
+- **A card's edit window:** a "משולם מחשבון" picker, with a hint about how many payments were found.
+- **Accounts list:** each bank is one panel whose header is the bank element itself, with its cards listed below. Cards without a payer go in a dashed box with a one-tap "קישור ל…" suggestion.
+- **API:** `payerAccountId` on create and update (cards only; it must be a live bank account or null), and `paidCardIds` on a new bank account.
+
+- **Bank account number:** an optional "מספר חשבון" when adding or editing a bank account (digits with - / or space, 4 to 20 digits; migration `20261101130000_bank_account_number`). The bank's header in the settings list shows it instead of the balance, and nothing when it's empty.
+
+- **Redesign (after review):** the settings list is calmer. Each bank is a plain panel with its colour as a thin edge and in its small face. The note and account number stay pinned to the top corner, and a card row is a single button that opens its edit window; the "העברה לחשבון אחר" button is gone from every row. A card's month view now links back to its payment ("שולם מבנק לאומי · 10.10 · ₪3,043.12"). The link opens the bank on that month, scrolls to the payment and highlights it briefly.
+
+**Demo:** MAX and CAL are paid from Leumi. Isracard is left unlinked, so the suggestion shows ("נראה שמשולם מחשבון אישי").
+
+## Checks
+- `tsc` clean, `vitest` 1116/1116, with new tests for the matching rule, the badge helpers, the suggestion ranking and wording, and the API routes.
+- Checked in the browser on :3001:
+  - the grouped list, and that the one-tap link moves Isracard under its bank
+  - the badge on the Leumi table opens MAX for October 2026, and its total equals the bank payment (₪3,043.12)
+  - the add form preselects Leumi with its reason
+
+## Notes
+- The badge opens the bank row's month. If a debit posts in the month after the card's billing date (billed on the 31st, posted on the 1st), it opens the later month.
+- After merging, the :3000 demo database needs the migration. `node scripts/seed-demo.mjs` applies it.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_01QEzt94DYrBBP8TKg4r29mY
+
+
+

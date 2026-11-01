@@ -476,7 +476,7 @@ export function BankElement({
 
 /**
  * A bank account as the head of a panel (the accounts list in /settings): a
- * plain surface, the bank's colour only on its inline-start edge and in its
+ * plain surface like the other settings cards, the bank's colour only in its
  * mini face, and the caller's content beside the face. The body (the cards
  * the account pays) sits under a hairline. The head is a button when
  * `onOpen` is given. Styles: "Bank panels" in app/globals.css.
@@ -501,11 +501,6 @@ export function BankPanel({
   /** The body; none leaves the head alone */
   children?: ReactNode
 }) {
-  const face = faceFor('BANK', provider, color, colorChoice)
-  // The edge reads the face's own colours; glass has none, so it takes the glass tint
-  const edge = (face.glass
-    ? { '--edge-a': 'var(--acct-glass)', '--edge-b': 'var(--acct-glass)' }
-    : { '--edge-a': face.stops[0], '--edge-b': face.stops[1] }) as CSSProperties
   const headContent = (
     <>
       <AccountMini kind="BANK" provider={provider} color={color} colorChoice={colorChoice} className="w-[52px]" />
@@ -513,7 +508,7 @@ export function BankPanel({
     </>
   )
   return (
-    <div className={cn('acct-panel rounded-xl surface', className)} style={edge}>
+    <div className={cn('acct-panel rounded-xl surface', className)}>
       {onOpen ? (
         <button
           type="button"

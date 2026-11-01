@@ -854,16 +854,10 @@ html {
 .dark .acct-bank__spark { color: color-mix(in oklab, var(--face-a) 80%, white); }
 
 /* ── Bank panels: /settings' accounts list (BankPanel) ──
-   A quiet surface card: the bank's colour only on the inline-start edge and
-   in the head's mini face, so a list of banks doesn't shout. --edge-a/b are
-   set inline from the face (the glass tint for glass). The panel itself is
-   not a face: glass styling stays on the mini. */
-.acct-panel {
-  overflow: hidden;
-  border-inline-start: 4px solid var(--edge-b);
-}
-/* Dark mode: a step toward the lit stop, so deep brand colours still read on the dark surface */
-.dark .acct-panel { border-inline-start-color: color-mix(in oklab, var(--edge-b) 55%, var(--edge-a)); }
+   A quiet surface card like the other settings cards: the bank's colour only
+   in the head's mini face, so a list of banks doesn't shout. The panel itself
+   is not a face: glass styling stays on the mini. */
+.acct-panel { overflow: hidden; }
 .acct-panel__head {
   display: flex;
   align-items: center;
