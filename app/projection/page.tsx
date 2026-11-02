@@ -1,0 +1,44 @@
+import { CalendarClock, Upload } from 'lucide-react'
+import { getProjection } from '@/lib/db/projection'
+import { EmptyState } from '@/components/accounts/page-parts'
+import { BankPicker } from '@/components/projection/bank-picker'
+import { ProjectionHero } from '@/components/projection/projection-hero'
+import { ProjectionTable } from '@/components/projection/projection-table'
+import { ProjectionItems } from '@/components/projection/projection-items'
+
+export const dynamic = 'force-dynamic'
+export const metadata = { title: 'תחזית · תזרים' }
+
+/** The next 12 months of the bank balance (ENG-87, docs/superpowers/specs/2026-11-02-projection-design.md) */
+export default async function ProjectionPage({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
+  const { account } = await searchParams
+  const p = await getProjection({ accountId: account })
+
+  return (
+    <div className="page-in min-w-0 space-y-6">
+      <div className="flex min-h-[2.375rem] flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">תחזית</h1>
+        {p.banks.length > 1 && <BankPicker banks={p.banks} active={p.accountId} />}
+      </div>
+
+      {p.insufficient ? (
+        <EmptyState
+          icon={p.banks.length ? CalendarClock : Upload}
+          title={p.banks.length ? 'צריך עוד קצת היסטוריה' : 'אין עדיין חשבון בנק'}
+          text={
+            p.banks.length
+              ? `כדי לחזות את השנה הקרובה צריך לפחות 3 חודשים מלאים של תנועות בנק. יש כרגע ${p.completeMonths}.`
+              : 'הוסיפו חשבון בנק והעלו לפחות 3 חודשים של תנועות כדי לראות תחזית.'
+          }
+          actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
+        />
+      ) : (
+        <>
+          <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
+          <ProjectionTable months={p.months} />
+          <ProjectionItems items={p.items} />
+        </>
+      )}
+    </div>
+  )
+}
