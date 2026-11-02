@@ -108,4 +108,23 @@ describe('getProjection', () => {
     if (p.insufficient) throw new Error('expected a projection')
     expect(p.past.at(-1)).toEqual({ month: '2030-07', balance: 1500 + 19000 })
   })
+
+  it('judges the recurring series as of the given day, not the data or the clock', async () => {
+    // A year after the data every series has lapsed: none is projected any more.
+    // (Without `today` the rent series stays active and still adds 4000 a month.)
+    const p = await projection.getProjection({ today: new Date(2031, 5, 20) })
+    if (p.insufficient) throw new Error('expected a projection')
+    expect(p.months[0].expense).toBe(0)
+    expect(p.months[0].income).toBe(9000 + 2000)
+  })
+
+  it('one bank: the cards it pays are in scope', async () => {
+    const p = await projection.getProjection({ accountId: 'acct_leumi', today })
+    if (p.insufficient) throw new Error('expected a projection')
+    // With the MAX card in scope its monthly shop charge is a recurring card series,
+    // paid by the bank the month after: absent in Aug (4000 rent), present from Sep (+300).
+    // Without the card the 300 would be everyday spending, in every month including Aug.
+    expect(p.months[0].expense).toBe(4000)
+    expect(p.months[1].expense).toBe(4300)
+  })
 })

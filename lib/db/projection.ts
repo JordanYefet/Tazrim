@@ -71,7 +71,7 @@ export async function getProjection(params: { accountId?: string; today?: Date }
       orderBy: { date: 'desc' },
       select: { accountId: true, date: true, balance: true },
     }),
-    getRecurringSeries({ accountId: [...scope, ...cardIds] }),
+    getRecurringSeries({ accountId: [...scope, ...cardIds], today }),
   ])
 
   const series: ProjectionSeries[] = overview.series.map(s => ({
