@@ -4,7 +4,7 @@
  *
  * Each future month = recurring items on their own dates + everyday flows (the
  * median per category of the last complete months) + the card payment. The first
- * row is the latest data month, covering only what is left of it after the start date. Card
+ * row is the latest data month: what is left of its usual amounts after the rows already in. Card
  * spending enters once, through the bank's card-payment debits less the card's
  * recurring charges, which are then placed on their own months (ENG-3: the bank
  * payment already holds the card charges, so they are never added twice).
@@ -95,6 +95,31 @@ function populationSd(xs: number[]): number {
   return round2(Math.sqrt(xs.reduce((a, x) => a + (x - mean) ** 2, 0) / xs.length))
 }
 
+/** Rows of kept series, which the forecast places on their own dates (card-payment series aside) */
+function recurringRowIds(series: ProjectionSeries[]): Set<string> {
+  return new Set(series.filter(s => !s.dismissed && !s.isCardPayment).flatMap(s => s.transactionIds))
+}
+
+/**
+ * What the bank rows of one month already hold, with the everyday exclusions: per category
+ * (no recurring rows, no card payments), and the card payments made.
+ */
+export function seenInMonth(bank: BankFlowRow[], series: ProjectionSeries[], month: string) {
+  const recurringIds = recurringRowIds(series)
+  const income: Record<string, number> = {}
+  const expense: Record<string, number> = {}
+  let cardPaid = 0
+  for (const r of bank) {
+    if (monthKey(r.date) !== month) continue
+    if (r.isCardPayment) { cardPaid += r.debit; continue }
+    if (recurringIds.has(r.id)) continue
+    const category = r.category ?? UNCATEGORIZED
+    if (r.debit > 0) expense[category] = (expense[category] ?? 0) + r.debit
+    if (r.credit > 0) income[category] = (income[category] ?? 0) + r.credit
+  }
+  return { income, expense, cardPaid }
+}
+
 /** The everyday (non-recurring) flows of the window months that have bank data */
 export function everydayFlows(
   bank: BankFlowRow[],
@@ -102,8 +127,7 @@ export function everydayFlows(
   series: ProjectionSeries[],
   window: string[]
 ): Everyday {
-  const kept = series.filter(s => !s.dismissed)
-  const recurringIds = new Set(kept.filter(s => !s.isCardPayment).flatMap(s => s.transactionIds))
+  const recurringIds = recurringRowIds(series)
   const inWindow = new Set(window)
   const months = window.filter(m => bank.some(r => monthKey(r.date) === m))
 
@@ -257,27 +281,39 @@ export function projectBalance(input: ProjectionInput): Projection {
   const thisMonth = monthKey(input.today)
   const end = addMonths(thisMonth, HORIZON_MONTHS)
   const recurring = projectedSeries(input.series)
-  // The first row is the latest data month itself, covering only what is still to come after
-  // the start date: bank hits by their real date, card hits and everyday flows prorated.
-  const fraction = restOfMonth(input.start.date)
   const hits = new Map<string, number>()
   const addHit = (m: string, amount: number) => hits.set(m, (hits.get(m) ?? 0) + amount)
-  for (const s of recurring) {
-    if (s.source === 'bank') addHit(last, hitsLeftInMonth(s, input.start.date).length * s.latestAmount)
-    else addHit(last, occurrences(s, last, last).length * s.latestAmount * fraction)
-    for (const m of occurrences(s, addMonths(last, 1), end)) addHit(m, s.latestAmount)
-  }
+  for (const s of recurring) for (const m of occurrences(s, addMonths(last, 1), end)) addHit(m, s.latestAmount)
 
   const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
   const fullIncome = sum(everyday.income)
   const baseExpense = sum(everyday.expense) + everyday.card
 
+  // The first row is the latest data month itself: what is left of its usual amounts after the
+  // rows already in, plus the bank recurring hits dated after the start date. The card's usual
+  // payment (its everyday spending and the card recurring charges paid that month) less the card
+  // payments already made. Nothing is prorated: lumpy flows (a salary on the 1st) are not added twice.
+  const seen = seenInMonth(input.bank, input.series, last)
+  const rest = (usual: Record<string, number>, already: Record<string, number>) =>
+    Object.entries(usual).reduce((a, [category, v]) => a + Math.max(0, v - (already[category] ?? 0)), 0)
+  let cardHits = 0
+  let bankHits = 0
+  for (const s of recurring) {
+    if (s.source === 'bank') bankHits += hitsLeftInMonth(s, input.start.date).length * s.latestAmount
+    else cardHits += occurrences(s, last, last).length * s.latestAmount
+  }
+  const partial = {
+    income: rest(everyday.income, seen.income),
+    expense: rest(everyday.expense, seen.expense) + Math.max(0, everyday.card + cardHits - seen.cardPaid) + bankHits,
+  }
+  // The band still starts from the share of the month still to come
+  const fraction = restOfMonth(input.start.date)
+
   const months: ProjectedMonth[] = []
   let expected = input.start.balance
   for (let month = last, n = 0; month <= end; month = addMonths(month, 1), n++) {
-    const share = n === 0 ? fraction : 1
-    const income = round2(fullIncome * share)
-    const expense = round2(baseExpense * share + (hits.get(month) ?? 0))
+    const income = round2(n === 0 ? partial.income : fullIncome)
+    const expense = round2(n === 0 ? partial.expense : baseExpense + (hits.get(month) ?? 0))
     const net = round2(income - expense)
     expected = round2(expected + net)
     const spread = round2(everyday.sigma * Math.sqrt(fraction + n))
