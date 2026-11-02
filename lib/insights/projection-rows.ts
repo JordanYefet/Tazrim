@@ -18,13 +18,19 @@ export interface ChartRow {
  * their own faint series, which joins the actual line at one end and the normal forecast at the other.
  */
 export function buildChartRows(past: { month: string; balance: number }[], months: ProjectedMonth[], start: number): ChartRow[] {
-  const actual: ChartRow[] = past.map(p => ({ label: monthLabel(p.month), actual: p.balance }))
+  // The forecast's first row is the latest data month, standing for its month-end; the actual
+  // point of that month is mid-month (the start date), so it gives way and the line joins the
+  // forecast from the month before.
+  const firstMonth = months[0]?.month
+  const kept = firstMonth ? past.filter(p => p.month < firstMonth) : past
+  const actual: ChartRow[] = kept.map(p => ({ label: monthLabel(p.month), actual: p.balance }))
   const firstFresh = months.findIndex(m => !m.stale)
   const hasStale = months.some(m => m.stale)
   const join: ChartRow | undefined = actual[actual.length - 1]
   if (join) {
-    if (hasStale) { join.staleExpected = start; join.staleBand = [start, start] }
-    else { join.expected = start; join.band = [start, start] }
+    const v = kept.length === past.length ? start : join.actual!
+    if (hasStale) { join.staleExpected = v; join.staleBand = [v, v] }
+    else { join.expected = v; join.band = [v, v] }
   }
   const forecast: ChartRow[] = months.map((m, i) => {
     const row: ChartRow = { label: monthLabel(m.month), tight: m.tight }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildChartRows } from '../projection-rows'
+import { monthLabel } from '../projection-format'
 import type { ProjectedMonth } from '../projection'
 
 const m = (month: string, expected: number, stale: boolean): ProjectedMonth => ({
@@ -28,5 +29,16 @@ describe('chart rows', () => {
     const r = buildChartRows(past, [m('2030-11', 1000, false)], 950)
     expect(r[0].expected).toBe(950)
     expect(r.every(x => x.staleExpected === undefined)).toBe(true)
+  })
+
+  it('the partial first month stands for its own month-end: the mid-month actual point gives way, and the actual line joins the faint run', () => {
+    // data ends mid-July: past has July's latest balance, and the forecast starts with what is left of July
+    const pastToJuly = [{ month: '2030-06', balance: 800 }, { month: '2030-07', balance: 950 }]
+    const r = buildChartRows(pastToJuly, [m('2030-07', 1000, true), m('2030-08', 1100, false)], 950)
+    expect(r.map(x => x.label)).toEqual(['2030-06', '2030-07', '2030-08'].map(monthLabel))
+    expect(r[0]).toMatchObject({ actual: 800, staleExpected: 800 })
+    expect(r[1]).toMatchObject({ staleExpected: 1000 })
+    expect(r[1].actual).toBeUndefined()
+    expect(r[2]).toMatchObject({ staleExpected: 1100, expected: 1100 })
   })
 })

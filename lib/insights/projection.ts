@@ -3,7 +3,8 @@
  * Pure: the DB layer (lib/db/projection.ts) hands in plain rows.
  *
  * Each future month = recurring items on their own dates + everyday flows (the
- * median per category of the last complete months) + the card payment. Card
+ * median per category of the last complete months) + the card payment. The first
+ * row is the latest data month, covering only what is left of it after the start date. Card
  * spending enters once, through the bank's card-payment debits less the card's
  * recurring charges, which are then placed on their own months (ENG-3: the bank
  * payment already holds the card charges, so they are never added twice).
@@ -166,6 +167,30 @@ export function occurrences(s: ProjectionSeries, from: string, to: string): stri
   return out
 }
 
+/**
+ * The days (YYYY-MM-DD) a series hits after `after` (exclusive) and within `after`'s month,
+ * by its own dates: for bank series, whose day in the month is known.
+ */
+export function hitsLeftInMonth(s: ProjectionSeries, after: string): string[] {
+  const spec = cadenceSpec(s.cadence)
+  const month = monthKey(after)
+  const first = toDay(s.nextDate)
+  const out: string[] = []
+  for (let i = 0; ; i++) {
+    const date = fmt(addCycles(first, spec, i))
+    if (monthKey(date) > month) break
+    if (date > after) out.push(date)
+  }
+  return out
+}
+
+/** The share of the month still to come after `date`: (days in month − day) / days in month */
+export function restOfMonth(date: string): number {
+  const [y, m, d] = date.split('-').map(Number)
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return (days - d) / days
+}
+
 export interface ProjectionInput {
   /** YYYY-MM-DD */
   today: string
@@ -230,23 +255,32 @@ export function projectBalance(input: ProjectionInput): Projection {
   if (everyday.months.length < MIN_MONTHS) return { insufficient: true, completeMonths: everyday.months.length }
 
   const thisMonth = monthKey(input.today)
-  const first = addMonths(last, 1)
   const end = addMonths(thisMonth, HORIZON_MONTHS)
   const recurring = projectedSeries(input.series)
+  // The first row is the latest data month itself, covering only what is still to come after
+  // the start date: bank hits by their real date, card hits and everyday flows prorated.
+  const fraction = restOfMonth(input.start.date)
   const hits = new Map<string, number>()
-  for (const s of recurring) for (const m of occurrences(s, first, end)) hits.set(m, (hits.get(m) ?? 0) + s.latestAmount)
+  const addHit = (m: string, amount: number) => hits.set(m, (hits.get(m) ?? 0) + amount)
+  for (const s of recurring) {
+    if (s.source === 'bank') addHit(last, hitsLeftInMonth(s, input.start.date).length * s.latestAmount)
+    else addHit(last, occurrences(s, last, last).length * s.latestAmount * fraction)
+    for (const m of occurrences(s, addMonths(last, 1), end)) addHit(m, s.latestAmount)
+  }
 
   const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
-  const income = round2(sum(everyday.income))
+  const fullIncome = sum(everyday.income)
   const baseExpense = sum(everyday.expense) + everyday.card
 
   const months: ProjectedMonth[] = []
   let expected = input.start.balance
-  for (let month = first, k = 1; month <= end; month = addMonths(month, 1), k++) {
-    const expense = round2(baseExpense + (hits.get(month) ?? 0))
+  for (let month = last, n = 0; month <= end; month = addMonths(month, 1), n++) {
+    const share = n === 0 ? fraction : 1
+    const income = round2(fullIncome * share)
+    const expense = round2(baseExpense * share + (hits.get(month) ?? 0))
     const net = round2(income - expense)
     expected = round2(expected + net)
-    const spread = round2(everyday.sigma * Math.sqrt(k))
+    const spread = round2(everyday.sigma * Math.sqrt(fraction + n))
     const low = round2(expected - spread)
     months.push({
       month, income, expense, net, expected, low,

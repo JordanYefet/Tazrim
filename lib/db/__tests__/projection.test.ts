@@ -76,7 +76,9 @@ describe('getProjection', () => {
     expect(p.start).toEqual({ balance: 1500 + 19000, date: '2030-07-10' })
     expect(p.accountId).toBeNull()
     expect(p.banks.map(b => b.id).sort()).toEqual(['acct_bank2', 'acct_leumi'])
-    expect(p.months[0].income).toBe(9000 + 2000)
+    // July (the latest data month) comes first, holding what is left of it; August is the first full month
+    expect(p.months[0].month).toBe('2030-07')
+    expect(p.months[1].income).toBe(9000 + 2000)
   })
 
   it('one bank: only its rows and the cards it pays', async () => {
@@ -84,8 +86,8 @@ describe('getProjection', () => {
     if (p.insufficient) throw new Error('expected a projection')
     expect(p.accountId).toBe('acct_bank2')
     expect(p.start.balance).toBe(19000)
-    expect(p.months[0].income).toBe(2000)
-    expect(p.months[0].expense).toBe(0)
+    expect(p.months[1].income).toBe(2000)
+    expect(p.months[1].expense).toBe(0)
   })
 
   it('falls back to every bank for an unknown account id', async () => {
@@ -109,13 +111,22 @@ describe('getProjection', () => {
     expect(p.past.at(-1)).toEqual({ month: '2030-07', balance: 1500 + 19000 })
   })
 
-  it('judges the recurring series as of the given day, not the data or the clock', async () => {
-    // A year after the data every series has lapsed: none is projected any more.
-    // (Without `today` the rent series stays active and still adds 4000 a month.)
+  it('judges the recurring series as of the latest data, so stale data keeps them', async () => {
+    // A year after the data the rent and the card charge are still projected (data ends 2030-07-10)
     const p = await projection.getProjection({ today: new Date(2031, 5, 20) })
     if (p.insufficient) throw new Error('expected a projection')
-    expect(p.months[0].expense).toBe(0)
-    expect(p.months[0].income).toBe(9000 + 2000)
+    const jul31 = p.months.find(m => m.month === '2031-07')!
+    expect(jul31.expense).toBe(4000 + 300)
+    expect(jul31.income).toBe(9000 + 2000)
+  })
+
+  it('projects the monthly hits of the months since the data ended', async () => {
+    // Data ends 2030-07-10 and today is 2030-08-20: August's rent is projected
+    const p = await projection.getProjection({ today: new Date(2030, 7, 20) })
+    if (p.insufficient) throw new Error('expected a projection')
+    const aug = p.months.find(m => m.month === '2030-08')!
+    expect(aug.stale).toBe(true)
+    expect(aug.expense).toBe(4000)
   })
 
   it('one bank: the cards it pays are in scope', async () => {
@@ -124,7 +135,8 @@ describe('getProjection', () => {
     // With the MAX card in scope its monthly shop charge is a recurring card series,
     // paid by the bank the month after: absent in Aug (4000 rent), present from Sep (+300).
     // Without the card the 300 would be everyday spending, in every month including Aug.
-    expect(p.months[0].expense).toBe(4000)
-    expect(p.months[1].expense).toBe(4300)
+    // (months[0] is what is left of July.)
+    expect(p.months[1].expense).toBe(4000)
+    expect(p.months[2].expense).toBe(4300)
   })
 })

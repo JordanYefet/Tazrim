@@ -32,6 +32,8 @@ projectBalance(input: ProjectionInput): Projection
 - The combined latest bank balance comes from `combinedBalance` (`lib/insights/combined-balance.ts`) applied to `getBankBalancePoints` (`lib/db/bank.ts`). With one bank selected, it's that bank's latest balance.
 - The start date is the date of the latest row. Months between that date and today are projected too and marked `stale: true`, so out-of-date data can't shift the result without the page saying so.
 - The horizon is the 12 months after the current month.
+- The latest data month is the first row. It covers only what is left of that month after the start date: the everyday flows and the card recurring charges prorated by the share of the month still to come (`(days in month − day of the start date) / days in month`), plus the bank recurring hits dated after the start date. Its range is `σ·√fraction`, and each later month's range is `σ·√(fraction + n)`. So the table usually has 13 rows.
+- Recurring series are judged as of the latest data date, not the clock, so stale data neither ends a series nor skips its hits in the months since the last upload.
 
 ### Each future month is the sum of
 1. **Recurring bank items** from `getRecurringSeries` (`lib/db/recurring.ts`), which already includes manual series and the user's confirm/dismiss choices.
@@ -48,7 +50,7 @@ The no-double-counting rule (ENG-3) holds: card spending enters the forecast onc
 
 ### Range band
 - σ is the standard deviation of the historical monthly net of the **non-recurring** flows over the last 6 complete months.
-- In month *k* ahead: `low = expected − σ·√k` and `high = expected + σ·√k`.
+- In the *n*-th month after the latest data month: `low = expected − σ·√(fraction + n)` and `high = expected + σ·√(fraction + n)`, where `fraction` is the share of the latest data month still to come (see Starting point).
 
 ### Tight
 `tight = low < cushion`. `tight[]` lists those months in date order.
@@ -104,7 +106,7 @@ The list behind "What's in the forecast": each recurring series used (name, cade
 - Dismissed and inactive series are left out.
 - A card payment lands in its billing month.
 - The median ignores a one-off spike.
-- The band widens with the horizon (σ·√k).
+- The band widens with the horizon (σ·√(fraction + n)).
 - Fewer than 3 months of history returns `insufficient`.
 - Months between the last data and today are flagged `stale`.
 

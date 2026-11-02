@@ -3,9 +3,11 @@ import {
   addMonths,
   everydayFlows,
   monthKey,
+  hitsLeftInMonth,
   occurrences,
   projectBalance,
   projectedSeries,
+  restOfMonth,
   type BankFlowRow,
   type CardChargeRow,
   type ProjectionInput,
@@ -131,20 +133,39 @@ describe('occurrences', () => {
   })
 })
 
+describe('the rest of the latest data month', () => {
+  it('lists the hits still due after a day, within its month only', () => {
+    expect(hitsLeftInMonth(series({ nextDate: '2030-06-20' }), '2030-06-15')).toEqual(['2030-06-20'])
+    expect(hitsLeftInMonth(series({ nextDate: '2030-06-10' }), '2030-06-15')).toEqual([])
+    expect(hitsLeftInMonth(series({ nextDate: '2030-06-15' }), '2030-06-15')).toEqual([])
+    expect(hitsLeftInMonth(series({ cadence: 'weekly', nextDate: '2030-06-14' }), '2030-06-15')).toEqual(['2030-06-21', '2030-06-28'])
+  })
+
+  it('measures the share of the month still to come', () => {
+    expect(restOfMonth('2030-06-15')).toBe(0.5)
+    expect(restOfMonth('2030-06-30')).toBe(0)
+    expect(restOfMonth('2030-02-07')).toBe(0.75)
+  })
+})
+
 const salaryAndRent = () => [
   ...each(m => bank(`${m}-01`, { credit: 10000, category: 'משכורת' })),
   ...each(m => bank(`${m}-09`, { debit: 6000, category: 'שכירות' })),
 ]
+// The data ends on the last day of July, so July's own row has nothing left to come (fraction 0)
 const input = (over: Partial<ProjectionInput> = {}): ProjectionInput => ({
-  today: '2030-07-05',
+  today: '2030-07-31',
   cushion: 0,
-  start: { balance: 5000, date: '2030-07-03' },
+  start: { balance: 5000, date: '2030-07-31' },
   bank: salaryAndRent(),
   cards: [],
   series: [],
   past: [],
   ...over,
 })
+// The data ends mid-June (30 days): half of June is still to come (fraction 0.5).
+// Window Dec 2029 – May 2030, of which Jan–May have data.
+const midJune = (over: Partial<ProjectionInput> = {}) => input({ today: '2030-06-20', start: { balance: 5000, date: '2030-06-15' }, ...over })
 const ok = (p: ReturnType<typeof projectBalance>) => {
   if (p.insufficient) throw new Error('expected a projection')
   return p
@@ -160,14 +181,48 @@ describe('projectBalance', () => {
     expect(projectBalance(input({ bank: rows }))).toEqual({ insufficient: true, completeMonths: 2 })
   })
 
-  it('projects the 12 months after the current one, adding each month\'s net', () => {
+  it('starts with the rest of the latest data month, then the 12 months after the current one, adding each month\'s net', () => {
     const p = ok(projectBalance(input()))
     expect(p.months.map(m => m.month)).toEqual([
+      '2030-07',
       '2030-08', '2030-09', '2030-10', '2030-11', '2030-12', '2031-01',
       '2031-02', '2031-03', '2031-04', '2031-05', '2031-06', '2031-07',
     ])
-    expect(p.months[0]).toMatchObject({ income: 10000, expense: 6000, net: 4000, expected: 9000, stale: false })
+    expect(p.months[0]).toMatchObject({ income: 0, expense: 0, net: 0, expected: 5000, stale: true })
+    expect(p.months[1]).toMatchObject({ income: 10000, expense: 6000, net: 4000, expected: 9000, stale: false })
     expect(p.end.expected).toBe(5000 + 12 * 4000)
+  })
+
+  it('forecasts what is left of the latest data month: prorated everyday flows', () => {
+    const p = ok(projectBalance(midJune()))
+    expect(p.months).toHaveLength(13)
+    expect(p.months[0]).toMatchObject({ month: '2030-06', income: 5000, expense: 3000, net: 2000, expected: 7000, stale: true })
+    expect(p.months[1]).toMatchObject({ month: '2030-07', income: 10000, expense: 6000, expected: 11000 })
+  })
+
+  it('counts a bank recurring hit in the latest data month only when it falls after the start date', () => {
+    const due = series({ latestAmount: 100, nextDate: '2030-06-20' })
+    const passed = series({ latestAmount: 700, nextDate: '2030-06-10' })
+    const p = ok(projectBalance(midJune({ series: [due, passed] })))
+    expect(p.months[0].expense).toBe(3000 + 100)
+    expect(p.months[1].expense).toBe(6000 + 100 + 700)
+  })
+
+  it('prorates card recurring charges paid in the latest data month (the payment day is unknown)', () => {
+    // charged in May, paid by the bank in June
+    const sub = series({ source: 'card', latestAmount: 200, nextDate: '2030-05-20' })
+    const p = ok(projectBalance(midJune({ series: [sub] })))
+    expect(p.months[0].expense).toBe(3000 + 100)
+    expect(p.months[1].expense).toBe(6000 + 200)
+  })
+
+  it('leaves the rows of an ended series out of the everyday flows, and does not project it', () => {
+    const rent = each(m => bank(`${m}-12`, { debit: 1500, category: 'שכירות ישנה' }))
+    const ended = series({ active: false, latestAmount: 1500, transactionIds: rent.map(r => r.id) })
+    const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...rent], series: [ended] })))
+    expect(p.months[1].expense).toBe(6000)
+    expect(p.items.map(i => i.key)).not.toContain(`series:${ended.key}`)
+    expect(p.items.map(i => i.name)).not.toContain('שכירות ישנה')
   })
 
   it('puts a yearly payment in its own month and flags it when the low edge drops under the cushion', () => {
@@ -185,23 +240,37 @@ describe('projectBalance', () => {
     const payments = each(m => bank(`${m}-10`, { debit: 2000, isCardPayment: true }))
     const cardPaymentSeries = series({ isCardPayment: true, latestAmount: 2000, transactionIds: payments.map(r => r.id) })
     const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...payments], series: [cardPaymentSeries] })))
-    expect(p.months[0].expense).toBe(6000 + 2000)
+    expect(p.months[1].expense).toBe(6000 + 2000)
   })
 
   it('widens the band with the horizon', () => {
     const rows = [...salaryAndRent(), ...each(m => bank(`${m}-15`, { debit: m <= '2030-03' ? 1000 : 3000, category: 'סופר' }))]
     const p = ok(projectBalance(input({ bank: rows })))
     expect(p.sigma).toBe(1000)
-    expect(p.months[0].high - p.months[0].expected).toBe(1000)
-    expect(p.months[3].high - p.months[3].expected).toBe(2000)
-    expect(p.months[3].expected - p.months[3].low).toBe(2000)
+    // nothing left of July: no spread yet; then σ·√n for the n-th month after it
+    expect(p.months[0].high - p.months[0].expected).toBe(0)
+    expect(p.months[1].high - p.months[1].expected).toBe(1000)
+    expect(p.months[4].high - p.months[4].expected).toBe(2000)
+    expect(p.months[4].expected - p.months[4].low).toBe(2000)
+  })
+
+  it('starts the band from the part of the month still to come', () => {
+    // everyday nets over Jan–May: 3000 ×2, 1000 ×3 → population σ ≈ 979.8
+    const rows = [...salaryAndRent(), ...each(m => bank(`${m}-15`, { debit: m <= '2030-02' ? 1000 : 3000, category: 'סופר' }))]
+    const p = ok(projectBalance(midJune({ bank: rows })))
+    const spread = (i: number) => Math.round((p.months[i].high - p.months[i].expected) * 100) / 100
+    expect(spread(0)).toBe(Math.round(p.sigma * Math.sqrt(0.5) * 100) / 100)
+    expect(spread(1)).toBe(Math.round(p.sigma * Math.sqrt(1.5) * 100) / 100)
+    expect(spread(3)).toBe(Math.round(p.sigma * Math.sqrt(3.5) * 100) / 100)
+    expect(spread(3)).toBeGreaterThan(spread(1))
   })
 
   it('projects the months since the last upload too, marked stale', () => {
     const p = ok(projectBalance(input({ today: '2030-09-10' })))
-    expect(p.months[0]).toMatchObject({ month: '2030-08', stale: true })
-    expect(p.months[1]).toMatchObject({ month: '2030-09', stale: true })
-    expect(p.months[2]).toMatchObject({ month: '2030-10', stale: false })
+    expect(p.months[0]).toMatchObject({ month: '2030-07', stale: true })
+    expect(p.months[1]).toMatchObject({ month: '2030-08', stale: true })
+    expect(p.months[2]).toMatchObject({ month: '2030-09', stale: true })
+    expect(p.months[3]).toMatchObject({ month: '2030-10', stale: false })
     expect(p.months.at(-1)!.month).toBe('2031-09')
   })
 
