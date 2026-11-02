@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -19,6 +19,9 @@ import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/c
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
+import { CardPaymentBadges } from '@/components/bank/card-payment-badge'
+import type { BadgeCard } from '@/lib/accounts/payment-badge'
+import { useTargetRow } from '@/hooks/use-target-row'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 const BANK_KEYS = BANK_COLUMNS.map(c => c.key)
@@ -64,6 +67,7 @@ export function BankTransactionsTable({
   flowFilter,
   genericDescriptions = [],
   categoryColors = {},
+  cards = [],
 }: (
   | {
       /** The bank account these rows belong to */
@@ -100,6 +104,8 @@ export function BankTransactionsTable({
   categoryColors?: Record<string, string>
   /** Descriptions categorised row by row, never by a rule (lib/db/generic-descriptions.ts) */
   genericDescriptions?: string[]
+  /** Every card (archived too): a card-payment row links to the card(s) it paid */
+  cards?: BadgeCard[]
 }) {
   const [columns, setColumns] = useState(initialColumns as BankColumn[])
   const { shown: shownColumns, cellClass: columnClass } = useColumnMotion(BANK_KEYS, columns)
@@ -118,6 +124,9 @@ export function BankTransactionsTable({
   const activeMerchant = params.get('merchant')
   const pagePath = accountPath('BANK', accountId)
   const scope = tableScope(accountId, accounts)
+  // A link's `?tx=` row (the card page's "paid from" chip) is brought into view and lit once
+  const tableRef = useRef<HTMLDivElement>(null)
+  useTargetRow(tableRef, transactions.map(t => t.id))
 
   async function loadMore() {
     if (!fetchParams) return
@@ -357,7 +366,7 @@ export function BankTransactionsTable({
       )}
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
-      <div data-swap className="rounded-xl surface overflow-hidden">
+      <div ref={tableRef} data-swap className="rounded-xl surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -398,6 +407,7 @@ export function BankTransactionsTable({
               {transactions.map(tx => (
                 <tr
                   key={tx.id}
+                  data-row-id={tx.id}
                   className={cn(
                     'border-b transition-colors hover:bg-muted/30',
                     tx.ignored && 'opacity-40',
@@ -428,6 +438,16 @@ export function BankTransactionsTable({
                       >
                         {tx.description}
                       </span>
+                    )}
+                    {/* A card payment: the card(s) it paid, each opening that card's month */}
+                    {!tx.ignored && isCardPaymentRow(tx) && (
+                      <CardPaymentBadges
+                        descriptions={[tx.originalDescription, tx.description]}
+                        bankAccountId={tx.accountId ?? accountId}
+                        date={tx.date}
+                        cards={cards}
+                        className="ms-1.5"
+                      />
                     )}
                     {!tx.ignored && unusual[tx.id]?.map(f => (
                       <UnusualBadge key={f.reason} flag={f} className="ms-1.5 align-middle" />

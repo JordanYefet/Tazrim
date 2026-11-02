@@ -95,7 +95,16 @@ export const PROVIDER_MAX = 40
 /** Thrown for invalid input; API routes turn it into a 400. */
 export class AccountValidationError extends Error {
   constructor(
-    public field: 'kind' | 'provider' | 'displayName' | 'cardLastFour' | 'cardNetwork' | 'archived' | 'color',
+    public field:
+      | 'kind'
+      | 'provider'
+      | 'displayName'
+      | 'cardLastFour'
+      | 'cardNetwork'
+      | 'archived'
+      | 'color'
+      | 'payerAccountId'
+      | 'paidCardIds',
     message: string
   ) {
     super(message)
@@ -110,6 +119,40 @@ export interface NewAccountInput {
   cardLastFour?: unknown
   cardNetwork?: unknown
   color?: unknown
+  /** Cards: the bank account that pays it (null = unknown / not managed here) */
+  payerAccountId?: unknown
+  /** Bank accounts: the cards it pays, linked to it on creation (moved from another payer if they had one) */
+  paidCardIds?: unknown
+}
+
+/**
+ * A card's paying account (Account.payerAccountId): a non-archived bank
+ * account, or null (unknown, or an account not managed here). undefined
+ * leaves it as it is. Throws AccountValidationError.
+ */
+export async function normalizePayerAccountId(value: unknown, kind: string): Promise<string | null | undefined> {
+  if (value === undefined) return undefined
+  if (value === null || value === '') return null
+  if (kind !== 'CREDIT_CARD') {
+    throw new AccountValidationError('payerAccountId', 'חשבון משלם רלוונטי רק לכרטיסי אשראי')
+  }
+  const payer = typeof value === 'string' ? await getAccount(value) : null
+  if (!payer || payer.kind !== 'BANK' || payer.archived) {
+    throw new AccountValidationError('payerAccountId', 'החשבון המשלם צריך להיות חשבון בנק פעיל')
+  }
+  return payer.id
+}
+
+/** A new bank account's cards (paidCardIds): ids of non-archived cards, or none. Throws AccountValidationError. */
+async function normalizePaidCardIds(value: unknown, kind: string): Promise<string[]> {
+  if (value === undefined || value === null) return []
+  const ids = Array.isArray(value) && value.every(v => typeof v === 'string') ? [...new Set(value as string[])] : null
+  if (!ids) throw new AccountValidationError('paidCardIds', 'רשימת כרטיסים לא תקינה')
+  if (!ids.length) return []
+  if (kind !== 'BANK') throw new AccountValidationError('paidCardIds', 'רק חשבון בנק משלם כרטיסים')
+  const found = await prisma.account.count({ where: { id: { in: ids }, kind: 'CREDIT_CARD', archived: false } })
+  if (found !== ids.length) throw new AccountValidationError('paidCardIds', 'אחד הכרטיסים לא נמצא')
+  return ids
 }
 
 /**
@@ -194,7 +237,16 @@ export function validateNewAccount(input: NewAccountInput): {
 }
 
 export async function createAccount(input: NewAccountInput): Promise<Account> {
-  return prisma.account.create({ data: validateNewAccount(input) })
+  const data = validateNewAccount(input)
+  const payerAccountId = (await normalizePayerAccountId(input.payerAccountId, data.kind)) ?? null
+  const paidCardIds = await normalizePaidCardIds(input.paidCardIds, data.kind)
+  if (!paidCardIds.length) return prisma.account.create({ data: { ...data, payerAccountId } })
+  // The bank account and its cards' links land together
+  return prisma.$transaction(async tx => {
+    const account = await tx.account.create({ data })
+    await tx.account.updateMany({ where: { id: { in: paidCardIds } }, data: { payerAccountId: account.id } })
+    return account
+  })
 }
 
 /** Null when the account does not exist. Throws AccountValidationError for a bad name. */
@@ -232,6 +284,8 @@ export interface AccountUpdateInput {
   cardNetwork?: unknown
   color?: unknown
   archived?: unknown
+  /** Cards: a non-archived bank account id, or null */
+  payerAccountId?: unknown
   /** Required (true) to change the provider of an account that has transactions */
   confirmProviderChange?: unknown
 }
@@ -253,7 +307,7 @@ export type UpdateAccountResult =
  * AccountValidationError for a bad field.
  */
 export async function updateAccount(id: string, input: AccountUpdateInput): Promise<UpdateAccountResult> {
-  const fields = ['displayName', 'provider', 'cardLastFour', 'cardNetwork', 'color', 'archived'] as const
+  const fields = ['displayName', 'provider', 'cardLastFour', 'cardNetwork', 'color', 'archived', 'payerAccountId'] as const
   if (fields.every(f => input[f] === undefined)) return { status: 'nothing_to_update' }
 
   const account = await prisma.account.findUnique({
@@ -269,6 +323,7 @@ export async function updateAccount(id: string, input: AccountUpdateInput): Prom
     cardNetwork?: CardNetwork | null
     color?: string | null
     archived?: boolean
+    payerAccountId?: string | null
   } = {}
   if (input.displayName !== undefined) data.displayName = normalizeDisplayName(input.displayName)
   if (input.provider !== undefined) data.provider = normalizeProvider(input.provider)
@@ -279,6 +334,7 @@ export async function updateAccount(id: string, input: AccountUpdateInput): Prom
     if (typeof input.archived !== 'boolean') throw new AccountValidationError('archived', 'ערך ארכיון לא תקין')
     data.archived = input.archived
   }
+  if (input.payerAccountId !== undefined) data.payerAccountId = await normalizePayerAccountId(input.payerAccountId, account.kind)
 
   const transactionCount = account._count.bankTransactions + account._count.creditCardTransactions
   if (data.provider !== undefined && data.provider !== account.provider && transactionCount > 0 && input.confirmProviderChange !== true) {

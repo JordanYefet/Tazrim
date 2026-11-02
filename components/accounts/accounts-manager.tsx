@@ -11,7 +11,9 @@ import { AddAccountForm, type CreatedAccount } from './add-account-form'
 import { EditAccountDialog } from './edit-account-dialog'
 import { DeleteAccountDialog } from './delete-account-dialog'
 import { AccountMini } from './account-element'
+import type { PayerContext } from './payer-field'
 import { networkLabel } from '@/lib/accounts/brands'
+import type { PayerEvidence } from '@/lib/accounts/payer-suggestion'
 
 export interface ManagedAccount {
   id: string
@@ -30,6 +32,8 @@ export interface ManagedAccount {
   importProfile: { id: string; name: string } | null
   /** The colour of its position (dots, charts), for the brand default's preview */
   positionColor?: string
+  /** Cards: the bank account that pays it */
+  payerAccountId: string | null
 }
 
 const iconButton =
@@ -42,9 +46,15 @@ type Notice = { kind: 'created'; account: CreatedAccount } | { kind: 'deleted'; 
 export function AccountsManager({
   accounts,
   initialNewKind,
+  payerEvidence,
+  today,
 }: {
   accounts: ManagedAccount[]
   initialNewKind: CreatableKindValue | null
+  /** Which bank accounts' rows pay which card company (lib/db/card-payers.ts) */
+  payerEvidence: PayerEvidence[]
+  /** "YYYY-MM-DD", the evidence's today */
+  today: string
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -59,6 +69,27 @@ export function AccountsManager({
   const archived = accounts.filter(a => a.archived)
   const kindCount = (kind: AccountKindValue) => accounts.filter(a => a.kind === kind).length
   const groups = KIND_META.map(g => ({ ...g, accounts: active.filter(a => a.kind === g.kind) })).filter(g => g.accounts.length)
+
+  // For "משולם מחשבון" (add form, a card's window) and a new bank account's cards
+  const payer: PayerContext = {
+    banks: accounts
+      .filter(a => a.kind === 'BANK')
+      .map(a => ({ id: a.id, provider: a.provider, displayName: a.displayName, color: a.color, positionColor: a.positionColor, archived: a.archived })),
+    cards: active
+      .filter(a => a.kind === 'CREDIT_CARD')
+      .map(c => ({
+        id: c.id,
+        provider: c.provider,
+        displayName: c.displayName,
+        cardLastFour: c.cardLastFour,
+        cardNetwork: c.cardNetwork,
+        color: c.color,
+        positionColor: c.positionColor,
+        payerAccountId: c.payerAccountId,
+      })),
+    evidence: payerEvidence,
+    today,
+  }
 
   function created(account: CreatedAccount) {
     setAdding(null)
@@ -110,7 +141,7 @@ export function AccountsManager({
 
       {adding && (
         <section className="rounded-xl surface p-4 md:p-6">
-          <AddAccountForm key={adding} initialKind={adding} onCreated={created} onCancel={() => setAdding(null)} />
+          <AddAccountForm key={adding} initialKind={adding} payer={payer} onCreated={created} onCancel={() => setAdding(null)} />
         </section>
       )}
 
@@ -175,6 +206,7 @@ export function AccountsManager({
             ? { ...editing, kind: editing.kind }
             : null
         }
+        payer={payer}
         onOpenChange={open => { if (!open) setEditing(null) }}
         onSaved={() => {
           setEditing(null)

@@ -24,6 +24,8 @@ import { categoryAnalysisHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
+import { getCardPaymentRow } from '@/lib/db/card-payment-row'
+import { CardPayerChip } from '@/components/cards/card-payer-chip'
 
 interface SearchParams {
   year?: string
@@ -133,6 +135,17 @@ export default async function CardAccountPage({
   const hasData = lastMonthWithData(monthly) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
+  // One month: the bank row that paid it. Matched against the month's whole
+  // charges (every category, no merchant or search filter), not the filtered total
+  const payment = month
+    ? await getCardPaymentRow(
+        account,
+        Number(year),
+        month,
+        Object.values(allCategoryMonthly).reduce((s, m) => s + (m[month] ?? 0), 0)
+      )
+    : null
+
   // The card itself is the wallet in app/cards/layout.tsx (open on this page);
   // this page fills the grid around it (components/cards/card-wallet.tsx)
   return (
@@ -143,7 +156,11 @@ export default async function CardAccountPage({
           // The card's name is on the card in the wallet: the page keeps the section's title
           title="כרטיסי אשראי"
           badge={account.archived ? 'בארכיון' : undefined}
-        />
+        >
+          {payment && month && (
+            <CardPayerChip payment={payment} cardName={account.displayName} period={{ year: Number(year), month }} />
+          )}
+        </PageHeading>
       </div>
 
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">

@@ -232,7 +232,10 @@ for (const b of BANKS) {
   await prisma.account.upsert({ where: { id: b.id }, update: {}, create: { ...data, kind: 'BANK' } })
 }
 for (const c of CARDS) {
-  const fields = { cardLastFour: c.lastFour, cardNetwork: c.network, color: c.color }
+  // MAX and CAL are linked to the bank that pays them; Isracard is left for the
+  // settings suggestion ("looks paid from חשבון אישי") to show
+  const payerAccountId = c.id === 'acct_isracard' ? null : c.bank
+  const fields = { cardLastFour: c.lastFour, cardNetwork: c.network, color: c.color, payerAccountId }
   await prisma.account.upsert({
     where: { id: c.id },
     update: fields,

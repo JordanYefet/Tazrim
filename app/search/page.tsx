@@ -10,6 +10,7 @@ import { categoryColorMap } from '@/lib/utils/category-colors'
 import { parseSearchParams, toSearchParams } from '@/lib/search/query'
 import { withResolvedPeriod } from '@/lib/period-server'
 import { SearchView } from '@/components/search/search-view'
+import { badgeCards } from '@/lib/accounts/payment-badge'
 
 export const metadata = { title: 'חיפוש · תזרים' }
 
@@ -52,6 +53,7 @@ export default async function SearchPage({
       page={page}
       accounts={accounts.map(a => ({ id: a.id, name: a.displayName, kind: a.kind }))}
       categories={categories}
+      cards={badgeCards(accounts)}
       picker={{
         expense: expense.map(c => c.name),
         income: income.map(c => c.name),
