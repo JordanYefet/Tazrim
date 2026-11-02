@@ -5,10 +5,10 @@ import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { formatCurrency } from '@/lib/utils/currency'
-import { monthLabel } from '@/lib/insights/projection-format'
+import { buildChartRows, type ChartRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth } from '@/lib/insights/projection'
 
-interface Row { label: string; actual?: number; expected?: number; band?: [number, number]; tight?: boolean }
+type Row = ChartRow
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -42,15 +42,7 @@ export function ProjectionChart({ past, months, start, cushion }: {
   const axes = useChartAxes(textColor)
   const anim = useChartAnimation()
 
-  const actual: Row[] = past.map(p => ({ label: monthLabel(p.month), actual: p.balance }))
-  // The forecast starts where the actual line ends, so the two join
-  if (actual.length) {
-    const last = actual[actual.length - 1]
-    last.expected = start
-    last.band = [start, start]
-  }
-  const forecast: Row[] = months.map(m => ({ label: monthLabel(m.month), expected: m.expected, band: [m.low, m.high], tight: m.tight }))
-  const data = [...actual, ...forecast]
+  const data = buildChartRows(past, months, start)
 
   return (
     <div dir="ltr" className="h-64 sm:h-72">
@@ -60,12 +52,14 @@ export function ProjectionChart({ past, months, start, cushion }: {
           <XAxis dataKey="label" {...axes.xAxis} interval="preserveStartEnd" />
           <YAxis {...axes.yAxis} />
           <Tooltip content={<ChartTooltip />} />
+          <Area dataKey="staleBand" stroke="none" fill="var(--chart-1)" fillOpacity={0.06} isAnimationActive={false} />
           <Area {...anim} dataKey="band" stroke="none" fill="var(--chart-1)" fillOpacity={0.14} isAnimationActive={false} />
           <ReferenceLine y={cushion} stroke={textColor} strokeOpacity={0.5} strokeDasharray="2 4" />
           <Line {...anim} dataKey="actual" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} connectNulls={false} />
+          <Line {...anim} dataKey="staleExpected" stroke="var(--chart-1)" strokeOpacity={0.35} strokeWidth={2} strokeDasharray="6 5" dot={false} />
           <Line {...anim} dataKey="expected" stroke="var(--chart-1)" strokeWidth={2} strokeDasharray="6 5" dot={false} />
-          {forecast.filter(r => r.tight).map(r => (
-            <ReferenceDot key={r.label} x={r.label} y={r.expected} r={4} fill="var(--chart-expense)" stroke="none" />
+          {data.filter(r => r.tight).map(r => (
+            <ReferenceDot key={r.label} x={r.label} y={r.expected ?? r.staleExpected} r={4} fill="var(--chart-expense)" stroke="none" />
           ))}
         </ComposedChart>
       </ResponsiveContainer>
