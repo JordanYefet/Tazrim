@@ -10,17 +10,20 @@ import type { ProjectedMonth } from '@/lib/insights/projection'
 
 type Row = ChartRow
 
-function ChartTooltip({ active, payload, label }: any) {
+export function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   const row: Row = payload[0].payload
+  // A stale month carries its value in the faint series; a join row already shows its actual
+  const expected = row.actual === undefined ? row.expected ?? row.staleExpected : undefined
+  const band = row.band ?? row.staleBand
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="mb-0.5 text-xs text-muted-foreground">{label}</p>
       {row.actual !== undefined && <p className="font-semibold tabular-nums">{formatCurrency(row.actual)}</p>}
-      {row.expected !== undefined && row.band && (
+      {expected !== undefined && band && (
         <>
-          <p className="font-semibold tabular-nums">{formatCurrency(row.expected)}</p>
-          <p className="text-xs tabular-nums text-muted-foreground">{formatCurrency(row.band[0])} – {formatCurrency(row.band[1])}</p>
+          <p className="font-semibold tabular-nums">{formatCurrency(expected)}</p>
+          <p className="text-xs tabular-nums text-muted-foreground">{formatCurrency(band[0])} – {formatCurrency(band[1])}</p>
         </>
       )}
     </div>

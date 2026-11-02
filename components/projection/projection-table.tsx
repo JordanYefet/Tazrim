@@ -24,10 +24,11 @@ export function ProjectionTable({ months }: { months: ProjectedMonth[] }) {
             {months.map(m => (
               <tr key={m.month} className={cn('border-t border-border', m.stale && 'text-muted-foreground')}>
                 <td className="py-2.5">{monthLabel(m.month)}</td>
-                <td className="py-2.5 text-end text-[hsl(var(--income))]">{formatCurrencyWhole(m.income)}</td>
+                {/* A stale row is faint as a whole: no income colour, no full-strength balance */}
+                <td className={cn('py-2.5 text-end', !m.stale && 'text-[hsl(var(--income))]')}>{formatCurrencyWhole(m.income)}</td>
                 <td className="py-2.5 text-end">{formatCurrencyWhole(m.expense)}</td>
                 <td className="py-2.5 text-end">
-                  <span className="block font-medium text-foreground">{formatCurrencyWhole(m.expected)}</span>
+                  <span className={cn('block font-medium', !m.stale && 'text-foreground')}>{formatCurrencyWhole(m.expected)}</span>
                   <span className="block text-xs text-muted-foreground">עד {formatCurrencyWhole(m.low)}</span>
                 </td>
                 <td className="py-2.5 text-end">
