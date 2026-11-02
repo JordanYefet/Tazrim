@@ -165,3 +165,117 @@ export function occurrences(s: ProjectionSeries, from: string, to: string): stri
   }
   return out
 }
+
+export interface ProjectionInput {
+  /** YYYY-MM-DD */
+  today: string
+  cushion: number
+  /** combined latest balance and the date of the latest row; null without bank data */
+  start: { balance: number; date: string } | null
+  /** non-ignored bank rows, from the window's first month on */
+  bank: BankFlowRow[]
+  /** non-ignored card rows of the cards in scope, from the window's first month on */
+  cards: CardChargeRow[]
+  series: ProjectionSeries[]
+  /** actual month-end balances, oldest first: drawn before the forecast */
+  past: { month: string; balance: number }[]
+}
+
+export interface ProjectedMonth {
+  /** YYYY-MM */
+  month: string
+  income: number
+  expense: number
+  net: number
+  expected: number
+  low: number
+  high: number
+  /** between the latest data and today: projected, though it has already passed */
+  stale: boolean
+  tight: boolean
+}
+
+export interface ProjectionItem {
+  key: string
+  name: string
+  kind: 'recurring' | 'everyday' | 'card'
+  direction: 'in' | 'out'
+  cadence: Cadence | null
+  monthlyAmount: number
+  /** the recurring series, for the link to /recurring */
+  seriesKey: string | null
+}
+
+export type Projection =
+  | { insufficient: true; completeMonths: number }
+  | {
+      insufficient: false
+      start: { balance: number; date: string }
+      end: ProjectedMonth
+      months: ProjectedMonth[]
+      tight: ProjectedMonth[]
+      items: ProjectionItem[]
+      past: { month: string; balance: number }[]
+      cushion: number
+      sigma: number
+    }
+
+export const CARD_ITEM_NAME = 'כרטיסי אשראי'
+
+export function projectBalance(input: ProjectionInput): Projection {
+  if (!input.start) return { insufficient: true, completeMonths: 0 }
+  const last = monthKey(input.start.date)
+  const window = Array.from({ length: WINDOW_MONTHS }, (_, i) => addMonths(last, i - WINDOW_MONTHS))
+  const everyday = everydayFlows(input.bank, input.cards, input.series, window)
+  if (everyday.months.length < MIN_MONTHS) return { insufficient: true, completeMonths: everyday.months.length }
+
+  const thisMonth = monthKey(input.today)
+  const first = addMonths(last, 1)
+  const end = addMonths(thisMonth, HORIZON_MONTHS)
+  const recurring = projectedSeries(input.series)
+  const hits = new Map<string, number>()
+  for (const s of recurring) for (const m of occurrences(s, first, end)) hits.set(m, (hits.get(m) ?? 0) + s.latestAmount)
+
+  const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
+  const income = round2(sum(everyday.income))
+  const baseExpense = sum(everyday.expense) + everyday.card
+
+  const months: ProjectedMonth[] = []
+  let expected = input.start.balance
+  for (let month = first, k = 1; month <= end; month = addMonths(month, 1), k++) {
+    const expense = round2(baseExpense + (hits.get(month) ?? 0))
+    const net = round2(income - expense)
+    expected = round2(expected + net)
+    const spread = round2(everyday.sigma * Math.sqrt(k))
+    const low = round2(expected - spread)
+    months.push({
+      month, income, expense, net, expected, low,
+      high: round2(expected + spread),
+      stale: month <= thisMonth,
+      tight: low < input.cushion,
+    })
+  }
+
+  const items: ProjectionItem[] = [
+    ...Object.entries(everyday.income).map(([name, v]) => item(`income:${name}`, name, 'everyday', 'in', v)),
+    ...Object.entries(everyday.expense).map(([name, v]) => item(`expense:${name}`, name, 'everyday', 'out', v)),
+    ...(everyday.card > 0 ? [item('card', CARD_ITEM_NAME, 'card', 'out', everyday.card)] : []),
+    ...recurring.map(s => ({ ...item(`series:${s.key}`, s.name, 'recurring', 'out', s.monthlyAmount), cadence: s.cadence, seriesKey: s.key })),
+  ]
+
+  return {
+    insufficient: false,
+    start: input.start,
+    end: months[months.length - 1],
+    months,
+    tight: months.filter(m => m.tight),
+    items,
+    past: input.past,
+    cushion: input.cushion,
+    sigma: everyday.sigma,
+  }
+}
+
+function item(key: string, name: string, kind: ProjectionItem['kind'], direction: ProjectionItem['direction'], monthlyAmount: number): ProjectionItem {
+  return { key, name, kind, direction, cadence: null, monthlyAmount: round2(monthlyAmount), seriesKey: null }
+}

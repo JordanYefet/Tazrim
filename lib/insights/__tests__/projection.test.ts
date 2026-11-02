@@ -4,9 +4,11 @@ import {
   everydayFlows,
   monthKey,
   occurrences,
+  projectBalance,
   projectedSeries,
   type BankFlowRow,
   type CardChargeRow,
+  type ProjectionInput,
   type ProjectionSeries,
 } from '../projection'
 
@@ -126,5 +128,99 @@ describe('occurrences', () => {
   it('counts every hit of a weekly item in its month', () => {
     const weekly = series({ cadence: 'weekly', nextDate: '2030-07-01' })
     expect(occurrences(weekly, '2030-07', '2030-07')).toEqual(['2030-07', '2030-07', '2030-07', '2030-07', '2030-07'])
+  })
+})
+
+const salaryAndRent = () => [
+  ...each(m => bank(`${m}-01`, { credit: 10000, category: 'משכורת' })),
+  ...each(m => bank(`${m}-09`, { debit: 6000, category: 'שכירות' })),
+]
+const input = (over: Partial<ProjectionInput> = {}): ProjectionInput => ({
+  today: '2030-07-05',
+  cushion: 0,
+  start: { balance: 5000, date: '2030-07-03' },
+  bank: salaryAndRent(),
+  cards: [],
+  series: [],
+  past: [],
+  ...over,
+})
+const ok = (p: ReturnType<typeof projectBalance>) => {
+  if (p.insufficient) throw new Error('expected a projection')
+  return p
+}
+
+describe('projectBalance', () => {
+  it('needs a starting balance', () => {
+    expect(projectBalance(input({ start: null }))).toEqual({ insufficient: true, completeMonths: 0 })
+  })
+
+  it('needs 3 months of history', () => {
+    const rows = ['2030-05', '2030-06'].map(m => bank(`${m}-01`, { credit: 100 }))
+    expect(projectBalance(input({ bank: rows }))).toEqual({ insufficient: true, completeMonths: 2 })
+  })
+
+  it('projects the 12 months after the current one, adding each month\'s net', () => {
+    const p = ok(projectBalance(input()))
+    expect(p.months.map(m => m.month)).toEqual([
+      '2030-08', '2030-09', '2030-10', '2030-11', '2030-12', '2031-01',
+      '2031-02', '2031-03', '2031-04', '2031-05', '2031-06', '2031-07',
+    ])
+    expect(p.months[0]).toMatchObject({ income: 10000, expense: 6000, net: 4000, expected: 9000, stale: false })
+    expect(p.end.expected).toBe(5000 + 12 * 4000)
+  })
+
+  it('puts a yearly payment in its own month and flags it when the low edge drops under the cushion', () => {
+    const insurance = series({ name: 'ביטוח', cadence: 'yearly', latestAmount: 20000, monthlyAmount: 1666.67, nextDate: '2030-09-12' })
+    const p = ok(projectBalance(input({ series: [insurance], cushion: 1000 })))
+    const sep = p.months.find(m => m.month === '2030-09')!
+    expect(sep.expense).toBe(26000)
+    expect(sep.expected).toBe(5000 + 4000 - 16000)
+    expect(sep.tight).toBe(true)
+    expect(p.tight.map(m => m.month)).toEqual(['2030-09', '2030-10'])
+    expect(p.months.filter(m => m.expense === 26000)).toHaveLength(1)
+  })
+
+  it('does not add the card-payment series on top of the card line', () => {
+    const payments = each(m => bank(`${m}-10`, { debit: 2000, isCardPayment: true }))
+    const cardPaymentSeries = series({ isCardPayment: true, latestAmount: 2000, transactionIds: payments.map(r => r.id) })
+    const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...payments], series: [cardPaymentSeries] })))
+    expect(p.months[0].expense).toBe(6000 + 2000)
+  })
+
+  it('widens the band with the horizon', () => {
+    const rows = [...salaryAndRent(), ...each(m => bank(`${m}-15`, { debit: m <= '2030-03' ? 1000 : 3000, category: 'סופר' }))]
+    const p = ok(projectBalance(input({ bank: rows })))
+    expect(p.sigma).toBe(1000)
+    expect(p.months[0].high - p.months[0].expected).toBe(1000)
+    expect(p.months[3].high - p.months[3].expected).toBe(2000)
+    expect(p.months[3].expected - p.months[3].low).toBe(2000)
+  })
+
+  it('projects the months since the last upload too, marked stale', () => {
+    const p = ok(projectBalance(input({ today: '2030-09-10' })))
+    expect(p.months[0]).toMatchObject({ month: '2030-08', stale: true })
+    expect(p.months[1]).toMatchObject({ month: '2030-09', stale: true })
+    expect(p.months[2]).toMatchObject({ month: '2030-10', stale: false })
+    expect(p.months.at(-1)!.month).toBe('2031-09')
+  })
+
+  it('lists what went into the forecast', () => {
+    const gym = series({ key: 'gym', name: 'חדר כושר', source: 'card', latestAmount: 150, monthlyAmount: 150 })
+    const payments = each(m => bank(`${m}-10`, { debit: 900, isCardPayment: true }))
+    const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...payments], series: [gym] })))
+    expect(p.items).toEqual([
+      { key: 'income:משכורת', name: 'משכורת', kind: 'everyday', direction: 'in', cadence: null, monthlyAmount: 10000, seriesKey: null },
+      { key: 'expense:שכירות', name: 'שכירות', kind: 'everyday', direction: 'out', cadence: null, monthlyAmount: 6000, seriesKey: null },
+      { key: 'card', name: 'כרטיסי אשראי', kind: 'card', direction: 'out', cadence: null, monthlyAmount: 900, seriesKey: null },
+      { key: 'series:gym', name: 'חדר כושר', kind: 'recurring', direction: 'out', cadence: 'monthly', monthlyAmount: 150, seriesKey: 'gym' },
+    ])
+  })
+
+  it('passes the cushion and the past balances through', () => {
+    const past = [{ month: '2030-06', balance: 4800 }]
+    const p = ok(projectBalance(input({ cushion: 2500, past })))
+    expect(p.cushion).toBe(2500)
+    expect(p.past).toEqual(past)
   })
 })
