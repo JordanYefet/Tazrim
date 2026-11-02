@@ -50,7 +50,7 @@ export interface PayerContext {
   today: string
 }
 
-export const UNKNOWN_PAYER_LABEL = 'לא יודע / חשבון שלא מנוהל כאן'
+const UNKNOWN_PAYER_LABEL = 'לא יודע / חשבון שלא מנוהל כאן'
 
 /** The card company's name in sentences ("מקס") */
 export const companyName = (provider: string) => providerLabel(provider)
@@ -171,7 +171,7 @@ export function PayerTiles({
  * trigger). The current payer stays listed when it is archived, so the
  * choice can be read, but can't be picked again.
  */
-export function PayerMenu({
+function PayerMenu({
   ctx,
   value,
   onChange,

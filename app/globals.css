@@ -853,38 +853,6 @@ html {
 .acct-bank__spark { color: color-mix(in oklab, var(--face-b) 72%, hsl(var(--foreground))); }
 .dark .acct-bank__spark { color: color-mix(in oklab, var(--face-a) 80%, white); }
 
-/* ── Bank panels: /settings' accounts list (BankPanel) ──
-   A quiet surface card like the other settings cards: the bank's colour only
-   in the head's mini face, so a list of banks doesn't shout. The panel itself
-   is not a face: glass styling stays on the mini. */
-.acct-panel { overflow: hidden; }
-.acct-panel__head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-}
-.acct-panel__row { padding: 12px 16px; }
-@media (min-width: 768px) {
-  .acct-panel__head { padding: 16px 24px; }
-  .acct-panel__row { padding: 12px 24px; }
-}
-/* Hover only where there is a real hover (touch would leave it stuck after a tap) */
-@media (hover: hover) and (pointer: fine) {
-  .acct-panel__hit:hover { background-color: hsl(var(--muted) / 0.45); }
-}
-/* Reduced motion: the press darkens instead of shrinking */
-@media (prefers-reduced-motion: reduce) {
-  .acct-panel__hit:active { transform: none; background-color: hsl(var(--muted) / 0.7); }
-}
-
-/* A card row arriving in its group (linked, moved or added): settles down into place */
-.acct-row-in { animation: acct-row-in var(--motion-base) var(--ease-ui) backwards; }
-@keyframes acct-row-in { from { opacity: 0; transform: translateY(-6px); } }
-/* Reduced motion: it still arrives, as a fade */
-@keyframes acct-row-in-fade { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .acct-row-in { animation-name: acct-row-in-fade; } }
-
 /* Mini faces for pills and lists */
 .acct-mini {
   position: relative;

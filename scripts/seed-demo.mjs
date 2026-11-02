@@ -54,8 +54,7 @@ const pick = list => list[Math.floor(rand() * list.length)]
 
 // Leumi and Max are created by the add_account migration; the others here
 const BANKS = [
-  // An obviously fake account number, so the accounts list shows one; the others have none
-  { id: 'acct_leumi', provider: 'leumi', displayName: 'בנק לאומי', opening: 12500, bankAccountNumber: '12-345-678901' },
+  { id: 'acct_leumi', provider: 'leumi', displayName: 'בנק לאומי', opening: 12500 },
   { id: 'acct_hapoalim', provider: 'hapoalim', displayName: 'חשבון אישי', opening: 6800 },
   { id: 'acct_discount', provider: 'discount', displayName: 'חיסכון', opening: 24000 },
 ]
@@ -230,9 +229,7 @@ if (dataOnly && (await prisma.bankTransaction.count()) + (await prisma.creditCar
 }
 for (const b of BANKS) {
   const { opening, ...data } = b
-  // Leumi may already exist (add_account migration): give it its number too
-  const update = data.bankAccountNumber ? { bankAccountNumber: data.bankAccountNumber } : {}
-  await prisma.account.upsert({ where: { id: b.id }, update, create: { ...data, kind: 'BANK' } })
+  await prisma.account.upsert({ where: { id: b.id }, update: {}, create: { ...data, kind: 'BANK' } })
 }
 for (const c of CARDS) {
   // MAX and CAL are linked to the bank that pays them; Isracard is left for the

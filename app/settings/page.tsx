@@ -39,7 +39,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     provider: a.provider,
     displayName: a.displayName,
     cardLastFour: a.cardLastFour,
-    bankAccountNumber: a.bankAccountNumber,
     cardNetwork: a.cardNetwork,
     color: a.color,
     archived: a.archived,

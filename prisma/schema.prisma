@@ -19,9 +19,6 @@ model Account {
   provider               String
   displayName            String
   cardLastFour           String?
-  /// A bank account's number as the user typed it (e.g. "12-345-678901"), shown on
-  /// its panel in the accounts list. Optional; always null for cards.
-  bankAccountNumber      String?
   /// Card network for the card element (ENG-56): visa, mastercard, amex, diners or isracard.
   /// Null when unknown or other; always null for bank accounts.
   cardNetwork            String?
