@@ -14,10 +14,11 @@ describe('docs/design-system.md', () => {
     }
   })
 
+  // Values in the doc's tables are copied from globals.css by hand; this test checks names only.
   it('only names tokens that exist in globals.css', () => {
     const named = [...doc.matchAll(/`(--[a-z0-9-]+)`/g)].map(m => m[1])
     expect(named.length).toBeGreaterThan(20)
-    const missing = named.filter(n => !new RegExp(`${n}\\s*:`).test(css))
+    const missing = named.filter(n => !new RegExp(`(?<![\\w-])${n}\\s*:`).test(css))
     expect(missing).toEqual([])
   })
 
