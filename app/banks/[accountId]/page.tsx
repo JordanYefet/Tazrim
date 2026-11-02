@@ -21,7 +21,8 @@ import { DimmablePair } from '@/components/ui/dimmable-pair'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
-import { getAccount } from '@/lib/db/accounts'
+import { getAccount, listAccounts } from '@/lib/db/accounts'
+import { badgeCards } from '@/lib/accounts/payment-badge'
 import { FlowFilter } from '@/components/bank/flow-filter'
 import { parseBankFlow } from '@/lib/insights/bank-categories'
 import { asJson } from '@/lib/db/summary'
@@ -53,7 +54,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
   const chartFilter = { merchant: params.merchant, search: params.search }
 
   // Same query as /api/bank/transactions?accountId= (first page of 50 unless a month is selected)
-  const [txs, monthly, insights, [latest], trend, balancePoints, categories, genericDescriptions] = await Promise.all([
+  const [txs, monthly, insights, [latest], trend, balancePoints, categories, genericDescriptions, cardAccounts] = await Promise.all([
     getBankTransactions({
       accountId,
       year: Number(year),
@@ -88,6 +89,8 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
       getCategories('INCOME'),
     ]),
     listGenericDescriptions(),
+    // The cards a card-payment row links to (archived too: an old row keeps its card)
+    listAccounts({ kind: 'CREDIT_CARD', includeArchived: true }),
   ])
   const [expenseStats, incomeStats, expenseMonthly, incomeMonthly, expenseCategories, incomeCategories] = categories
 
@@ -106,6 +109,7 @@ async function getBankData(accountId: string, params: SearchParams & { year: str
     expenseCategories: asJson(expenseCategories),
     incomeCategories: asJson(incomeCategories),
     genericDescriptions,
+    cards: badgeCards(cardAccounts),
   }
 }
 
@@ -141,6 +145,7 @@ export default async function BankAccountPage({
     expenseCategories,
     incomeCategories,
     genericDescriptions,
+    cards,
   } = await getBankData(account.id, params)
 
   const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month)
@@ -258,6 +263,7 @@ export default async function BankAccountPage({
           incomeCategories={incomeCategories}
           categoryColors={{ ...incomeColors, ...expenseColors }}
           genericDescriptions={genericDescriptions}
+          cards={cards}
           activeCategory={params.category}
           flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />

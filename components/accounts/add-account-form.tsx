@@ -8,6 +8,8 @@ import { CREATABLE, KIND_META, KNOWN_PROVIDERS, type CreatableKindValue } from '
 import { BankElement, PaymentCard } from './account-element'
 import { ColorPicker } from './color-picker'
 import { CARD_NETWORKS, impliedNetwork, providerLabel } from '@/lib/accounts/brands'
+import { Reveal } from '@/components/ui/reveal'
+import { PaidCardsField, PayerPicker, PayerTiles, linkableBanks, payerSuggestion, type PayerContext } from './payer-field'
 
 const OTHER = '__other__'
 
@@ -27,6 +29,8 @@ export interface EditableAccount {
   cardNetwork: string | null
   color: string | null
   transactionCount: number
+  /** Cards: the bank account that pays it */
+  payerAccountId: string | null
 }
 
 export const inputClass =
@@ -50,6 +54,8 @@ const n = (v: number) => v.toLocaleString('he-IL')
 type CreateProps = {
   mode?: 'create'
   initialKind: CreatableKindValue
+  /** The bank accounts and payment rows for "משולם מחשבון" (none hides the field) */
+  payer?: PayerContext
   onCreated: (account: CreatedAccount) => void
   onCancel: () => void
 }
@@ -65,6 +71,7 @@ type EditProps = {
   fallbackColor?: string
   /** Extra content above the buttons (the re-map entry) */
   children?: ReactNode
+  payer?: PayerContext
 }
 
 /** Initial provider select value and free text for a stored provider. */
@@ -100,6 +107,11 @@ export function AccountForm(props: CreateProps | EditProps) {
   const [networkTouched, setNetworkTouched] = useState(!!editing)
   // Account.color (ENG-66): null = brand default
   const [color, setColor] = useState<string | null>(editing?.color ?? null)
+  // Cards: the paying bank account. A new card follows the suggestion for its
+  // company until the user picks (payerChoice undefined = not picked)
+  const [payerChoice, setPayerChoice] = useState<string | null | undefined>(editing ? editing.payerAccountId : undefined)
+  // A new bank account: the cards it pays
+  const [paidCards, setPaidCards] = useState<string[]>([])
   const [error, setError] = useState<{ field?: string; message: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -109,6 +121,11 @@ export function AccountForm(props: CreateProps | EditProps) {
   const providerChanged = !!editing && !!provider && provider !== editing.provider
   const warnProvider = providerChanged && editing!.transactionCount > 0
   const fallbackColor = props.mode === 'edit' ? props.fallbackColor : undefined
+  const payerCtx = props.payer
+  const payer = payerChoice !== undefined ? payerChoice : payerCtx ? (payerSuggestion(payerCtx, provider)?.bank.id ?? null) : null
+  // The payer field shows for cards when there is a bank account to pick (or one already linked)
+  const showPayer = !!payerCtx && kind === 'CREDIT_CARD' && (linkableBanks(payerCtx).length > 0 || !!editing?.payerAccountId)
+  const showPaidCards = !editing && !!payerCtx && kind === 'BANK' && payerCtx.cards.length > 0
 
   function chooseKind(next: CreatableKindValue) {
     setKind(next)
@@ -135,6 +152,7 @@ export function AccountForm(props: CreateProps | EditProps) {
       if (network !== (account.cardNetwork ?? '')) body.cardNetwork = network || null
     }
     if (color !== account.color) body.color = color
+    if (kind === 'CREDIT_CARD' && payerCtx && payer !== account.payerAccountId) body.payerAccountId = payer
     return body
   }
 
@@ -160,6 +178,8 @@ export function AccountForm(props: CreateProps | EditProps) {
           cardLastFour: kind === 'CREDIT_CARD' && lastFour ? lastFour : undefined,
           cardNetwork: kind === 'CREDIT_CARD' && network ? network : undefined,
           color: color ?? undefined,
+          payerAccountId: showPayer && payer ? payer : undefined,
+          paidCardIds: showPaidCards && paidCards.length ? paidCards : undefined,
         },
       }
     }
@@ -265,110 +285,138 @@ export function AccountForm(props: CreateProps | EditProps) {
         </div>
 
         <div className="min-w-0 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'ספק'}</label>
-              <select
-                id={`${id}-provider`}
-                className={inputClass}
-                value={providerChoice}
-                onChange={e => chooseProvider(e.target.value)}
-              >
-                {KNOWN_PROVIDERS.filter(p => p.kind === kind).map(p => (
-                  <option key={p.key} value={p.key}>{p.label}</option>
-                ))}
-                <option value={OTHER}>אחר…</option>
-              </select>
-            </div>
-
-            {providerChoice === OTHER && (
+          {/* One block, so the collapsed payer fields leave no gap of their own */}
+          <div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label htmlFor={`${id}-other`} className="text-sm font-medium">שם הספק</label>
-                <input
-                  id={`${id}-other`}
+                <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'ספק'}</label>
+                <select
+                  id={`${id}-provider`}
                   className={inputClass}
-                  value={otherProvider}
-                  onChange={e => setOtherProvider(e.target.value)}
-                  placeholder={kind === 'BANK' ? 'לדוגמה: yahav' : 'לדוגמה: diners'}
-                  aria-invalid={!!fieldError('provider')}
-                  autoFocus={!editing}
+                  value={providerChoice}
+                  onChange={e => chooseProvider(e.target.value)}
+                >
+                  {KNOWN_PROVIDERS.filter(p => p.kind === kind).map(p => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                  <option value={OTHER}>אחר…</option>
+                </select>
+              </div>
+
+              {providerChoice === OTHER && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`${id}-other`} className="text-sm font-medium">שם הספק</label>
+                  <input
+                    id={`${id}-other`}
+                    className={inputClass}
+                    value={otherProvider}
+                    onChange={e => setOtherProvider(e.target.value)}
+                    placeholder={kind === 'BANK' ? 'לדוגמה: yahav' : 'לדוגמה: diners'}
+                    aria-invalid={!!fieldError('provider')}
+                    autoFocus={!editing}
+                  />
+                  {fieldError('provider') && <p className="text-xs text-destructive">{fieldError('provider')}</p>}
+                </div>
+              )}
+
+              {warnProvider && (
+                <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed sm:col-span-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                  <p>
+                    כללי בתי העסק (שמות ותיקוני קטגוריה) נשמרים לפי ספק. {n(editing!.transactionCount)} התנועות של החשבון נשארות כמו
+                    שהן, אבל מעכשיו יחולו עליו הכללים של <b>{providerLabel(provider)}</b> ולא של <b>{providerLabel(editing!.provider)}</b>:
+                    בקבצים שיועלו מעכשיו ובכללים שישתנו בהמשך.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label htmlFor={`${id}-name`} className="text-sm font-medium">שם תצוגה</label>
+                <input
+                  id={`${id}-name`}
+                  className={inputClass}
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder={kind === 'BANK' ? 'לדוגמה: חשבון משותף' : 'לדוגמה: כרטיס עבודה'}
+                  maxLength={60}
+                  aria-invalid={!!fieldError('displayName')}
                 />
-                {fieldError('provider') && <p className="text-xs text-destructive">{fieldError('provider')}</p>}
+                {fieldError('displayName') && <p className="text-xs text-destructive">{fieldError('displayName')}</p>}
               </div>
-            )}
 
-            {warnProvider && (
-              <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed sm:col-span-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
-                <p>
-                  כללי בתי העסק (שמות ותיקוני קטגוריה) נשמרים לפי ספק. {n(editing!.transactionCount)} התנועות של החשבון נשארות כמו
-                  שהן, אבל מעכשיו יחולו עליו הכללים של <b>{providerLabel(provider)}</b> ולא של <b>{providerLabel(editing!.provider)}</b>:
-                  בקבצים שיועלו מעכשיו ובכללים שישתנו בהמשך.
-                </p>
-              </div>
-            )}
+              {kind === 'CREDIT_CARD' && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`${id}-last4`} className="text-sm font-medium">
+                    4 ספרות אחרונות <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                  </label>
+                  <input
+                    id={`${id}-last4`}
+                    className={cn(inputClass, 'tabular-nums text-start')}
+                    dir="ltr"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={4}
+                    value={lastFour}
+                    onChange={e => setLastFour(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    aria-invalid={lastFourInvalid || !!fieldError('cardLastFour')}
+                    aria-describedby={`${id}-last4-hint`}
+                  />
+                  <p id={`${id}-last4-hint`} className={cn('text-xs', lastFourInvalid || fieldError('cardLastFour') ? 'text-destructive' : 'text-muted-foreground')}>
+                    {fieldError('cardLastFour') ?? (lastFourInvalid ? 'יש להזין בדיוק 4 ספרות' : 'כדי להבדיל בין כרטיסים')}
+                  </p>
+                </div>
+              )}
 
-            <div className="space-y-1.5">
-              <label htmlFor={`${id}-name`} className="text-sm font-medium">שם תצוגה</label>
-              <input
-                id={`${id}-name`}
-                className={inputClass}
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                placeholder={kind === 'BANK' ? 'לדוגמה: חשבון משותף' : 'לדוגמה: כרטיס עבודה'}
-                maxLength={60}
-                aria-invalid={!!fieldError('displayName')}
-              />
-              {fieldError('displayName') && <p className="text-xs text-destructive">{fieldError('displayName')}</p>}
+              {kind === 'CREDIT_CARD' && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <p id={`${id}-network`} className="text-sm font-medium">
+                    רשת <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                  </p>
+                  <div role="radiogroup" aria-labelledby={`${id}-network`} className="flex flex-wrap gap-2">
+                    {[...CARD_NETWORKS, { key: '', label: 'אחר / לא ידוע' }].map(nw => (
+                      <button
+                        key={nw.key || 'other'}
+                        type="button"
+                        role="radio"
+                        aria-checked={network === nw.key}
+                        data-network={nw.key || 'other'}
+                        onClick={() => { setNetwork(nw.key); setNetworkTouched(true) }}
+                        className={chip(network === nw.key)}
+                      >
+                        {nw.key ? <span dir="ltr">{nw.label}</span> : nw.label}
+                      </button>
+                    ))}
+                  </div>
+                  {fieldError('cardNetwork') && <p className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
+                </div>
+              )}
+
             </div>
 
-            {kind === 'CREDIT_CARD' && (
+            {/* Which bank account pays the card: tiles when adding, a menu when editing */}
+            <Reveal open={showPayer} className="pt-4">
               <div className="space-y-1.5">
-                <label htmlFor={`${id}-last4`} className="text-sm font-medium">
-                  4 ספרות אחרונות <span className="font-normal text-muted-foreground">(לא חובה)</span>
-                </label>
-                <input
-                  id={`${id}-last4`}
-                  className={cn(inputClass, 'tabular-nums text-start')}
-                  dir="ltr"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={4}
-                  value={lastFour}
-                  onChange={e => setLastFour(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  aria-invalid={lastFourInvalid || !!fieldError('cardLastFour')}
-                  aria-describedby={`${id}-last4-hint`}
-                />
-                <p id={`${id}-last4-hint`} className={cn('text-xs', lastFourInvalid || fieldError('cardLastFour') ? 'text-destructive' : 'text-muted-foreground')}>
-                  {fieldError('cardLastFour') ?? (lastFourInvalid ? 'יש להזין בדיוק 4 ספרות' : 'כדי להבדיל בין כרטיסים')}
-                </p>
-              </div>
-            )}
-
-            {kind === 'CREDIT_CARD' && (
-              <div className="space-y-1.5 sm:col-span-2">
-                <p id={`${id}-network`} className="text-sm font-medium">
-                  רשת <span className="font-normal text-muted-foreground">(לא חובה)</span>
-                </p>
-                <div role="radiogroup" aria-labelledby={`${id}-network`} className="flex flex-wrap gap-2">
-                  {[...CARD_NETWORKS, { key: '', label: 'אחר / לא ידוע' }].map(nw => (
-                    <button
-                      key={nw.key || 'other'}
-                      type="button"
-                      role="radio"
-                      aria-checked={network === nw.key}
-                      data-network={nw.key || 'other'}
-                      onClick={() => { setNetwork(nw.key); setNetworkTouched(true) }}
-                      className={chip(network === nw.key)}
-                    >
-                      {nw.key ? <span dir="ltr">{nw.label}</span> : nw.label}
-                    </button>
+                <p id={`${id}-payer`} className="text-sm font-medium">משולם מחשבון</p>
+                {payerCtx &&
+                  (editing ? (
+                    <PayerPicker ctx={payerCtx} provider={provider} value={payer} onChange={setPayerChoice} labelId={`${id}-payer`} />
+                  ) : (
+                    <PayerTiles ctx={payerCtx} provider={provider} value={payer} onChange={setPayerChoice} labelId={`${id}-payer`} />
                   ))}
-                </div>
-                {fieldError('cardNetwork') && <p className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
+                {fieldError('payerAccountId') && <p className="text-xs text-destructive">{fieldError('payerAccountId')}</p>}
               </div>
-            )}
+            </Reveal>
 
+            {/* A new bank account: the reverse question, which cards it pays */}
+            <Reveal open={showPaidCards} className="pt-4">
+              <div className="space-y-1.5">
+                <p id={`${id}-paid`} className="text-sm font-medium">
+                  כרטיסים שמשולמים מהחשבון <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                </p>
+                {payerCtx && <PaidCardsField ctx={payerCtx} value={paidCards} onChange={setPaidCards} labelId={`${id}-paid`} />}
+                {fieldError('paidCardIds') && <p className="text-xs text-destructive">{fieldError('paidCardIds')}</p>}
+              </div>
+            </Reveal>
           </div>
 
           {props.mode === 'edit' && props.children}
