@@ -6,7 +6,14 @@ import { DimmablePair } from '@/components/ui/dimmable-pair'
 import { Reveal } from '@/components/ui/reveal'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { SegmentedTrack } from '@/components/ui/segmented'
-import { BankElement, PaymentCard } from '@/components/accounts/account-element'
+import { AccountMini, BankElement, PaymentCard } from '@/components/accounts/account-element'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { DataSwap } from '@/components/ui/data-swap'
+import { MonthBarsChart } from '@/components/cards/month-bars'
+import { BalanceChart } from '@/components/bank/balance-chart'
+import { EmptyMonthSlots } from '@/components/ui/month-slots'
+import { Bar, BarChart, Customized, XAxis } from 'recharts'
+import { monthName } from '@/lib/utils/date'
 
 function Item({ name, path, children }: { name: string; path: string; children: ReactNode }) {
   return (
@@ -20,6 +27,28 @@ function Item({ name, path, children }: { name: string; path: string; children: 
   )
 }
 
+// Made-up data, 2030
+const MONTH_VALUES: Record<number, number> = { 1: 420, 2: 380, 3: 610, 4: 540, 5: 0, 6: 720, 7: 0 }
+
+const SLOT_ROWS = Array.from({ length: 12 }, (_, i) => {
+  const month = i + 1
+  const value = [300, 450, 0, 520, 380, 0, 0, 0, 0, 0, 0, 0][i]
+  return { month, name: monthName(month), empty: value === 0, value }
+})
+
+const BALANCE_POINTS = [
+  { date: '2030-04-05', balance: 8_900 },
+  { date: '2030-03-20', balance: 7_400 },
+  { date: '2030-03-10', balance: 8_100 },
+  { date: '2030-03-01', balance: 6_300 },
+]
+
+const SWAP_ROWS = [
+  ['קפה', '₪18'],
+  ['סופר', '₪240'],
+  ['דלק', '₪310'],
+]
+
 const SEGMENTS = [
   { key: 'month', label: 'חודש' },
   { key: 'year', label: 'שנה' },
@@ -31,6 +60,8 @@ export function ComponentGallery() {
   const [dim, setDim] = useState<'first' | 'second' | undefined>('second')
   const [open, setOpen] = useState(false)
   const [dialog, setDialog] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [swap, setSwap] = useState(0)
   const button = 'rounded-lg bg-secondary px-3 py-1.5 text-sm text-secondary-foreground'
 
   return (
@@ -104,6 +135,61 @@ export function ComponentGallery() {
             trend={[6_100, 7_400, 6_900, 8_200]}
           />
         </div>
+      </Item>
+
+      <Item name="AccountMini" path="components/accounts/account-element.tsx">
+        <div className="flex items-center gap-3">
+          <AccountMini kind="BANK" provider="leumi" />
+          <AccountMini kind="CREDIT_CARD" provider="max" network="mastercard" />
+        </div>
+      </Item>
+
+      <Item name="ConfirmDialog" path="components/ui/confirm-dialog.tsx">
+        <button className={button} onClick={() => setConfirmOpen(true)}>פתח אישור</button>
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          onConfirm={() => setConfirmOpen(false)}
+          title="למחוק את הפריט לדוגמה?"
+          description="זו הדגמה בלבד, שום דבר לא נמחק."
+        />
+      </Item>
+
+      <Item name="DataSwap" path="components/ui/data-swap.tsx">
+        <DataSwap swapKey={swap} className="surface rounded-xl p-4">
+          <ul className="space-y-1 text-sm">
+            {SWAP_ROWS.map((_, i) => {
+              const [label, value] = SWAP_ROWS[(i + swap) % SWAP_ROWS.length]
+              return (
+                <li key={i} className="flex justify-between tabular-nums">
+                  <span>{label}</span>
+                  <span>{value}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </DataSwap>
+        <button className={button} onClick={() => setSwap(n => n + 1)}>החלף נתונים</button>
+      </Item>
+
+      <Item name="MonthBarsChart" path="components/cards/month-bars.tsx">
+        <div className="flex h-32 flex-col">
+          <MonthBarsChart values={MONTH_VALUES} selectedMonth={4} average={500} tone="cc" caption="חיובים בכל חודש" />
+        </div>
+      </Item>
+
+      <Item name="EmptyMonthSlots" path="components/ui/month-slots.tsx">
+        <div dir="ltr" className="overflow-hidden">
+          <BarChart width={360} height={140} data={SLOT_ROWS}>
+            <XAxis dataKey="name" tick={false} axisLine={false} tickLine={false} />
+            <Customized component={<EmptyMonthSlots selectedMonth={3} maxWidth={28} />} />
+            <Bar dataKey="value" fill="var(--chart-1)" radius={[3, 3, 0, 0]} maxBarSize={20} isAnimationActive={false} />
+          </BarChart>
+        </div>
+      </Item>
+
+      <Item name="BalanceChart" path="components/bank/balance-chart.tsx">
+        <BalanceChart data={BALANCE_POINTS} />
       </Item>
     </div>
   )

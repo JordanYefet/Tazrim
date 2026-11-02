@@ -14,7 +14,7 @@ export function TokenSwatch({ token }: { token: DesignToken }) {
     token.format === 'hsl' || token.format === 'color'
       ? 'h-14 rounded-lg border border-border'
       : token.format === 'duration' || token.format === 'easing'
-        ? 'h-14 rounded-lg bg-muted transition-transform group-hover:translate-x-2'
+        ? 'h-14 rounded-lg bg-muted transition-transform group-hover:translate-x-2 rtl:group-hover:-translate-x-2'
         : 'h-14 rounded-lg bg-card border border-border'
   return (
     <figure className="group min-w-0">

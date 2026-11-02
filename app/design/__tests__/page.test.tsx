@@ -31,6 +31,15 @@ describe('/design', () => {
     }
   })
 
+  it('shows a live instance of every shared component', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const html = await render()
+    for (const name of [
+      'RollingNumber', 'SegmentedTrack', 'DimmablePair', 'Reveal', 'AppDialog', 'PaymentCard', 'BankElement',
+      'AccountMini', 'ConfirmDialog', 'DataSwap', 'MonthBarsChart', 'EmptyMonthSlots', 'BalanceChart',
+    ]) expect(html).toContain(`>${name}</h3>`)
+  })
+
   it('paints swatches from the tokens, never from fixed colours', async () => {
     vi.stubEnv('NODE_ENV', 'development')
     const html = await render()

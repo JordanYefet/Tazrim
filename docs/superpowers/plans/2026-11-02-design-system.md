@@ -17,7 +17,7 @@
 - Hebrew-first copy and RTL (`dir="rtl"`) on the page. Use logical Tailwind classes (`ms-`, `pe-`, `start-`, `end-`).
 - Examples use made-up values only: no real names, amounts or account numbers.
 - No coloured side stripes, accent bars or gradient washes on the `/design` page either. Swatches are plain squares.
-- Work in the worktree `/Users/jordanyefetberman/Git/Personal/Tazrim-projection`, on a branch off `main`. Run `npm ci` there before anything that runs Prisma or Next, and never run `next build` inside the :3000 dev-server folder.
+- Work in a worktree off `main`. Run `npm ci` there before anything that runs Prisma or Next, and never run `next build` inside the :3000 dev-server folder.
 - Commits use the GitHub noreply email. The PR title starts with `feat:`.
 
 ## Review Focus

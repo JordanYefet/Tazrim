@@ -5,7 +5,7 @@ import { TOKEN_GROUPS, cssValue } from '../tokens'
 
 const css = readFileSync(path.resolve(__dirname, '../../../app/globals.css'), 'utf8')
 // The .dark blocks of the two token layers (colour + depth)
-const darkBlocks = [...css.matchAll(/\.dark\s*\{([^}]*)\}/g)].map(m => m[1]).join('\n')
+const darkBlocks = [...css.matchAll(/^[ \t]*\.dark\s*\{([^}]*)\}/gm)].map(m => m[1]).join('\n')
 const defined = (name: string, source: string) => new RegExp(`(?<![\\w-])${name}\\s*:`).test(source)
 
 describe('TOKEN_GROUPS', () => {

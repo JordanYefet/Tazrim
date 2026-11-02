@@ -112,7 +112,7 @@ The list behind "What's in the forecast": each recurring series used (name, cade
 - `getProjection` end to end on seeded rows.
 - `Setting` round-trip and the cushion default.
 
-**Checks:** `npm test`, `npx tsc --noEmit` and lint.
+**Checks:** `npm test` and `npx tsc --noEmit`.
 
 **Manual check on :3000 with demo data:**
 - headline, band and picker
