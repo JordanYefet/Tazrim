@@ -37,7 +37,7 @@ describe('/projection', () => {
     // one hero card, three kind cards of equal height, the cushion shortcut
     expect(html.match(/surface-hero/g)!.length).toBe(1)
     expect(html).toContain('lg:grid-cols-2')
-    expect(html).not.toContain('items-start')
+    expect(html).not.toMatch(/grid [^"]*items-start/)
     expect(html).toContain('href="/settings#projection"')
     expect(html).toContain('הוצאות צפויות לפי קטגוריה')
     expect(html).toContain('מזון')

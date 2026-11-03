@@ -41,6 +41,7 @@ function CategoryDonutInner({
   emptyText = 'אין חיובים לתקופה זו',
   analysisHref,
   categoryHrefs,
+  subtitle,
 }: Props) {
   const router = useRouter()
   const params = useSearchParams()
@@ -78,7 +79,7 @@ function CategoryDonutInner({
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <ChartHeader
           title={title}
-          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת'}
+          subtitle={subtitle ?? (categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת')}
           className="mb-0"
         />
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
@@ -175,6 +176,8 @@ interface Props {
   categoryHrefs?: Record<string, string>
   /** Amount colour: spending (cards, bank debits) or income (bank credits) */
   tone?: Tone
+  /** Replaces the default line about what a click does (e.g. a donut whose slices don't link) */
+  subtitle?: string
 }
 
 export function CategoryDonut(props: Props) {

@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SECTION } from '@/components/accounts/page-parts'
 import { cn } from '@/lib/utils/cn'
+import { categoryColorMap } from '@/lib/utils/category-colors'
+import { CategoryDonut } from '@/components/cards/category-donut'
 import type { ProjectionCategory, ProjectionItem } from '@/lib/insights/projection'
 
 const CADENCE: Record<string, string> = { weekly: 'שבועי', monthly: 'חודשי', bimonthly: 'דו-חודשי', yearly: 'שנתי' }
@@ -50,13 +52,25 @@ function KindCard({ title, subtitle, dot, children }: { title: string; subtitle:
 
 const MEDIAN = 'ממוצע חודשי: חציון 6 החודשים האחרונים'
 
-/** The recurring items the forecast places on their own dates; each links to /recurring, where an ended one can be dismissed */
+const TOP_RECURRING = 5
+
+/**
+ * The recurring charges in the forecast, kept short: the monthly total, the largest few, and a
+ * link to /recurring for the rest (where an ended charge can be dismissed).
+ */
 export function ProjectionRecurring({ items }: { items: ProjectionItem[] }) {
+  const recurring = items.filter(i => i.kind === 'recurring').sort((a, b) => b.monthlyAmount - a.monthlyAmount)
+  const total = recurring.reduce((a, i) => a + i.monthlyAmount, 0)
+  const more = recurring.length - TOP_RECURRING
   return (
-    <KindCard title="חיובים קבועים בתחזית" subtitle="כל חיוב נכנס לתחזית במועד שלו" dot="hsl(var(--muted-foreground))">
-      <ItemRows items={items.filter(i => i.kind === 'recurring')} link />
+    <KindCard
+      title="חיובים קבועים בתחזית"
+      subtitle={`${recurring.length} חיובים, ${formatCurrencyWhole(total)} בחודש, כל אחד במועד שלו`}
+      dot="hsl(var(--muted-foreground))"
+    >
+      <ItemRows items={recurring.slice(0, TOP_RECURRING)} link />
       <Link href="/recurring" className="mt-auto inline-block pt-4 text-sm text-primary hover:underline">
-        חיוב הסתיים? סמנו אותו בחיובים קבועים
+        {more > 0 ? `עוד ${more} חיובים, ואפשר לסמן חיוב שהסתיים` : 'חיוב הסתיים? סמנו אותו בחיובים קבועים'}
       </Link>
     </KindCard>
   )
@@ -71,28 +85,18 @@ export function ProjectionIncome({ items }: { items: ProjectionItem[] }) {
   )
 }
 
-/** Expected spending per month by category: everyday, recurring and card spending together, largest first */
+/** Expected spending per month by category, as the app's category donut */
 export function ProjectionCategories({ categories }: { categories: ProjectionCategory[] }) {
-  const max = categories[0]?.monthlyAmount ?? 0
   return (
-    <KindCard title="הוצאות צפויות לפי קטגוריה" subtitle="בחודש: הוצאות שוטפות, חיובים קבועים וכרטיסי אשראי יחד" dot="hsl(var(--expense))">
-      {categories.length === 0 ? (
-        <p className="py-2.5 text-sm text-muted-foreground">אין</p>
-      ) : (
-        <ul className="space-y-3 text-sm">
-          {categories.map(c => (
-            <li key={c.name}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate">{c.name}</span>
-                <span className="tabular-nums">{formatCurrencyWhole(c.monthlyAmount)}</span>
-              </div>
-              <div className="mt-1.5 h-1.5 rounded-full bg-muted" aria-hidden>
-                <div className="h-full rounded-full bg-[hsl(var(--expense)/0.6)]" style={{ width: `${max ? Math.max(2, (c.monthlyAmount / max) * 100) : 0}%` }} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </KindCard>
+    <CategoryDonut
+      pagePath="/projection"
+      title="הוצאות צפויות לפי קטגוריה"
+      subtitle="בחודש: הוצאות שוטפות, חיובים קבועים וכרטיסי אשראי יחד"
+      data={Object.fromEntries(categories.map(c => [c.name, c.monthlyAmount]))}
+      colors={categoryColorMap(categories.map(c => c.name))}
+      // The forecast has no transactions of its own to open: slices don't link
+      categoryHrefs={{}}
+      emptyText="אין הוצאות צפויות"
+    />
   )
 }
