@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { RollingNumber } from '@/components/ui/rolling-number'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SECTION } from '@/components/accounts/page-parts'
 import { cn } from '@/lib/utils/cn'
@@ -21,7 +22,7 @@ function ItemRows({ items, income, link }: { items: ProjectionItem[]; income?: b
               {i.cadence && <span className="ms-2 text-xs text-muted-foreground">{CADENCE[i.cadence]}</span>}
             </span>
             <span className={cn('tabular-nums', income && 'text-[hsl(var(--income))]')}>
-              {income ? '+' : '−'}{formatCurrencyWhole(i.monthlyAmount)}
+              {income ? '+' : '−'}<RollingNumber value={i.monthlyAmount} />
             </span>
           </>
         )

@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import { TriangleAlert } from 'lucide-react'
+import { Pencil, TriangleAlert } from 'lucide-react'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { SECTION } from '@/components/accounts/page-parts'
-import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { monthLabel, tightLine } from '@/lib/insights/projection-format'
 import type { ProjectedMonth } from '@/lib/insights/projection'
 import { cn } from '@/lib/utils/cn'
@@ -21,11 +20,12 @@ function Legend() {
   )
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+/** One fact row: the label (and any note or link) at the start, the number alone at the end, so the numbers line up */
+function Fact({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex min-h-11 items-center justify-between gap-3 border-t border-border text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="flex items-center gap-3 tabular-nums">{children}</span>
+      <span className="flex items-center gap-2 text-muted-foreground">{label}</span>
+      <span className="tabular-nums">{children}</span>
     </div>
   )
 }
@@ -52,7 +52,7 @@ export function ProjectionHero({ past, months, start, end, tight, cushion }: {
         <p className="text-sm text-muted-foreground">בעוד 12 חודשים</p>
         <p className="mt-1 text-4xl font-semibold tabular-nums sm:text-[2.75rem]"><RollingNumber value={end.expected} /></p>
         <p className="mt-2 text-sm text-muted-foreground tabular-nums">
-          בין {formatCurrencyWhole(end.low)} ל-{formatCurrencyWhole(end.high)}
+          בין <RollingNumber value={end.low} /> ל-<RollingNumber value={end.high} />
         </p>
         {/* Reserved: the row is there whether or not a month is tight (stable layout) */}
         <p
@@ -64,21 +64,28 @@ export function ProjectionHero({ past, months, start, end, tight, cushion }: {
           {line ?? '—'}
         </p>
         <div className="mt-auto pt-4">
-          <Fact label="היום">{formatCurrencyWhole(start)}</Fact>
+          <Fact label="היום"><RollingNumber value={start} /></Fact>
           <Fact label="שינוי בשנה">
             <span className={change >= 0 ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'} dir="ltr">
-              {change >= 0 ? '+' : '−'}{formatCurrencyWhole(Math.abs(change))}
+              {change >= 0 ? '+' : '−'}<RollingNumber value={Math.abs(change)} />
             </span>
           </Fact>
-          <Fact label="החודש הנמוך">
-            <span className="text-muted-foreground">{monthLabel(lowest.month)}</span>
-            {formatCurrencyWhole(lowest.expected)}
+          <Fact label={<>החודש הנמוך <span className="text-xs">{monthLabel(lowest.month)}</span></>}>
+            <RollingNumber value={lowest.expected} />
           </Fact>
-          <Fact label="כרית ביטחון">
-            {formatCurrencyWhole(cushion)}
-            <Link href="/settings#projection" className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              שינוי
-            </Link>
+          <Fact
+            label={
+              <Link
+                href="/settings#projection"
+                className="inline-flex items-center gap-1.5 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                title="שינוי הכרית בהגדרות"
+              >
+                כרית ביטחון
+                <Pencil className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            }
+          >
+            <RollingNumber value={cushion} />
           </Fact>
         </div>
       </section>
