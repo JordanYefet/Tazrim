@@ -50,7 +50,7 @@ function KindCard({ title, subtitle, dot, children }: { title: string; subtitle:
   )
 }
 
-const MEDIAN = 'ממוצע חודשי: חציון 6 החודשים האחרונים'
+const MEDIAN = 'ממוצע חודשי: חציון של עד 24 החודשים האחרונים'
 
 const TOP_RECURRING = 5
 

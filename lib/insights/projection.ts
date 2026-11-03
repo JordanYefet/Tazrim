@@ -13,7 +13,10 @@ import { addCycles, cadenceSpec, fmt, median, toDay, type Cadence } from './recu
 import { UNCATEGORIZED } from './bank-categories'
 
 export const HORIZON_MONTHS = 12
-export const WINDOW_MONTHS = 6
+/** Everyday flows and the band come from up to this many complete months before the latest one */
+export const WINDOW_MONTHS = 24
+/** Months of actual balance the chart draws before the forecast */
+export const PAST_MONTHS = 6
 export const MIN_MONTHS = 3
 
 export interface BankFlowRow {

@@ -373,3 +373,22 @@ describe('forecast by category', () => {
     expect(p.categories).toContainEqual({ name: 'כרטיסי אשראי', monthlyAmount: 900 })
   })
 })
+
+describe('the averaging window', () => {
+  it('uses up to 24 complete months, not just the last 6', () => {
+    // 12 months at 1000, then 6 recent months at 3000: the median over all 18 is 1000
+    const months18 = Array.from({ length: 18 }, (_, i) => addMonths('2029-01', i))
+    const rows = months18.map((m, i) => bank(`${m}-05`, { debit: i < 12 ? 1000 : 3000, category: 'סופר' }))
+    const salary = months18.map(m => bank(`${m}-01`, { credit: 10000, category: 'משכורת' }))
+    const p = ok(projectBalance(input({ today: '2030-07-05', start: { balance: 5000, date: '2030-07-03' }, bank: [...rows, ...salary] })))
+    expect(p.categories).toContainEqual({ name: 'סופר', monthlyAmount: 1000 })
+  })
+
+  it('ignores months older than 24 complete months', () => {
+    const old = Array.from({ length: 12 }, (_, i) => bank(`${addMonths('2027-01', i)}-05`, { debit: 9000, category: 'סופר' }))
+    const recent = Array.from({ length: 24 }, (_, i) => addMonths('2028-07', i))
+    const rows = recent.map(m => bank(`${m}-05`, { debit: 2000, category: 'סופר' }))
+    const p = ok(projectBalance(input({ today: '2030-07-05', start: { balance: 5000, date: '2030-07-03' }, bank: [...old, ...rows] })))
+    expect(p.categories).toContainEqual({ name: 'סופר', monthlyAmount: 2000 })
+  })
+})

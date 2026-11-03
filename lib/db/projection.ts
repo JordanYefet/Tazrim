@@ -7,6 +7,7 @@ import { combinedBalance, type BalancePoint } from '../insights/combined-balance
 import { isCardPaymentRow } from '../insights/bank-categories'
 import { fmt, toDay } from '../insights/recurring'
 import {
+  PAST_MONTHS,
   WINDOW_MONTHS,
   addMonths,
   monthKey,
@@ -113,7 +114,8 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     })),
     cards: cardRows.map(r => ({ id: r.id, billingDate: day(r.billingDate), amount: r.chargedAmount, category: r.categoryOverride ?? r.category })),
     series,
-    past: monthEnds(balanceRows),
+    // The chart draws the last months only, though the rows reach back the whole window
+    past: monthEnds(balanceRows).slice(-(PAST_MONTHS + 1)),
   })
   return { ...projection, ...page }
 }

@@ -44,12 +44,12 @@ projectBalance(input: ProjectionInput): Projection
    - the card's recurring series, including instalments;
    - the median of the card's non-recurring spending.
    - **Instalments** are assumed to continue across all 12 months. We don't store how many payments are left, so this cautious assumption may slightly overstate spending, never understate it. Reading "payment X of N" is a follow-up.
-3. **Everyday bank flows**: the per-category **median of the last 6 complete months**, separately for income and spending. Rows in `recurringTransactionIds` and card-payment rows are excluded. Sources: `getBankCategoryMonthly`, `getCCCategoryMonthly` and `mergeCategoryMonthly`.
+3. **Everyday bank flows**: the per-category **median of up to the last 24 complete months** (as many as there are; at least 3), separately for income and spending. Rows in `recurringTransactionIds` and card-payment rows are excluded. Sources: `getBankCategoryMonthly`, `getCCCategoryMonthly` and `mergeCategoryMonthly`.
 
 The no-double-counting rule (ENG-3) holds: card spending enters the forecast once, as the projected card payment, and the bank's historical card-payment debits are never added on top.
 
 ### Range band
-- σ is the standard deviation of the historical monthly net of the **non-recurring** flows over the last 6 complete months.
+- σ is the standard deviation of the historical monthly net of the **non-recurring** flows over the same window (up to 24 complete months).
 - In the *n*-th month after the latest data month: `low = expected − σ·√(fraction + n)` and `high = expected + σ·√(fraction + n)`, where `fraction` is the share of the latest data month still to come (see Starting point).
 
 ### Tight
