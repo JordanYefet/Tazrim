@@ -121,22 +121,25 @@ describe('getProjection', () => {
   })
 
   it('projects the monthly hits of the months since the data ended', async () => {
-    // Data ends 2030-07-10 and today is 2030-08-20: August's rent is projected
+    // Data ends 2030-07-10 and today is 2030-08-20: August's rent is projected, and so is
+    // the card's July shop charge (07-05, billed 08-02), which is already in the data
     const p = await projection.getProjection({ today: new Date(2030, 7, 20) })
     if (p.insufficient) throw new Error('expected a projection')
     const aug = p.months.find(m => m.month === '2030-08')!
     expect(aug.stale).toBe(true)
-    expect(aug.expense).toBe(4000)
+    expect(aug.expense).toBe(4000 + 300)
   })
 
   it('one bank: the cards it pays are in scope', async () => {
     const p = await projection.getProjection({ accountId: 'acct_leumi', today })
     if (p.insufficient) throw new Error('expected a projection')
-    // With the MAX card in scope its monthly shop charge is a recurring card series,
-    // paid by the bank the month after: absent in Aug (4000 rent), present from Sep (+300).
-    // Without the card the 300 would be everyday spending, in every month including Aug.
+    // With the MAX card in scope its monthly shop charge is a recurring card series, paid by
+    // the bank the month after: in Aug from July's charge already in the data (billed 08-02),
+    // from Sep on projected. Its card payment is then all recurring: no everyday card line.
     // (months[0] is what is left of July.)
-    expect(p.months[1].expense).toBe(4000)
-    expect(p.months[2].expense).toBe(4300)
+    expect(p.months[1].expense).toBe(4000 + 300)
+    expect(p.months[2].expense).toBe(4000 + 300)
+    expect(p.items.some(i => i.kind === 'recurring' && i.seriesKey)).toBe(true)
+    expect(p.items.some(i => i.kind === 'card')).toBe(false)
   })
 })

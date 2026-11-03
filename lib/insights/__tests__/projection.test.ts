@@ -236,15 +236,39 @@ describe('projectBalance', () => {
     expect(p.months[1].expense).toBe(6000 + 100 + 700)
   })
 
-  it('counts card recurring charges in the latest data month as part of the card payment still to come', () => {
-    // charged in May, paid by the bank in June; no card payment yet this month
-    const sub = series({ source: 'card', latestAmount: 200, nextDate: '2030-05-20' })
-    const p = ok(projectBalance(midJune({ series: [sub] })))
-    expect(p.months[0].expense).toBe(200)
-    expect(p.months[1].expense).toBe(6000 + 200)
+  // A card subscription of 200 charged on the 20th, billed by the bank on the 2nd of the next month,
+  // with the card paid from the bank on the 20th (2000 a month: 1800 everyday + the 200).
+  // Its rows are in the data, as the detector sees them; nextDate is what it produces for `lastDate`.
+  const subscription = (charged: string[], nextDate: string) => {
+    const rows = charged.map(m => card(`${addMonths(m, 1)}-02`, 200))
+    const sub = series({ source: 'card', latestAmount: 200, monthlyAmount: 200, nextDate, transactionIds: rows.map(r => r.id) })
+    return { rows, sub }
+  }
+  const cardPayments = (months: string[]) => months.map(m => bank(`${m}-20`, { debit: 2000, isCardPayment: true }))
+
+  it('counts the card recurring charges already in the data and billed this month in the card payment still to come', () => {
+    // data ends 2030-06-15: May's charge (billed 06-02) is in, the June card payment (06-20) is not yet made
+    const { rows, sub } = subscription(['2029-12', '2030-01', '2030-02', '2030-03', '2030-04', '2030-05'], '2030-06-20')
+    const p = ok(projectBalance(midJune({ bank: [...salaryAndRent(), ...cardPayments(WINDOW.slice(0, 5))], cards: rows, series: [sub] })))
+    expect(p.months[0].expense).toBe(1800 + 200)
+    // July: the 06-20 charge, projected
+    expect(p.months[1].expense).toBe(6000 + 1800 + 200)
+    expect(p.months.slice(1).every(m => m.expense === 8000)).toBe(true)
     // with this month's card payment already made, nothing card-related is left
-    const paid = ok(projectBalance(midJune({ series: [sub], bank: [...salaryAndRent(), bank('2030-06-10', { debit: 900, isCardPayment: true })] })))
+    const paid = ok(projectBalance(midJune({ bank: [...salaryAndRent(), ...cardPayments(WINDOW)], cards: rows, series: [sub] })))
     expect(paid.months[0].expense).toBe(0)
+  })
+
+  it('counts a card recurring charge already in the data in the month the bank pays it, the month after the data ends', () => {
+    // data ends 2030-06-25: June's charge (06-20, billed 07-02) is in; nextDate is 07-20 (paid in August)
+    const { rows, sub } = subscription(['2029-12', '2030-01', '2030-02', '2030-03', '2030-04', '2030-05', '2030-06'], '2030-07-20')
+    const p = ok(projectBalance(input({
+      today: '2030-06-25', start: { balance: 5000, date: '2030-06-25' },
+      bank: [...salaryAndRent(), ...cardPayments(WINDOW)], cards: rows, series: [sub],
+    })))
+    expect(p.months[0].expense).toBe(0)
+    expect(p.months[1]).toMatchObject({ month: '2030-07', expense: 6000 + 1800 + 200 })
+    expect(p.months.slice(1).every(m => m.expense === 8000)).toBe(true)
   })
 
   it('leaves the rows of an ended series out of the everyday flows, and does not project it', () => {

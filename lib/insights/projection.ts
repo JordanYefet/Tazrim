@@ -283,7 +283,18 @@ export function projectBalance(input: ProjectionInput): Projection {
   const recurring = projectedSeries(input.series)
   const hits = new Map<string, number>()
   const addHit = (m: string, amount: number) => hits.set(m, (hits.get(m) ?? 0) + amount)
+  // Projected hits come from nextDate on, which lies after each series' latest row in the data
   for (const s of recurring) for (const m of occurrences(s, addMonths(last, 1), end)) addHit(m, s.latestAmount)
+  // Card recurring charges already in the data are paid by the bank in their billing month,
+  // which may be the latest data month or after it (charged before the data ended, billed later)
+  const recurringIds = recurringRowIds(input.series)
+  let cardRowsInLast = 0
+  for (const c of input.cards) {
+    if (!recurringIds.has(c.id)) continue
+    const m = monthKey(c.billingDate)
+    if (m === last) cardRowsInLast += c.amount
+    else if (m > last && m <= end) addHit(m, c.amount)
+  }
 
   const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
   const fullIncome = sum(everyday.income)
@@ -291,12 +302,12 @@ export function projectBalance(input: ProjectionInput): Projection {
 
   // The first row is the latest data month itself: what is left of its usual amounts after the
   // rows already in, plus the bank recurring hits dated after the start date. The card's usual
-  // payment (its everyday spending and the card recurring charges paid that month) less the card
-  // payments already made. Nothing is prorated: lumpy flows (a salary on the 1st) are not added twice.
+  // payment (its everyday spending, plus the card recurring charges billed that month: those in the
+  // data and any projected ones) less the card payments already made. Nothing is prorated: lumpy flows (a salary on the 1st) are not added twice.
   const seen = seenInMonth(input.bank, input.series, last)
   const rest = (usual: Record<string, number>, already: Record<string, number>) =>
     Object.entries(usual).reduce((a, [category, v]) => a + Math.max(0, v - (already[category] ?? 0)), 0)
-  let cardHits = 0
+  let cardHits = cardRowsInLast
   let bankHits = 0
   for (const s of recurring) {
     if (s.source === 'bank') bankHits += hitsLeftInMonth(s, input.start.date).length * s.latestAmount
