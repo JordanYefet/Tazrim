@@ -34,13 +34,14 @@ function Fact({ label, children }: { label: React.ReactNode; children: React.Rea
  * The top row, two equal halves like the other pages: the hero (the expected balance in 12
  * months, its range, the tight months and a few facts with the cushion shortcut) beside the chart.
  */
-export function ProjectionHero({ past, months, start, end, tight, cushion }: {
+export function ProjectionHero({ past, months, start, end, tight, cushion, seasonal }: {
   past: { month: string; balance: number }[]
   months: ProjectedMonth[]
   start: number
   end: ProjectedMonth
   tight: ProjectedMonth[]
   cushion: number
+  seasonal: boolean
 }) {
   const change = end.expected - start
   const line = tightLine(tight)
@@ -92,7 +93,12 @@ export function ProjectionHero({ past, months, start, end, tight, cushion }: {
 
       <section className={cn(SECTION, 'flex min-w-0 flex-col')}>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-          <h2 className="text-base font-semibold">יתרה צפויה</h2>
+          <div>
+            <h2 className="text-base font-semibold">יתרה צפויה</h2>
+            <p className="text-sm text-muted-foreground">
+              {seasonal ? 'כל חודש לפי מה שהיה בו בשנים הקודמות' : 'חודש רגיל בכל חודש: עונתיות מצריכה שנה של היסטוריה'}
+            </p>
+          </div>
           <Legend />
         </div>
         <div className="mt-auto">

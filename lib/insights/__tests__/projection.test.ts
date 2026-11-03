@@ -392,3 +392,46 @@ describe('the averaging window', () => {
     expect(p.categories).toContainEqual({ name: 'סופר', monthlyAmount: 2000 })
   })
 })
+
+describe('seasonality', () => {
+  // The 24 complete months before July 2030, each with salary and rent
+  const months24 = Array.from({ length: 24 }, (_, i) => addMonths('2028-07', i))
+  const steady = () => [
+    ...months24.map(m => bank(`${m}-01`, { credit: 10000, category: 'משכורת' })),
+    ...months24.map(m => bank(`${m}-09`, { debit: 6000, category: 'שכירות' })),
+  ]
+  const at = (p: Extract<ReturnType<typeof projectBalance>, { insufficient: false }>, month: string) => p.months.find(m => m.month === month)!
+
+  it('puts a spending peak that came in the same month two years running back in that month', () => {
+    const camp = ['2028-08', '2029-08'].map(m => bank(`${m}-15`, { debit: 3000, category: 'קייטנה' }))
+    const p = ok(projectBalance(input({ bank: [...steady(), ...camp] })))
+    expect(at(p, '2030-08').expense).toBe(6000 + 3000)
+    expect(at(p, '2030-09').expense).toBe(6000)
+  })
+
+  it('counts a peak seen in only one year at half its size', () => {
+    const camp = bank('2029-08-15', { debit: 3000, category: 'קייטנה' })
+    const rows = [...steady().filter(r => r.date >= '2029-07'), camp]
+    const p = ok(projectBalance(input({ bank: rows })))
+    expect(at(p, '2030-08').expense).toBe(6000 + 1500)
+  })
+
+  it('moves income too: a yearly bonus month', () => {
+    const bonus = ['2028-12', '2029-12'].map(m => bank(`${m}-20`, { credit: 8000, category: 'בונוס' }))
+    const p = ok(projectBalance(input({ bank: [...steady(), ...bonus] })))
+    expect(at(p, '2030-12').income).toBe(10000 + 8000)
+    expect(at(p, '2030-11').income).toBe(10000)
+  })
+
+  it('narrows the band when the months follow their season', () => {
+    const camp = ['2028-08', '2029-08'].map(m => bank(`${m}-15`, { debit: 3000, category: 'קייטנה' }))
+    const p = ok(projectBalance(input({ bank: [...steady(), ...camp] })))
+    expect(p.sigma).toBe(0)
+  })
+
+  it('stays with the typical month under a year of history', () => {
+    const rows = [...steady().filter(r => r.date >= '2029-09'), bank('2030-02-15', { debit: 3000, category: 'קייטנה' })]
+    const p = ok(projectBalance(input({ bank: rows })))
+    expect(at(p, '2031-02').expense).toBe(6000)
+  })
+})

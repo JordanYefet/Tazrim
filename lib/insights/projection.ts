@@ -65,9 +65,22 @@ export interface Everyday {
   expense: Record<string, number>
   /** monthly card spending that isn't a recurring card charge */
   card: number
-  /** population standard deviation of the monthly everyday net */
+  /** population standard deviation of the monthly everyday net (around the seasonal usual, when seasonal) */
   sigma: number
+  /** true when the window holds at least SEASONAL_MIN_MONTHS months: each calendar month gets its own usual */
+  seasonal: boolean
+  /** The usual everyday amounts for a calendar month ('01'…'12'): the medians, or seasonal ones */
+  usualFor(calendarMonth: string): Usual
 }
+
+export interface Usual {
+  income: Record<string, number>
+  expense: Record<string, number>
+  card: number
+}
+
+/** Seasonality needs at least a year: every calendar month has been seen once */
+export const SEASONAL_MIN_MONTHS = 12
 
 const round2 = (x: number) => Math.round(x * 100) / 100
 
@@ -164,15 +177,61 @@ export function everydayFlows(
   const cardEveryday = (m: string) => Math.max(0, (cardPaid.get(m) ?? 0) - (cardRecurring.get(m) ?? 0))
   const sum = (map: Map<string, Map<string, number>>, m: string) =>
     [...map.values()].reduce((a, byMonth) => a + (byMonth.get(m) ?? 0), 0)
-  const nets = months.map(m => sum(income, m) - sum(expense, m) - cardEveryday(m))
 
-  return {
-    months,
+  const base: Usual = {
     income: medians(income, months),
     expense: medians(expense, months),
     card: months.length ? median(months.map(cardEveryday)) : 0,
-    sigma: populationSd(nets),
   }
+  const seasonal = months.length >= SEASONAL_MIN_MONTHS
+
+  // Seasonality: a calendar month moves from the typical (median) month toward what that same
+  // month held in past years. Two years or more count fully; a single year counts half, so a
+  // one-off in last year's August isn't repeated in full.
+  const lean = (typical: number, samples: number[]) => {
+    if (samples.length === 0) return typical
+    const same = samples.reduce((a, b) => a + b, 0) / samples.length
+    const weight = samples.length >= 2 ? 1 : 0.5
+    return Math.max(0, typical + weight * (same - typical))
+  }
+  const sameMonths = (cm: string) => months.filter(m => m.slice(5) === cm)
+  const seasonalOf = (map: Map<string, Map<string, number>>, typical: Record<string, number>, cm: string) => {
+    const out: Record<string, number> = {}
+    const same = sameMonths(cm)
+    for (const [category, byMonth] of map) {
+      const v = round2(lean(typical[category] ?? 0, same.map(m => byMonth.get(m) ?? 0)))
+      if (v > 0) out[category] = v
+    }
+    return out
+  }
+  const cache = new Map<string, Usual>()
+  const usualFor = (cm: string): Usual => {
+    if (!seasonal) return base
+    let u = cache.get(cm)
+    if (!u) {
+      u = {
+        income: seasonalOf(income, base.income, cm),
+        expense: seasonalOf(expense, base.expense, cm),
+        card: round2(lean(base.card, sameMonths(cm).map(cardEveryday))),
+      }
+      cache.set(cm, u)
+    }
+    return u
+  }
+
+  const total = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
+  const nets = months.map(m => sum(income, m) - sum(expense, m) - cardEveryday(m))
+  // Seasonal: the band measures how far months strayed from their own usual, not from the year's
+  const sigma = seasonal
+    ? populationSd(
+        months.map((m, i) => {
+          const u = usualFor(m.slice(5))
+          return nets[i] - (total(u.income) - total(u.expense) - u.card)
+        })
+      )
+    : populationSd(nets)
+
+  return { months, ...base, sigma, seasonal, usualFor }
 }
 
 /** The series the forecast places on their own dates */
@@ -276,6 +335,8 @@ export type Projection =
       past: { month: string; balance: number }[]
       cushion: number
       sigma: number
+      /** each month follows its own season (a year or more of history) */
+      seasonal: boolean
     }
 
 export interface ProjectionCategory {
@@ -345,8 +406,9 @@ export function projectBalance(input: ProjectionInput): Projection {
   }
 
   const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
-  const fullIncome = sum(everyday.income)
-  const baseExpense = sum(everyday.expense) + everyday.card
+  // Each calendar month's usual everyday amounts (the same for every month unless seasonal)
+  const usualOf = (month: string) => everyday.usualFor(month.slice(5))
+  const firstUsual = usualOf(last)
 
   // The first row is the latest data month itself: what is left of its usual amounts after the
   // rows already in, plus the bank recurring hits dated after the start date. The card's usual
@@ -362,8 +424,8 @@ export function projectBalance(input: ProjectionInput): Projection {
     else cardHits += occurrences(s, last, last).length * s.latestAmount
   }
   const partial = {
-    income: rest(everyday.income, seen.income),
-    expense: rest(everyday.expense, seen.expense) + Math.max(0, everyday.card + cardHits - seen.cardPaid) + bankHits,
+    income: rest(firstUsual.income, seen.income),
+    expense: rest(firstUsual.expense, seen.expense) + Math.max(0, firstUsual.card + cardHits - seen.cardPaid) + bankHits,
   }
   // The band still starts from the share of the month still to come
   const fraction = restOfMonth(input.start.date)
@@ -371,8 +433,9 @@ export function projectBalance(input: ProjectionInput): Projection {
   const months: ProjectedMonth[] = []
   let expected = input.start.balance
   for (let month = last, n = 0; month <= end; month = addMonths(month, 1), n++) {
-    const income = round2(n === 0 ? partial.income : fullIncome)
-    const expense = round2(n === 0 ? partial.expense : baseExpense + (hits.get(month) ?? 0))
+    const usual = usualOf(month)
+    const income = round2(n === 0 ? partial.income : sum(usual.income))
+    const expense = round2(n === 0 ? partial.expense : sum(usual.expense) + usual.card + (hits.get(month) ?? 0))
     const net = round2(income - expense)
     expected = round2(expected + net)
     const spread = round2(everyday.sigma * Math.sqrt(fraction + n))
@@ -403,6 +466,7 @@ export function projectBalance(input: ProjectionInput): Projection {
     past: input.past,
     cushion: input.cushion,
     sigma: everyday.sigma,
+    seasonal: everyday.seasonal,
   }
 }
 

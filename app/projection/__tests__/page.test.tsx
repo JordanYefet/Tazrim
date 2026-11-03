@@ -22,6 +22,7 @@ describe('/projection', () => {
     page = {
       insufficient: false, banks, accountId: null, cushion: 0, sigma: 500,
       start: { balance: 5000, date: '2030-12-03' }, months, end: months[11], tight: [], past: [],
+      seasonal: false,
       categories: [{ name: 'מזון', monthlyAmount: 2500 }],
       items: [
         { key: 'income:משכורת', name: 'משכורת', kind: 'everyday', direction: 'in', cadence: null, monthlyAmount: 10000, seriesKey: null },

@@ -48,6 +48,13 @@ projectBalance(input: ProjectionInput): Projection
 
 The no-double-counting rule (ENG-3) holds: card spending enters the forecast once, as the projected card payment, and the bank's historical card-payment debits are never added on top.
 
+### Seasonality
+With 12 or more months of history in the window, each future month gets its own usual everyday amounts, per category for income and spending and for card spending:
+- the typical month (the median) moves toward what that same calendar month held in past years;
+- with two years or more of that month the move is full (their average); with one year it is half, so a one-off isn't repeated in full;
+- the band then measures how far months strayed from their own season.
+Under 12 months every month gets the typical month. The category donut and the item lists show the typical month either way.
+
 ### Range band
 - σ is the standard deviation of the historical monthly net of the **non-recurring** flows over the same window (up to 24 complete months).
 - In the *n*-th month after the latest data month: `low = expected − σ·√(fraction + n)` and `high = expected + σ·√(fraction + n)`, where `fraction` is the share of the latest data month still to come (see Starting point).
@@ -125,4 +132,3 @@ The list behind "What's in the forecast": each recurring series used (name, cade
 
 - Read instalment "payment X of N" to end plans on time.
 - What-if items (planned expenses and income).
-- Seasonal adjustment using the same month last year, once there are 12 or more months of history.

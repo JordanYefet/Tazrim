@@ -33,7 +33,7 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
         />
       ) : (
         <>
-          <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
+          <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} seasonal={p.seasonal} />
           {/* Two equal halves per row, like the other pages */}
           <div className="grid gap-4 lg:grid-cols-2">
             <ProjectionCategories categories={p.categories} />
