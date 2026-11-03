@@ -64,7 +64,7 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     }),
     prisma.creditCardTransaction.findMany({
       where: { accountId: { in: cardIds }, ignored: false, billingDate: { gte: windowStart } },
-      select: { id: true, billingDate: true, chargedAmount: true },
+      select: { id: true, billingDate: true, chargedAmount: true, category: true, categoryOverride: true },
     }),
     prisma.bankTransaction.findMany({
       where: { accountId: { in: scope }, date: { gte: windowStart } },
@@ -74,6 +74,14 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     // Judged as of the latest data, not the clock: stale data must not end every series
     getRecurringSeries({ accountId: [...scope, ...cardIds], today: lastDate }),
   ])
+
+  // The detector leaves bank series without a category: take the latest one among its own rows
+  const bankCategory = new Map(bankRows.map(r => [r.id, { date: r.date, category: r.category }]))
+  const categoryOf = (ids: string[]) =>
+    ids
+      .map(id => bankCategory.get(id))
+      .filter((r): r is { date: Date; category: string } => !!r?.category)
+      .sort((a, b) => b.date.getTime() - a.date.getTime())[0]?.category ?? null
 
   const series: ProjectionSeries[] = overview.series.map(s => ({
     key: s.key,
@@ -88,6 +96,7 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     isCardPayment: s.isCardPayment,
     isInstallment: s.isInstallment,
     transactionIds: s.transactionIds,
+    category: s.category ?? categoryOf(s.transactionIds),
   }))
 
   const projection = projectBalance({
@@ -102,7 +111,7 @@ export async function getProjection(params: { accountId?: string; today?: Date }
       category: r.category,
       isCardPayment: isCardPaymentRow(r),
     })),
-    cards: cardRows.map(r => ({ id: r.id, billingDate: day(r.billingDate), amount: r.chargedAmount })),
+    cards: cardRows.map(r => ({ id: r.id, billingDate: day(r.billingDate), amount: r.chargedAmount, category: r.categoryOverride ?? r.category })),
     series,
     past: monthEnds(balanceRows),
   })

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SECTION } from '@/components/accounts/page-parts'
 import { cn } from '@/lib/utils/cn'
-import type { ProjectionItem } from '@/lib/insights/projection'
+import type { ProjectionCategory, ProjectionItem } from '@/lib/insights/projection'
 
 const CADENCE: Record<string, string> = { weekly: 'שבועי', monthly: 'חודשי', bimonthly: 'דו-חודשי', yearly: 'שנתי' }
 
@@ -62,18 +62,37 @@ export function ProjectionRecurring({ items }: { items: ProjectionItem[] }) {
   )
 }
 
-/** The everyday flows, income beside spending: two equal halves */
-export function ProjectionEveryday({ items }: { items: ProjectionItem[] }) {
-  const income = items.filter(i => i.kind === 'everyday' && i.direction === 'in')
-  const everyday = items.filter(i => (i.kind === 'everyday' || i.kind === 'card') && i.direction === 'out')
+/** The everyday income the forecast expects each month */
+export function ProjectionIncome({ items }: { items: ProjectionItem[] }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <KindCard title="הכנסות שוטפות" subtitle={MEDIAN} dot="hsl(var(--income))">
-        <ItemRows items={income} income />
-      </KindCard>
-      <KindCard title="הוצאות שוטפות" subtitle={MEDIAN} dot="hsl(var(--expense))">
-        <ItemRows items={everyday} />
-      </KindCard>
-    </div>
+    <KindCard title="הכנסות צפויות" subtitle={MEDIAN} dot="hsl(var(--income))">
+      <ItemRows items={items.filter(i => i.kind === 'everyday' && i.direction === 'in')} income />
+    </KindCard>
+  )
+}
+
+/** Expected spending per month by category: everyday, recurring and card spending together, largest first */
+export function ProjectionCategories({ categories }: { categories: ProjectionCategory[] }) {
+  const max = categories[0]?.monthlyAmount ?? 0
+  return (
+    <KindCard title="הוצאות צפויות לפי קטגוריה" subtitle="בחודש: הוצאות שוטפות, חיובים קבועים וכרטיסי אשראי יחד" dot="hsl(var(--expense))">
+      {categories.length === 0 ? (
+        <p className="py-2.5 text-sm text-muted-foreground">אין</p>
+      ) : (
+        <ul className="space-y-3 text-sm">
+          {categories.map(c => (
+            <li key={c.name}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate">{c.name}</span>
+                <span className="tabular-nums">{formatCurrencyWhole(c.monthlyAmount)}</span>
+              </div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-muted" aria-hidden>
+                <div className="h-full rounded-full bg-[hsl(var(--expense)/0.6)]" style={{ width: `${max ? Math.max(2, (c.monthlyAmount / max) * 100) : 0}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </KindCard>
   )
 }

@@ -22,6 +22,7 @@ describe('/projection', () => {
     page = {
       insufficient: false, banks, accountId: null, cushion: 0, sigma: 500,
       start: { balance: 5000, date: '2030-12-03' }, months, end: months[11], tight: [], past: [],
+      categories: [{ name: 'מזון', monthlyAmount: 2500 }],
       items: [
         { key: 'income:משכורת', name: 'משכורת', kind: 'everyday', direction: 'in', cadence: null, monthlyAmount: 10000, seriesKey: null },
         { key: 'rec:שכירות', name: 'שכירות', kind: 'recurring', direction: 'out', cadence: 'monthly', monthlyAmount: 3000, seriesKey: 's1' },
@@ -31,7 +32,6 @@ describe('/projection', () => {
     expect(html).toContain('בעוד 12 חודשים')
     expect(html).toContain('<h1')
     expect(html).toContain('תחזית')
-    expect(html.match(/<tr/g)!.length).toBe(13)
     expect(html).toContain('משכורת')
     expect(html).toContain('href="/recurring"')
     // one hero card, three kind cards of equal height, the cushion shortcut
@@ -39,7 +39,8 @@ describe('/projection', () => {
     expect(html).toContain('lg:grid-cols-2')
     expect(html).not.toContain('items-start')
     expect(html).toContain('href="/settings#projection"')
-    expect(html).toContain('הוצאות שוטפות')
+    expect(html).toContain('הוצאות צפויות לפי קטגוריה')
+    expect(html).toContain('מזון')
   })
 
   it('reserves the tight line, and fills it when a month is tight', async () => {

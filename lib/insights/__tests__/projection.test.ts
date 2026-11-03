@@ -348,3 +348,28 @@ describe('projectBalance', () => {
     expect(p.past).toEqual(past)
   })
 })
+
+describe('forecast by category', () => {
+  it('adds everyday categories, recurring series by category, and card spending split by the card rows', () => {
+    const payments = each(m => bank(`${m}-10`, { debit: 1000, isCardPayment: true }))
+    const charges: CardChargeRow[] = [
+      ...WINDOW.map(m => ({ id: `food${++n}`, billingDate: `${m}-10`, amount: 750, category: 'מזון' })),
+      ...WINDOW.map(m => ({ id: `fun${++n}`, billingDate: `${m}-10`, amount: 250, category: 'פנאי' })),
+    ]
+    const gym = series({ name: 'חדר כושר', latestAmount: 150, monthlyAmount: 150, category: 'פנאי' })
+    const insurance = series({ name: 'ביטוח', cadence: 'yearly', latestAmount: 1200, monthlyAmount: 100, nextDate: '2030-09-12', category: null })
+    const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...payments], cards: charges, series: [gym, insurance] })))
+    expect(p.categories).toEqual([
+      { name: 'שכירות', monthlyAmount: 6000 },
+      { name: 'מזון', monthlyAmount: 750 },
+      { name: 'פנאי', monthlyAmount: 250 + 150 },
+      { name: 'ללא קטגוריה', monthlyAmount: 100 },
+    ])
+  })
+
+  it('keeps card spending under the cards when there are no card rows', () => {
+    const payments = each(m => bank(`${m}-10`, { debit: 900, isCardPayment: true }))
+    const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...payments] })))
+    expect(p.categories).toContainEqual({ name: 'כרטיסי אשראי', monthlyAmount: 900 })
+  })
+})

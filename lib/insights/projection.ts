@@ -32,6 +32,8 @@ export interface CardChargeRow {
   /** YYYY-MM-DD: the day the bank pays the card (ENG-46) */
   billingDate: string
   amount: number
+  /** the row's category (an override wins), for the forecast by category */
+  category?: string | null
 }
 
 export interface ProjectionSeries {
@@ -48,6 +50,8 @@ export interface ProjectionSeries {
   isCardPayment: boolean
   isInstallment: boolean
   transactionIds: string[]
+  /** the series' category, for the forecast by category */
+  category?: string | null
 }
 
 export interface Everyday {
@@ -264,12 +268,53 @@ export type Projection =
       months: ProjectedMonth[]
       tight: ProjectedMonth[]
       items: ProjectionItem[]
+      /** expected spending per month by category, largest first */
+      categories: ProjectionCategory[]
       past: { month: string; balance: number }[]
       cushion: number
       sigma: number
     }
 
+export interface ProjectionCategory {
+  name: string
+  monthlyAmount: number
+}
+
 export const CARD_ITEM_NAME = 'כרטיסי אשראי'
+
+/**
+ * Expected spending per month by category: the everyday bank categories, the recurring series
+ * (monthly equivalent) by their category, and the everyday card spending split by the card rows'
+ * own categories over the window (all of it under "כרטיסי אשראי" when there are no card rows).
+ */
+export function categoryForecast(
+  everyday: Everyday,
+  recurring: ProjectionSeries[],
+  cards: CardChargeRow[],
+  recurringIds: Set<string>,
+  window: string[]
+): ProjectionCategory[] {
+  const totals = new Map<string, number>()
+  const add = (name: string, v: number) => totals.set(name, (totals.get(name) ?? 0) + v)
+  for (const [name, v] of Object.entries(everyday.expense)) add(name, v)
+  for (const s of recurring) add(s.category || UNCATEGORIZED, s.monthlyAmount)
+  if (everyday.card > 0) {
+    const inWindow = new Set(window)
+    const byCategory = new Map<string, number>()
+    for (const c of cards) {
+      if (recurringIds.has(c.id) || !inWindow.has(monthKey(c.billingDate)) || c.amount <= 0) continue
+      const name = c.category || UNCATEGORIZED
+      byCategory.set(name, (byCategory.get(name) ?? 0) + c.amount)
+    }
+    const total = [...byCategory.values()].reduce((a, b) => a + b, 0)
+    if (total > 0) for (const [name, v] of byCategory) add(name, (everyday.card * v) / total)
+    else add(CARD_ITEM_NAME, everyday.card)
+  }
+  return [...totals]
+    .map(([name, v]) => ({ name, monthlyAmount: round2(v) }))
+    .filter(c => c.monthlyAmount > 0)
+    .sort((a, b) => b.monthlyAmount - a.monthlyAmount)
+}
 
 export function projectBalance(input: ProjectionInput): Projection {
   if (!input.start) return { insufficient: true, completeMonths: 0 }
@@ -351,6 +396,7 @@ export function projectBalance(input: ProjectionInput): Projection {
     months,
     tight: months.filter(m => m.tight),
     items,
+    categories: categoryForecast(everyday, recurring, input.cards, recurringIds, window),
     past: input.past,
     cushion: input.cushion,
     sigma: everyday.sigma,

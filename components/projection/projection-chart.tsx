@@ -55,12 +55,12 @@ export function ProjectionChart({ past, months, start, cushion }: {
           <XAxis dataKey="label" {...axes.xAxis} interval="preserveStartEnd" />
           <YAxis {...axes.yAxis} />
           <Tooltip content={<ChartTooltip />} />
-          <Area dataKey="staleBand" stroke="none" fill="var(--chart-1)" fillOpacity={0.06} isAnimationActive={false} />
-          <Area {...anim} dataKey="band" stroke="none" fill="var(--chart-1)" fillOpacity={0.14} isAnimationActive={false} />
+          <Area type="monotone" dataKey="staleBand" stroke="none" fill="var(--chart-1)" fillOpacity={0.06} isAnimationActive={false} />
+          <Area {...anim} type="monotone" dataKey="band" stroke="none" fill="var(--chart-1)" fillOpacity={0.14} isAnimationActive={false} />
           <ReferenceLine y={cushion} stroke={textColor} strokeOpacity={0.5} strokeDasharray="2 4" />
-          <Line {...anim} dataKey="actual" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} connectNulls={false} />
-          <Line {...anim} dataKey="staleExpected" stroke="var(--chart-1)" strokeOpacity={0.35} strokeWidth={2} strokeDasharray="6 5" dot={false} />
-          <Line {...anim} dataKey="expected" stroke="var(--chart-1)" strokeWidth={2} strokeDasharray="6 5" dot={false} />
+          <Line {...anim} type="monotone" dataKey="actual" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} connectNulls={false} />
+          <Line {...anim} type="monotone" dataKey="staleExpected" stroke="var(--chart-1)" strokeOpacity={0.35} strokeWidth={2} strokeDasharray="6 5" dot={false} />
+          <Line {...anim} type="monotone" dataKey="expected" stroke="var(--chart-1)" strokeWidth={2} strokeDasharray="6 5" dot={false} />
           {data.filter(r => r.tight).map(r => (
             <ReferenceDot key={r.label} x={r.label} y={r.expected ?? r.staleExpected} r={4} fill="var(--chart-expense)" stroke="none" />
           ))}

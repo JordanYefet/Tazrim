@@ -3,8 +3,7 @@ import { getProjection } from '@/lib/db/projection'
 import { EmptyState } from '@/components/accounts/page-parts'
 import { BankPicker } from '@/components/projection/bank-picker'
 import { ProjectionHero } from '@/components/projection/projection-hero'
-import { ProjectionTable } from '@/components/projection/projection-table'
-import { ProjectionEveryday, ProjectionRecurring } from '@/components/projection/projection-items'
+import { ProjectionCategories, ProjectionIncome, ProjectionRecurring } from '@/components/projection/projection-items'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'תחזית · תזרים' }
@@ -15,7 +14,7 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
   const p = await getProjection({ accountId: account })
 
   return (
-    <div className="page-in min-w-0 space-y-6">
+    <div className="page-in mx-auto min-w-0 max-w-7xl space-y-6">
       <div className="flex min-h-[2.375rem] flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">תחזית</h1>
         {p.banks.length > 1 && <BankPicker banks={p.banks} active={p.accountId} />}
@@ -37,10 +36,12 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
           <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
           {/* Two equal halves per row, like the other pages */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <ProjectionTable months={p.months} />
-            <ProjectionRecurring items={p.items} />
+            <ProjectionCategories categories={p.categories} />
+            <div className="flex flex-col gap-4">
+              <ProjectionIncome items={p.items} />
+              <ProjectionRecurring items={p.items} />
+            </div>
           </div>
-          <ProjectionEveryday items={p.items} />
         </>
       )}
     </div>
