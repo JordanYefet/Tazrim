@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/accounts/page-parts'
 import { BankPicker } from '@/components/projection/bank-picker'
 import { ProjectionHero } from '@/components/projection/projection-hero'
 import { ProjectionTable } from '@/components/projection/projection-table'
-import { ProjectionItems } from '@/components/projection/projection-items'
+import { ProjectionEveryday, ProjectionRecurring } from '@/components/projection/projection-items'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'תחזית · תזרים' }
@@ -35,8 +35,12 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
       ) : (
         <>
           <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
-          <ProjectionTable months={p.months} />
-          <ProjectionItems items={p.items} />
+          {/* Two equal halves per row, like the other pages */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ProjectionTable months={p.months} />
+            <ProjectionRecurring items={p.items} />
+          </div>
+          <ProjectionEveryday items={p.items} />
         </>
       )}
     </div>

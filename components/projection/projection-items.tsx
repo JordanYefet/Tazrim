@@ -33,43 +33,47 @@ function ItemRows({ items, income, link }: { items: ProjectionItem[]; income?: b
   )
 }
 
-function KindCard({ title, dot, children }: { title: string; dot: string; children: React.ReactNode }) {
+function KindCard({ title, subtitle, dot, children }: { title: string; subtitle: string; dot: string; children: React.ReactNode }) {
   return (
-    <section className={cn(SECTION, 'flex flex-col')}>
-      <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot }} aria-hidden />
-        {title}
-      </h3>
+    <section className={cn(SECTION, 'flex min-w-0 flex-col')}>
+      <div className="mb-3">
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot }} aria-hidden />
+          {title}
+        </h3>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
+      </div>
       {children}
     </section>
   )
 }
 
-/** What the forecast is made of, in three cards by kind; recurring items link to /recurring, where an ended one can be dismissed */
-export function ProjectionItems({ items }: { items: ProjectionItem[] }) {
+const MEDIAN = 'ממוצע חודשי: חציון 6 החודשים האחרונים'
+
+/** The recurring items the forecast places on their own dates; each links to /recurring, where an ended one can be dismissed */
+export function ProjectionRecurring({ items }: { items: ProjectionItem[] }) {
+  return (
+    <KindCard title="חיובים קבועים בתחזית" subtitle="כל חיוב נכנס לתחזית במועד שלו" dot="hsl(var(--muted-foreground))">
+      <ItemRows items={items.filter(i => i.kind === 'recurring')} link />
+      <Link href="/recurring" className="mt-auto inline-block pt-4 text-sm text-primary hover:underline">
+        חיוב הסתיים? סמנו אותו בחיובים קבועים
+      </Link>
+    </KindCard>
+  )
+}
+
+/** The everyday flows, income beside spending: two equal halves */
+export function ProjectionEveryday({ items }: { items: ProjectionItem[] }) {
   const income = items.filter(i => i.kind === 'everyday' && i.direction === 'in')
-  const recurring = items.filter(i => i.kind === 'recurring')
   const everyday = items.filter(i => (i.kind === 'everyday' || i.kind === 'card') && i.direction === 'out')
   return (
-    <div className="space-y-3">
-      <div>
-        <h2 className="text-base font-semibold">מה נכנס לתחזית</h2>
-        <p className="text-sm text-muted-foreground">ממוצע חודשי (חציון של 6 החודשים האחרונים) וחיובים קבועים</p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <KindCard title="נכנס" dot="hsl(var(--income))">
-          <ItemRows items={income} income />
-        </KindCard>
-        <KindCard title="קבועים" dot="hsl(var(--muted-foreground))">
-          <ItemRows items={recurring} link />
-          <Link href="/recurring" className="mt-auto inline-block pt-4 text-sm text-primary hover:underline">
-            חיוב הסתיים? סמנו אותו בחיובים קבועים
-          </Link>
-        </KindCard>
-        <KindCard title="הוצאות שוטפות" dot="hsl(var(--expense))">
-          <ItemRows items={everyday} />
-        </KindCard>
-      </div>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <KindCard title="הכנסות שוטפות" subtitle={MEDIAN} dot="hsl(var(--income))">
+        <ItemRows items={income} income />
+      </KindCard>
+      <KindCard title="הוצאות שוטפות" subtitle={MEDIAN} dot="hsl(var(--expense))">
+        <ItemRows items={everyday} />
+      </KindCard>
     </div>
   )
 }
