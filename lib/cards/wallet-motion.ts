@@ -23,6 +23,22 @@ export const POCKET_HEIGHT_CQW = 61
 const HIDDEN_GAP_PX = 24
 const HIDDEN_STEP_PX = 14
 
+/** The stack shows at most this many cards; the rest sit behind a "+N" tab at the back */
+export const MAX_STACKED = 3
+/** The "+N" tab's id in a stack order (it takes a card's place, at the back) */
+export const MORE_ID = '__more'
+
+/**
+ * The stack's order (back to front) for these active cards (back to front): all of them, or,
+ * past MAX_STACKED, the "+N" tab at the back, then the front MAX_STACKED cards. `overflow` is
+ * the cards behind the tab, in their own order.
+ */
+export function stackLayout(activeBackToFront: string[]): { order: string[]; overflow: string[] } {
+  if (activeBackToFront.length <= MAX_STACKED) return { order: activeBackToFront, overflow: [] }
+  const cut = activeBackToFront.length - MAX_STACKED
+  return { order: [MORE_ID, ...activeBackToFront.slice(cut)], overflow: activeBackToFront.slice(0, cut) }
+}
+
 export type WalletMode = { kind: 'stack' } | { kind: 'open'; id: string } | { kind: 'none' }
 
 export interface WalletCardInfo {

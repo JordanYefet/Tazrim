@@ -16,7 +16,8 @@ import {
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { BankElement, PaymentCard } from '@/components/accounts/account-element'
+import { AccountMini, BankElement, PaymentCard } from '@/components/accounts/account-element'
+import { AppDialog } from '@/components/ui/app-dialog'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { cardLabel } from '@/lib/accounts/brands'
 import { withQuery } from '@/lib/accounts/routes'
@@ -26,6 +27,7 @@ import { useCurrentPeriod } from '@/components/layout/period-context'
 import { UNDER_REACH, faceLook, prebakeGlass, requestGlassBake, showGlassAt, type Placement } from '@/components/glass/glass-bakery'
 import { overlaps, type UnderFace } from '@/lib/glass/under'
 import {
+  MORE_ID,
   POCKET_HEIGHT_CQW,
   boxHeight,
   placements,
@@ -33,6 +35,7 @@ import {
   predictCardPlacement,
   springEasing,
   springResponseFor,
+  stackLayout,
   translateYOf,
   walletModeFor,
   type CardPlacement,
@@ -444,8 +447,11 @@ function Wallet({
   stackTotal: number | null
   setStackTotal: Dispatch<SetStateAction<number | null>>
 }) {
-  // Back to front: the first (oldest) card is in front, so it comes last
-  const stackOrder = useMemo(() => cards.filter(c => !c.archived).map(c => c.id).reverse(), [cards])
+  // Back to front: the first (oldest) card is in front, so it comes last. Past three, the
+  // front three stand in the pocket and a "+N" tab at the back holds the rest (stackLayout)
+  const active = useMemo(() => cards.filter(c => !c.archived).map(c => c.id).reverse(), [cards])
+  const { order: stackOrder, overflow } = useMemo(() => stackLayout(active), [active])
+  const [moreOpen, setMoreOpen] = useState(false)
   const info = useMemo(() => cards.map(c => ({ id: c.id, archived: c.archived })), [cards])
   const place = useMemo(() => placements(mode, info, stackOrder), [mode, info, stackOrder])
 
@@ -667,6 +673,36 @@ function Wallet({
             </div>
           )
         })}
+        {overflow.length > 0 && (() => {
+          const p = place.get(MORE_ID)!
+          const first = initial.get(MORE_ID) ?? p
+          const word = kind === 'banks' ? 'חשבונות' : 'כרטיסים'
+          return (
+            <div
+              ref={el => {
+                if (el) elements.current.set(MORE_ID, el)
+                else elements.current.delete(MORE_ID)
+              }}
+              className="wallet-card"
+              style={{ transform: first.transform, opacity: first.opacity, zIndex: p.zIndex }}
+              data-hidden={p.hidden ? '' : undefined}
+              aria-hidden={p.hidden || undefined}
+            >
+              <button
+                type="button"
+                tabIndex={p.hidden ? -1 : undefined}
+                onClick={() => setMoreOpen(true)}
+                className="wallet-card__link wallet-more"
+                aria-label={`עוד ${overflow.length} ${word}`}
+              >
+                <span className="wallet-more__strip">
+                  <span className="wallet-more__count">+{overflow.length}</span>
+                  <span>עוד {word}</span>
+                </span>
+              </button>
+            </div>
+          )
+        })()}
         {stackOrder.length > 0 && (
           <div
             ref={pocketRef}
@@ -693,8 +729,8 @@ function Wallet({
               <div className="wallet-pocket__foot wallet-pocket__deboss">
                 <span className="wallet-pocket__chip">
                   {kind === 'banks'
-                    ? stackOrder.length === 1 ? 'חשבון אחד' : `${stackOrder.length} חשבונות`
-                    : stackOrder.length === 1 ? 'כרטיס אחד' : `${stackOrder.length} כרטיסים`}
+                    ? active.length === 1 ? 'חשבון אחד' : `${active.length} חשבונות`
+                    : active.length === 1 ? 'כרטיס אחד' : `${active.length} כרטיסים`}
                 </span>
                 <span className="wallet-pocket__mark" aria-hidden>
                   תזרים
@@ -704,6 +740,39 @@ function Wallet({
           </div>
         )}
       </div>
+      {overflow.length > 0 && (
+        <AppDialog open={moreOpen} onOpenChange={setMoreOpen} title={kind === 'banks' ? 'כל החשבונות' : 'כל הכרטיסים'}>
+          <ul className="divide-y divide-border">
+            {[...active].reverse().map(id => {
+              const c = cards.find(x => x.id === id)!
+              const href = withQuery(c.path, period)
+              return (
+                <li key={c.id}>
+                  <Link
+                    href={href}
+                    scroll={false}
+                    className="flex min-h-12 items-center gap-3 rounded-md px-1 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={e => {
+                      setMoreOpen(false)
+                      if (isPlainClick(e)) announceWalletRoute(href)
+                    }}
+                  >
+                    <AccountMini
+                      kind={kind === 'banks' ? 'BANK' : 'CREDIT_CARD'}
+                      provider={c.provider}
+                      color={c.color}
+                      colorChoice={c.colorChoice}
+                      network={c.network}
+                      className="w-11 shrink-0"
+                    />
+                    <bdi className="min-w-0 truncate">{c.name}</bdi>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </AppDialog>
+      )}
       {/* The open card's total for screen readers (its face is decorative). No caption
           under the wallet: the pages beside it carry the text, on cards and banks alike */}
       {shownTotal && kind === 'cards' && (
