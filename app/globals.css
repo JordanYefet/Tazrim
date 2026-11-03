@@ -979,6 +979,31 @@ html {
   transform-origin: 50% 0;
 }
 .wallet-card[data-hidden] { pointer-events: none; }
+/* The "+N" tab at the back of a stack of more than three (stackLayout): card-shaped, plain,
+   only its top strip shows; it opens the list of every account */
+.wallet-card__link.wallet-more {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0;
+  aspect-ratio: 85.6 / 54;
+  border: 1px solid hsl(var(--surface-edge));
+  background: hsl(var(--surface-raised));
+  box-shadow: var(--elevation-1);
+  color: hsl(var(--muted-foreground));
+  text-align: start;
+  cursor: pointer;
+}
+.wallet-more__strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: max(46px, 12.5cqw);
+  padding-inline: 6.5%;
+  font-size: 0.875rem;
+}
+.wallet-more__count { font-weight: 600; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }
 .wallet-card__link {
   display: block;
   border-radius: 6.4% / 10.15%;
