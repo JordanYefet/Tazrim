@@ -41,9 +41,6 @@ function CategoryDonutInner({
   emptyText = 'אין חיובים לתקופה זו',
   analysisHref,
   categoryHrefs,
-  subtitle,
-  headerAction,
-  footer,
 }: Props) {
   const router = useRouter()
   const params = useSearchParams()
@@ -81,11 +78,10 @@ function CategoryDonutInner({
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <ChartHeader
           title={title}
-          subtitle={subtitle ?? (categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת')}
+          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת'}
           className="mb-0"
         />
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
-        {headerAction}
       </div>
       {chartData.length === 0 ? (
         // Centred in whatever height the card gets (as tall as its pair, side by side)
@@ -157,7 +153,6 @@ function CategoryDonutInner({
         </div>
       </div>
       )}
-      {footer}
     </section>
   )
 }
@@ -180,12 +175,6 @@ interface Props {
   categoryHrefs?: Record<string, string>
   /** Amount colour: spending (cards, bank debits) or income (bank credits) */
   tone?: Tone
-  /** Replaces the default line about what a click does (e.g. a donut whose slices don't link) */
-  subtitle?: string
-  /** A control at the end of the header (e.g. back to the typical month) */
-  headerAction?: React.ReactNode
-  /** A line under the donut and its legend */
-  footer?: React.ReactNode
 }
 
 export function CategoryDonut(props: Props) {

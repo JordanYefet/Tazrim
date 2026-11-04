@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/accounts/page-parts'
 import { BankPicker } from '@/components/projection/bank-picker'
 import { ProjectionHero } from '@/components/projection/projection-hero'
 import { ProjectionChartCard } from '@/components/projection/projection-chart-card'
-import { ProjectionCategories } from '@/components/projection/projection-categories'
+import { ProjectionCategoryLines } from '@/components/projection/projection-category-lines'
 import { SelectedMonthProvider } from '@/components/projection/selected-month'
 
 export const dynamic = 'force-dynamic'
@@ -35,20 +35,19 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
         />
       ) : (
         <SelectedMonthProvider>
-          {/* The month on top (the 12-month view, or the one picked on the chart), in two equal
-              halves; the timeline below, where a month is picked */}
+          {/* The 12 months (or the month picked on either chart) beside the balance timeline, in
+              two equal halves; how each category moves, full width below */}
           <div className="grid gap-4 lg:grid-cols-2">
             <ProjectionHero months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
-            <ProjectionCategories
-              typical={p.categories}
-              months={p.months}
-              recurring={{
-                count: p.items.filter(i => i.kind === 'recurring').length,
-                monthly: p.items.filter(i => i.kind === 'recurring').reduce((a, i) => a + i.monthlyAmount, 0),
-              }}
-            />
+            <ProjectionChartCard past={p.past} months={p.months} start={p.start.balance} cushion={p.cushion} seasonal={p.seasonal} />
           </div>
-          <ProjectionChartCard past={p.past} months={p.months} start={p.start.balance} cushion={p.cushion} seasonal={p.seasonal} />
+          <ProjectionCategoryLines
+            months={p.months}
+            recurring={{
+              count: p.items.filter(i => i.kind === 'recurring').length,
+              monthly: p.items.filter(i => i.kind === 'recurring').reduce((a, i) => a + i.monthlyAmount, 0),
+            }}
+          />
         </SelectedMonthProvider>
       )}
     </div>

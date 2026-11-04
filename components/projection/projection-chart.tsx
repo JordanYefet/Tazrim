@@ -1,14 +1,14 @@
 'use client'
 
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
-import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { formatCurrency } from '@/lib/utils/currency'
 import { buildChartRows, chartDomain, type ChartRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth } from '@/lib/insights/projection'
 import { useSelectedMonth } from './selected-month'
+import { useEntranceOnce } from './use-entrance-once'
 
 type Row = ChartRow
 
@@ -45,20 +45,12 @@ export function ProjectionChart({ past, months, start, cushion }: {
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
-  const entrance = useChartAnimation()
-  // The lines draw in once; after that, picking a month (which adds a highlight) must not
-  // replay their entrance, as Recharts restarts it whenever the chart's children change
-  const [landed, setLanded] = useState(false)
-  useEffect(() => {
-    const t = window.setTimeout(() => setLanded(true), entrance.animationBegin + entrance.animationDuration + 50)
-    return () => window.clearTimeout(t)
-  }, [entrance.animationBegin, entrance.animationDuration])
-  const anim = landed ? { ...entrance, isAnimationActive: false } : entrance
+  const anim = useEntranceOnce()
 
   // Kept between renders: picking a month must not replay the lines' entrance
   const data = useMemo(() => buildChartRows(past, months, start), [past, months, start])
   const y = useMemo(() => chartDomain(data, cushion), [data, cushion])
-  // A forecast month picked on the chart drives the category donut; the same month again clears it
+  // A forecast month picked on the chart drives the hero and the category lines; the same month again clears it
   const { month: selected, select } = useSelectedMonth()
   const selectedLabel = data.find(r => r.month && r.month === selected)?.label
   const pick = (state: { activeLabel?: string | number } | null) => {

@@ -16,7 +16,7 @@ function Legend() {
   )
 }
 
-/** The timeline, full width: the actual balance, the forecast in its band; a tap picks a month for the cards above */
+/** The balance timeline: the actual balance, the forecast in its band; a tap picks a month for the hero and the category lines */
 export function ProjectionChartCard({ past, months, start, cushion, seasonal }: {
   past: { month: string; balance: number }[]
   months: ProjectedMonth[]
@@ -31,7 +31,7 @@ export function ProjectionChartCard({ past, months, start, cushion, seasonal }: 
           <h2 className="text-base font-semibold">יתרה צפויה</h2>
           <p className="text-sm text-muted-foreground">
             {seasonal ? 'כל חודש לפי מה שהיה בו בשנים הקודמות' : 'חודש רגיל בכל חודש: עונתיות מצריכה שנה של היסטוריה'}
-            {' · '}לחיצה על חודש מציגה אותו למעלה
+            {' · '}לחיצה על חודש מציגה אותו
           </p>
         </div>
         <Legend />

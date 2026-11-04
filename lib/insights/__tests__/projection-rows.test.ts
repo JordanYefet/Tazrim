@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChartRows, chartDomain } from '../projection-rows'
+import { buildChartRows, categorySeries, chartDomain } from '../projection-rows'
 import { monthLabel } from '../projection-format'
 import type { ProjectedMonth } from '../projection'
 
@@ -54,5 +54,26 @@ describe('chartDomain', () => {
   it('keeps a set cushion in view', () => {
     const rows = [{ label: 'a', actual: 100000 }]
     expect(chartDomain(rows, 60000).domain[0]).toBeLessThanOrEqual(60000)
+  })
+})
+
+describe('categorySeries', () => {
+  const pm = (month: string, categories: { name: string; monthlyAmount: number }[]): ProjectedMonth => ({
+    month, income: 0, expense: 0, net: 0, expected: 0, low: 0, high: 0, stale: false, tight: false, categories,
+  })
+
+  it('gives every month every category, 0 where it has none', () => {
+    const { rows } = categorySeries([pm('2030-08', [{ name: 'דיור', monthlyAmount: 5000 }]), pm('2030-09', [{ name: 'תיירות', monthlyAmount: 4000 }])])
+    expect(rows[0].values).toEqual({ דיור: 5000, תיירות: 0 })
+    expect(rows[1].values).toEqual({ דיור: 0, תיירות: 4000 })
+    expect(rows[1]).toMatchObject({ month: '2030-09', label: monthLabel('2030-09') })
+  })
+
+  it('ranks categories by their highest month, so a once-a-year peak ranks high', () => {
+    const { names } = categorySeries([
+      pm('2030-08', [{ name: 'מזון', monthlyAmount: 2500 }, { name: 'תיירות', monthlyAmount: 0 }]),
+      pm('2030-09', [{ name: 'מזון', monthlyAmount: 2600 }, { name: 'תיירות', monthlyAmount: 4000 }]),
+    ])
+    expect(names).toEqual(['תיירות', 'מזון'])
   })
 })

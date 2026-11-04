@@ -34,13 +34,12 @@ describe('/projection', () => {
     expect(html).toContain('<h1')
     expect(html).toContain('תחזית')
     expect(html).toContain('href="/recurring"')
-    // one hero card beside the donut, the chart below, the cushion shortcut
+    // one hero card beside the balance chart, the category lines below, the cushion shortcut
     expect(html.match(/surface-hero/g)!.length).toBe(1)
     expect(html).toContain('lg:grid-cols-2')
     expect(html).not.toMatch(/grid [^"]*items-start/)
     expect(html).toContain('href="/settings#projection"')
-    expect(html).toContain('הוצאות צפויות בחודש רגיל')
-    expect(html).toContain('מזון')
+    expect(html).toContain('הוצאות צפויות לפי קטגוריה')
   })
 
   it('reserves the tight line, and fills it when a month is tight', async () => {

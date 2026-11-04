@@ -67,3 +67,34 @@ export function chartDomain(rows: ChartRow[], cushion: number): { domain: [numbe
   for (let t = start; t <= stop + step / 2; t += step) ticks.push(Math.round(t))
   return { domain: [ticks[0], ticks[ticks.length - 1]], ticks }
 }
+
+export interface CategoryRow {
+  label: string
+  /** YYYY-MM */
+  month: string
+  /** category → expected spending that month (0 when it has none) */
+  values: Record<string, number>
+}
+
+/**
+ * The category lines: one row per forecast month with every category's expected spending, and
+ * the categories ranked by their highest month (ties by their total), so the default picks
+ * show the peaks.
+ */
+export function categorySeries(months: ProjectedMonth[]): { names: string[]; rows: CategoryRow[] } {
+  const peak = new Map<string, number>()
+  const total = new Map<string, number>()
+  for (const m of months)
+    for (const c of m.categories ?? []) {
+      peak.set(c.name, Math.max(peak.get(c.name) ?? 0, c.monthlyAmount))
+      total.set(c.name, (total.get(c.name) ?? 0) + c.monthlyAmount)
+    }
+  const names = [...peak.keys()].sort((a, b) => peak.get(b)! - peak.get(a)! || total.get(b)! - total.get(a)!)
+  const rows = months.map(m => {
+    const values: Record<string, number> = {}
+    for (const name of names) values[name] = 0
+    for (const c of m.categories ?? []) values[c.name] = c.monthlyAmount
+    return { label: monthLabel(m.month), month: m.month, values }
+  })
+  return { names, rows }
+}
