@@ -353,6 +353,8 @@ docker compose up -d
 
 **מצב קריאה בלבד:** עם `TAZRIM_READ_ONLY=1` השרת דוחה כל שינוי בנתונים, והממשק מסביר את זה כשמנסים לשמור. כך רץ הדמו החי.
 
+**עיצוב:** כללי העיצוב, הטוקנים והרכיבים המשותפים מתועדים ב-[`docs/design-system.md`](docs/design-system.md), ובפיתוח אפשר לראות אותם חיים בכתובת `/design`.
+
 **טכנולוגיות:** Next.js 15 (App Router), React 19, TypeScript, Prisma עם SQLite, Tailwind CSS, Recharts.
 
 **מבנה עיקרי:**

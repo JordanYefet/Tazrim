@@ -305,3 +305,9 @@ model ImportProfile {
   @@index([accountKind, provider])
   @@index([accountId])
 }
+
+/// App preferences as key/value pairs (lib/db/settings.ts): the projection cushion, …
+model Setting {
+  key   String @id
+  value String
+}

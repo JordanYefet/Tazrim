@@ -25,6 +25,7 @@ const WIPE_ORDER = {
   BankTransaction: 13,
   CreditCardTransaction: 14,
   Account: 15,
+  Setting: 16,
 } satisfies Record<Prisma.ModelName, number>
 
 export type WipeTable = keyof typeof WIPE_ORDER
