@@ -178,6 +178,8 @@ Page-level helpers live in `components/accounts/page-parts.tsx`: `PageHeading`, 
 
 **Account colour and glass.** An account's colour is three gradient stops set inline on its face (`--face-a/b/c`, registered with `@property` so a change cross-fades). A light colour sets `data-ink="dark"` and the text turns near-black (`--acct-ink-dark`). Glass (`data-glass`) is a translucent face whose text follows the theme and whose dots and chart series use `--acct-glass`. Large faces (a hero, the front wallet card, the add and edit preview) show the baked lens through `GlassSurface` (`components/glass/glass-surface.tsx`); everything else gets the static look (a light tint, a thin rim, an inner highlight). Faces are physical objects: their layout is physical (chip on the left, network bottom right) and is not mirrored by RTL. The identity colour appears on the face and nowhere else (no stripe on the row that holds it).
 
+**Card grid.** Cards in a row split the width evenly: halves, thirds for three peers, or quarters, as the other pages do (`grid gap-4 sm:grid-cols-3`, stretched to one height). Never a lopsided narrow-beside-wide split. Related things that differ in kind go in separate cards, each naming its kind with a small dot and a title (the projection's income, recurring and everyday cards).
+
 ## Do / Don't
 
 Run through this before opening a UI PR.
@@ -192,6 +194,7 @@ Run through this before opening a UI PR.
 - Do give a surface its place on the scale (`.surface`, `.surface-raised`, `.surface-overlay`; one `.surface-hero` per page). Don't hand-write a box-shadow.
 - Do put money and counts in `tabular-nums`, and headline figures in `RollingNumber`. Don't format currency by hand.
 - Do plot January to December on monthly charts with `EmptyMonthSlots`. Don't draw a missing month as a zero bar, and don't drop future months.
+- Do split cards in a row evenly and let kinds that differ have their own card. Don't make a narrow card beside a wide one, or mix kinds in one card.
 - Do keep charts LTR inside the RTL page. Don't mirror a chart's axes.
 - Do use `SegmentedTrack` for a segmented control and `Reveal` for something that opens in place. Don't re-implement the thumb or the height animation.
 - Do honour reduced motion and reduced transparency (movement off, glass opaque). Don't rely on shadow alone to show height in dark mode.

@@ -10,6 +10,7 @@ import {
   Repeat,
   Settings,
   Tag,
+  TrendingUp,
   Upload,
   type LucideIcon,
 } from 'lucide-react'
@@ -66,6 +67,7 @@ export const MAIN_NAV: NavItem[] = [
   SECTION_ITEMS.banks,
   SECTION_ITEMS.cards,
   { type: 'link', href: '/recurring', label: 'חיובים קבועים', icon: Repeat },
+  { type: 'link', href: '/projection', label: 'תחזית', icon: TrendingUp },
   { type: 'link', href: '/upload', label: 'העלאת קבצים', icon: Upload },
   { type: 'link', href: '/analysis', label: 'ניתוח לפי קטגוריה', icon: ChartPie },
   { type: 'link', href: '/categories', label: 'קטגוריות', icon: Tag },

@@ -8,6 +8,8 @@ import { BackgroundSettings } from '@/components/settings/background-settings'
 import { ImportProfilesManager } from '@/components/settings/import-profiles-manager'
 import { listImportProfiles } from '@/lib/db/import-profiles'
 import { toProfileView } from '@/lib/import/profile-view'
+import { CushionSetting } from '@/components/settings/cushion-setting'
+import { getCushion } from '@/lib/db/settings'
 import { DangerZone } from '@/components/settings/danger-zone'
 import { BANK_COLORS, CARD_COLORS } from '@/lib/nav/state'
 
@@ -24,10 +26,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     return colors[position[kind]++ % colors.length]
   }
   const now = new Date()
-  const [profileRows, rows, payerEvidence] = await Promise.all([
+  const [profileRows, rows, payerEvidence, cushion] = await Promise.all([
     listImportProfiles(),
     listAccountsWithCounts(),
     getCardPayerEvidence(now),
+    getCushion(),
   ])
   const ownProfile = (a: { id: string; kind: string }) => {
     const p = profileRows.find(p => p.accountId === a.id && p.accountKind === a.kind)
@@ -66,6 +69,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <ThemeSelector />
         </div>
         <BackgroundSettings />
+      </section>
+
+      <section id="projection" aria-labelledby="projection-title" className="space-y-3">
+        <h2 id="projection-title" className="text-lg font-semibold">תחזית</h2>
+        <CushionSetting initial={cushion} />
       </section>
 
       <section id="accounts" aria-label="ניהול חשבונות">

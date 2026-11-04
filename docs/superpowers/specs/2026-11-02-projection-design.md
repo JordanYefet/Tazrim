@@ -32,6 +32,8 @@ projectBalance(input: ProjectionInput): Projection
 - The combined latest bank balance comes from `combinedBalance` (`lib/insights/combined-balance.ts`) applied to `getBankBalancePoints` (`lib/db/bank.ts`). With one bank selected, it's that bank's latest balance.
 - The start date is the date of the latest row. Months between that date and today are projected too and marked `stale: true`, so out-of-date data can't shift the result without the page saying so.
 - The horizon is the 12 months after the current month.
+- The latest data month is the first row, holding what is left of that month's usual amounts. Each everyday income and expense category adds `max(0, monthly median − what that category already has in the month's bank rows)`, with the everyday exclusions (no recurring rows, no card payments). The card adds `max(0, everyday card + card recurring charges paid that month − card payments already made that month)`. Bank recurring hits dated after the start date are added in full. Nothing is prorated, so a salary that has already landed, or a card payment already made, isn't added again. The range is `σ·√fraction`, where `fraction = (days in month − day of the start date) / days in month`, and each later month's range is `σ·√(fraction + n)`. So the table usually has 13 rows.
+- Recurring series are judged as of the latest data date, not the clock, so stale data neither ends a series nor skips its hits in the months since the last upload.
 
 ### Each future month is the sum of
 1. **Recurring bank items** from `getRecurringSeries` (`lib/db/recurring.ts`), which already includes manual series and the user's confirm/dismiss choices.
@@ -42,13 +44,20 @@ projectBalance(input: ProjectionInput): Projection
    - the card's recurring series, including instalments;
    - the median of the card's non-recurring spending.
    - **Instalments** are assumed to continue across all 12 months. We don't store how many payments are left, so this cautious assumption may slightly overstate spending, never understate it. Reading "payment X of N" is a follow-up.
-3. **Everyday bank flows**: the per-category **median of the last 6 complete months**, separately for income and spending. Rows in `recurringTransactionIds` and card-payment rows are excluded. Sources: `getBankCategoryMonthly`, `getCCCategoryMonthly` and `mergeCategoryMonthly`.
+3. **Everyday bank flows**: the per-category **median of up to the last 24 complete months** (as many as there are; at least 3), separately for income and spending. Rows in `recurringTransactionIds` and card-payment rows are excluded. Sources: `getBankCategoryMonthly`, `getCCCategoryMonthly` and `mergeCategoryMonthly`.
 
 The no-double-counting rule (ENG-3) holds: card spending enters the forecast once, as the projected card payment, and the bank's historical card-payment debits are never added on top.
 
+### Seasonality
+With 12 or more months of history in the window, each future month gets its own usual everyday amounts, per category for income and spending and for card spending:
+- the typical month (the median) moves toward what that same calendar month held in past years;
+- with two years or more of that month the move is full (their average); with one year it is half, so a one-off isn't repeated in full;
+- the band then measures how far months strayed from their own season.
+Under 12 months every month gets the typical month. The category donut and the item lists show the typical month either way.
+
 ### Range band
-- σ is the standard deviation of the historical monthly net of the **non-recurring** flows over the last 6 complete months.
-- In month *k* ahead: `low = expected − σ·√k` and `high = expected + σ·√k`.
+- σ is the standard deviation of the historical monthly net of the **non-recurring** flows over the same window (up to 24 complete months).
+- In the *n*-th month after the latest data month: `low = expected − σ·√(fraction + n)` and `high = expected + σ·√(fraction + n)`, where `fraction` is the share of the latest data month still to come (see Starting point).
 
 ### Tight
 `tight = low < cushion`. `tight[]` lists those months in date order.
@@ -104,7 +113,7 @@ The list behind "What's in the forecast": each recurring series used (name, cade
 - Dismissed and inactive series are left out.
 - A card payment lands in its billing month.
 - The median ignores a one-off spike.
-- The band widens with the horizon (σ·√k).
+- The band widens with the horizon (σ·√(fraction + n)).
 - Fewer than 3 months of history returns `insufficient`.
 - Months between the last data and today are flagged `stale`.
 
@@ -123,4 +132,3 @@ The list behind "What's in the forecast": each recurring series used (name, cade
 
 - Read instalment "payment X of N" to end plans on time.
 - What-if items (planned expenses and income).
-- Seasonal adjustment using the same month last year, once there are 12 or more months of history.

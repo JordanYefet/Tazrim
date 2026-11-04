@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { ScrollHintList } from '@/components/ui/scroll-hint-list'
 import { CreditCard, FileSpreadsheet, Upload } from 'lucide-react'
 import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { cn } from '@/lib/utils/cn'
@@ -165,7 +166,9 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           average filling the rest. No monthly bars in them here: under the card list there
           is no room for them (a card's page, with the whole half, has them) */}
       <div className={cn('wallet-shell__beside flex flex-col gap-4', hasData && 'wallet-shell__beside--fit')}>
-      <ul className="divide-y overflow-hidden rounded-xl surface">
+      {/* Beside a wallet of fixed height: past a few accounts the list scrolls in its own card,
+          and the figures under it keep their size (they never shrink under the list) */}
+      <ScrollHintList className="min-h-0 shrink divide-y overflow-y-auto overscroll-contain rounded-xl surface">
         {perCard.map(c => (
           <CardSummaryRow
             key={c.account.id}
@@ -181,10 +184,10 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
             share={several ? shareOf(c.total, total) : undefined}
           />
         ))}
-      </ul>
+      </ScrollHintList>
       {hasData && (
         <CardStatTiles
-          className="min-h-0 flex-1"
+          className="shrink-0 grow"
           total={total}
           count={count}
           average={average}

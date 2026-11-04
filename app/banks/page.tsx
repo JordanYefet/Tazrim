@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { ScrollHintList } from '@/components/ui/scroll-hint-list'
 import { Building2, FileSpreadsheet, Upload } from 'lucide-react'
 import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { cn } from '@/lib/utils/cn'
@@ -185,7 +186,9 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
       {/* Beside the wallet, as tall as it: each account's figures (as the card list on /cards),
           then the four period figures in a compact card filling the rest */}
       <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
-        <ul className="divide-y overflow-hidden rounded-xl surface">
+        {/* Beside a wallet of fixed height: past a few accounts the list scrolls in its own card,
+          and the figures under it keep their size (they never shrink under the list) */}
+      <ScrollHintList className="min-h-0 shrink divide-y overflow-y-auto overscroll-contain rounded-xl surface">
           {perAccount.map(({ account, latest, color, totals: t }) => (
             <BankSummaryRow
               key={account.id}
@@ -199,11 +202,11 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
             />
           ))}
-        </ul>
+        </ScrollHintList>
         {hasData ? (
           <StatPanel
             compact
-            className="min-h-0 flex-1"
+            className="shrink-0 grow"
             stats={bankStats({
               income: totals.income,
               expense: totals.expense,

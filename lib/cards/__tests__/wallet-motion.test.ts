@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CARD_HEIGHT_CQW,
+  MORE_ID,
   STACK_SCALE,
   boxHeight,
   openOffset,
@@ -10,6 +11,7 @@ import {
   predictCardPlacement,
   springEasing,
   springResponseFor,
+  stackLayout,
   stripPx,
   translateYOf,
   walletModeFor,
@@ -165,5 +167,33 @@ describe('translateYOf (carrying the cards across a move of the wallet box)', ()
     expect(translateYOf('0px 40px')).toBe(40)
     expect(translateYOf('0px -12.5px')).toBe(-12.5)
     expect(translateYOf('3px -7px 0px')).toBe(-7)
+  })
+})
+
+describe('stackLayout', () => {
+  it('stacks every card up to three', () => {
+    expect(stackLayout(['c', 'b', 'a'])).toEqual({ order: ['c', 'b', 'a'], overflow: [] })
+  })
+
+  it('past three: the "+N" tab at the back, then the three front cards', () => {
+    expect(stackLayout(['e', 'd', 'c', 'b', 'a'])).toEqual({ order: [MORE_ID, 'c', 'b', 'a'], overflow: ['e', 'd'] })
+  })
+
+  it('places the tab like a card at the back, and hides the cards behind it', () => {
+    const cards = ['a', 'b', 'c', 'd', 'e'].map(id => ({ id, archived: false }))
+    const { order } = stackLayout(['e', 'd', 'c', 'b', 'a'])
+    const p = placements({ kind: 'stack' }, cards, order)
+    expect(p.get(MORE_ID)).toMatchObject({ hidden: false, zIndex: 1 })
+    expect(p.get('a')).toMatchObject({ hidden: false, front: true })
+    expect(p.get('d')!.hidden).toBe(true)
+    expect(p.get('e')!.hidden).toBe(true)
+  })
+
+  it('opens a card from behind the tab like any other', () => {
+    const cards = ['a', 'b', 'c', 'd', 'e'].map(id => ({ id, archived: false }))
+    const { order } = stackLayout(['e', 'd', 'c', 'b', 'a'])
+    const p = placements({ kind: 'open', id: 'e' }, cards, order)
+    expect(p.get('e')).toMatchObject({ hidden: false, front: true })
+    expect(p.get(MORE_ID)!.hidden).toBe(true)
   })
 })
