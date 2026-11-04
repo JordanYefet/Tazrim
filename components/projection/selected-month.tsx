@@ -8,8 +8,8 @@ const SelectedMonth = createContext<{ month: string | null; select: (month: stri
   select: () => {},
 })
 
-export function SelectedMonthProvider({ children }: { children: React.ReactNode }) {
-  const [month, select] = useState<string | null>(null)
+export function SelectedMonthProvider({ children, initial = null }: { children: React.ReactNode; initial?: string | null }) {
+  const [month, select] = useState<string | null>(initial)
   return <SelectedMonth.Provider value={{ month, select }}>{children}</SelectedMonth.Provider>
 }
 

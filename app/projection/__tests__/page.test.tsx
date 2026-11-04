@@ -33,9 +33,8 @@ describe('/projection', () => {
     expect(html).toContain('בעוד 12 חודשים')
     expect(html).toContain('<h1')
     expect(html).toContain('תחזית')
-    expect(html).toContain('משכורת')
     expect(html).toContain('href="/recurring"')
-    // one hero card, three kind cards of equal height, the cushion shortcut
+    // one hero card beside the donut, the chart below, the cushion shortcut
     expect(html.match(/surface-hero/g)!.length).toBe(1)
     expect(html).toContain('lg:grid-cols-2')
     expect(html).not.toMatch(/grid [^"]*items-start/)

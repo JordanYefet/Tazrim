@@ -3,7 +3,7 @@ import { getProjection } from '@/lib/db/projection'
 import { EmptyState } from '@/components/accounts/page-parts'
 import { BankPicker } from '@/components/projection/bank-picker'
 import { ProjectionHero } from '@/components/projection/projection-hero'
-import { ProjectionIncome, ProjectionRecurring } from '@/components/projection/projection-items'
+import { ProjectionChartCard } from '@/components/projection/projection-chart-card'
 import { ProjectionCategories } from '@/components/projection/projection-categories'
 import { SelectedMonthProvider } from '@/components/projection/selected-month'
 
@@ -35,15 +35,20 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
         />
       ) : (
         <SelectedMonthProvider>
-          <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} seasonal={p.seasonal} />
-          {/* Two equal halves per row, like the other pages */}
+          {/* The month on top (the 12-month view, or the one picked on the chart), in two equal
+              halves; the timeline below, where a month is picked */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <ProjectionCategories typical={p.categories} months={p.months} />
-            <div className="flex flex-col gap-4">
-              <ProjectionIncome items={p.items} />
-              <ProjectionRecurring items={p.items} />
-            </div>
+            <ProjectionHero months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
+            <ProjectionCategories
+              typical={p.categories}
+              months={p.months}
+              recurring={{
+                count: p.items.filter(i => i.kind === 'recurring').length,
+                monthly: p.items.filter(i => i.kind === 'recurring').reduce((a, i) => a + i.monthlyAmount, 0),
+              }}
+            />
           </div>
+          <ProjectionChartCard past={p.past} months={p.months} start={p.start.balance} cushion={p.cushion} seasonal={p.seasonal} />
         </SelectedMonthProvider>
       )}
     </div>

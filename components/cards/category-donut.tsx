@@ -43,6 +43,7 @@ function CategoryDonutInner({
   categoryHrefs,
   subtitle,
   headerAction,
+  footer,
 }: Props) {
   const router = useRouter()
   const params = useSearchParams()
@@ -156,6 +157,7 @@ function CategoryDonutInner({
         </div>
       </div>
       )}
+      {footer}
     </section>
   )
 }
@@ -182,6 +184,8 @@ interface Props {
   subtitle?: string
   /** A control at the end of the header (e.g. back to the typical month) */
   headerAction?: React.ReactNode
+  /** A line under the donut and its legend */
+  footer?: React.ReactNode
 }
 
 export function CategoryDonut(props: Props) {
