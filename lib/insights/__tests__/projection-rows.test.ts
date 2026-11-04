@@ -62,16 +62,25 @@ describe('categorySeries', () => {
     month, income: 0, expense: 0, net: 0, expected: 0, low: 0, high: 0, stale: false, tight: false, categories,
   })
 
-  it('gives every month every category, 0 where it has none', () => {
-    const { rows } = categorySeries([pm('2030-08', [{ name: 'דיור', monthlyAmount: 5000 }]), pm('2030-09', [{ name: 'תיירות', monthlyAmount: 4000 }])])
-    expect(rows[0].values).toEqual({ דיור: 5000, תיירות: 0 })
-    expect(rows[1].values).toEqual({ דיור: 0, תיירות: 4000 })
-    expect(rows[1]).toMatchObject({ month: '2030-09', label: monthLabel('2030-09') })
+  it('draws the past months as actual, then the forecast, meeting at the last actual month', () => {
+    const { rows } = categorySeries(
+      [
+        { month: '2030-06', categories: [{ name: 'דיור', monthlyAmount: 5000 }] },
+        { month: '2030-07', categories: [{ name: 'דיור', monthlyAmount: 5000 }] },
+      ],
+      [pm('2030-07', [{ name: 'מזון', monthlyAmount: 800 }]), pm('2030-08', [{ name: 'דיור', monthlyAmount: 5000 }, { name: 'מזון', monthlyAmount: 2000 }])]
+    )
+    expect(rows.map(r => [r.month, r.forecast])).toEqual([['2030-06', false], ['2030-07', true], ['2030-08', true]])
+    expect(rows[0].actual).toEqual({ דיור: 5000, מזון: 0 })
+    expect(rows[0].expected).toEqual(rows[0].actual)
+    // the latest data month: what is already in, plus what is left
+    expect(rows[1].expected).toEqual({ דיור: 5000, מזון: 800 })
+    expect(rows[2].expected).toEqual({ דיור: 5000, מזון: 2000 })
   })
 
-  it('ranks categories by their highest month, so a once-a-year peak ranks high', () => {
-    const { names } = categorySeries([
-      pm('2030-08', [{ name: 'מזון', monthlyAmount: 2500 }, { name: 'תיירות', monthlyAmount: 0 }]),
+  it('ranks categories by their highest forecast month, so a once-a-year peak ranks high', () => {
+    const { names } = categorySeries([], [
+      pm('2030-08', [{ name: 'מזון', monthlyAmount: 2500 }]),
       pm('2030-09', [{ name: 'מזון', monthlyAmount: 2600 }, { name: 'תיירות', monthlyAmount: 4000 }]),
     ])
     expect(names).toEqual(['תיירות', 'מזון'])

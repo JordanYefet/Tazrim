@@ -335,6 +335,11 @@ export type Projection =
       /** expected spending per month by category, largest first */
       categories: ProjectionCategory[]
       past: { month: string; balance: number }[]
+      /**
+       * What each category actually cost in the past months (the months of `past` before the
+       * latest data month), and in the latest data month so far: drawn before the forecast
+       */
+      actualCategories: { month: string; categories: ProjectionCategory[] }[]
       cushion: number
       sigma: number
       /** each month follows its own season (a year or more of history) */
@@ -404,6 +409,31 @@ export function categoryForecast(
     .map(([name, v]) => ({ name, monthlyAmount: round2(v) }))
     .filter(c => c.monthlyAmount > 0)
     .sort((a, b) => b.monthlyAmount - a.monthlyAmount)
+}
+
+/**
+ * What each category actually cost in a month, as the bank paid it: the bank's debits by their
+ * category (card payments aside), and the card payments of that month split by the categories of
+ * the card rows billed then (all under "כרטיסי אשראי" when the card files don't cover them).
+ */
+export function actualCategories(bank: BankFlowRow[], cards: CardChargeRow[], month: string): ProjectionCategory[] {
+  const bag: Bag = new Map()
+  let cardPaid = 0
+  for (const r of bank) {
+    if (monthKey(r.date) !== month || r.debit <= 0) continue
+    if (r.isCardPayment) cardPaid += r.debit
+    else put(bag, r.category ?? UNCATEGORIZED, r.debit)
+  }
+  if (cardPaid > 0) {
+    const billed: Bag = new Map()
+    for (const c of cards) if (monthKey(c.billingDate) === month && c.amount > 0) put(billed, c.category || UNCATEGORIZED, c.amount)
+    const total = bagTotal(billed)
+    // The card rows explain the payment up to what they hold; any rest stays under the cards
+    const covered = Math.min(total, cardPaid)
+    if (total > 0) for (const [name, v] of billed) put(bag, name, (covered * v) / total)
+    put(bag, CARD_ITEM_NAME, cardPaid - covered)
+  }
+  return ranked(bag)
 }
 
 export function projectBalance(input: ProjectionInput): Projection {
@@ -528,6 +558,10 @@ export function projectBalance(input: ProjectionInput): Projection {
     items,
     categories: categoryForecast(everyday, recurring, input.cards, recurringIds, window),
     past: input.past,
+    actualCategories: [
+      ...input.past.filter(p => p.month < last).map(p => ({ month: p.month, categories: actualCategories(input.bank, input.cards, p.month) })),
+      { month: last, categories: actualCategories(input.bank, input.cards, last) },
+    ],
     cushion: input.cushion,
     sigma: everyday.sigma,
     seasonal: everyday.seasonal,

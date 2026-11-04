@@ -17,7 +17,7 @@ describe('ProjectionCategoryLines', () => {
   it('shows the five that peak highest at first, in the legend, with the picker counting them', () => {
     const html = renderToStaticMarkup(
       <SelectedMonthProvider>
-        <ProjectionCategoryLines months={[month('2030-07', 0), month('2030-08', 0), month('2030-09', 4000)]} recurring={{ count: 3, monthly: 900 }} />
+        <ProjectionCategoryLines actual={[]} months={[month('2030-07', 0), month('2030-08', 0), month('2030-09', 4000)]} recurring={{ count: 3, monthly: 900 }} />
       </SelectedMonthProvider>
     )
     const legend = html.slice(html.indexOf('aria-label="קטגוריות בגרף"'))

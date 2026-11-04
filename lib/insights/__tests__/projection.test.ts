@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  actualCategories,
   addMonths,
   everydayFlows,
   monthKey,
@@ -485,5 +486,38 @@ describe('card spending by category, by season', () => {
       { name: 'מזון', monthlyAmount: 1000 },
     ])
     expect(p.months.find(m => m.month === '2030-10')!.categories).toEqual([{ name: 'מזון', monthlyAmount: 1000 }])
+  })
+})
+
+describe('actual spending by category', () => {
+  it('takes bank debits by category and splits the card payment by the card rows billed that month', () => {
+    const rows = [
+      bank('2030-05-09', { debit: 6000, category: 'שכירות' }),
+      bank('2030-05-10', { debit: 1000, isCardPayment: true }),
+      bank('2030-05-01', { credit: 10000, category: 'משכורת' }),
+    ]
+    const charges: CardChargeRow[] = [
+      { id: 'f1', billingDate: '2030-05-10', amount: 750, category: 'מזון' },
+      { id: 'f2', billingDate: '2030-05-10', amount: 250, category: 'פנאי' },
+    ]
+    expect(actualCategories(rows, charges, '2030-05')).toEqual([
+      { name: 'שכירות', monthlyAmount: 6000 },
+      { name: 'מזון', monthlyAmount: 750 },
+      { name: 'פנאי', monthlyAmount: 250 },
+    ])
+  })
+
+  it('keeps a card payment the card files don’t cover under the cards', () => {
+    const rows = [bank('2030-05-10', { debit: 1200, isCardPayment: true })]
+    expect(actualCategories(rows, [{ id: 'f1', billingDate: '2030-05-10', amount: 200, category: 'מזון' }], '2030-05')).toEqual([
+      { name: 'כרטיסי אשראי', monthlyAmount: 1000 },
+      { name: 'מזון', monthlyAmount: 200 },
+    ])
+  })
+
+  it('comes with the projection: the past months and the latest one so far', () => {
+    const p = ok(projectBalance(input({ past: [{ month: '2030-05', balance: 1 }, { month: '2030-06', balance: 2 }, { month: '2030-07', balance: 3 }] })))
+    expect(p.actualCategories.map(a => a.month)).toEqual(['2030-05', '2030-06', '2030-07'])
+    expect(p.actualCategories[0].categories).toEqual([{ name: 'שכירות', monthlyAmount: 6000 }])
   })
 })

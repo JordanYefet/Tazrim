@@ -42,6 +42,7 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
             <ProjectionChartCard past={p.past} months={p.months} start={p.start.balance} cushion={p.cushion} seasonal={p.seasonal} />
           </div>
           <ProjectionCategoryLines
+            actual={p.actualCategories}
             months={p.months}
             recurring={{
               count: p.items.filter(i => i.kind === 'recurring').length,

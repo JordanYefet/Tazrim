@@ -9,7 +9,7 @@ import { useChartAxes } from '@/hooks/use-chart-axes'
 import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { categorySeries, type CategoryRow } from '@/lib/insights/projection-rows'
-import type { ProjectedMonth } from '@/lib/insights/projection'
+import type { ProjectedMonth, ProjectionCategory } from '@/lib/insights/projection'
 import { cn } from '@/lib/utils/cn'
 import { useSelectedMonth } from './selected-month'
 import { useEntranceOnce } from './use-entrance-once'
@@ -21,7 +21,11 @@ export const DEFAULT_SHOWN = 5
 
 function LinesTooltip({ active, payload, label, colors }: any) {
   if (!active || !payload?.length) return null
-  const items = [...payload].sort((a: any, b: any) => b.value - a.value)
+  // A category has two lines (actual, expected) that meet at one month: show it once
+  const seen = new Set<string>()
+  const items = [...payload]
+    .filter((p: any) => p.value !== undefined && !seen.has(p.name) && seen.add(p.name))
+    .sort((a: any, b: any) => b.value - a.value)
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="mb-1 text-xs text-muted-foreground">{label}</p>
@@ -39,18 +43,19 @@ function LinesTooltip({ active, payload, label, colors }: any) {
 }
 
 /**
- * How each category's expected spending moves over the coming months: a dashed line per
- * category (all of it is forecast), the ones that peak highest shown at first, any of them picked
+ * How each category's spending moves: what it actually cost (solid) and what it is expected to
+ * cost (dashed), over the same months as the balance chart, the ones that peak highest shown at first, any of them picked
  * in the categories pill. A line that is switched on draws in. A tap on the chart picks the month
  * (as on the balance chart). Under it, a link to the recurring charges.
  */
-export function ProjectionCategoryLines({ months, recurring }: {
+export function ProjectionCategoryLines({ actual, months, recurring }: {
+  /** what each category actually cost in the past months (and the latest one so far) */
+  actual: { month: string; categories: ProjectionCategory[] }[]
   months: ProjectedMonth[]
   recurring: { count: number; monthly: number }
 }) {
-  // From the first full month: the first forecast row is the rest of the latest data month,
-  // which would draw every category climbing from what is already paid
-  const { names, rows } = useMemo(() => categorySeries(months.slice(1)), [months])
+  // The same months as the balance chart: actual first (solid), then the forecast (dashed)
+  const { names, rows } = useMemo(() => categorySeries(actual, months), [actual, months])
   const colors = useMemo(() => categoryColorMap(names), [names])
   const [shown, setShown] = useState<string[]>(() => names.slice(0, DEFAULT_SHOWN))
   // Lines switched on draw in (the others stay put: the chart's entrance has played once)
@@ -76,8 +81,9 @@ export function ProjectionCategoryLines({ months, recurring }: {
   const { month: selected, select } = useSelectedMonth()
   const selectedLabel = rows.find(r => r.month === selected)?.label
   const pick = (state: { activeLabel?: string | number } | null) => {
+    // Only a forecast month can be picked (the hero shows forecast months)
     const row = rows.find(r => r.label === state?.activeLabel)
-    if (row) select(row.month === selected ? null : row.month)
+    if (row?.forecast) select(row.month === selected ? null : row.month)
   }
 
   return (
@@ -111,20 +117,32 @@ export function ProjectionCategoryLines({ months, recurring }: {
             {selectedLabel && <ReferenceLine x={selectedLabel} stroke="var(--chart-1)" strokeOpacity={0.15} strokeWidth={16} />}
             {names
               .filter(name => shown.includes(name))
-              .map(name => (
-                <Line
-                  key={name}
-                  {...anim}
-                  isAnimationActive={anim.isAnimationActive || fresh.includes(name)}
-                  type="monotone"
-                  name={name}
-                  dataKey={(r: CategoryRow) => r.values[name]}
-                  stroke={colors[name]}
-                  strokeWidth={2.25}
-                  strokeDasharray="6 5"
-                  dot={false}
-                />
-              ))}
+              .flatMap(name => {
+                const lineAnim = { ...anim, isAnimationActive: anim.isAnimationActive || fresh.includes(name) }
+                return [
+                  <Line
+                    key={`${name}:actual`}
+                    {...lineAnim}
+                    type="monotone"
+                    name={name}
+                    dataKey={(r: CategoryRow) => r.actual?.[name]}
+                    stroke={colors[name]}
+                    strokeWidth={2.25}
+                    dot={false}
+                  />,
+                  <Line
+                    key={`${name}:expected`}
+                    {...lineAnim}
+                    type="monotone"
+                    name={name}
+                    dataKey={(r: CategoryRow) => r.expected?.[name]}
+                    stroke={colors[name]}
+                    strokeWidth={2.25}
+                    strokeDasharray="6 5"
+                    dot={false}
+                  />,
+                ]
+              })}
           </LineChart>
         </ResponsiveContainer>
       </div>

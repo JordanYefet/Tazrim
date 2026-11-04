@@ -1,5 +1,5 @@
 import { monthLabel } from './projection-format'
-import type { ProjectedMonth } from './projection'
+import type { ProjectedMonth, ProjectionCategory } from './projection'
 
 export interface ChartRow {
   label: string
@@ -72,29 +72,56 @@ export interface CategoryRow {
   label: string
   /** YYYY-MM */
   month: string
-  /** category → expected spending that month (0 when it has none) */
-  values: Record<string, number>
+  /** a forecast month (pickable on the chart); past months are actual */
+  forecast: boolean
+  /** category → actual spending that month (past months; the last of them also starts the forecast) */
+  actual?: Record<string, number>
+  /** category → expected spending that month */
+  expected?: Record<string, number>
 }
 
 /**
- * The category lines: one row per forecast month with every category's expected spending, and
- * the categories ranked by their highest month (ties by their total), so the default picks
- * show the peaks.
+ * The category lines, over the same months as the balance chart: what each category actually
+ * cost in the past months, then the forecast. The latest data month counts what is already in
+ * plus what is left of it. The last actual month also starts the forecast, so the two lines meet.
+ * Categories are ranked by their highest forecast month (ties by their total), so the default
+ * picks show the peaks.
  */
-export function categorySeries(months: ProjectedMonth[]): { names: string[]; rows: CategoryRow[] } {
+export function categorySeries(
+  actual: { month: string; categories: ProjectionCategory[] }[],
+  months: ProjectedMonth[]
+): { names: string[]; rows: CategoryRow[] } {
+  const first = months[0]?.month
+  const toValues = (cs: ProjectionCategory[] = []) => Object.fromEntries(cs.map(c => [c.name, c.monthlyAmount]))
+  const add = (a: Record<string, number>, b: Record<string, number>) => {
+    const out = { ...a }
+    for (const [k, v] of Object.entries(b)) out[k] = Math.round(((out[k] ?? 0) + v) * 100) / 100
+    return out
+  }
+  const past = actual.filter(a => !first || a.month < first)
+  const soFar = actual.find(a => a.month === first)
+  const forecast = months.map((m, i) => ({
+    month: m.month,
+    values: i === 0 && soFar ? add(toValues(soFar.categories), toValues(m.categories)) : toValues(m.categories),
+  }))
+
   const peak = new Map<string, number>()
   const total = new Map<string, number>()
-  for (const m of months)
-    for (const c of m.categories ?? []) {
-      peak.set(c.name, Math.max(peak.get(c.name) ?? 0, c.monthlyAmount))
-      total.set(c.name, (total.get(c.name) ?? 0) + c.monthlyAmount)
+  for (const f of forecast)
+    for (const [name, v] of Object.entries(f.values)) {
+      peak.set(name, Math.max(peak.get(name) ?? 0, v))
+      total.set(name, (total.get(name) ?? 0) + v)
     }
+  for (const p of past) for (const c of p.categories) if (!peak.has(c.name)) { peak.set(c.name, 0); total.set(c.name, 0) }
   const names = [...peak.keys()].sort((a, b) => peak.get(b)! - peak.get(a)! || total.get(b)! - total.get(a)!)
-  const rows = months.map(m => {
-    const values: Record<string, number> = {}
-    for (const name of names) values[name] = 0
-    for (const c of m.categories ?? []) values[c.name] = c.monthlyAmount
-    return { label: monthLabel(m.month), month: m.month, values }
-  })
+  const full = (values: Record<string, number>) => Object.fromEntries(names.map(n => [n, values[n] ?? 0]))
+
+  const rows: CategoryRow[] = [
+    ...past.map(p => ({ label: monthLabel(p.month), month: p.month, forecast: false, actual: full(toValues(p.categories)) })),
+    ...forecast.map(f => ({ label: monthLabel(f.month), month: f.month, forecast: true, expected: full(f.values) })),
+  ]
+  // The forecast starts where the actual line ends
+  const join = rows[past.length - 1]
+  if (join?.actual) join.expected = join.actual
   return { names, rows }
 }
