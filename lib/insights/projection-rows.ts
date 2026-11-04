@@ -11,6 +11,8 @@ export interface ChartRow {
   staleExpected?: number
   staleBand?: [number, number]
   tight?: boolean
+  /** a forecast row's month (YYYY-MM): the chart picks it for the category donut */
+  month?: string
 }
 
 /**
@@ -33,7 +35,7 @@ export function buildChartRows(past: { month: string; balance: number }[], month
     else { join.expected = v; join.band = [v, v] }
   }
   const forecast: ChartRow[] = months.map((m, i) => {
-    const row: ChartRow = { label: monthLabel(m.month), tight: m.tight }
+    const row: ChartRow = { label: monthLabel(m.month), tight: m.tight, month: m.month }
     const v = m.expected
     const b: [number, number] = [m.low, m.high]
     if (m.stale) { row.staleExpected = v; row.staleBand = b }
@@ -43,4 +45,25 @@ export function buildChartRows(past: { month: string; balance: number }[], month
     return row
   })
   return [...actual, ...forecast]
+}
+
+/**
+ * The y-axis: the data (actual line and band) with a little room, not from 0, so a month's
+ * season shows as a change of slope, on round ticks. The cushion is kept in view when it is set.
+ */
+export function chartDomain(rows: ChartRow[], cushion: number): { domain: [number, number]; ticks: number[] } {
+  const values = rows.flatMap(r => [r.actual, ...(r.band ?? []), ...(r.staleBand ?? [])]).filter((v): v is number => v !== undefined)
+  if (cushion > 0) values.push(cushion)
+  if (values.length === 0) return { domain: [0, 1], ticks: [0, 1] }
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  // A round step for about four intervals: 1, 2, 2.5 or 5 times a power of ten
+  const raw = Math.max((hi - lo) / 4, 1)
+  const power = 10 ** Math.floor(Math.log10(raw))
+  const step = ([1, 2, 2.5, 5, 10].find(m => m * power >= raw) ?? 10) * power
+  const start = Math.floor(lo / step) * step
+  const stop = Math.ceil(hi / step) * step
+  const ticks: number[] = []
+  for (let t = start; t <= stop + step / 2; t += step) ticks.push(Math.round(t))
+  return { domain: [ticks[0], ticks[ticks.length - 1]], ticks }
 }

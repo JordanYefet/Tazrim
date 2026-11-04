@@ -308,6 +308,8 @@ export interface ProjectedMonth {
   /** between the latest data and today: projected, though it has already passed */
   stale: boolean
   tight: boolean
+  /** this month's expected spending by category, largest first (adds up to `expense`) */
+  categories?: ProjectionCategory[]
 }
 
 export interface ProjectionItem {
@@ -345,6 +347,30 @@ export interface ProjectionCategory {
 }
 
 export const CARD_ITEM_NAME = 'כרטיסי אשראי'
+
+/** How the everyday card spending of the window splits by the card rows' own categories (shares adding up to 1) */
+function cardShares(cards: CardChargeRow[], recurringIds: Set<string>, window: string[]): [string, number][] {
+  const inWindow = new Set(window.filter(Boolean))
+  const byCategory = new Map<string, number>()
+  for (const c of cards) {
+    if (recurringIds.has(c.id) || !inWindow.has(monthKey(c.billingDate)) || c.amount <= 0) continue
+    const name = c.category || UNCATEGORIZED
+    byCategory.set(name, (byCategory.get(name) ?? 0) + c.amount)
+  }
+  const total = [...byCategory.values()].reduce((a, b) => a + b, 0)
+  return total > 0 ? [...byCategory].map(([name, v]) => [name, v / total]) : []
+}
+
+type Bag = Map<string, number>
+const put = (bag: Bag, name: string, v: number) => {
+  if (v > 0) bag.set(name, (bag.get(name) ?? 0) + v)
+}
+const bagTotal = (bag: Bag) => [...bag.values()].reduce((a, b) => a + b, 0)
+const ranked = (bag: Bag): ProjectionCategory[] =>
+  [...bag]
+    .map(([name, v]) => ({ name, monthlyAmount: round2(v) }))
+    .filter(c => c.monthlyAmount > 0)
+    .sort((a, b) => b.monthlyAmount - a.monthlyAmount)
 
 /**
  * Expected spending per month by category: the everyday bank categories, the recurring series
@@ -390,19 +416,44 @@ export function projectBalance(input: ProjectionInput): Projection {
   const thisMonth = monthKey(input.today)
   const end = addMonths(thisMonth, HORIZON_MONTHS)
   const recurring = projectedSeries(input.series)
-  const hits = new Map<string, number>()
-  const addHit = (m: string, amount: number) => hits.set(m, (hits.get(m) ?? 0) + amount)
+  const recurringIds = recurringRowIds(input.series)
+  const shares = cardShares(input.cards, recurringIds, window)
+  // Seasonal: a month's card spending splits like the same month's card rows in past years
+  // (a trip in August is billed in September), else like the whole window's
+  const sharesFor = (month: string) => {
+    if (!everyday.seasonal) return shares
+    const same = cardShares(input.cards, recurringIds, window.filter(m => m.slice(5) === month.slice(5)))
+    return same.length ? same : shares
+  }
+  // Card spending goes to the card rows' own categories (all of it to the cards without any)
+  const putCard = (bag: Bag, amount: number, month: string) => {
+    if (!(amount > 0)) return
+    const split = sharesFor(month)
+    if (split.length) for (const [name, share] of split) put(bag, name, amount * share)
+    else put(bag, CARD_ITEM_NAME, amount)
+  }
+  const seriesOfRow = new Map<string, ProjectionSeries>()
+  for (const s of input.series) if (!s.dismissed && !s.isCardPayment) for (const id of s.transactionIds) seriesOfRow.set(id, s)
+  const categoryOfSeries = (s: ProjectionSeries | undefined) => s?.category || UNCATEGORIZED
+
+  // Recurring hits by month and category
+  const hits = new Map<string, Bag>()
+  const hitBag = (m: string) => {
+    let bag = hits.get(m)
+    if (!bag) hits.set(m, (bag = new Map()))
+    return bag
+  }
   // Projected hits come from nextDate on, which lies after each series' latest row in the data
-  for (const s of recurring) for (const m of occurrences(s, addMonths(last, 1), end)) addHit(m, s.latestAmount)
+  for (const s of recurring) for (const m of occurrences(s, addMonths(last, 1), end)) put(hitBag(m), categoryOfSeries(s), s.latestAmount)
   // Card recurring charges already in the data are paid by the bank in their billing month,
   // which may be the latest data month or after it (charged before the data ended, billed later)
-  const recurringIds = recurringRowIds(input.series)
-  let cardRowsInLast = 0
+  const cardHitsInLast: Bag = new Map()
   for (const c of input.cards) {
     if (!recurringIds.has(c.id)) continue
     const m = monthKey(c.billingDate)
-    if (m === last) cardRowsInLast += c.amount
-    else if (m > last && m <= end) addHit(m, c.amount)
+    const name = c.category || categoryOfSeries(seriesOfRow.get(c.id))
+    if (m === last) put(cardHitsInLast, name, c.amount)
+    else if (m > last && m <= end) put(hitBag(m), name, c.amount)
   }
 
   const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0)
@@ -413,20 +464,25 @@ export function projectBalance(input: ProjectionInput): Projection {
   // The first row is the latest data month itself: what is left of its usual amounts after the
   // rows already in, plus the bank recurring hits dated after the start date. The card's usual
   // payment (its everyday spending, plus the card recurring charges billed that month: those in the
-  // data and any projected ones) less the card payments already made. Nothing is prorated: lumpy flows (a salary on the 1st) are not added twice.
+  // data and any projected ones) less the card payments already made. Nothing is prorated: lumpy
+  // flows (a salary on the 1st) are not added twice.
   const seen = seenInMonth(input.bank, input.series, last)
   const rest = (usual: Record<string, number>, already: Record<string, number>) =>
     Object.entries(usual).reduce((a, [category, v]) => a + Math.max(0, v - (already[category] ?? 0)), 0)
-  let cardHits = cardRowsInLast
-  let bankHits = 0
-  for (const s of recurring) {
-    if (s.source === 'bank') bankHits += hitsLeftInMonth(s, input.start.date).length * s.latestAmount
-    else cardHits += occurrences(s, last, last).length * s.latestAmount
+  for (const s of recurring) if (s.source === 'card') put(cardHitsInLast, categoryOfSeries(s), occurrences(s, last, last).length * s.latestAmount)
+  const cardHits = bagTotal(cardHitsInLast)
+  const firstBag: Bag = new Map()
+  for (const [name, v] of Object.entries(firstUsual.expense)) put(firstBag, name, v - (seen.expense[name] ?? 0))
+  for (const s of recurring) if (s.source === 'bank') put(firstBag, categoryOfSeries(s), hitsLeftInMonth(s, input.start.date).length * s.latestAmount)
+  // The card payment still to come, split like the card's usual payment (charges and everyday)
+  const cardUsual = firstUsual.card + cardHits
+  const cardLeft = Math.max(0, cardUsual - seen.cardPaid)
+  if (cardUsual > 0 && cardLeft > 0) {
+    const f = cardLeft / cardUsual
+    for (const [name, v] of cardHitsInLast) put(firstBag, name, v * f)
+    putCard(firstBag, firstUsual.card * f, last)
   }
-  const partial = {
-    income: rest(firstUsual.income, seen.income),
-    expense: rest(firstUsual.expense, seen.expense) + Math.max(0, firstUsual.card + cardHits - seen.cardPaid) + bankHits,
-  }
+  const partialIncome = rest(firstUsual.income, seen.income)
   // The band still starts from the share of the month still to come
   const fraction = restOfMonth(input.start.date)
 
@@ -434,8 +490,15 @@ export function projectBalance(input: ProjectionInput): Projection {
   let expected = input.start.balance
   for (let month = last, n = 0; month <= end; month = addMonths(month, 1), n++) {
     const usual = usualOf(month)
-    const income = round2(n === 0 ? partial.income : sum(usual.income))
-    const expense = round2(n === 0 ? partial.expense : sum(usual.expense) + usual.card + (hits.get(month) ?? 0))
+    let bag = firstBag
+    if (n > 0) {
+      bag = new Map()
+      for (const [name, v] of Object.entries(usual.expense)) put(bag, name, v)
+      putCard(bag, usual.card, month)
+      for (const [name, v] of hits.get(month) ?? []) put(bag, name, v)
+    }
+    const income = round2(n === 0 ? partialIncome : sum(usual.income))
+    const expense = round2(bagTotal(bag))
     const net = round2(income - expense)
     expected = round2(expected + net)
     const spread = round2(everyday.sigma * Math.sqrt(fraction + n))
@@ -445,6 +508,7 @@ export function projectBalance(input: ProjectionInput): Projection {
       high: round2(expected + spread),
       stale: month <= thisMonth,
       tight: low < input.cushion,
+      categories: ranked(bag),
     })
   }
 

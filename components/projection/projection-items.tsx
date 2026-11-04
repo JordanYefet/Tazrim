@@ -3,9 +3,7 @@ import { RollingNumber } from '@/components/ui/rolling-number'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SECTION } from '@/components/accounts/page-parts'
 import { cn } from '@/lib/utils/cn'
-import { categoryColorMap } from '@/lib/utils/category-colors'
-import { CategoryDonut } from '@/components/cards/category-donut'
-import type { ProjectionCategory, ProjectionItem } from '@/lib/insights/projection'
+import type { ProjectionItem } from '@/lib/insights/projection'
 
 const CADENCE: Record<string, string> = { weekly: 'שבועי', monthly: 'חודשי', bimonthly: 'דו-חודשי', yearly: 'שנתי' }
 
@@ -83,21 +81,5 @@ export function ProjectionIncome({ items }: { items: ProjectionItem[] }) {
     <KindCard title="הכנסות צפויות" subtitle={MEDIAN} dot="hsl(var(--income))">
       <ItemRows items={items.filter(i => i.kind === 'everyday' && i.direction === 'in')} income />
     </KindCard>
-  )
-}
-
-/** Expected spending per month by category, as the app's category donut */
-export function ProjectionCategories({ categories }: { categories: ProjectionCategory[] }) {
-  return (
-    <CategoryDonut
-      pagePath="/projection"
-      title="הוצאות צפויות לפי קטגוריה"
-      subtitle="בחודש: הוצאות שוטפות, חיובים קבועים וכרטיסי אשראי יחד"
-      data={Object.fromEntries(categories.map(c => [c.name, c.monthlyAmount]))}
-      colors={categoryColorMap(categories.map(c => c.name))}
-      // The forecast has no transactions of its own to open: slices don't link
-      categoryHrefs={{}}
-      emptyText="אין הוצאות צפויות"
-    />
   )
 }

@@ -3,7 +3,9 @@ import { getProjection } from '@/lib/db/projection'
 import { EmptyState } from '@/components/accounts/page-parts'
 import { BankPicker } from '@/components/projection/bank-picker'
 import { ProjectionHero } from '@/components/projection/projection-hero'
-import { ProjectionCategories, ProjectionIncome, ProjectionRecurring } from '@/components/projection/projection-items'
+import { ProjectionIncome, ProjectionRecurring } from '@/components/projection/projection-items'
+import { ProjectionCategories } from '@/components/projection/projection-categories'
+import { SelectedMonthProvider } from '@/components/projection/selected-month'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'תחזית · תזרים' }
@@ -32,17 +34,17 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
           actions={[{ href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true }]}
         />
       ) : (
-        <>
+        <SelectedMonthProvider>
           <ProjectionHero past={p.past} months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} seasonal={p.seasonal} />
           {/* Two equal halves per row, like the other pages */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <ProjectionCategories categories={p.categories} />
+            <ProjectionCategories typical={p.categories} months={p.months} />
             <div className="flex flex-col gap-4">
               <ProjectionIncome items={p.items} />
               <ProjectionRecurring items={p.items} />
             </div>
           </div>
-        </>
+        </SelectedMonthProvider>
       )}
     </div>
   )

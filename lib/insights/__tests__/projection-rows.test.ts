@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChartRows } from '../projection-rows'
+import { buildChartRows, chartDomain } from '../projection-rows'
 import { monthLabel } from '../projection-format'
 import type { ProjectedMonth } from '../projection'
 
@@ -40,5 +40,19 @@ describe('chart rows', () => {
     expect(r[1]).toMatchObject({ staleExpected: 1000 })
     expect(r[1].actual).toBeUndefined()
     expect(r[2]).toMatchObject({ staleExpected: 1100, expected: 1100 })
+  })
+})
+
+describe('chartDomain', () => {
+  it('fits the data on round ticks instead of starting at 0', () => {
+    const rows = [{ label: 'a', actual: 100000 }, { label: 'b', band: [104000, 108000] as [number, number] }]
+    const { domain, ticks } = chartDomain(rows, 0)
+    expect(ticks).toEqual([100000, 102000, 104000, 106000, 108000])
+    expect(domain).toEqual([100000, 108000])
+  })
+
+  it('keeps a set cushion in view', () => {
+    const rows = [{ label: 'a', actual: 100000 }]
+    expect(chartDomain(rows, 60000).domain[0]).toBeLessThanOrEqual(60000)
   })
 })

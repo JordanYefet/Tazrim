@@ -115,12 +115,14 @@ const BANK_CATEGORIES = {
     'תאגיד המים': 'חשבונות הבית',
     'גן ילדים לדוגמה': 'חינוך וילדים',
     'ביטוח רכב': 'ביטוח',
+    'קייטנת קיץ לדוגמה': 'חינוך וילדים',
     'העברה לחיסכון': 'חיסכון',
     'העברה לחשבון לאומי': 'העברה לחשבון אחר',
   },
   IN: {
     'משכורת - חברה לדוגמה בע"מ': 'משכורת',
     'משכורת - חברה נוספת בע"מ': 'משכורת',
+    'מענק שנתי - חברה לדוגמה בע"מ': 'משכורת',
     'החזר מס': 'החזרים',
     'ריבית זכות': 'ריבית',
     'העברה מחשבון הפועלים': 'העברה מחשבון אחר',
@@ -131,14 +133,27 @@ const BANK_CATEGORIES = {
 const today = new Date()
 const year = today.getFullYear()
 const lastMonth = today.getMonth() + 1
-// Month m of `year` (0 is last December, 13 next January)
+// Month m of `year` (0 is last December, 13 next January, negative further back)
 const day = (m, d) => new Date(year, m - 1, d)
 const hash = s => crypto.createHash('sha1').update(s).digest('hex')
+// Two years of history, so the projection's seasonality (12+ months) has something to learn
+const HISTORY_MONTHS = 24
+const firstMonth = lastMonth - HISTORY_MONTHS + 1
+// The calendar month (1-12) of month m
+const calendar = m => ((((m - 1) % 12) + 12) % 12) + 1
 
-// Card purchases from last December through last month, so every bill up to
+// Seasons, all made up: December gifts, summer camp and a trip abroad in August,
+// more at the supermarket around Pesach (April), electricity up in summer and winter
+const CARD_SEASONAL = {
+  acct_isracard: [[12, 'חנות מתנות לדוגמה', 'מתנות', 280, 760, 4]],
+  acct_cal: [[8, 'טיסות לדוגמה', 'תיירות', 2800, 3600, 1], [8, 'מלון לדוגמה', 'תיירות', 900, 1400, 1]],
+  acct_max: [[4, 'סופר השכונה', 'מזון וצריכה', 260, 640, 4]],
+}
+
+// Card purchases from the history's first month through last month, so every bill up to
 // this month's is complete and nothing is billed in the future
 const cardRows = []
-for (let m = 0; m < lastMonth; m++) {
+for (let m = firstMonth - 1; m < lastMonth; m++) {
   const daysInMonth = new Date(year, m, 0).getDate()
   for (const card of CARDS) {
     const add = (merchant, category, amount, d) => {
@@ -162,6 +177,8 @@ for (let m = 0; m < lastMonth; m++) {
     }
     for (const [merchant, category, lo, hi, times] of CARD_MERCHANTS[card.id])
       for (let i = 0; i < times; i++) add(merchant, category, between(lo, hi), 1 + Math.floor(rand() * daysInMonth))
+    for (const [cm, merchant, category, lo, hi, times] of CARD_SEASONAL[card.id] ?? [])
+      if (calendar(m) === cm) for (let i = 0; i < times; i++) add(merchant, category, between(lo, hi), 1 + Math.floor(rand() * daysInMonth))
     for (const [merchant, category, amount, d] of CARD_FIXED[card.id])
       add(merchant.replace('{id}', hash(`${card.id}|${merchant}|${m}`).slice(0, 8).toUpperCase()), category, amount, d)
     // One unusually large purchase, so the "unusual" card has something to show
@@ -170,33 +187,38 @@ for (let m = 0; m < lastMonth; m++) {
 }
 
 const bankEvents = Object.fromEntries(BANKS.map(b => [b.id, []]))
-for (let m = 1; m <= lastMonth; m++) {
+for (let m = firstMonth; m <= lastMonth; m++) {
+  const cm = calendar(m)
   const ev = (bank, d, description, debit, credit) => {
     const date = day(m, d)
     if (date <= today) bankEvents[bank].push({ date, description, debit, credit })
   }
   // Leumi: the main account
   ev('acct_leumi', 1, 'שכר דירה', 5200, 0)
-  ev('acct_leumi', 5, 'חברת החשמל', between(240, 520), 0)
+  // Air conditioning in summer, heating in winter
+  ev('acct_leumi', 5, 'חברת החשמל', [7, 8, 1, 2].includes(cm) ? between(620, 880) : between(240, 420), 0)
   ev('acct_leumi', 8, 'ארנונה', 690, 0)
   ev('acct_leumi', 9, 'משכורת - חברה לדוגמה בע"מ', 0, between(17800, 18600))
   ev('acct_leumi', 15, 'העברה לחיסכון', 1500, 0)
-  if (m % 3 === 0) ev('acct_leumi', 20, 'ביטוח רכב', 410, 0)
-  if (m === 4) ev('acct_leumi', 22, 'החזר מס', 0, 2350)
+  if (cm % 3 === 0) ev('acct_leumi', 20, 'ביטוח רכב', 410, 0)
+  if (cm === 4) ev('acct_leumi', 22, 'החזר מס', 0, between(2100, 2500))
+  if (cm === 12) ev('acct_leumi', 24, 'מענק שנתי - חברה לדוגמה בע"מ', 0, between(5800, 6400))
   // Hapoalim: a second, smaller salary and its own bills
   ev('acct_hapoalim', 10, 'משכורת - חברה נוספת בע"מ', 0, between(11200, 11800))
   ev('acct_hapoalim', 4, 'ועד בית', 180, 0)
   ev('acct_hapoalim', 6, 'תאגיד המים', between(90, 210), 0)
   ev('acct_hapoalim', 12, 'גן ילדים לדוגמה', 3400, 0)
+  if (cm === 7 || cm === 8) ev('acct_hapoalim', 3, 'קייטנת קיץ לדוגמה', 2400, 0)
   ev('acct_hapoalim', 18, 'העברה לחשבון לאומי', 4000, 0)
   ev('acct_leumi', 18, 'העברה מחשבון הפועלים', 0, 4000)
   // Discount: savings, fed by the monthly transfer
   ev('acct_discount', 15, 'העברה מחשבון לאומי', 0, 1500)
-  if (m % 3 === 0) ev('acct_discount', 28, 'ריבית זכות', 0, between(60, 90))
+  if (cm % 3 === 0) ev('acct_discount', 28, 'ריבית זכות', 0, between(60, 90))
   // Each card's bill, from its bank
+  const monthStart = day(m, 1)
   for (const card of CARDS) {
     const billed = cardRows
-      .filter(r => r.accountId === card.id && r.billingDate.getMonth() + 1 === m && r.billingDate.getFullYear() === year)
+      .filter(r => r.accountId === card.id && r.billingDate.getMonth() === monthStart.getMonth() && r.billingDate.getFullYear() === monthStart.getFullYear())
       .reduce((s, r) => s + r.chargedAmount, 0)
     if (billed) ev(card.bank, card.billingDay, card.payment, Math.round(billed * 100) / 100, 0)
   }

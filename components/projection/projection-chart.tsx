@@ -1,12 +1,14 @@
 'use client'
 
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { formatCurrency } from '@/lib/utils/currency'
-import { buildChartRows, type ChartRow } from '@/lib/insights/projection-rows'
+import { buildChartRows, chartDomain, type ChartRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth } from '@/lib/insights/projection'
+import { useSelectedMonth } from './selected-month'
 
 type Row = ChartRow
 
@@ -43,20 +45,38 @@ export function ProjectionChart({ past, months, start, cushion }: {
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
-  const anim = useChartAnimation()
+  const entrance = useChartAnimation()
+  // The lines draw in once; after that, picking a month (which adds a highlight) must not
+  // replay their entrance, as Recharts restarts it whenever the chart's children change
+  const [landed, setLanded] = useState(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => setLanded(true), entrance.animationBegin + entrance.animationDuration + 50)
+    return () => window.clearTimeout(t)
+  }, [entrance.animationBegin, entrance.animationDuration])
+  const anim = landed ? { ...entrance, isAnimationActive: false } : entrance
 
-  const data = buildChartRows(past, months, start)
+  // Kept between renders: picking a month must not replay the lines' entrance
+  const data = useMemo(() => buildChartRows(past, months, start), [past, months, start])
+  const y = useMemo(() => chartDomain(data, cushion), [data, cushion])
+  // A forecast month picked on the chart drives the category donut; the same month again clears it
+  const { month: selected, select } = useSelectedMonth()
+  const selectedLabel = data.find(r => r.month && r.month === selected)?.label
+  const pick = (state: { activeLabel?: string | number } | null) => {
+    const row = data.find(r => r.label === state?.activeLabel)
+    if (row?.month) select(row.month === selected ? null : row.month)
+  }
 
   return (
     <div dir="ltr" className="h-64 sm:h-72">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={axes.margin}>
+        <ComposedChart data={data} margin={axes.margin} onClick={pick} style={{ cursor: 'pointer' }}>
           <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 4" />
           <XAxis dataKey="label" {...axes.xAxis} interval="preserveStartEnd" />
-          <YAxis {...axes.yAxis} />
+          <YAxis {...axes.yAxis} domain={y.domain} ticks={y.ticks} />
           <Tooltip content={<ChartTooltip />} />
           <Area type="monotone" dataKey="staleBand" stroke="none" fill="var(--chart-1)" fillOpacity={0.06} isAnimationActive={false} />
           <Area {...anim} type="monotone" dataKey="band" stroke="none" fill="var(--chart-1)" fillOpacity={0.14} isAnimationActive={false} />
+          {selectedLabel && <ReferenceLine x={selectedLabel} stroke="var(--chart-1)" strokeOpacity={0.15} strokeWidth={16} />}
           <ReferenceLine y={cushion} stroke={textColor} strokeOpacity={0.5} strokeDasharray="2 4" />
           <Line {...anim} type="monotone" dataKey="actual" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} connectNulls={false} />
           <Line {...anim} type="monotone" dataKey="staleExpected" stroke="var(--chart-1)" strokeOpacity={0.35} strokeWidth={2} strokeDasharray="6 5" dot={false} />

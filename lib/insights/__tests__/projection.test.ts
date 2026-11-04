@@ -435,3 +435,55 @@ describe('seasonality', () => {
     expect(at(p, '2031-02').expense).toBe(6000)
   })
 })
+
+describe('each month by category', () => {
+  it('puts a yearly charge in its own month, under its category, and adds up to the month', () => {
+    const insurance = series({ name: 'ביטוח', cadence: 'yearly', latestAmount: 2000, monthlyAmount: 166.67, nextDate: '2030-09-12', category: 'ביטוח' })
+    const payments = each(m => bank(`${m}-10`, { debit: 1000, isCardPayment: true }))
+    const charges: CardChargeRow[] = WINDOW.map(m => ({ id: `food${++n}`, billingDate: `${m}-10`, amount: 1000, category: 'מזון' }))
+    const p = ok(projectBalance(input({ bank: [...salaryAndRent(), ...payments], cards: charges, series: [insurance] })))
+    const sep = p.months.find(m => m.month === '2030-09')!
+    const oct = p.months.find(m => m.month === '2030-10')!
+    expect(sep.categories).toEqual([
+      { name: 'שכירות', monthlyAmount: 6000 },
+      { name: 'ביטוח', monthlyAmount: 2000 },
+      { name: 'מזון', monthlyAmount: 1000 },
+    ])
+    expect(oct.categories!.map(c => c.name)).not.toContain('ביטוח')
+    for (const m of p.months) expect(m.categories!.reduce((a, c) => a + c.monthlyAmount, 0)).toBeCloseTo(m.expense, 1)
+  })
+
+  it('follows the season: a peak month shows its category', () => {
+    const months24 = Array.from({ length: 24 }, (_, i) => addMonths('2028-07', i))
+    const rows = [
+      ...months24.map(m => bank(`${m}-01`, { credit: 10000, category: 'משכורת' })),
+      ...months24.map(m => bank(`${m}-09`, { debit: 6000, category: 'שכירות' })),
+      ...['2028-08', '2029-08'].map(m => bank(`${m}-15`, { debit: 3000, category: 'קייטנה' })),
+    ]
+    const p = ok(projectBalance(input({ bank: rows })))
+    expect(p.months.find(m => m.month === '2030-08')!.categories).toContainEqual({ name: 'קייטנה', monthlyAmount: 3000 })
+    expect(p.months.find(m => m.month === '2030-09')!.categories!.map(c => c.name)).not.toContain('קייטנה')
+  })
+})
+
+describe('card spending by category, by season', () => {
+  it('splits a month’s card spending like the same month in past years', () => {
+    const months24 = Array.from({ length: 24 }, (_, i) => addMonths('2028-07', i))
+    const base = [
+      ...months24.map(m => bank(`${m}-01`, { credit: 10000, category: 'משכורת' })),
+      ...months24.map(m => bank(`${m}-10`, { debit: m.endsWith('-09') ? 4000 : 1000, isCardPayment: true })),
+    ]
+    const charges: CardChargeRow[] = months24.flatMap(m =>
+      m.endsWith('-09')
+        ? [{ id: `food${++n}`, billingDate: `${m}-10`, amount: 1000, category: 'מזון' }, { id: `trip${++n}`, billingDate: `${m}-10`, amount: 3000, category: 'תיירות' }]
+        : [{ id: `food${++n}`, billingDate: `${m}-10`, amount: 1000, category: 'מזון' }]
+    )
+    const p = ok(projectBalance(input({ bank: base, cards: charges })))
+    const sep = p.months.find(m => m.month === '2030-09')!
+    expect(sep.categories).toEqual([
+      { name: 'תיירות', monthlyAmount: 3000 },
+      { name: 'מזון', monthlyAmount: 1000 },
+    ])
+    expect(p.months.find(m => m.month === '2030-10')!.categories).toEqual([{ name: 'מזון', monthlyAmount: 1000 }])
+  })
+})

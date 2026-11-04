@@ -40,7 +40,7 @@ describe('/projection', () => {
     expect(html).toContain('lg:grid-cols-2')
     expect(html).not.toMatch(/grid [^"]*items-start/)
     expect(html).toContain('href="/settings#projection"')
-    expect(html).toContain('הוצאות צפויות לפי קטגוריה')
+    expect(html).toContain('הוצאות צפויות בחודש רגיל')
     expect(html).toContain('מזון')
   })
 

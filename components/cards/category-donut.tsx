@@ -42,6 +42,7 @@ function CategoryDonutInner({
   analysisHref,
   categoryHrefs,
   subtitle,
+  headerAction,
 }: Props) {
   const router = useRouter()
   const params = useSearchParams()
@@ -83,6 +84,7 @@ function CategoryDonutInner({
           className="mb-0"
         />
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
+        {headerAction}
       </div>
       {chartData.length === 0 ? (
         // Centred in whatever height the card gets (as tall as its pair, side by side)
@@ -178,6 +180,8 @@ interface Props {
   tone?: Tone
   /** Replaces the default line about what a click does (e.g. a donut whose slices don't link) */
   subtitle?: string
+  /** A control at the end of the header (e.g. back to the typical month) */
+  headerAction?: React.ReactNode
 }
 
 export function CategoryDonut(props: Props) {
