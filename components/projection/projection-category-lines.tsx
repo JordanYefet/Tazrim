@@ -13,6 +13,8 @@ import type { ProjectedMonth } from '@/lib/insights/projection'
 import { cn } from '@/lib/utils/cn'
 import { useSelectedMonth } from './selected-month'
 import { useEntranceOnce } from './use-entrance-once'
+import { CategoryPicker } from './category-picker'
+import { useChartAnimation } from '@/hooks/use-chart-animation'
 
 /** Categories shown at first: the ones that peak highest */
 export const DEFAULT_SHOWN = 5
@@ -37,9 +39,10 @@ function LinesTooltip({ active, payload, label, colors }: any) {
 }
 
 /**
- * How each category's expected spending moves over the coming months: a line per category,
- * the ones that peak highest shown at first, any other switched on or off with its chip. A tap
- * on the chart picks the month (as on the balance chart). Under it, a link to the recurring charges.
+ * How each category's expected spending moves over the coming months: a dashed line per
+ * category (all of it is forecast), the ones that peak highest shown at first, any of them picked
+ * in the categories pill. A line that is switched on draws in. A tap on the chart picks the month
+ * (as on the balance chart). Under it, a link to the recurring charges.
  */
 export function ProjectionCategoryLines({ months, recurring }: {
   months: ProjectedMonth[]
@@ -50,7 +53,17 @@ export function ProjectionCategoryLines({ months, recurring }: {
   const { names, rows } = useMemo(() => categorySeries(months.slice(1)), [months])
   const colors = useMemo(() => categoryColorMap(names), [names])
   const [shown, setShown] = useState<string[]>(() => names.slice(0, DEFAULT_SHOWN))
-  const toggle = (name: string) => setShown(s => (s.includes(name) ? s.filter(n => n !== name) : [...s, name]))
+  // Lines switched on draw in (the others stay put: the chart's entrance has played once)
+  const [fresh, setFresh] = useState<string[]>([])
+  const motion = useChartAnimation()
+  const change = (next: string[]) => {
+    const added = next.filter(n => !shown.includes(n))
+    setShown(next)
+    if (added.length && motion.isAnimationActive) {
+      setFresh(added)
+      window.setTimeout(() => setFresh(f => f.filter(n => !added.includes(n))), motion.animationDuration + 100)
+    }
+  }
 
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -69,32 +82,23 @@ export function ProjectionCategoryLines({ months, recurring }: {
 
   return (
     <section className={cn(SECTION, 'min-w-0')}>
-      <div className="mb-4">
-        <h2 className="text-base font-semibold">הוצאות צפויות לפי קטגוריה</h2>
-        <p className="text-sm text-muted-foreground">כל קטגוריה בכל חודש. לחיצה על קטגוריה מוסיפה או מסתירה אותה</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div>
+          <h2 className="text-base font-semibold">הוצאות צפויות לפי קטגוריה</h2>
+          <p className="text-sm text-muted-foreground">כל קטגוריה בכל חודש: אחת, כמה או כולן</p>
+        </div>
+        <CategoryPicker names={names} colors={colors} shown={shown} onChange={change} />
       </div>
-
-      <ul className="mb-4 flex flex-wrap gap-2" aria-label="קטגוריות בגרף">
-        {names.map(name => {
-          const on = shown.includes(name)
-          return (
-            <li key={name}>
-              <button
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggle(name)}
-                className={cn(
-                  'inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm ring-1 ring-inset transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  on ? 'bg-muted text-foreground ring-transparent' : 'text-muted-foreground ring-border hover:text-foreground'
-                )}
-              >
-                <span className={cn('h-2 w-2 shrink-0 rounded-full', !on && 'opacity-50')} style={{ backgroundColor: colors[name] }} aria-hidden />
-                <bdi>{name}</bdi>
-              </button>
+      {/* Which line is which: the categories shown, in their colours */}
+      <ul className="mb-4 flex min-h-5 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="קטגוריות בגרף">
+        {names
+          .filter(name => shown.includes(name))
+          .map(name => (
+            <li key={name} className="flex items-center gap-1.5">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[name] }} aria-hidden />
+              <bdi>{name}</bdi>
             </li>
-          )
-        })}
+          ))}
       </ul>
 
       <div dir="ltr" className="h-64 sm:h-72">
@@ -111,11 +115,13 @@ export function ProjectionCategoryLines({ months, recurring }: {
                 <Line
                   key={name}
                   {...anim}
+                  isAnimationActive={anim.isAnimationActive || fresh.includes(name)}
                   type="monotone"
                   name={name}
                   dataKey={(r: CategoryRow) => r.values[name]}
                   stroke={colors[name]}
                   strokeWidth={2.25}
+                  strokeDasharray="6 5"
                   dot={false}
                 />
               ))}
