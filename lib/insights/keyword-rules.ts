@@ -5,9 +5,11 @@
  *
  * Which category a rule gives a row, in order:
  *   1. a category picked on the row by hand (the callers skip those rows)
- *   2. the exact rule: a merchant rule (cards) or a description rule (bank)
- *   3. the longest contains rule that matches; on a tie, the oldest
- *   4. none: the issuer's category on a card, uncategorised on the bank
+ *   2. a contains rule that matches the row's notes: a note names the payee of a
+ *      generic charge ("BIT" transfers), so it is more specific than the merchant
+ *   3. the exact rule: a merchant rule (cards) or a description rule (bank)
+ *   4. the longest contains rule that matches the merchant or description; on a tie, the oldest
+ *   5. none: the issuer's category on a card, uncategorised on the bank
  *
  * A rule's category kind decides its rows: an expense one covers card charges and
  * bank debits, an income one bank credits. The bank's card payments and generic
@@ -66,10 +68,12 @@ export function keywordRuleFor<R extends KeywordRule>(text: string, rules: R[], 
 
 /** A row as the resolver sees it */
 export type RuleRow =
-  | { source: 'card'; originalMerchantName: string }
+  | { source: 'card'; originalMerchantName: string; /** הערות */ notes?: string | null }
   | {
       source: 'bank'
       originalDescription: string
+      /** הערה */
+      note?: string | null
       description: string
       debit: number
       credit: number
@@ -84,8 +88,20 @@ export function ruleKindOf(row: RuleRow): CategoryKindName | null {
   return CATEGORY_KIND_OF[directionOf(row)]
 }
 
-/** The text a rule is matched against: the merchant or description as the file has it */
-export const ruleTextOf = (row: RuleRow) => (row.source === 'card' ? row.originalMerchantName : row.originalDescription)
+/** The merchant or description as the file has it */
+export const ruleMainTextOf = (row: RuleRow) => (row.source === 'card' ? row.originalMerchantName : row.originalDescription)
+
+/** The row's notes ('' when none) */
+export const ruleNotesOf = (row: RuleRow) => (row.source === 'card' ? row.notes : row.note) ?? ''
+
+/**
+ * The text a rule is matched against: the merchant or description, then the notes. The
+ * separator is no letter or space, so a pattern never matches across the two.
+ */
+export const ruleTextOf = (row: RuleRow) => {
+  const notes = ruleNotesOf(row)
+  return notes ? `${ruleMainTextOf(row)}\u0000${notes}` : ruleMainTextOf(row)
+}
 
 /**
  * The category the rules give a row that nobody categorised by hand: its exact rule's
@@ -94,8 +110,17 @@ export const ruleTextOf = (row: RuleRow) => (row.source === 'card' ? row.origina
 export function resolveRuleCategory(row: RuleRow, exact: string | null, rules: KeywordRule[]): string | null {
   const kind = ruleKindOf(row)
   if (!kind) return null
+  const notes = ruleNotesOf(row)
+  const byNotes = notes ? keywordRuleFor(notes, rules, kind) : null
+  if (byNotes) return byNotes.category
   if (exact) return exact
-  return keywordRuleFor(ruleTextOf(row), rules, kind)?.category ?? null
+  return keywordRuleFor(ruleMainTextOf(row), rules, kind)?.category ?? null
+}
+
+/** Whether a contains pattern matches the row's notes, and so wins over its exact rule */
+export const matchesNotes = (pattern: string, row: RuleRow) => {
+  const notes = ruleNotesOf(row)
+  return !!notes && keywordMatches(pattern, notes)
 }
 
 /**

@@ -1,6 +1,6 @@
 import { prisma, type Db } from './client'
 import { PROVIDERS } from './accounts'
-import { keywordFallback } from './keyword-rules'
+import { keywordFallback, notesRuleCategory } from './keyword-rules'
 
 /**
  * Merchant / description rules are keyed by provider ("leumi", "max", ...),
@@ -65,16 +65,21 @@ export async function upsertAliasAndBulkUpdate(params: AliasInput) {
   // A provider only has rows in one of the two tables, so at most one of these touches anything.
   // Charges whose category was picked by hand keep theirs.
   const merchantRows = { originalMerchantName: params.originalName, categoryManual: false, ...ofProvider }
-  if (params.categoryOverride) {
-    await prisma.creditCardTransaction.updateMany({
-      where: merchantRows,
-      data: { categoryOverride: params.categoryOverride },
-    })
-  } else if (params.categoryOverride === null) {
-    // The rule's category went: its charges take what a contains-text rule gives them, or
-    // none (the issuer's category shows again)
-    const next = (await keywordFallback(prisma))({ source: 'card', originalMerchantName: params.originalName })
-    await prisma.creditCardTransaction.updateMany({ where: merchantRows, data: { categoryOverride: next } })
+  if (params.categoryOverride !== undefined) {
+    // With the rule's category, or (the category went) what a contains-text rule gives,
+    // or none so the issuer's category shows again. A charge whose notes a contains rule
+    // matches keeps that rule's category: notes beat the merchant (lib/insights/keyword-rules.ts)
+    const [byNotes, fallback] = await Promise.all([notesRuleCategory(prisma), keywordFallback(prisma)])
+    const rows = await prisma.creditCardTransaction.findMany({ where: merchantRows, select: { id: true, notes: true } })
+    const groups = new Map<string | null, string[]>()
+    for (const r of rows) {
+      const row = { source: 'card' as const, originalMerchantName: params.originalName, notes: r.notes }
+      const next = byNotes(row) ?? params.categoryOverride ?? fallback(row)
+      groups.set(next, [...(groups.get(next) ?? []), r.id])
+    }
+    for (const [categoryOverride, ids] of groups) {
+      await prisma.creditCardTransaction.updateMany({ where: { id: { in: ids } }, data: { categoryOverride } })
+    }
   }
 
   await prisma.bankTransaction.updateMany({

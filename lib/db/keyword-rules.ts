@@ -3,6 +3,9 @@ import { listGenericDescriptions } from './generic-descriptions'
 import { directionOf } from '../insights/bank-categories'
 import {
   keywordMatches,
+  keywordRuleFor,
+  matchesNotes,
+  ruleNotesOf,
   normalizeKeyword,
   resolveRuleCategory,
   ruleKindOf,
@@ -55,6 +58,20 @@ export async function keywordFallback(db: Db): Promise<(row: RuleRow) => string 
   return row => resolveRuleCategory(row, null, rules)
 }
 
+/**
+ * The category a contains rule gives a row through its notes alone (null when none
+ * matches): it wins over an exact rule, so a merchant or description rule being saved
+ * or removed leaves such rows to it.
+ */
+export async function notesRuleCategory(db: Db): Promise<(row: RuleRow) => string | null> {
+  const rules = await loadKeywordRules(db)
+  return row => {
+    const kind = ruleKindOf(row)
+    const notes = ruleNotesOf(row)
+    return kind && notes ? (keywordRuleFor(notes, rules, kind)?.category ?? null) : null
+  }
+}
+
 const key = (...parts: string[]) => parts.join('\u0000')
 
 /** The exact rules of every provider, as the resolver's `exact` lookups */
@@ -92,40 +109,42 @@ async function candidates(db: Db, match: (text: string) => boolean, exact: Exact
   const providerOf = new Map(accounts.map(a => [a.id, a.provider]))
   const [cardRows, bankRows] = await Promise.all([
     db.creditCardTransaction.findMany({
-      select: { id: true, accountId: true, originalMerchantName: true, categoryOverride: true, categoryManual: true },
+      select: { id: true, accountId: true, originalMerchantName: true, notes: true, categoryOverride: true, categoryManual: true },
     }),
     db.bankTransaction.findMany({
       select: {
-        id: true, accountId: true, originalDescription: true, description: true,
+        id: true, accountId: true, originalDescription: true, description: true, note: true,
         debit: true, credit: true, category: true, categoryManual: true,
       },
     }),
   ])
+  // A row is a candidate when its merchant or description, or its notes, pass `match`
   const cards: CardCandidate[] = cardRows
-    .filter(r => match(r.originalMerchantName))
     .map(r => ({
       id: r.id,
       provider: providerOf.get(r.accountId) ?? '',
       categoryOverride: r.categoryOverride,
       categoryManual: r.categoryManual,
-      row: { source: 'card', originalMerchantName: r.originalMerchantName },
+      row: { source: 'card' as const, originalMerchantName: r.originalMerchantName, notes: r.notes },
     }))
+    .filter(c => match(c.row.originalMerchantName) || (!!c.row.notes && match(c.row.notes)))
   const bank: BankCandidate[] = bankRows
-    .filter(r => match(r.originalDescription))
     .map(r => ({
       id: r.id,
       provider: providerOf.get(r.accountId) ?? '',
       category: r.category,
       categoryManual: r.categoryManual,
       row: {
-        source: 'bank',
+        source: 'bank' as const,
         originalDescription: r.originalDescription,
         description: r.description,
+        note: r.note,
         debit: r.debit,
         credit: r.credit,
         generic: exact.generic.has(r.originalDescription),
       },
     }))
+    .filter(b => match(b.row.originalDescription) || (!!b.row.note && match(b.row.note)))
   return { cards, bank }
 }
 
@@ -196,12 +215,13 @@ export async function previewKeywordRule(pattern: string, kind: CategoryKindName
   let applies = 0
   for (const c of kind === 'EXPENSE' ? cards : []) {
     matches++
-    if (!c.categoryManual && !cardExact(exact, c)) applies++
+    // A notes match wins over the merchant's exact rule (lib/insights/keyword-rules.ts)
+    if (!c.categoryManual && (!cardExact(exact, c) || matchesNotes(pattern, c.row))) applies++
   }
   for (const b of bank) {
     if (ruleKindOf(b.row) !== kind) continue
     matches++
-    if (!b.categoryManual && !bankExact(exact, b)) applies++
+    if (!b.categoryManual && (!bankExact(exact, b) || matchesNotes(pattern, b.row))) applies++
   }
   return { matches, applies }
 }

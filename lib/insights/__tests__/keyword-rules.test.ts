@@ -83,6 +83,17 @@ describe('resolveRuleCategory', () => {
     expect(resolveRuleCategory(card('ACME MUSIC P1'), 'Fake Exact', rules)).toBe('Fake Exact')
     expect(resolveRuleCategory(bank('ACME DEBIT'), 'Fake Exact', rules)).toBe('Fake Exact')
   })
+  it('lets a contains rule that matches the notes win over the exact rule', () => {
+    const transfer: RuleRow = { source: 'card', originalMerchantName: 'FAKEPAY TRANSFER', notes: 'to Dana Example' }
+    const withDana = [...rules, rule('Dana', 'Fake Therapy')]
+    expect(resolveRuleCategory(transfer, 'Fake Exact', withDana)).toBe('Fake Therapy')
+    // Other transfers keep the merchant's rule
+    expect(resolveRuleCategory({ ...transfer, notes: 'to someone else' }, 'Fake Exact', withDana)).toBe('Fake Exact')
+    expect(resolveRuleCategory({ source: 'bank', originalDescription: 'FAKE TRANSFER', description: 'FAKE TRANSFER', note: 'Dana', debit: 5, credit: 0, generic: false }, null, withDana)).toBe('Fake Therapy')
+  })
+  it('never matches a pattern across the merchant and the notes', () => {
+    expect(resolveRuleCategory({ source: 'card', originalMerchantName: 'SHOP AC', notes: 'ME' }, null, rules)).toBeNull()
+  })
   it('falls back to the contains rule, then to none', () => {
     expect(resolveRuleCategory(card('ACME MUSIC P1'), null, rules)).toBe('Fake Phone')
     expect(resolveRuleCategory(card('OTHER SHOP'), null, rules)).toBeNull()

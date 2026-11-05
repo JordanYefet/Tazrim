@@ -235,6 +235,59 @@ describe('when an exact rule goes', () => {
   })
 })
 
+describe('notes', () => {
+  it('a rule reaches rows by their notes, over a merchant rule, and other rows of the merchant keep it', async () => {
+    const aliases = await import('../aliases')
+    await aliases.upsertAliasAndBulkUpdate({ provider: 'max', originalName: 'FAKEPAY', displayName: 'FakePay', categoryOverride: 'Fake Exact' })
+    const toDana = await card('FAKEPAY', { notes: 'Dana Example', categoryOverride: 'Fake Exact' })
+    const toOther = await card('FAKEPAY', { notes: 'Someone Else', categoryOverride: 'Fake Exact' })
+    const bankToDana = await bank('FAKE TRANSFER', { note: 'Dana Example' })
+
+    expect(await rules.previewKeywordRule('Dana', 'EXPENSE')).toEqual({ matches: 2, applies: 2 })
+    await rules.saveKeywordRule({ pattern: 'Dana', category: 'Fake Phone' })
+    expect(cardRow(toDana).categoryOverride).toBe('Fake Phone')
+    expect(cardRow(toOther).categoryOverride).toBe('Fake Exact')
+    expect(bankRow(bankToDana).category).toBe('Fake Phone')
+
+    // Saving the merchant rule again leaves the notes rule's row alone
+    await aliases.upsertAliasAndBulkUpdate({ provider: 'max', originalName: 'FAKEPAY', displayName: 'FakePay', categoryOverride: 'Fake Music' })
+    expect(cardRow(toDana).categoryOverride).toBe('Fake Phone')
+    expect(cardRow(toOther).categoryOverride).toBe('Fake Music')
+  })
+
+  it('a bank description rule leaves rows a notes rule covers', async () => {
+    const bankRules = await import('../bank-categories')
+    await rules.saveKeywordRule({ pattern: 'Dana', category: 'Fake Phone' })
+    const toDana = await bank('FAKE TRANSFER', { note: 'Dana Example' })
+    const toOther = await bank('FAKE TRANSFER', { note: 'Someone Else' })
+    await bankRules.setBankDescriptionRule({ provider: 'leumi', originalDescription: 'FAKE TRANSFER', direction: 'OUT', category: 'Fake Exact' })
+    expect(bankRow(toDana).category).toBe('Fake Phone')
+    expect(bankRow(toOther).category).toBe('Fake Exact')
+  })
+
+  it('a new card charge takes a notes rule on import', async () => {
+    const cards = await import('../cards')
+    await rules.saveKeywordRule({ pattern: 'Dana', category: 'Fake Phone' })
+    const row: ParsedCCTransaction = {
+      transactionDate: new Date(2030, 3, 1),
+      billingDate: new Date(2030, 4, 2),
+      originalMerchantName: 'FAKEPAY',
+      merchantName: 'FAKEPAY',
+      category: '',
+      chargedAmount: 40,
+      originalAmount: 40,
+      originalCurrency: '₪',
+      cardLastFour: '',
+      transactionType: '',
+      notes: 'Dana Example',
+      cardProvider: 'MAPPED',
+    }
+    await cards.upsertCCTransactions([row], 'fake-notes.xlsx', 'acct_max')
+    const stored = db.query<{ categoryOverride: string | null }>(`SELECT categoryOverride FROM CreditCardTransaction WHERE sourceFile = 'fake-notes.xlsx'`)
+    expect(stored[0].categoryOverride).toBe('Fake Phone')
+  })
+})
+
 describe('on import', () => {
   it('a new card charge takes the contains rule unless a merchant rule has a category', async () => {
     const cards = await import('../cards')

@@ -349,7 +349,7 @@ const GROUPS: Record<GroupType, { title: string; sub: string; add: string; icon:
   },
   keyword: {
     title: 'טקסט בתנועה',
-    sub: 'כל התנועות שמכילות את הטקסט, בכרטיסים ובבנק',
+    sub: 'כל התנועות שמכילות את הטקסט בשם, בתיאור או בהערות, בכרטיסים ובבנק',
     add: 'טקסט',
     icon: <TextSearch className="h-4 w-4" aria-hidden />,
     tone: 'bg-emerald-500',
@@ -478,7 +478,7 @@ function SourceGroup({ type, kind, items, options, onAdd, onRemove }: {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">{g.title}</span>
           <span className="block text-xs text-muted-foreground">
-            {typed && kind === 'INCOME' ? 'כל התנועות הנכנסות בבנק שמכילות את הטקסט' : g.sub}
+            {typed && kind === 'INCOME' ? 'כל התנועות הנכנסות בבנק שמכילות את הטקסט, גם בהערות' : g.sub}
           </span>
         </span>
       </div>
