@@ -10,6 +10,7 @@ import { storeRows, type ImportResult } from '@/lib/upload/import'
 import { localDay } from '@/lib/upload/card-dedupe'
 import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
 import { lastFour, mapBankAccount, mapCardAccount, type ScrapedAccount } from './map'
+import { balanceMismatch, matchBankByDayAndAmount, matchCardByDayAndAmount, type BalanceMismatch } from './overlap'
 import type { SyncCompany } from './providers'
 
 /** Days a default sync reaches back before the last one, so late-settling rows are not missed (de-dup absorbs the overlap). */
@@ -154,7 +155,11 @@ export interface AccountResult {
   displayName: string
   created: number
   skipped: number
+  /** Of `skipped`: rows an uploaded file has under other wording, matched by day and amount */
+  skippedByAmount: number
   pending: number
+  /** Banks: the worked-out balance disagrees with an uploaded statement's on this day */
+  balanceMismatch?: BalanceMismatch
 }
 
 /** The file name a sync's rows carry (and its upload-history line): one per company per day. */
@@ -219,6 +224,25 @@ async function balanceBefore(accountId: string, day: Date): Promise<number | und
   return row?.balance
 }
 
+/** The account's stored rows over the days the fetched rows cover. */
+async function storedBankRows(accountId: string, rows: ParsedBankTransaction[]) {
+  if (!rows.length) return []
+  const times = rows.map(r => r.date.getTime())
+  return prisma.bankTransaction.findMany({
+    where: { accountId, date: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
+    select: { date: true, originalDescription: true, debit: true, credit: true, balance: true, sourceFile: true },
+  })
+}
+
+async function storedCardRows(accountId: string, rows: ParsedCCTransaction[]) {
+  if (!rows.length) return []
+  const times = rows.map(r => r.transactionDate.getTime())
+  return prisma.creditCardTransaction.findMany({
+    where: { accountId, transactionDate: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
+    select: { transactionDate: true, billingDate: true, originalMerchantName: true, chargedAmount: true, notes: true, sourceFile: true },
+  })
+}
+
 /**
  * Stores every linked, not ignored account of the scrape and stamps its link.
  * Each account is its own short write, like one uploaded file.
@@ -238,24 +262,40 @@ export async function storeScrape(company: SyncCompany, scraped: ScrapedAccount[
 
     let stored: ImportResult
     let pending: number
+    let byAmount = 0
+    let mismatch: BalanceMismatch | null = null
     if (company.kind === 'BANK') {
       const first = site.txns.filter(t => t.status !== 'pending').map(t => new Date(t.date)).sort((a, b) => +a - +b)[0]
       const anchor = typeof site.balance === 'number' || !first ? undefined : await balanceBefore(account.id, first)
       const mapped = mapBankAccount(site, sourceFile, anchor)
       const { rows, dropped } = await dropKnownReferences(account, mapped.rows)
+      const nearby = await storedBankRows(account.id, mapped.rows)
+      mismatch = balanceMismatch(mapped.rows, nearby)
+      const loose = matchBankByDayAndAmount(rows, nearby)
+      byAmount = loose.dropped
       pending = mapped.pending
-      stored = await storeRows(account, { ok: true, kind: 'bank', rows }, sourceFile, {})
-      if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped }
+      stored = await storeRows(account, { ok: true, kind: 'bank', rows: loose.keep }, sourceFile, {})
+      if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped + byAmount }
     } else {
       const mapped = mapCardAccount(site)
       const { rows, dropped } = await dropKnownReferences(account, mapped.rows)
+      const loose = matchCardByDayAndAmount(rows, await storedCardRows(account.id, rows))
+      byAmount = loose.dropped
       pending = mapped.pending
-      stored = await storeRows(account, { ok: true, kind: 'card', rows }, sourceFile, {})
-      if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped }
+      stored = await storeRows(account, { ok: true, kind: 'card', rows: loose.keep }, sourceFile, {})
+      if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped + byAmount }
     }
     if (!stored.ok) throw new Error(stored.code)
     await prisma.syncLink.update({ where: { id: link.id }, data: { lastSyncedAt: now } })
-    results.push({ accountId: account.id, displayName: account.displayName, created: stored.created, skipped: stored.skipped, pending })
+    results.push({
+      accountId: account.id,
+      displayName: account.displayName,
+      created: stored.created,
+      skipped: stored.skipped,
+      skippedByAmount: byAmount,
+      pending,
+      ...(mismatch ? { balanceMismatch: mismatch } : {}),
+    })
   }
   return results
 }

@@ -394,12 +394,21 @@ function Result({ run, onAgain, onClose }: { run: RunView; onAgain: () => void; 
               <span className="shrink-0 tabular-nums text-muted-foreground">
                 <span className="font-semibold text-foreground">{r.created} חדשות</span>
                 {r.skipped > 0 && ` · ${r.skipped} כבר היו`}
+                {r.skippedByAmount > 0 && ` (${r.skippedByAmount} לפי סכום ותאריך)`}
               </span>
             </li>
           ))}
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">לא נשמרו תנועות (כל החשבונות שנמצאו מסומנים להתעלמות).</p>
+      )}
+      {s.results.map(
+        r =>
+          r.balanceMismatch && (
+            <p key={`b-${r.accountId}`} role="alert" className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              {`${r.displayName}: היתרה המחושבת לא תואמת את הקובץ שהועלה ב-${shortDay(r.balanceMismatch.day)} (הפרש ₪${Math.abs(r.balanceMismatch.difference).toLocaleString('he-IL')}). התנועות נשמרו; כדאי לבדוק את היתרה מול האתר.`}
+            </p>
+          )
       )}
       {pending > 0 && (
         <p className="text-xs text-muted-foreground">
