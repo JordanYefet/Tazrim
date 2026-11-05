@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils/cn'
  * own height: translateY(-d * 10%). Percentages in translate() are relative
  * to the element itself, so this holds at any font size. Changing the digit
  * only changes the transform, so the browser animates it on the compositor.
+ * The strip is promoted to its own layer only while it rolls (no will-change).
  */
 
 const FORMATTERS = {
@@ -52,7 +53,10 @@ export function DigitStrip({ digit, duration, delay }: { digit: number; duration
       style={{ height: LINE_HEIGHT, maskImage: EDGE_MASK, WebkitMaskImage: EDGE_MASK }}
     >
       <span
-        className="flex flex-col transition-transform will-change-transform motion-reduce:transition-none"
+        // No will-change: a page holds hundreds of digits, and a permanent layer each
+        // (masked, so a render pass each) made every scroll frame redraw them all.
+        // The browser still runs the transform transition on the compositor.
+        className="flex flex-col transition-transform motion-reduce:transition-none"
         style={{
           transform: `translateY(${-digit * 10}%)`,
           transitionDuration: `${duration}ms`,
@@ -78,18 +82,29 @@ interface RollingNumberProps {
   className?: string
 }
 
-export function RollingNumber({ value, duration = ROLL.duration, format: kind = 'currency', className }: RollingNumberProps) {
-  // The server render and the first client render show zeros. Before the
-  // browser paints, the zeros' styles are resolved (a forced layout read) and
-  // the real digits are set, so the roll starts on the very first frame, in
-  // step with the rest of the page (no frame-waiting delay, ENG-67).
+/**
+ * A digit of a RollingNumber. It renders 0 first and its real digit right
+ * before the browser paints (after a forced layout read, so the 0 is the
+ * transition's start), so it rolls up from 0 whenever it appears: with the
+ * number's first render (the roll starts on the very first frame, in step
+ * with the page, ENG-67), and also when a number gains a digit later
+ * (0.00 → 12,345.67 rolls the new leading digits too, not only the last three).
+ */
+function RollingDigit({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const [rolled, setRolled] = useState(false)
+  const [mounted, setMounted] = useState(false)
   useLayoutEffect(() => {
     ref.current?.getBoundingClientRect()
-    setRolled(true)
+    setMounted(true)
   }, [])
+  return (
+    <span ref={ref} className="contents">
+      <DigitStrip digit={mounted ? digit : 0} duration={duration} delay={delay} />
+    </span>
+  )
+}
 
+export function RollingNumber({ value, duration = ROLL.duration, format: kind = 'currency', className }: RollingNumberProps) {
   const text = format(value, kind)
   const match = text.match(NUMERIC_CORE)
   if (!match || match.index === undefined) return <span className={className}>{text}</span>
@@ -99,7 +114,7 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
   const chars = [...match[0]]
 
   return (
-    <span ref={ref} className={cn('tabular-nums', className)}>
+    <span className={cn('tabular-nums', className)}>
       <span className="sr-only">{text}</span>
       <span aria-hidden>
         {before}
@@ -111,9 +126,9 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
             // number of digits changes; unchanged digits don't move
             const fromEnd = chars.length - 1 - i
             return /\d/.test(ch) ? (
-              <DigitStrip
+              <RollingDigit
                 key={`d${fromEnd}`}
-                digit={rolled ? Number(ch) : 0}
+                digit={Number(ch)}
                 // Shorter by its delay, so all digits land together
                 duration={Math.max(duration / 2, duration - fromEnd * STAGGER_MS)}
                 delay={fromEnd * STAGGER_MS}
