@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { currencySymbol, installmentNote, israelDay, lastFour, mapBankAccount, mapCardAccount, type ScrapedTransaction } from '../map'
-import { validateCredentials, syncCompany } from '../providers'
+import { SYNC_COMPANIES, validateCredentials, syncCompany } from '../providers'
+import { earliestStart } from '../store'
 
 // Made-up merchants, amounts and account numbers only.
 const tx = (over: Partial<ScrapedTransaction>): ScrapedTransaction => ({
@@ -104,5 +105,18 @@ describe('validateCredentials', () => {
     expect(validateCredentials(max, { username: 'someone' })).toBeNull()
     expect(validateCredentials(max, { username: '  ', password: 'p' })).toBeNull()
     expect(validateCredentials(max, null)).toBeNull()
+  })
+})
+
+describe('history limits', () => {
+  it('gives every company a limit, MAX the longest and Yahav the shortest', () => {
+    const months = Object.fromEntries(SYNC_COMPANIES.map(c => [c.id, c.historyMonths]))
+    expect(SYNC_COMPANIES.every(c => c.historyMonths > 0)).toBe(true)
+    expect(months).toMatchObject({ max: 48, leumi: 36, visaCal: 18, isracard: 12, yahav: 3 })
+  })
+  it('lets a sync start as far back as the site allows, not further', () => {
+    const now = new Date(2030, 5, 15)
+    expect(earliestStart({ historyMonths: 48 }, now)).toEqual(new Date(2026, 5, 16))
+    expect(earliestStart({ historyMonths: 3 }, now)).toEqual(new Date(2030, 2, 16))
   })
 })

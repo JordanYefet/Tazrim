@@ -16,11 +16,13 @@ export interface CompanyInfo {
   hasAccounts: boolean
   lastSyncedAt: string | null
   defaultStart: string
+  /** The earliest start its site allows, YYYY-MM-DD */
+  earliest: string
+  historyMonths: number
 }
 
 export interface SyncInfo {
   available: boolean
-  earliest: string
   companies: CompanyInfo[]
   run: RunView | null
 }

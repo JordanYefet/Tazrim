@@ -19,25 +19,31 @@ export interface SyncCompany {
   fields: LoginField[]
   /** The site sends a code by SMS on every login, typed in while the sync waits */
   otp?: boolean
+  /**
+   * How far back a sync can reach, in months: the library's own limit for the site
+   * (israeli-bank-scrapers clamps the start date to it). The Beinleumi group sets
+   * none, so the site decides; three years is asked there.
+   */
+  historyMonths: number
 }
 
 export const SYNC_COMPANIES: SyncCompany[] = [
-  { id: 'leumi', label: 'בנק לאומי', kind: 'BANK', provider: 'leumi', fields: ['username', 'password'] },
-  { id: 'hapoalim', label: 'בנק הפועלים', kind: 'BANK', provider: 'hapoalim', fields: ['userCode', 'password'] },
-  { id: 'discount', label: 'בנק דיסקונט', kind: 'BANK', provider: 'discount', fields: ['id', 'password', 'num'] },
-  { id: 'mizrahi', label: 'מזרחי טפחות', kind: 'BANK', provider: 'mizrahi', fields: ['username', 'password'] },
-  { id: 'mercantile', label: 'בנק מרכנתיל', kind: 'BANK', provider: 'mercantile', fields: ['id', 'password', 'num'] },
-  { id: 'beinleumi', label: 'הבנק הבינלאומי', kind: 'BANK', provider: 'beinleumi', fields: ['username', 'password'] },
-  { id: 'otsarHahayal', label: 'בנק אוצר החייל', kind: 'BANK', provider: 'otsarhahayal', fields: ['username', 'password'] },
-  { id: 'massad', label: 'בנק מסד', kind: 'BANK', provider: 'massad', fields: ['username', 'password'] },
-  { id: 'pagi', label: 'בנק פאג"י', kind: 'BANK', provider: 'pagi', fields: ['username', 'password'] },
-  { id: 'yahav', label: 'בנק יהב', kind: 'BANK', provider: 'yahav', fields: ['username', 'nationalID', 'password'] },
-  { id: 'union', label: 'בנק איגוד', kind: 'BANK', provider: 'union', fields: ['username', 'password'] },
-  { id: 'oneZero', label: 'וואן זירו', kind: 'BANK', provider: 'onezero', fields: ['email', 'password', 'phoneNumber'], otp: true },
-  { id: 'max', label: 'מקס', kind: 'CREDIT_CARD', provider: 'max', fields: ['username', 'password'] },
-  { id: 'visaCal', label: 'כאל', kind: 'CREDIT_CARD', provider: 'cal', fields: ['username', 'password'] },
-  { id: 'isracard', label: 'ישראכרט', kind: 'CREDIT_CARD', provider: 'isracard', fields: ['id', 'card6Digits', 'password'] },
-  { id: 'amex', label: 'אמריקן אקספרס', kind: 'CREDIT_CARD', provider: 'amex', fields: ['id', 'card6Digits', 'password'] },
+  { id: 'leumi', label: 'בנק לאומי', kind: 'BANK', provider: 'leumi', fields: ['username', 'password'], historyMonths: 36 },
+  { id: 'hapoalim', label: 'בנק הפועלים', kind: 'BANK', provider: 'hapoalim', fields: ['userCode', 'password'], historyMonths: 12 },
+  { id: 'discount', label: 'בנק דיסקונט', kind: 'BANK', provider: 'discount', fields: ['id', 'password', 'num'], historyMonths: 12 },
+  { id: 'mizrahi', label: 'מזרחי טפחות', kind: 'BANK', provider: 'mizrahi', fields: ['username', 'password'], historyMonths: 12 },
+  { id: 'mercantile', label: 'בנק מרכנתיל', kind: 'BANK', provider: 'mercantile', fields: ['id', 'password', 'num'], historyMonths: 12 },
+  { id: 'beinleumi', label: 'הבנק הבינלאומי', kind: 'BANK', provider: 'beinleumi', fields: ['username', 'password'], historyMonths: 36 },
+  { id: 'otsarHahayal', label: 'בנק אוצר החייל', kind: 'BANK', provider: 'otsarhahayal', fields: ['username', 'password'], historyMonths: 36 },
+  { id: 'massad', label: 'בנק מסד', kind: 'BANK', provider: 'massad', fields: ['username', 'password'], historyMonths: 36 },
+  { id: 'pagi', label: 'בנק פאג"י', kind: 'BANK', provider: 'pagi', fields: ['username', 'password'], historyMonths: 36 },
+  { id: 'yahav', label: 'בנק יהב', kind: 'BANK', provider: 'yahav', fields: ['username', 'nationalID', 'password'], historyMonths: 3 },
+  { id: 'union', label: 'בנק איגוד', kind: 'BANK', provider: 'union', fields: ['username', 'password'], historyMonths: 12 },
+  { id: 'oneZero', label: 'וואן זירו', kind: 'BANK', provider: 'onezero', fields: ['email', 'password', 'phoneNumber'], historyMonths: 12, otp: true },
+  { id: 'max', label: 'מקס', kind: 'CREDIT_CARD', provider: 'max', fields: ['username', 'password'], historyMonths: 48 },
+  { id: 'visaCal', label: 'כאל', kind: 'CREDIT_CARD', provider: 'cal', fields: ['username', 'password'], historyMonths: 18 },
+  { id: 'isracard', label: 'ישראכרט', kind: 'CREDIT_CARD', provider: 'isracard', fields: ['id', 'card6Digits', 'password'], historyMonths: 12 },
+  { id: 'amex', label: 'אמריקן אקספרס', kind: 'CREDIT_CARD', provider: 'amex', fields: ['id', 'card6Digits', 'password'], historyMonths: 12 },
 ]
 
 /** Companies tried end to end with a real account; the rest say "לא נבדק עדיין". */

@@ -120,14 +120,25 @@ function CompanyList({ info, onPick }: { info: NonNullable<SyncApi['info']>; onP
 }
 
 /** Login fields and the start date; the password goes to this one sync and is never kept. */
+/** "חודש", "חצי שנה", "שנתיים": how far a range option reaches */
+function monthsLabel(m: number): string {
+  if (m === 1) return 'חודש אחורה'
+  if (m === 6) return 'חצי שנה אחורה'
+  if (m === 12) return 'שנה אחורה'
+  if (m === 18) return 'שנה וחצי אחורה'
+  if (m === 24) return 'שנתיים אחורה'
+  if (m % 12 === 0) return `${m / 12} שנים אחורה`
+  return `${m} חודשים אחורה`
+}
+
+const RANGE_MONTHS = [1, 3, 6, 12, 18, 24, 36, 48]
+
 function LoginForm({
   company,
-  earliest,
   onBack,
   onStart,
 }: {
   company: CompanyInfo
-  earliest: string
   onBack: () => void
   onStart: (credentials: Record<string, string>, startDate: string) => Promise<string | null>
 }) {
@@ -136,14 +147,21 @@ function LoginForm({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const [custom, setCustom] = useState(company.defaultStart)
+  const { earliest } = company
+  const today = monthsBackDay(0)
+
+  // Only the ranges the company's site keeps; the last one reaches as far as it goes
   const options = [
     { value: 'default', label: `${company.lastSyncedAt ? 'מהסנכרון האחרון' : 'מהתנועה האחרונה'} (${shortDay(company.defaultStart)})`, day: company.defaultStart },
-    { value: '1', label: 'חודש אחורה', day: monthsBackDay(1) },
-    { value: '3', label: '3 חודשים אחורה', day: monthsBackDay(3) },
-    { value: '6', label: 'חצי שנה אחורה', day: monthsBackDay(6) },
-    { value: '12', label: 'שנה אחורה', day: earliest },
+    ...RANGE_MONTHS.filter(m => m <= company.historyMonths).map(m => ({
+      value: String(m),
+      label: m === company.historyMonths ? `${monthsLabel(m)} (הכי רחוק שהאתר מאפשר)` : monthsLabel(m),
+      day: m === company.historyMonths ? earliest : monthsBackDay(m),
+    })),
+    { value: 'custom', label: 'תאריך אחר…', day: custom },
   ]
-  const complete = company.fields.every(f => (values[f] ?? '').trim())
+  const complete = company.fields.every(f => (values[f] ?? '').trim()) && (range !== 'custom' || (custom >= earliest && custom <= today))
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -188,6 +206,13 @@ function LoginForm({
             ))}
           </select>
         </label>
+        {range === 'custom' && (
+          <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+            <span className="sr-only">תאריך התחלה</span>
+            <input type="date" min={earliest} max={today} value={custom} onChange={e => setCustom(e.target.value)} className={INPUT} />
+            <span className="text-xs font-normal text-muted-foreground">{`${company.label} מאפשר לחזור עד ${shortDay(earliest)}`}</span>
+          </label>
+        )}
         <p className="text-xs text-muted-foreground">הסיסמה משמשת לסנכרון הזה בלבד ולא נשמרת. הדפדפן של הסנכרון רץ ברקע, בלי חלון.</p>
         {error && (
           <p role="alert" className="text-sm text-red-700 dark:text-red-300">
@@ -487,7 +512,6 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
     return (
       <LoginForm
         company={company}
-        earliest={info.earliest}
         onBack={() => setPicked(null)}
         onStart={async (credentials, startDate) => {
           const err = await sync.start(company.id, credentials, startDate)

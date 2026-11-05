@@ -17,14 +17,14 @@ import type { SyncCompany } from './providers'
 const OVERLAP_DAYS = 7
 /** A first sync (nothing stored yet) reaches back this far */
 const FIRST_SYNC_MONTHS = 3
-/** The sites keep about a year */
-const MAX_MONTHS = 12
 
 export interface SourceSummary {
   /** Last sync of any of the company's accounts, ISO; null when never */
   lastSyncedAt: string | null
   /** The start date a sync defaults to, YYYY-MM-DD */
   defaultStart: string
+  /** The earliest start the company's site allows, YYYY-MM-DD */
+  earliest: string
 }
 
 function monthsAgo(n: number, now = new Date()): Date {
@@ -39,9 +39,9 @@ function daysBefore(d: Date, n: number): Date {
   return out
 }
 
-/** The earliest start a sync accepts. */
-export function earliestStart(now = new Date()): Date {
-  return monthsAgo(MAX_MONTHS, now)
+/** The earliest start a sync of the company accepts: as far back as its site allows. */
+export function earliestStart(company: Pick<SyncCompany, 'historyMonths'>, now = new Date()): Date {
+  return daysBefore(monthsAgo(company.historyMonths, now), -1)
 }
 
 /**
@@ -67,9 +67,9 @@ export async function sourceSummary(company: SyncCompany, now = new Date()): Pro
     // A card's installments keep their purchase date, so cards reach a month further back
     from = newest ? daysBefore(newest, company.kind === 'BANK' ? OVERLAP_DAYS : OVERLAP_DAYS + 30) : monthsAgo(FIRST_SYNC_MONTHS, now)
   }
-  const earliest = earliestStart(now)
+  const earliest = earliestStart(company, now)
   if (from < earliest) from = earliest
-  return { lastSyncedAt: last?.lastSyncedAt?.toISOString() ?? null, defaultStart: localDay(from) }
+  return { lastSyncedAt: last?.lastSyncedAt?.toISOString() ?? null, defaultStart: localDay(from), earliest: localDay(earliest) }
 }
 
 export type LinkAction = { externalAccount: string } & (

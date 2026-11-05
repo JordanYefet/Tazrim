@@ -5,7 +5,6 @@ import { isReadOnly } from '@/lib/read-only'
 import { SYNC_COMPANIES, VERIFIED_COMPANIES, syncCompany, validateCredentials } from '@/lib/sync/providers'
 import { currentRun, startRun } from '@/lib/sync/runs'
 import { earliestStart, sourceSummary } from '@/lib/sync/store'
-import { localDay } from '@/lib/upload/card-dedupe'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,12 +29,13 @@ export async function GET(req: Request) {
       kind: c.kind,
       fields: c.fields,
       otp: !!c.otp,
+      historyMonths: c.historyMonths,
       verified: VERIFIED_COMPANIES.has(c.id),
       hasAccounts: accounts.some(a => a.kind === c.kind && a.provider === c.provider),
       ...(await sourceSummary(c)),
     }))
   )
-  return NextResponse.json({ available, earliest: localDay(earliestStart()), companies, run: currentRun() })
+  return NextResponse.json({ available, companies, run: currentRun() })
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const [y, m, d] = (raw ?? '').split('-').map(Number)
   const start = raw ? new Date(y, m - 1, d) : null
   const today = new Date()
-  if (!start || isNaN(start.getTime()) || start < earliestStart(today) || start > today) {
+  if (!start || isNaN(start.getTime()) || start < earliestStart(company, today) || start > today) {
     return NextResponse.json({ error: 'תאריך התחלה לא תקין', code: 'INVALID_START' }, { status: 400 })
   }
 
