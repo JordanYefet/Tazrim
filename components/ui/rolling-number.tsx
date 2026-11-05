@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils/cn'
  * own height: translateY(-d * 10%). Percentages in translate() are relative
  * to the element itself, so this holds at any font size. Changing the digit
  * only changes the transform, so the browser animates it on the compositor.
+ * The strip is promoted to its own layer only while it rolls (no will-change).
  */
 
 const FORMATTERS = {
@@ -52,7 +53,10 @@ export function DigitStrip({ digit, duration, delay }: { digit: number; duration
       style={{ height: LINE_HEIGHT, maskImage: EDGE_MASK, WebkitMaskImage: EDGE_MASK }}
     >
       <span
-        className="flex flex-col transition-transform will-change-transform motion-reduce:transition-none"
+        // No will-change: a page holds hundreds of digits, and a permanent layer each
+        // (masked, so a render pass each) made every scroll frame redraw them all.
+        // The browser still runs the transform transition on the compositor.
+        className="flex flex-col transition-transform motion-reduce:transition-none"
         style={{
           transform: `translateY(${-digit * 10}%)`,
           transitionDuration: `${duration}ms`,
