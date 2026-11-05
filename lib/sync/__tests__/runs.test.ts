@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '../../db/__tests__/test-db'
+import { israelDay } from '../map'
 
 // The made-up site (TAZRIM_FAKE_SYNC) only: fake merchants, amounts and card digits.
 let db: TestDb
@@ -99,9 +100,10 @@ describe('a card sync', () => {
 describe('a bank sync', () => {
   it('suggests the only bank account, works the balance back, and skips a row an upload already has under the same reference', async () => {
     // An earlier upload of the same transaction, worded differently by the exported file
+    // The Israeli day the made-up site dates it on, as the sync reads it (CI runs in UTC)
     const d = new Date()
     d.setDate(d.getDate() - 5)
-    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    const day = israelDay(d.toISOString())!
     await prisma.bankTransaction.create({
       data: {
         accountId: 'acct_leumi',
