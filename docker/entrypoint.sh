@@ -12,7 +12,8 @@ data_dir="$(dirname "$db_file")"
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$data_dir"
   chown -R node:node "$data_dir"
-  exec setpriv --reuid=node --regid=node --init-groups "$0" "$@"
+  # setpriv keeps root's HOME; the sync's browser (puppeteer) reads and writes under it
+  HOME=/home/node exec setpriv --reuid=node --regid=node --init-groups "$0" "$@"
 fi
 
 echo "tazrim: applying database migrations to $db_file"
@@ -22,4 +23,5 @@ if [ "$TAZRIM_DEMO" = "1" ]; then
   node /app/scripts/seed-demo.mjs "$db_file" --data-only
 fi
 
-exec node /app/server.js
+# local-port.cjs opens TAZRIM_LOCAL_PORT next to the server (ENG-100)
+exec node --require /app/local-port.cjs /app/server.js

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { safeReason } from '../scrape'
+import { chromiumArgs, safeReason } from '../scrape'
 
 // Made-up card digits and messages only.
 describe('safeReason', () => {
@@ -11,5 +11,13 @@ describe('safeReason', () => {
     expect(safeReason('a\n\n  b')).toBe('a b')
     expect(safeReason('x'.repeat(500))).toHaveLength(300)
     expect(safeReason(undefined)).toBe('')
+  })
+})
+
+describe('chromiumArgs', () => {
+  it('splits the flags on whitespace and drops empties', () => {
+    expect(chromiumArgs('--no-sandbox  --disable-dev-shm-usage ')).toEqual(['--no-sandbox', '--disable-dev-shm-usage'])
+    expect(chromiumArgs('')).toEqual([])
+    expect(chromiumArgs(undefined)).toEqual([])
   })
 })
