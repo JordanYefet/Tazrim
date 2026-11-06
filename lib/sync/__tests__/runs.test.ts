@@ -135,7 +135,7 @@ describe('a bank sync', () => {
     const credentials = { username: 'someone', password: 'wrong' }
     const res = runs.startRun(company('leumi'), credentials, start())
     if (!res.ok) throw new Error('busy')
-    expect(await settle(res.run.id)).toEqual({ state: 'failed', code: 'INVALID_PASSWORD' })
+    expect(await settle(res.run.id)).toEqual({ state: 'failed', code: 'INVALID_PASSWORD', at: 'logging-in' })
     expect(credentials).toEqual({ username: '', password: '' })
   })
 

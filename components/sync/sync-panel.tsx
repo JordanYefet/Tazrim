@@ -256,21 +256,24 @@ function StepRow({ label, state, end }: { label: string; state: StepState; end?:
 function Steps({ run, company }: { run: RunView; company: CompanyInfo }) {
   const s = run.status
   const order = ['logging-in', 'code', 'fetching', 'storing'] as const
+  const stepOf = (step: string | undefined): (typeof order)[number] | 'end' =>
+    step === 'starting' || step === 'logging-in' ? 'logging-in' : step === 'done' ? 'storing' : (order as readonly string[]).includes(step ?? '') ? (step as (typeof order)[number]) : 'end'
   const at =
     s.state === 'running'
-      ? s.step === 'starting'
-        ? 'logging-in'
-        : s.step === 'done'
-          ? 'storing'
-          : s.step
+      ? stepOf(s.step)
       : s.state === 'needs-code'
         ? 'code'
         : s.state === 'needs-links'
           ? 'storing'
-          : 'end'
+          : s.state === 'failed'
+            ? // The step it failed in; unknown: the first, so no step shows as done
+              s.at
+              ? stepOf(s.at)
+              : 'logging-in'
+            : 'end'
   const idx = at === 'end' ? order.length : order.indexOf(at)
   const stateOf = (i: number): StepState => {
-    if (s.state === 'failed' && i === Math.max(0, idx)) return 'failed'
+    if (s.state === 'failed' && i === idx) return 'failed'
     if (i < idx || s.state === 'done') return 'done'
     if (i === idx) return s.state === 'needs-code' || s.state === 'needs-links' ? 'waiting' : 'active'
     return 'todo'

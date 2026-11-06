@@ -26,6 +26,18 @@ export interface ScrapeRequest {
   requestOtp: () => Promise<string>
 }
 
+/**
+ * The library's reason for a failure, for the server log only: every run of three or
+ * more digits masked (card, account and ID numbers, amounts) and cut short, so the
+ * log says why without carrying the person's data. Never sent to the page.
+ */
+export function safeReason(text: unknown): string {
+  return String(text ?? '')
+    .replace(/\d{3,}/g, '###')
+    .replace(/\s+/g, ' ')
+    .slice(0, 300)
+}
+
 const ERROR_CODES: Record<string, ScrapeErrorCode> = {
   INVALID_PASSWORD: 'INVALID_PASSWORD',
   CHANGE_PASSWORD: 'CHANGE_PASSWORD',
@@ -56,10 +68,15 @@ async function realScrape({ company, credentials, startDate, onStep, requestOtp 
   if (company.otp) login.otpCodeRetriever = requestOtp
   try {
     const result = await scraper.scrape(login as Parameters<typeof scraper.scrape>[0])
-    if (!result.success) return { ok: false, code: ERROR_CODES[result.errorType ?? ''] ?? 'GENERIC' }
+    if (!result.success) {
+      console.warn(`[sync] ${company.id} failed: ${result.errorType ?? 'unknown'} ${safeReason(result.errorMessage)}`)
+      return { ok: false, code: ERROR_CODES[result.errorType ?? ''] ?? 'GENERIC' }
+    }
     return { ok: true, accounts: (result.accounts ?? []) as ScrapedAccount[] }
-  } catch {
-    // The library's own error text can quote the page; only a code leaves this function
+  } catch (e) {
+    // The library's own error text can quote the page: only a code leaves this function,
+    // and the log gets the reason with its numbers masked
+    console.warn(`[sync] ${company.id} threw: ${safeReason(e instanceof Error ? `${e.name}: ${e.message}` : e)}`)
     return { ok: false, code: 'GENERIC' }
   }
 }

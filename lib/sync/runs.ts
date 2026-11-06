@@ -33,7 +33,7 @@ export type RunState =
   | { state: 'needs-code' }
   | { state: 'needs-links'; unknown: UnknownAccount[]; candidates: Candidate[] }
   | { state: 'done'; results: AccountResult[] }
-  | { state: 'failed'; code: ScrapeErrorCode | 'STORE' | 'EXPIRED' }
+  | { state: 'failed'; code: ScrapeErrorCode | 'STORE' | 'EXPIRED'; /** The step it failed in */ at?: ScrapeStep | 'storing' | 'code' }
 
 export interface RunView {
   id: string
@@ -130,7 +130,10 @@ async function execute(run: Run, credentials: Record<string, string>, startDate:
   }).catch(() => ({ ok: false as const, code: 'GENERIC' as const }))
   for (const k of Object.keys(credentials)) credentials[k] = ''
 
-  if (!result.ok) return finish(run, { state: 'failed', code: result.code })
+  if (!result.ok) {
+    const at = run.status.state === 'running' ? run.status.step : run.status.state === 'needs-code' ? 'code' : undefined
+    return finish(run, { state: 'failed', code: result.code, ...(at ? { at } : {}) })
+  }
   run.scraped = result.accounts
   await linkOrStore(run)
 }
@@ -163,7 +166,7 @@ async function linkOrStore(run: Run) {
     const results = await storeScrape(run.company, scraped)
     finish(run, { state: 'done', results })
   } catch {
-    finish(run, { state: 'failed', code: 'STORE' })
+    finish(run, { state: 'failed', code: 'STORE', at: 'storing' })
   }
 }
 
