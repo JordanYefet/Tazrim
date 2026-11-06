@@ -7,6 +7,10 @@
  * TAZRIM_FAKE_SYNC=1 swaps the site for made-up data (development, the demo
  * of the flow, tests); TAZRIM_SYNC_SHOW_BROWSER=1 shows the browser window
  * while debugging a login.
+ *
+ * In dev the browser is puppeteer's own download. The Docker image has none:
+ * it sets PUPPETEER_EXECUTABLE_PATH to Debian's Chromium and TAZRIM_CHROMIUM_ARGS
+ * to the flags it needs in a container (ENG-100, see the Dockerfile).
  */
 import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
@@ -38,6 +42,11 @@ export function safeReason(text: unknown): string {
     .slice(0, 300)
 }
 
+/** TAZRIM_CHROMIUM_ARGS split on whitespace: extra browser flags, e.g. `--no-sandbox --disable-dev-shm-usage`. */
+export function chromiumArgs(value: string | undefined): string[] {
+  return (value ?? '').split(/\s+/).filter(Boolean)
+}
+
 const ERROR_CODES: Record<string, ScrapeErrorCode> = {
   INVALID_PASSWORD: 'INVALID_PASSWORD',
   CHANGE_PASSWORD: 'CHANGE_PASSWORD',
@@ -58,6 +67,8 @@ async function realScrape({ company, credentials, startDate, onStep, requestOtp 
     startDate,
     combineInstallments: false,
     showBrowser: process.env.TAZRIM_SYNC_SHOW_BROWSER === '1',
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    args: chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS),
     verbose: false,
   })
   scraper.onProgress((_id, { type }) => {
@@ -122,7 +133,7 @@ async function fakeScrape({ company, credentials, onStep, requestOtp }: ScrapeRe
           balance: 5432.1,
           txns: [
             tx(6, 'משכורת דמו', 9000, { identifier: 90001 }),
-            tx(5, 'סופר דמו', -312.4, { identifier: 90002 }),
+            tx(5, 'סופר דמו', -312.4, { identifier: 90002, memo: 'הערה דמו' }),
             tx(3, 'העברה דמו', -1500, { identifier: 90003 }),
             tx(1, 'קפה דמו', -18, { identifier: 90004 }),
             tx(0, 'בהמתנה דמו', -50, { status: 'pending' }),
@@ -137,7 +148,7 @@ async function fakeScrape({ company, credentials, onStep, requestOtp }: ScrapeRe
       {
         accountNumber: '1234',
         txns: [
-          tx(7, 'מסעדה דמו', -120),
+          tx(7, 'מסעדה דמו', -120, { identifier: 80001, memo: 'הערה דמו' }),
           tx(4, 'חנות בגדים דמו', -300, { type: 'installments', installments: { number: 1, total: 3 }, chargedAmount: -100 }),
           tx(2, 'מנוי דמו', -39.9, { category: 'פנאי' }),
           tx(0, 'חיוב בהמתנה דמו', -75, { status: 'pending' }),

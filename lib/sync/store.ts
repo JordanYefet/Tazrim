@@ -10,7 +10,16 @@ import { storeRows, type ImportResult } from '@/lib/upload/import'
 import { localDay } from '@/lib/upload/card-dedupe'
 import type { ParsedBankTransaction, ParsedCCTransaction } from '@/lib/parsers/types'
 import { lastFour, mapBankAccount, mapCardAccount, type ScrapedAccount } from './map'
-import { balanceMismatch, matchBankByDayAndAmount, matchCardByDayAndAmount, type BalanceMismatch } from './overlap'
+import {
+  balanceMismatch,
+  fillBank,
+  fillCard,
+  isSyncedFile,
+  matchBankByDayAndAmount,
+  matchCardByDayAndAmount,
+  type BalanceMismatch,
+  type Match,
+} from './overlap'
 import type { SyncCompany } from './providers'
 
 /** Days a default sync reaches back before the last one, so late-settling rows are not missed (de-dup absorbs the overlap). */
@@ -161,6 +170,8 @@ export interface AccountResult {
   skipped: number
   /** Of `skipped`: rows an uploaded file has under other wording, matched by day and amount */
   skippedByAmount: number
+  /** Rows already there (from uploaded files) whose empty אסמכתא or notes the site filled in (ENG-103) */
+  filled: number
   pending: number
   /** The oldest settled transaction the site returned, YYYY-MM-DD; null when none */
   oldest: string | null
@@ -184,23 +195,32 @@ const refKey = (day: string, ref: string, a: number, b = 0) => `${day}|${ref}|${
 async function dropKnownReferences<T extends ParsedBankTransaction | ParsedCCTransaction>(
   account: Pick<Account, 'id' | 'kind'>,
   rows: T[]
-): Promise<{ rows: T[]; dropped: number }> {
+): Promise<{ rows: T[]; dropped: number; matched: Match<T, Known>[] }> {
   const withRef = rows.filter(r => r.reference)
-  if (!withRef.length) return { rows, dropped: 0 }
-  const keys = new Set<string>()
+  if (!withRef.length) return { rows, dropped: 0, matched: [] }
+  const keys = new Map<string, Known[]>()
+  const add = (k: string, s: Known) => keys.set(k, [...(keys.get(k) ?? []), s])
+  const matched: Match<T, Known>[] = []
+  /** Kept when no stored row has its key; paired for filling in when exactly one uploaded row does */
+  const keep = (r: T, k: string | null) => {
+    const hits = k ? keys.get(k) : undefined
+    if (!hits) return true
+    if (hits.length === 1 && !isSyncedFile(hits[0].sourceFile)) matched.push({ row: r, stored: hits[0] })
+    return false
+  }
   if (account.kind === 'BANK') {
     const bank = withRef as ParsedBankTransaction[]
     const times = bank.map(r => r.date.getTime())
     const stored = await prisma.bankTransaction.findMany({
       where: { accountId: account.id, reference: { not: '' }, date: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
-      select: { date: true, reference: true, debit: true, credit: true },
+      select: { id: true, date: true, reference: true, debit: true, credit: true, note: true, sourceFile: true },
     })
-    for (const s of stored) keys.add(refKey(localDay(s.date), s.reference, s.debit, s.credit))
+    for (const s of stored) add(refKey(localDay(s.date), s.reference, s.debit, s.credit), s)
     const kept = rows.filter(r => {
       const b = r as ParsedBankTransaction
-      return !(b.reference && keys.has(refKey(localDay(b.date), b.reference, b.debit, b.credit)))
+      return keep(r, b.reference ? refKey(localDay(b.date), b.reference, b.debit, b.credit) : null)
     })
-    return { rows: kept, dropped: rows.length - kept.length }
+    return { rows: kept, dropped: rows.length - kept.length, matched }
   }
   const card = withRef as ParsedCCTransaction[]
   const times = card.map(r => r.transactionDate.getTime())
@@ -210,14 +230,38 @@ async function dropKnownReferences<T extends ParsedBankTransaction | ParsedCCTra
       reference: { not: '' },
       transactionDate: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) },
     },
-    select: { transactionDate: true, reference: true, chargedAmount: true },
+    select: { id: true, transactionDate: true, reference: true, chargedAmount: true, notes: true, sourceFile: true },
   })
-  for (const s of stored) keys.add(refKey(localDay(s.transactionDate), s.reference, s.chargedAmount))
+  for (const s of stored) add(refKey(localDay(s.transactionDate), s.reference, s.chargedAmount), s)
   const kept = rows.filter(r => {
     const c = r as ParsedCCTransaction
-    return !(c.reference && keys.has(refKey(localDay(c.transactionDate), c.reference, c.chargedAmount)))
+    return keep(r, c.reference ? refKey(localDay(c.transactionDate), c.reference, c.chargedAmount) : null)
   })
-  return { rows: kept, dropped: rows.length - kept.length }
+  return { rows: kept, dropped: rows.length - kept.length, matched }
+}
+
+/** A stored row a fetched one matched: enough to fill in what it lacks */
+type Known = { id: string; reference: string; note?: string; notes?: string | null; sourceFile: string }
+
+/**
+ * Fills in the empty אסמכתא and notes of uploaded rows the sync matched
+ * (ENG-103), in one write. Returns how many rows changed.
+ */
+async function fillMatched(kind: 'bank' | 'card', matched: Match<ParsedBankTransaction | ParsedCCTransaction, Known>[]): Promise<number> {
+  const updates = matched.flatMap(({ row, stored }) => {
+    const data =
+      kind === 'bank'
+        ? fillBank(row as ParsedBankTransaction, { reference: stored.reference, note: stored.note ?? '' })
+        : fillCard(row as ParsedCCTransaction, { reference: stored.reference, notes: stored.notes ?? '' })
+    if (!data) return []
+    return [
+      kind === 'bank'
+        ? prisma.bankTransaction.update({ where: { id: stored.id }, data })
+        : prisma.creditCardTransaction.update({ where: { id: stored.id }, data }),
+    ]
+  })
+  if (updates.length) await prisma.$transaction(updates)
+  return updates.length
 }
 
 /** The stored balance on the last row before `day`, to carry a bank's balance forward from. */
@@ -236,7 +280,7 @@ async function storedBankRows(accountId: string, rows: ParsedBankTransaction[]) 
   const times = rows.map(r => r.date.getTime())
   return prisma.bankTransaction.findMany({
     where: { accountId, date: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
-    select: { date: true, originalDescription: true, debit: true, credit: true, balance: true, sourceFile: true },
+    select: { id: true, date: true, originalDescription: true, debit: true, credit: true, balance: true, reference: true, note: true, sourceFile: true },
   })
 }
 
@@ -245,7 +289,16 @@ async function storedCardRows(accountId: string, rows: ParsedCCTransaction[]) {
   const times = rows.map(r => r.transactionDate.getTime())
   return prisma.creditCardTransaction.findMany({
     where: { accountId, transactionDate: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) } },
-    select: { transactionDate: true, billingDate: true, originalMerchantName: true, chargedAmount: true, notes: true, sourceFile: true },
+    select: {
+      id: true,
+      transactionDate: true,
+      billingDate: true,
+      originalMerchantName: true,
+      chargedAmount: true,
+      reference: true,
+      notes: true,
+      sourceFile: true,
+    },
   })
 }
 
@@ -270,27 +323,30 @@ export async function storeScrape(company: SyncCompany, scraped: ScrapedAccount[
     let pending: number
     let oldest: Date | null = null
     let byAmount = 0
+    let filled = 0
     let mismatch: BalanceMismatch | null = null
     if (company.kind === 'BANK') {
       const first = site.txns.filter(t => t.status !== 'pending').map(t => new Date(t.date)).sort((a, b) => +a - +b)[0]
       const anchor = typeof site.balance === 'number' || !first ? undefined : await balanceBefore(account.id, first)
       const mapped = mapBankAccount(site, sourceFile, anchor)
       oldest = mapped.rows[0]?.date ?? null
-      const { rows, dropped } = await dropKnownReferences(account, mapped.rows)
+      const { rows, dropped, matched } = await dropKnownReferences(account, mapped.rows)
       const nearby = await storedBankRows(account.id, mapped.rows)
       mismatch = balanceMismatch(mapped.rows, nearby)
       const loose = matchBankByDayAndAmount(rows, nearby)
       byAmount = loose.dropped
       pending = mapped.pending
+      filled = await fillMatched('bank', [...matched, ...loose.matched])
       stored = await storeRows(account, { ok: true, kind: 'bank', rows: loose.keep }, sourceFile, {})
       if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped + byAmount }
     } else {
       const mapped = mapCardAccount(site)
       oldest = mapped.rows.reduce<Date | null>((a, r) => (!a || r.transactionDate < a ? r.transactionDate : a), null)
-      const { rows, dropped } = await dropKnownReferences(account, mapped.rows)
+      const { rows, dropped, matched } = await dropKnownReferences(account, mapped.rows)
       const loose = matchCardByDayAndAmount(rows, await storedCardRows(account.id, rows))
       byAmount = loose.dropped
       pending = mapped.pending
+      filled = await fillMatched('card', [...matched, ...loose.matched])
       stored = await storeRows(account, { ok: true, kind: 'card', rows: loose.keep }, sourceFile, {})
       if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped + byAmount }
     }
@@ -302,6 +358,7 @@ export async function storeScrape(company: SyncCompany, scraped: ScrapedAccount[
       created: stored.created,
       skipped: stored.skipped,
       skippedByAmount: byAmount,
+      filled,
       pending,
       oldest: oldest ? localDay(oldest) : null,
       ...(mismatch ? { balanceMismatch: mismatch } : {}),

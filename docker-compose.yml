@@ -1,6 +1,7 @@
 # Tazrim with one command:   docker compose up -d   ->   http://localhost:3000
 #
 # Another port:   TAZRIM_PORT=3005 docker compose up -d   (or put TAZRIM_PORT=3005 in a .env file)
+# Bank sync:      http://localhost:3001 on this computer (TAZRIM_SYNC_PORT for another port)
 # Demo data:      TAZRIM_DEMO=1 docker compose up -d      (only fills an empty database)
 # Time zone:      TAZRIM_TZ=Europe/London docker compose up -d   (default Asia/Jerusalem)
 # Update:         docker compose pull && docker compose up -d
@@ -18,6 +19,10 @@ services:
     image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
     ports:
       - "${TAZRIM_PORT:-3000}:3000"
+      # Bank sync and delete-all, from this computer only: http://localhost:3001
+      # (another port: TAZRIM_SYNC_PORT=3006). Keep the 127.0.0.1: everything that
+      # arrives here counts as this machine, so it must never be open to the network.
+      - "127.0.0.1:${TAZRIM_SYNC_PORT:-3001}:3001"
     environment:
       TAZRIM_DEMO: "${TAZRIM_DEMO:-0}"
       # The clock dates and months follow; keep it the same as wherever the data was made
