@@ -173,12 +173,8 @@ export function springResponseFor(durationMs: number, dampingRatio = 0.92): numb
   return (2 * Math.PI * z * (durationMs / 1000)) / Math.log(1000 / Math.sqrt(1 - z * z))
 }
 
-/**
- * A spring as a CSS linear() easing, so WAAPI can run it on the compositor.
- * Apple's parameters: damping ratio (1 = no overshoot) and response (s).
- * Sampled until it settles within 0.1% of the target.
- */
-export function springEasing(dampingRatio = 0.92, response = 0.42): { easing: string; duration: number } {
+/** A spring's position over time (0 → 1) and when it settles within 0.1%, in s. */
+function springCurve(dampingRatio: number, response: number): { at: (t: number) => number; end: number } {
   const omega = (2 * Math.PI) / response
   const z = dampingRatio
   const at = (t: number) => {
@@ -190,6 +186,17 @@ export function springEasing(dampingRatio = 0.92, response = 0.42): { easing: st
   let end = step
   // Settled once the envelope is within 0.1%
   while (Math.exp(-z * omega * end) * (z >= 1 ? 1 + omega * end : 1 / Math.sqrt(1 - z * z)) > 0.001 && end < 2) end += step
+  return { at, end }
+}
+
+/**
+ * A spring as a CSS linear() easing.
+ * Apple's parameters: damping ratio (1 = no overshoot) and response (s).
+ * Sampled until it settles within 0.1% of the target.
+ */
+export function springEasing(dampingRatio = 0.92, response = 0.42): { easing: string; duration: number } {
+  const { at, end } = springCurve(dampingRatio, response)
+  const step = 1 / 120
   const n = Math.max(12, Math.round(end / step))
   const points: string[] = []
   for (let i = 0; i <= n; i++) {
@@ -197,6 +204,19 @@ export function springEasing(dampingRatio = 0.92, response = 0.42): { easing: st
     points.push(String(Math.round(v * 10000) / 10000))
   }
   return { easing: `linear(${points.join(', ')})`, duration: Math.round(end * 1000) }
+}
+
+/**
+ * The same spring as `segments` + 1 progress values, evenly spaced in time,
+ * for keyframes joined by plain linear steps. Safari (Core Animation) runs a
+ * linear() easing on the main thread, where the new page's render stalls it;
+ * keyframes like these it runs on the compositor.
+ */
+export function springSamples(dampingRatio = 0.92, response = 0.42, segments = 24): { progress: number[]; duration: number } {
+  const { at, end } = springCurve(dampingRatio, response)
+  const progress: number[] = []
+  for (let i = 0; i <= segments; i++) progress.push(i === segments ? 1 : i === 0 ? 0 : at((i / segments) * end))
+  return { progress, duration: Math.round(end * 1000) }
 }
 
 /** A stack strip in px for a wallet this wide (STRIP: max(50px, 13.7cqw)). */

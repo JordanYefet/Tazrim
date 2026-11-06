@@ -10,6 +10,7 @@ import {
   pocketTop,
   predictCardPlacement,
   springEasing,
+  springSamples,
   springResponseFor,
   stackLayout,
   stripPx,
@@ -195,5 +196,22 @@ describe('stackLayout', () => {
     const p = placements({ kind: 'open', id: 'e' }, cards, order)
     expect(p.get('e')).toMatchObject({ hidden: false, front: true })
     expect(p.get(MORE_ID)!.hidden).toBe(true)
+  })
+})
+
+describe('springSamples (keyframes Safari can run on the compositor)', () => {
+  it('samples the same curve as springEasing, evenly in time, from 0 to exactly 1', () => {
+    const { progress, duration } = springSamples(0.92, 0.42, 24)
+    expect(progress).toHaveLength(25)
+    expect(progress[0]).toBe(0)
+    expect(progress[24]).toBe(1)
+    expect(duration).toBe(springEasing(0.92, 0.42).duration)
+    // Mostly done early (a strong ease-out), and never going backwards past the target by more than a hair
+    expect(progress[6]).toBeGreaterThan(0.5)
+    for (const p of progress) expect(p).toBeLessThanOrEqual(1.002)
+  })
+
+  it('lands on the page beat like the easing', () => {
+    expect(Math.abs(springSamples(0.92, springResponseFor(MOTION.page, 0.92)).duration - MOTION.page)).toBeLessThanOrEqual(25)
   })
 })
