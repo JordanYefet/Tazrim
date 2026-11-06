@@ -1530,3 +1530,23 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
 @media (prefers-reduced-motion: reduce) {
   .color-swatch__dot, .color-swatch::after { transition: none; }
 }
+
+/* ── Chart entrances in CSS (hooks/use-chart-entrance.ts) ──
+   The same entrance Recharts draws (bars growing up from their base, the
+   ring sweeping in from 3 o'clock, counter-clockwise), on the page beat and
+   with Recharts' ease-out, but without re-rendering the chart every frame.
+   The bars scale on the compositor; the ring is revealed by a conic mask. */
+.chart-entrance-bars .recharts-bar-rectangle path {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: chart-bars-in calc(var(--motion-page) - 60ms) ease-out backwards;
+}
+@keyframes chart-bars-in { from { transform: scaleY(0); } }
+
+@property --chart-sweep { syntax: '<angle>'; inherits: false; initial-value: 360deg; }
+.chart-entrance-ring {
+  -webkit-mask-image: conic-gradient(from calc(90deg - var(--chart-sweep)), #000 var(--chart-sweep), transparent 0);
+  mask-image: conic-gradient(from calc(90deg - var(--chart-sweep)), #000 var(--chart-sweep), transparent 0);
+  animation: chart-ring-in calc(var(--motion-page) - 60ms) ease-out backwards;
+}
+@keyframes chart-ring-in { from { --chart-sweep: 0deg; } }
