@@ -175,9 +175,15 @@ model BankCategoryRule {
 model CategoryKeywordRule {
   id        String   @id @default(uuid())
   /// Trimmed, inner whitespace collapsed (normalizeKeyword)
-  pattern   String   @unique
+  pattern   String
   category  String
+  /// Where the text is looked for: ANY, NAME (merchant / description) or NOTES (ENG-101)
+  scope     String   @default("ANY")
+  /// Only rows whose merchant or description is exactly this (any case); null: every row
+  merchant  String?
   createdAt DateTime @default(now())
+
+  @@unique([pattern, scope, merchant])
 }
 
 /// A bank description that only says how money moved (a cheque, a transfer, a cash

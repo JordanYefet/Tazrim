@@ -105,7 +105,7 @@ export async function upsertCCTransactions(
       sourceCategory: tx.category,
       // A category set on the merchant before (Cal files carry none), else a contains-text rule's
       categoryOverride: resolveRuleCategory(
-        { source: 'card', originalMerchantName: tx.originalMerchantName },
+        { source: 'card', originalMerchantName: tx.originalMerchantName, notes: tx.notes },
         rule?.categoryOverride ?? null,
         keywordRules
       ),

@@ -11,7 +11,7 @@ import {
 } from '../insights/bank-categories'
 import type { CategoryMonthly } from '../insights/category-insights'
 import { isGenericDescription, listGenericDescriptions } from './generic-descriptions'
-import { keywordFallback } from './keyword-rules'
+import { keywordFallback, notesRuleCategory } from './keyword-rules'
 
 const ruleKey = (direction: BankDirection, originalDescription: string) => `${direction}|${originalDescription}`
 
@@ -124,18 +124,18 @@ async function setRuleRows(
       categoryManual: false,
       ...directionWhere(rule.direction),
     },
-    select: { id: true, description: true, originalDescription: true, debit: true, credit: true },
+    select: { id: true, description: true, originalDescription: true, note: true, debit: true, credit: true },
   })
   const rows = affected.filter(r => !isCardPaymentRow(r))
-  if (rule.category !== null) {
-    await db.bankTransaction.updateMany({ where: { id: { in: rows.map(r => r.id) } }, data: { category: rule.category } })
-    return rows.map(r => r.id)
-  }
-  const fallback = await keywordFallback(db)
+  // A row whose notes a contains rule matches keeps that rule's category: notes beat the
+  // description (lib/insights/keyword-rules.ts). The rest take the rule's category, or with
+  // none (the rule went) what a contains-text rule gives them.
+  const [byNotes, fallback] = await Promise.all([notesRuleCategory(db), keywordFallback(db)])
   const generic = await isGenericDescription(rule.originalDescription, db)
   const byCategory = new Map<string | null, string[]>()
   for (const r of rows) {
-    const next = fallback({ source: 'bank', ...r, generic })
+    const row = { source: 'bank' as const, ...r, generic }
+    const next = byNotes(row) ?? rule.category ?? fallback(row)
     byCategory.set(next, [...(byCategory.get(next) ?? []), r.id])
   }
   for (const [category, ids] of byCategory) await db.bankTransaction.updateMany({ where: { id: { in: ids } }, data: { category } })

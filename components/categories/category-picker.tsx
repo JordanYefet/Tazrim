@@ -351,7 +351,15 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
 }
 
 /** How many rows a text reaches, from /api/category-keyword-rules/preview; null while counting */
-function useKeywordCount(pattern: string, kind: 'EXPENSE' | 'INCOME') {
+/** Where a contains rule looks and which merchant it is limited to (lib/insights/keyword-rules.ts) */
+export interface KeywordConditions {
+  scope?: 'ANY' | 'NAME' | 'NOTES'
+  merchant?: string | null
+}
+
+function useKeywordCount(pattern: string, kind: 'EXPENSE' | 'INCOME', conditions: KeywordConditions = {}) {
+  const scope = conditions.scope ?? 'ANY'
+  const merchant = conditions.merchant ?? ''
   const [count, setCount] = useState<{ matches: number; applies: number } | null>(null)
   useEffect(() => {
     if (!validKeyword(pattern)) { setCount(null); return }
@@ -360,7 +368,7 @@ function useKeywordCount(pattern: string, kind: 'EXPENSE' | 'INCOME') {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/category-keyword-rules/preview?${new URLSearchParams({ pattern: normalizeKeyword(pattern), kind })}`,
+          `/api/category-keyword-rules/preview?${new URLSearchParams({ pattern: normalizeKeyword(pattern), kind, scope, merchant })}`,
           { signal: abort.signal }
         )
         if (res.ok) setCount(await res.json())
@@ -369,13 +377,18 @@ function useKeywordCount(pattern: string, kind: 'EXPENSE' | 'INCOME') {
       }
     }, 250)
     return () => { clearTimeout(timer); abort.abort() }
-  }, [pattern, kind])
+  }, [pattern, kind, scope, merchant])
   return validKeyword(pattern) ? count : null
 }
 
 /** The live count beside a contains-text field: "12 תנועות", and how many keep a category of their own */
-export function KeywordCount({ pattern, kind, className }: { pattern: string; kind: 'EXPENSE' | 'INCOME'; className?: string }) {
-  const count = useKeywordCount(pattern, kind)
+export function KeywordCount({ pattern, kind, conditions, className }: {
+  pattern: string
+  kind: 'EXPENSE' | 'INCOME'
+  conditions?: KeywordConditions
+  className?: string
+}) {
+  const count = useKeywordCount(pattern, kind, conditions)
   const text = !validKeyword(pattern)
     ? `לפחות ${MIN_KEYWORD_LENGTH} תווים`
     : !count
