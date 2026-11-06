@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import './globals.css'
 import { heeboHebrew, heeboLatin } from './fonts'
 import { Providers } from './providers'
@@ -9,6 +9,7 @@ import { BottomNav } from '@/components/layout/bottom-nav'
 import { Header } from '@/components/layout/header'
 import { ReadOnlyGuard } from '@/components/layout/read-only-guard'
 import { isReadOnly } from '@/lib/read-only'
+import { BARE_HEADER } from '@/lib/auth/config'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
 import { PeriodProvider } from '@/components/layout/period-context'
 import { getPeriod } from '@/lib/period-server'
@@ -46,6 +47,27 @@ export const viewport: Viewport = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Sign-in, first run and invites (ENG-89): the page alone, with no sidebar, header or account data
+  if ((await headers()).get(BARE_HEADER) === '1') {
+    const background = parseBackgroundCookie((await cookies()).get(BACKGROUND_COOKIE)?.value)
+    return (
+      <html
+        lang="he"
+        dir="rtl"
+        className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
+        {...backgroundHtmlAttributes(background)}
+        style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
+        suppressHydrationWarning
+      >
+        <body>
+          <Providers>
+            <main className="flex min-h-dvh items-center justify-center p-4">{children}</main>
+          </Providers>
+        </body>
+      </html>
+    )
+  }
+
   // The sidebar mode comes from a cookie so the first paint already has the right width
   // The remembered period too (ENG-63): links carry it from the first paint
   const [jar, accounts, remembered] = await Promise.all([cookies(), listAccounts(), getPeriod(null)])

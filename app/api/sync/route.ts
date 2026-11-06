@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/client'
-import { isLocalRequest } from '@/lib/local-request'
+import { NOT_LOCAL, maySync } from '@/lib/sync/access'
 import { isReadOnly } from '@/lib/read-only'
 import { SYNC_COMPANIES, VERIFIED_COMPANIES, syncCompany, validateCredentials } from '@/lib/sync/providers'
 import { currentRun, startRun } from '@/lib/sync/runs'
@@ -8,8 +8,6 @@ import { earliestStart, sourceSummary } from '@/lib/sync/store'
 
 export const dynamic = 'force-dynamic'
 
-/** Until there is a login and HTTPS (ENG-89), a bank password may only be typed on the machine the app runs on. */
-const NOT_LOCAL = { error: 'בשלב הזה אפשר לסנכרן רק מהמחשב שעליו האפליקציה רצה', code: 'NOT_LOCAL' }
 
 /** The household's accounts a company's sync fills: not archived, its kind and provider (ENG-102). */
 async function ownAccounts() {
@@ -26,7 +24,7 @@ async function ownAccounts() {
  * accounts, last sync and default start, and the latest run.
  */
 export async function GET(req: Request) {
-  const available = !isReadOnly() && isLocalRequest(req.headers)
+  const available = !isReadOnly() && maySync(req.headers)
   const accounts = await ownAccounts()
   const owned = SYNC_COMPANIES.map(c => ({
     company: c,
@@ -53,7 +51,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
 
 /** POST { company, credentials, startDate: YYYY-MM-DD }: starts a sync. 409 while another one runs. */
 export async function POST(req: Request) {
-  if (!isLocalRequest(req.headers)) return NextResponse.json(NOT_LOCAL, { status: 403 })
+  if (!maySync(req.headers)) return NextResponse.json(NOT_LOCAL, { status: 403 })
   const body = (await req.json().catch(() => null)) as { company?: unknown; credentials?: unknown; startDate?: unknown } | null
   const company = syncCompany(body?.company)
   if (!company) return NextResponse.json({ error: 'ספק לא נתמך', code: 'UNKNOWN_COMPANY' }, { status: 400 })

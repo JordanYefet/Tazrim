@@ -5,8 +5,8 @@ import { STARTING_GENERIC_DESCRIPTIONS } from './starting-generic-descriptions'
 
 /**
  * Every data table, in the order its rows are deleted: rows that point at an
- * Account go before Account itself. Typed as a Record over Prisma.ModelName,
- * so adding a model to the schema fails type-checking until it is listed here.
+ * Account go before Account itself. With KEPT it covers every Prisma.ModelName,
+ * so adding a model to the schema fails type-checking until it is listed in one.
  */
 const WIPE_ORDER = {
   UnusualDismissal: 1,
@@ -27,7 +27,18 @@ const WIPE_ORDER = {
   SyncLink: 15,
   Account: 16,
   Setting: 17,
-} satisfies Record<Prisma.ModelName, number>
+}
+
+/** The login (ENG-89) survives: whoever deletes the data is still signed in, and so is the household */
+const KEPT = { Person: true, Passkey: true, Session: true, Invite: true } as const
+
+export const KEPT_TABLES = Object.keys(KEPT) as (keyof typeof KEPT)[]
+
+// Every model is either wiped or kept
+;({ ...WIPE_ORDER, ...KEPT }) satisfies Record<Prisma.ModelName, number | true>
+
+/** Setting rows the wipe keeps: the login's (the recovery code) */
+export const KEPT_SETTING_PREFIX = 'auth.'
 
 export type WipeTable = keyof typeof WIPE_ORDER
 
@@ -46,7 +57,12 @@ export async function wipeAllData(): Promise<Record<WipeTable, number>> {
   const deleted = await prisma.$transaction(async tx => {
     const counts = {} as Record<WipeTable, number>
     // Table names come from the constant above, never from input
-    for (const table of WIPE_TABLES) counts[table] = await tx.$executeRawUnsafe(`DELETE FROM "${table}"`)
+    for (const table of WIPE_TABLES) {
+      counts[table] =
+        table === 'Setting'
+          ? await tx.$executeRawUnsafe(`DELETE FROM "Setting" WHERE "key" NOT LIKE '${KEPT_SETTING_PREFIX}%'`)
+          : await tx.$executeRawUnsafe(`DELETE FROM "${table}"`)
+    }
     // A new install starts with the starting categories (ENG-76), so this does too
     await tx.category.createMany({ data: STARTING_CATEGORIES })
     await tx.genericDescription.createMany({ data: STARTING_GENERIC_DESCRIPTIONS.map(description => ({ description })) })
