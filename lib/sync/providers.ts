@@ -53,7 +53,7 @@ export const SYNC_COMPANIES: SyncCompany[] = [
 ]
 
 /** Companies tried end to end with a real account; the rest say "לא נבדק עדיין". */
-export const VERIFIED_COMPANIES = new Set<string>(['visaCal'])
+export const VERIFIED_COMPANIES = new Set<string>(['visaCal', 'max'])
 
 export const FIELD_LABELS: Record<LoginField, string> = {
   username: 'שם משתמש',
