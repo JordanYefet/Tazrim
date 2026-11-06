@@ -26,6 +26,11 @@ const SEED = `
   INSERT INTO "UploadHistory" ("id","accountId","fileName","uploadedAt","recordCount") VALUES ('u1','acct_leumi','fake.xlsx',1893456000000,1);
   INSERT INTO "Category" ("id","name","createdAt") VALUES ('cat1','Fake category',1893456000000);
   INSERT INTO "Setting" ("key","value") VALUES ('projection.cushion','1000');
+  INSERT INTO "Setting" ("key","value") VALUES ('auth.recoveryCodeHash','abc');
+  INSERT INTO "Person" ("id","name") VALUES ('p1','Person');
+  INSERT INTO "Passkey" ("id","personId","credentialId","publicKey","label") VALUES ('k1','p1','cred',X'00','Mac');
+  INSERT INTO "Session" ("id","tokenHash","personId","passkeyId") VALUES ('s1','hash','p1','k1');
+  INSERT INTO "Invite" ("id","tokenHash","expiresAt") VALUES ('i1','ihash',CURRENT_TIMESTAMP);
   INSERT INTO "SyncLink" ("id","company","externalAccount","accountId","createdAt") VALUES ('sl1','leumi','000-000000/00','acct_leumi',1893456000000);
   INSERT INTO "RecurringSeriesOverride" ("id","key","baseKey","accountId","status","createdAt","updatedAt") VALUES
     ('r1','card|acct_test_card|fake shop|7','card|acct_test_card|fake shop','acct_test_card','CONFIRMED',1893456000000,1893456000000);
@@ -72,7 +77,7 @@ afterAll(async () => {
 describe('wipe table list', () => {
   it('covers every Prisma model and every table in the database', () => {
     const models = Prisma.dmmf.datamodel.models.map(m => m.dbName ?? m.name).sort()
-    expect([...wipe.WIPE_TABLES].sort()).toEqual(models)
+    expect([...wipe.WIPE_TABLES, ...wipe.KEPT_TABLES].sort()).toEqual(models)
     expect(dataTables()).toEqual(models)
   })
 
@@ -129,9 +134,13 @@ describe('POST /api/data/delete-all', () => {
     expect(body.deleted).toMatchObject({ Account: 3, BankTransaction: 1, CreditCardTransaction: 1, ImportProfile: 1 })
 
     for (const table of dataTables()) {
-      if (table !== 'Category' && table !== 'GenericDescription') expect(count(table), table).toBe(0)
+      if (table === 'Category' || table === 'GenericDescription') continue
+      // The login stays (ENG-89): the household, its passkeys and sessions, and the recovery code
+      if ((wipe.KEPT_TABLES as string[]).includes(table)) expect(count(table), table).toBe(1)
+      else if (table === 'Setting') expect(db.query<{ key: string }>(`SELECT key FROM "Setting"`)).toEqual([{ key: 'auth.recoveryCodeHash' }])
+      else expect(count(table), table).toBe(0)
     }
-    expect(dataTables()).toEqual([...wipe.WIPE_TABLES].sort())
+    expect(dataTables()).toEqual([...wipe.WIPE_TABLES, ...wipe.KEPT_TABLES].sort())
     // Like a new install (ENG-76): the starting categories, and nothing else
     expect(db.query<{ name: string; kind: string }>(`SELECT name, kind FROM "Category" ORDER BY rowid`)).toEqual(
       STARTING_CATEGORIES.map(c => ({ name: c.name, kind: c.kind }))

@@ -11,13 +11,15 @@ import { toProfileView } from '@/lib/import/profile-view'
 import { CushionSetting } from '@/components/settings/cushion-setting'
 import { getCushion } from '@/lib/db/settings'
 import { DangerZone } from '@/components/settings/danger-zone'
+import { PeopleSettings } from '@/components/settings/people-settings'
+import { isAuthRequired } from '@/lib/auth/config'
 import { BANK_COLORS, CARD_COLORS } from '@/lib/nav/state'
 
 export const dynamic = 'force-dynamic'
 
 /** Appearance, account management (the old /accounts page, at #accounts) and saved import mappings (#import-profiles). */
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
-  const { new: newParam } = await searchParams
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ new?: string; recovered?: string }> }) {
+  const { new: newParam, recovered } = await searchParams
   // The colour each account has by position (dots, charts), as in the nav: the brand default's fallback
   const position = { BANK: 0, CREDIT_CARD: 0 } as Record<string, number>
   const positionColor = (kind: string, archived: boolean) => {
@@ -84,6 +86,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           today={localToday(now)}
         />
       </section>
+
+      {isAuthRequired() && (
+        <section id="people" aria-labelledby="people-title">
+          <PeopleSettings recovered={recovered === '1'} />
+        </section>
+      )}
 
       <section id="import-profiles" aria-labelledby="import-profiles-title">
         <ImportProfilesManager profiles={profiles} />

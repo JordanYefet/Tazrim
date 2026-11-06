@@ -13,6 +13,14 @@ export const prisma =
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
+// WAL (ENG-89, was ENG-61): readers don't wait for a writer, so two people (or a
+// sync and a page) use the app at once smoothly. The mode is stored in the file,
+// so this only switches an older database once. The read-only demo is left as is.
+const g = globalThis as unknown as { tazrimWal?: Promise<unknown> }
+if (!g.tazrimWal && process.env.TAZRIM_READ_ONLY !== '1' && process.env.TAZRIM_READ_ONLY !== 'true') {
+  g.tazrimWal = prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL').catch(() => {})
+}
+
 /**
  * The global client or an interactive transaction's client: write helpers
  * take one so a caller can run several of them in a single transaction.
