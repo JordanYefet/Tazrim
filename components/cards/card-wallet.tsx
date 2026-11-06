@@ -33,7 +33,7 @@ import {
   placements,
   pocketTop,
   predictCardPlacement,
-  springEasing,
+  springSamples,
   springResponseFor,
   stackLayout,
   translateYOf,
@@ -50,8 +50,10 @@ import {
  * (`kind="banks"`): bank elements in a navy pocket on /banks, one open on its page.
  *
  * Motion: the real elements, transform and opacity only, with WAAPI and a
- * spring sampled into a linear() easing (compositor-run, so a busy main
- * thread does not stall it). Every retarget starts from the on-screen value,
+ * spring sampled into keyframes joined by linear steps (compositor-run in
+ * every browser, so a busy main thread does not stall it; Safari runs a
+ * linear() easing on the main thread, where the new page's render made the
+ * card stutter). Every retarget starts from the on-screen value,
  * so a reversal mid-flight never jumps. A tap moves the card at once; the
  * route's data streams in behind it (the page content eases in when ready).
  * The URL is the source of truth, so browser back / forward animate too.
@@ -79,8 +81,29 @@ export interface WalletCard {
 
 // Settles on the page beat (MOTION.page): the content fade, the numbers' roll
 // and the charts land with the card (motion tokens, lib/motion.ts)
-export const SPRING = springEasing(0.92, springResponseFor(MOTION.page, 0.92))
-const FALLBACK_EASING = EASE.spring
+export const SPRING = springSamples(0.92, springResponseFor(MOTION.page, 0.92))
+
+/** A matrix between two, component by component (exact for the wallet's translate + scale). */
+function mixMatrix(a: DOMMatrix, b: DOMMatrix, p: number): string {
+  const m = (x: number, y: number) => x + (y - x) * p
+  return new DOMMatrix([
+    m(a.m11, b.m11), m(a.m12, b.m12), m(a.m13, b.m13), m(a.m14, b.m14),
+    m(a.m21, b.m21), m(a.m22, b.m22), m(a.m23, b.m23), m(a.m24, b.m24),
+    m(a.m31, b.m31), m(a.m32, b.m32), m(a.m33, b.m33), m(a.m34, b.m34),
+    m(a.m41, b.m41), m(a.m42, b.m42), m(a.m43, b.m43), m(a.m44, b.m44),
+  ]).toString()
+}
+
+/** The spring as keyframes, one per sample: `frame(p)` gives the values at spring progress p. */
+function springFrames(frame: (p: number) => Keyframe): Keyframe[] {
+  const last = SPRING.progress.length - 1
+  return SPRING.progress.map((p, i) => ({ ...frame(p), offset: i / last }))
+}
+
+/** The vertical carry (`translate`) along the spring, from one offset to another, in px. */
+function carryFrames(from: number, to: number): Keyframe[] {
+  return springFrames(p => ({ translate: `0 ${from + (to - from) * p}px` }))
+}
 // The one deliberate stagger: the other cards follow the chosen one by a hair
 const STAGGER_MS = 24
 
@@ -94,10 +117,6 @@ function whenLanding(anim: Animation | null, land: () => void, duration = SPRING
   anim.addEventListener('cancel', () => window.clearTimeout(timer))
 }
 const INTENT_EVENT = 'tazrim:wallet-route'
-
-function supportsLinearEasing(): boolean {
-  return typeof CSS !== 'undefined' && CSS.supports('animation-timing-function', 'linear(0, 1)')
-}
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -172,23 +191,15 @@ function moveCard(el: HTMLElement, to: CardPlacement, opts: { delay?: number }):
   // motion: half-transparent cards would show the stacked cards through
   // each other. The transform runs the whole spring.
   const fades = Math.abs(Number(fromOpacity) - to.opacity) > 0.01
+  // Where it is going, resolved (its container units) from the style just set
+  const target = new DOMMatrix(getComputedStyle(el).transform === 'none' ? undefined : getComputedStyle(el).transform)
+  const a = Number(fromOpacity)
   const anim = el.animate(
-    fades
-      ? [
-          { transform: from.toString(), opacity: fromOpacity },
-          { opacity: String(to.opacity), offset: 0.3 },
-          { transform: to.transform, opacity: String(to.opacity) },
-        ]
-      : [
-          { transform: from.toString(), opacity: fromOpacity },
-          { transform: to.transform, opacity: String(to.opacity) },
-        ],
-    {
-      duration: SPRING.duration,
-      easing: supportsLinearEasing() ? SPRING.easing : FALLBACK_EASING,
-      delay: opts.delay ?? 0,
-      fill: 'backwards',
-    }
+    springFrames(p => ({
+      transform: mixMatrix(from, target, p),
+      opacity: String(fades ? a + (to.opacity - a) * Math.min(1, p / 0.3) : to.opacity),
+    })),
+    { duration: SPRING.duration, delay: opts.delay ?? 0, fill: 'backwards' }
   )
   anim.addEventListener('finish', () => {
     if (!el.getAnimations().length) el.style.willChange = ''
@@ -258,7 +269,7 @@ function shiftCard(el: HTMLElement, { by = 0, to = 0 }: { by?: number; to?: numb
   // same carry runs on in the box's new place, at the same speed (no hitch)
   if (by && running && range && Math.abs(range.to - by - to) < 1 && running.effect instanceof KeyframeEffect) {
     const next = { from: range.from - by, to }
-    running.effect.setKeyframes([{ translate: `0 ${next.from}px` }, { translate: `0 ${next.to}px` }])
+    running.effect.setKeyframes(carryFrames(next.from, next.to))
     shifts.set(running, next)
     return
   }
@@ -267,12 +278,7 @@ function shiftCard(el: HTMLElement, { by = 0, to = 0 }: { by?: number; to?: numb
   requestGlassBake()
   if (prefersReducedMotion()) return
   el.style.willChange = 'transform, opacity, translate'
-  const anim = el.animate([{ translate: `0 ${from}px` }, { translate: `0 ${to}px` }], {
-    id: SHIFT_ID,
-    duration: SPRING.duration,
-    easing: supportsLinearEasing() ? SPRING.easing : FALLBACK_EASING,
-    fill: 'backwards',
-  })
+  const anim = el.animate(carryFrames(from, to), { id: SHIFT_ID, duration: SPRING.duration, fill: 'backwards' })
   shifts.set(anim, { from, to })
   anim.addEventListener('finish', () => {
     if (!el.getAnimations().length) el.style.willChange = ''
