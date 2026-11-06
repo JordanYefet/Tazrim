@@ -40,15 +40,6 @@ const defaultProvider = (kind: CreatableKindValue) => KNOWN_PROVIDERS.find(p => 
 
 const NAME_PLACEHOLDER: Record<CreatableKindValue, string> = { CREDIT_CARD: 'הכרטיס שלי', BANK: 'החשבון שלי' }
 
-const chip = (selected: boolean) =>
-  cn(
-    'inline-flex h-9 items-center rounded-lg border px-3 text-sm transition-[background-color,border-color,color,transform] duration-quick active:scale-[0.97] motion-reduce:transition-none',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-    selected
-      ? 'border-primary/50 bg-primary/10 font-medium text-primary'
-      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-  )
-
 const n = (v: number) => v.toLocaleString('he-IL')
 
 /** Under the company: what the choice means for the sync (ENG-102). */
@@ -388,25 +379,22 @@ export function AccountForm(props: CreateProps | EditProps) {
               )}
 
               {kind === 'CREDIT_CARD' && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <p id={`${id}-network`} className="text-sm font-medium">
+                <div className="space-y-1.5">
+                  <label htmlFor={`${id}-network`} className="text-sm font-medium">
                     רשת בינלאומית <span className="font-normal text-muted-foreground">(לא חובה)</span>
-                  </p>
-                  <div role="radiogroup" aria-labelledby={`${id}-network`} className="flex flex-wrap gap-2">
-                    {[...CARD_NETWORKS, { key: '', label: 'אחר / לא ידוע' }].map(nw => (
-                      <button
-                        key={nw.key || 'other'}
-                        type="button"
-                        role="radio"
-                        aria-checked={network === nw.key}
-                        data-network={nw.key || 'other'}
-                        onClick={() => { setNetwork(nw.key); setNetworkTouched(true) }}
-                        className={chip(network === nw.key)}
-                      >
-                        {nw.key ? <span dir="ltr">{nw.label}</span> : nw.label}
-                      </button>
+                  </label>
+                  <select
+                    id={`${id}-network`}
+                    className={inputClass}
+                    value={network}
+                    onChange={e => { setNetwork(e.target.value); setNetworkTouched(true) }}
+                    aria-invalid={!!fieldError('cardNetwork')}
+                  >
+                    {CARD_NETWORKS.map(nw => (
+                      <option key={nw.key} value={nw.key}>{nw.label}</option>
                     ))}
-                  </div>
+                    <option value="">אחר / לא ידוע</option>
+                  </select>
                   {fieldError('cardNetwork') && <p className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
                 </div>
               )}

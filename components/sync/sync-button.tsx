@@ -94,16 +94,16 @@ export function SyncButton() {
         ref={trigger}
         aria-label={`${title}, ${sub}`}
         className={cn(
-          'flex h-9 shrink-0 items-center gap-2 rounded-xl border text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          'w-9 justify-center md:w-[9.5rem] md:justify-start md:px-3',
+          'flex h-9 shrink-0 items-center gap-2.5 rounded-xl border text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'w-9 justify-center md:w-[10.5rem] md:justify-start md:px-3.5',
           'hover:bg-muted data-[state=open]:bg-card data-[state=open]:ring-2 data-[state=open]:ring-ring/30',
           TONE_BOX[tone]
         )}
       >
         <ToneIcon tone={tone} attentionCode={needsCode} />
-        <span className="hidden min-w-0 flex-1 flex-col leading-tight md:flex">
-          <span className="truncate text-sm font-semibold">{title}</span>
-          <span className={cn('truncate text-[11px]', tone === 'idle' || tone === 'busy' || tone === 'done' ? 'text-muted-foreground' : 'opacity-80')}>
+        <span className="hidden min-w-0 flex-1 flex-col md:flex">
+          <span className="truncate text-[13px] font-semibold leading-4">{title}</span>
+          <span className={cn('truncate text-[11px] leading-[14px]', tone === 'idle' || tone === 'busy' || tone === 'done' ? 'text-muted-foreground' : 'opacity-80')}>
             {sub}
           </span>
         </span>
