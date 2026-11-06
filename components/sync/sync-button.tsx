@@ -101,9 +101,9 @@ export function SyncButton() {
         )}
       >
         <ToneIcon tone={tone} attentionCode={needsCode} />
-        <span className="hidden min-w-0 flex-1 flex-col md:flex">
-          <span className="truncate text-[13px] font-semibold leading-4">{title}</span>
-          <span className={cn('truncate text-[11px] leading-[14px]', tone === 'idle' || tone === 'busy' || tone === 'done' ? 'text-muted-foreground' : 'opacity-80')}>
+        <span className="hidden min-w-0 flex-1 flex-col gap-[3px] md:flex">
+          <span className="truncate text-[13px] font-semibold leading-[15px]">{title}</span>
+          <span className={cn('truncate text-[11px] leading-[13px]', tone === 'idle' || tone === 'busy' || tone === 'done' ? 'text-muted-foreground' : 'opacity-80')}>
             {sub}
           </span>
         </span>
