@@ -47,13 +47,13 @@ export const SYNC_COMPANIES: SyncCompany[] = [
   { id: 'union', label: 'בנק איגוד', kind: 'BANK', provider: 'union', fields: ['username', 'password'], historyMonths: 12 },
   { id: 'oneZero', label: 'וואן זירו', kind: 'BANK', provider: 'onezero', fields: ['email', 'password', 'phoneNumber'], historyMonths: 12, otp: true },
   { id: 'max', label: 'מקס', kind: 'CREDIT_CARD', provider: 'max', fields: ['username', 'password'], historyMonths: 48 },
-  { id: 'visaCal', label: 'כאל', kind: 'CREDIT_CARD', provider: 'cal', fields: ['username', 'password'], historyMonths: 36, provenMonths: 18 },
+  { id: 'visaCal', label: 'כאל', kind: 'CREDIT_CARD', provider: 'cal', fields: ['username', 'password'], historyMonths: 36 },
   { id: 'isracard', label: 'ישראכרט', kind: 'CREDIT_CARD', provider: 'isracard', fields: ['id', 'card6Digits', 'password'], historyMonths: 12 },
   { id: 'amex', label: 'אמריקן אקספרס', kind: 'CREDIT_CARD', provider: 'amex', fields: ['id', 'card6Digits', 'password'], historyMonths: 12 },
 ]
 
 /** Companies tried end to end with a real account; the rest say "לא נבדק עדיין". */
-export const VERIFIED_COMPANIES = new Set<string>()
+export const VERIFIED_COMPANIES = new Set<string>(['visaCal'])
 
 export const FIELD_LABELS: Record<LoginField, string> = {
   username: 'שם משתמש',

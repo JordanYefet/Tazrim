@@ -18,6 +18,6 @@ describe('the Cal history patch', () => {
   })
 
   it('matches what the form offers for Cal', () => {
-    expect(syncCompany('visaCal')).toMatchObject({ historyMonths: 36, provenMonths: 18 })
+    expect(syncCompany('visaCal')).toMatchObject({ historyMonths: 36 })
   })
 })
