@@ -3,9 +3,11 @@ import { listGenericDescriptions } from './generic-descriptions'
 import { directionOf } from '../insights/bank-categories'
 import {
   keywordMatches,
-  keywordRuleFor,
-  matchesNotes,
-  ruleNotesOf,
+  isKeywordScope,
+  ruleBeatsExact,
+  ruleOverExact,
+  ruleReaches,
+  type KeywordScope,
   normalizeKeyword,
   resolveRuleCategory,
   ruleKindOf,
@@ -40,7 +42,8 @@ export async function loadKeywordRules(db: Db = prisma): Promise<StoredKeywordRu
   const kindOf = new Map(categories.map(c => [c.name, c.kind]))
   return rules.flatMap(r => {
     const kind = kindOf.get(r.category)
-    return kind ? [{ id: r.id, pattern: r.pattern, category: r.category, kind, createdAt: r.createdAt }] : []
+    const scope = isKeywordScope(r.scope) ? r.scope : 'ANY'
+    return kind ? [{ id: r.id, pattern: r.pattern, category: r.category, kind, createdAt: r.createdAt, scope, merchant: r.merchant }] : []
   })
 }
 
@@ -65,11 +68,7 @@ export async function keywordFallback(db: Db): Promise<(row: RuleRow) => string 
  */
 export async function notesRuleCategory(db: Db): Promise<(row: RuleRow) => string | null> {
   const rules = await loadKeywordRules(db)
-  return row => {
-    const kind = ruleKindOf(row)
-    const notes = ruleNotesOf(row)
-    return kind && notes ? (keywordRuleFor(notes, rules, kind)?.category ?? null) : null
-  }
+  return row => ruleOverExact(row, rules)?.category ?? null
 }
 
 const key = (...parts: string[]) => parts.join('\u0000')
@@ -207,23 +206,37 @@ export interface KeywordPreview {
  * How many rows a pattern reaches for a category of `kind`: card charges and bank debits
  * (EXPENSE) or bank credits (INCOME). Card payments and generic descriptions don't count.
  */
-export async function previewKeywordRule(pattern: string, kind: CategoryKindName, db: Db = prisma): Promise<KeywordPreview> {
+export async function previewKeywordRule(
+  pattern: string,
+  kind: CategoryKindName,
+  conditions: RuleConditions = {},
+  db: Db = prisma
+): Promise<KeywordPreview> {
   if (!validKeyword(pattern)) return { matches: 0, applies: 0 }
+  const draft = { pattern: normalizeKeyword(pattern), scope: conditions.scope ?? 'ANY', merchant: conditions.merchant ?? null }
   const exact = await exactRules(db)
   const { cards, bank } = await candidates(db, text => keywordMatches(pattern, text), exact)
   let matches = 0
   let applies = 0
   for (const c of kind === 'EXPENSE' ? cards : []) {
+    if (!ruleReaches(draft, c.row)) continue
     matches++
-    // A notes match wins over the merchant's exact rule (lib/insights/keyword-rules.ts)
-    if (!c.categoryManual && (!cardExact(exact, c) || matchesNotes(pattern, c.row))) applies++
+    // A merchant-limited or notes match wins over the merchant's exact rule (lib/insights/keyword-rules.ts)
+    if (!c.categoryManual && (!cardExact(exact, c) || ruleBeatsExact(draft, c.row))) applies++
   }
   for (const b of bank) {
-    if (ruleKindOf(b.row) !== kind) continue
+    if (ruleKindOf(b.row) !== kind || !ruleReaches(draft, b.row)) continue
     matches++
-    if (!b.categoryManual && (!bankExact(exact, b) || matchesNotes(pattern, b.row))) applies++
+    if (!b.categoryManual && (!bankExact(exact, b) || ruleBeatsExact(draft, b.row))) applies++
   }
   return { matches, applies }
+}
+
+/** Where a rule looks and which merchant it is limited to (ENG-101) */
+export interface RuleConditions {
+  scope?: KeywordScope
+  /** The exact merchant or bank description; null or '' for every row */
+  merchant?: string | null
 }
 
 /** A rule saved from a row's window: that row follows the rules from now on */
@@ -233,7 +246,7 @@ export interface FromRow {
 }
 
 export interface SaveKeywordResult extends RecomputeResult {
-  rule: { id: string; pattern: string; category: string; createdAt: Date }
+  rule: { id: string; pattern: string; category: string; createdAt: Date; scope: string; merchant: string | null }
 }
 
 /**
@@ -246,16 +259,24 @@ export async function saveKeywordRule(params: {
   pattern: string
   category: string
   fromRow?: FromRow
-}): Promise<SaveKeywordResult> {
+} & RuleConditions): Promise<SaveKeywordResult> {
   const pattern = normalizeKeyword(params.pattern)
   if (!validKeyword(pattern)) throw new KeywordRuleError(`צריך לפחות ${MIN_KEYWORD_LENGTH} תווים`, 400)
+  const scope: KeywordScope = params.scope ?? 'ANY'
+  const merchant = params.merchant ? normalizeKeyword(params.merchant) : null
 
   return prisma.$transaction(async db => {
     const category = await db.category.findUnique({ where: { name: params.category } })
     if (!category) throw new KeywordRuleError('קטגוריה לא קיימת', 400)
 
     const all = await db.categoryKeywordRule.findMany()
-    const same = all.find(r => r.pattern.toLowerCase() === pattern.toLowerCase())
+    // The same rule: the same text in any case, looking in the same place, for the same merchant
+    const same = all.find(
+      r =>
+        r.pattern.toLowerCase() === pattern.toLowerCase() &&
+        r.scope === scope &&
+        (r.merchant ?? '').toLowerCase() === (merchant ?? '').toLowerCase()
+    )
     const editing = params.id ? all.find(r => r.id === params.id) : same
     if (params.id && !editing) throw new KeywordRuleError('לא נמצא', 404)
     if (same && editing && same.id !== editing.id) throw new KeywordRuleError('יש כבר כלל עם הטקסט הזה', 400)
@@ -263,8 +284,8 @@ export async function saveKeywordRule(params: {
     if (params.fromRow) await releaseRow(db, params.fromRow, category.kind)
 
     const rule = editing
-      ? await db.categoryKeywordRule.update({ where: { id: editing.id }, data: { pattern, category: params.category } })
-      : await db.categoryKeywordRule.create({ data: { pattern, category: params.category } })
+      ? await db.categoryKeywordRule.update({ where: { id: editing.id }, data: { pattern, category: params.category, scope, merchant } })
+      : await db.categoryKeywordRule.create({ data: { pattern, category: params.category, scope, merchant } })
     const before = editing?.pattern
     const result = await recomputeRuleCategories(db, text => keywordMatches(pattern, text) || (!!before && keywordMatches(before, text)))
     return { rule, ...result }

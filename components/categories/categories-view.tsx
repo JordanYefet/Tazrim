@@ -12,7 +12,7 @@ import { GenericDescriptions } from './generic-descriptions'
 import { IssuerCategories } from './issuer-categories'
 import { MerchantMappings } from './merchant-mappings'
 import { KeywordCount } from './category-picker'
-import { normalizeKeyword, validKeyword } from '@/lib/insights/keyword-rules'
+import { normalizeKeyword, validKeyword, type KeywordScope } from '@/lib/insights/keyword-rules'
 import type { CategorySource } from '@/lib/insights/category-sources'
 import type { IssuerCategory } from '@/lib/db/category-mappings'
 import type { BankDescription, CardMerchant } from '@/lib/db/category-choices'
@@ -370,15 +370,20 @@ function keyOf(s: CategorySource): string {
     case 'issuer': return `i|${s.provider}|${s.sourceCategory}`
     case 'merchant': return `m|${s.provider}|${s.originalName}`
     case 'bank': return `b|${s.provider}|${s.direction}|${s.originalDescription}`
-    // A pattern is one rule whatever its case
-    case 'keyword': return `k|${s.pattern.toLowerCase()}`
+    // A pattern is one rule whatever its case, per place it looks in and merchant it is limited to
+    case 'keyword': return `k|${s.pattern.toLowerCase()}|${s.scope ?? 'ANY'}|${(s.merchant ?? '').toLowerCase()}`
   }
 }
 
 function refOf(s: CategorySource): SourceRef {
   if (s.type === 'issuer') return { key: keyOf(s), label: s.sourceCategory, sub: providerLabel(s.provider), source: s }
   if (s.type === 'merchant') return { key: keyOf(s), label: s.displayName, sub: providerLabel(s.provider), source: s }
-  if (s.type === 'keyword') return { key: keyOf(s), label: s.pattern, source: s }
+  if (s.type === 'keyword') {
+    // "אתו · בהערות · BIT": the text, then where it is looked for and the merchant it is limited to
+    const where = s.scope === 'NOTES' ? 'בהערות' : s.scope === 'NAME' ? 'בשם' : null
+    const label = [s.pattern, where, s.merchant].filter(Boolean).join(' · ')
+    return { key: keyOf(s), label, sub: s.merchant ? `רק ל-${s.merchant}` : undefined, source: s }
+  }
   return { key: keyOf(s), label: s.originalDescription, sub: providerLabel(s.provider), source: s }
 }
 
@@ -397,6 +402,18 @@ function choicesFor(type: GroupType, kind: Kind, choices: SourceChoices, taken: 
   return all.filter(r => !taken.has(r.key))
 }
 
+/**
+ * What a contains-text rule can be limited to: the card merchants (expense categories) and
+ * the bank descriptions of the category's direction, each once, by the name the file has
+ */
+function merchantsFor(kind: Kind, choices: SourceChoices): string[] {
+  const names = [
+    ...(kind === 'EXPENSE' ? choices.merchants.map(m => m.originalName) : []),
+    ...choices.descriptions[kind === 'EXPENSE' ? 'OUT' : 'IN'].map(d => d.originalDescription),
+  ]
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'he'))
+}
+
 /** Gives a category one source: the matching rule or mapping, applied to the stored rows */
 async function addSource(s: CategorySource, category: string): Promise<string | null> {
   const json = { 'Content-Type': 'application/json' }
@@ -410,7 +427,11 @@ async function addSource(s: CategorySource, category: string): Promise<string | 
             body: JSON.stringify({ provider: s.provider, originalName: s.originalName, displayName: s.displayName, categoryOverride: category }),
           })
         : s.type === 'keyword'
-          ? await fetch('/api/category-keyword-rules', { method: 'POST', headers: json, body: JSON.stringify({ pattern: s.pattern, category }) })
+          ? await fetch('/api/category-keyword-rules', {
+              method: 'POST',
+              headers: json,
+              body: JSON.stringify({ pattern: s.pattern, category, scope: s.scope ?? 'ANY', merchant: s.merchant ?? '' }),
+            })
           : await fetch('/api/bank/category-rules', {
               method: 'POST',
               headers: json,
@@ -445,12 +466,14 @@ async function removeSource(s: CategorySource): Promise<boolean> {
  * then remove below, as on the one-by-one list), and "+ add" opening a search in place
  * (for contains-text rules, a text field with how many rows it reaches).
  */
-function SourceGroup({ type, kind, items, options, onAdd, onRemove }: {
+function SourceGroup({ type, kind, items, options, merchants = [], onAdd, onRemove }: {
   type: GroupType
   /** The category's kind: which rows a contains-text rule counts */
   kind: Kind
   items: SourceRef[]
   options: SourceRef[]
+  /** Contains-text rules: the merchants and bank descriptions a rule can be limited to */
+  merchants?: string[]
   onAdd: (ref: SourceRef) => void
   onRemove: (refs: SourceRef[]) => void
 }) {
@@ -462,7 +485,12 @@ function SourceGroup({ type, kind, items, options, onAdd, onRemove }: {
   // Contains-text rules are typed: "+ טקסט" is always there, and the field adds what it holds
   const typed = type === 'keyword'
   const canAdd = typed || options.length > 0
-  const typedRef = typed && validKeyword(query) ? refOf({ type: 'keyword', id: '', pattern: normalizeKeyword(query) }) : null
+  const [scope, setScope] = useState<KeywordScope>('ANY')
+  const [merchant, setMerchant] = useState('')
+  const typedRef =
+    typed && validKeyword(query)
+      ? refOf({ type: 'keyword', id: '', pattern: normalizeKeyword(query), scope, merchant: merchant || null })
+      : null
   const typedTaken = !!typedRef && items.some(r => r.key === typedRef.key)
 
   function addTyped() {
@@ -555,10 +583,50 @@ function SourceGroup({ type, kind, items, options, onAdd, onRemove }: {
               </button>
               <button onClick={() => { setAdding(false); setQuery('') }} className="h-9 shrink-0 rounded-xl bg-muted px-3 text-sm">סיום</button>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <SegmentedTrack
+                role="radiogroup"
+                aria-label="איפה לחפש את הטקסט"
+                active={scope}
+                thumbClassName="rounded-[9px] bg-card shadow-sm"
+                className="grid grid-cols-3 rounded-xl bg-muted p-[3px]"
+              >
+                {(['ANY', 'NAME', 'NOTES'] as const).map(s => (
+                  <button
+                    key={s}
+                    role="radio"
+                    data-segment={s}
+                    aria-checked={scope === s}
+                    onClick={() => setScope(s)}
+                    className={cn(
+                      'h-7 rounded-[9px] px-3 text-xs transition-colors duration-base',
+                      scope === s ? 'bg-card font-semibold text-foreground shadow-sm' : 'font-medium text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {s === 'ANY' ? 'בכל מקום' : s === 'NAME' ? 'בשם' : 'בהערות'}
+                  </button>
+                ))}
+              </SegmentedTrack>
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">רק לבית עסק או תיאור מסוים</span>
+                <select
+                  value={merchant}
+                  onChange={e => setMerchant(e.target.value)}
+                  className="h-8 w-full min-w-[9rem] rounded-xl border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">בכל בתי העסק</option>
+                  {merchants.map(m => (
+                    <option key={m} value={m}>
+                      {`רק ל-${m}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             {typedTaken ? (
               <span className="block px-1 text-xs text-muted-foreground">כבר ברשימה</span>
             ) : (
-              <KeywordCount pattern={query} kind={kind} className="block px-1" />
+              <KeywordCount pattern={query} kind={kind} conditions={{ scope, merchant: merchant || null }} className="block px-1" />
             )}
           </div>
         )}
@@ -662,6 +730,7 @@ function CategoryDetails({ category, kind, choices, onChanged, onDeleted }: {
           kind={kind}
           items={refs.filter(r => r.source.type === type)}
           options={choicesFor(type, kind, choices, taken)}
+          merchants={merchantsFor(kind, choices)}
           onAdd={add}
           onRemove={remove}
         />
@@ -755,6 +824,7 @@ function NewCategoryForm({ initialKind, choices, onCreated }: {
           kind={kind}
           items={kept.filter(r => r.source.type === type)}
           options={choicesFor(type, kind, choices, taken)}
+          merchants={merchantsFor(kind, choices)}
           onAdd={ref => setPicked(prev => [...prev, ref])}
           onRemove={list => setPicked(prev => prev.filter(r => !list.some(x => x.key === r.key)))}
         />

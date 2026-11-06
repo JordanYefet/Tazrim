@@ -5,11 +5,17 @@
  *
  * Which category a rule gives a row, in order:
  *   1. a category picked on the row by hand (the callers skip those rows)
- *   2. a contains rule that matches the row's notes: a note names the payee of a
+ *   2. a contains rule limited to one merchant or description (`merchant`) that matches:
+ *      it names both the business and the text, so it is the most specific
+ *   3. a contains rule that matches the row's notes: a note names the payee of a
  *      generic charge ("BIT" transfers), so it is more specific than the merchant
- *   3. the exact rule: a merchant rule (cards) or a description rule (bank)
- *   4. the longest contains rule that matches the merchant or description; on a tie, the oldest
- *   5. none: the issuer's category on a card, uncategorised on the bank
+ *   4. the exact rule: a merchant rule (cards) or a description rule (bank)
+ *   5. a contains rule that matches the merchant or description
+ *   6. none: the issuer's category on a card, uncategorised on the bank
+ *
+ * Within a step the longest pattern wins; on a tie, the oldest rule. A rule's `scope`
+ * says where its text is looked for: the merchant or description (NAME), the notes
+ * (NOTES), or either (ANY, the default).
  *
  * A rule's category kind decides its rows: an expense one covers card charges and
  * bank debits, an income one bank credits. The bank's card payments and generic
@@ -19,6 +25,11 @@ import { CATEGORY_KIND_OF, directionOf, isCardPaymentRow } from './bank-categori
 
 export type CategoryKindName = 'EXPENSE' | 'INCOME'
 
+/** Where a contains rule looks for its text */
+export type KeywordScope = 'ANY' | 'NAME' | 'NOTES'
+export const KEYWORD_SCOPES: KeywordScope[] = ['ANY', 'NAME', 'NOTES']
+export const isKeywordScope = (v: unknown): v is KeywordScope => KEYWORD_SCOPES.includes(v as KeywordScope)
+
 export interface KeywordRule {
   /** Stored normalised (normalizeKeyword) */
   pattern: string
@@ -26,6 +37,10 @@ export interface KeywordRule {
   /** The kind of `category`; a rule whose category no longer exists is left out by the loader */
   kind: CategoryKindName
   createdAt: Date
+  /** Where the text is looked for; ANY when not set */
+  scope?: KeywordScope
+  /** Only rows whose merchant or description is exactly this (any case); null: every row */
+  merchant?: string | null
 }
 
 /** The shortest pattern a rule may have: one letter would match nearly everything */
@@ -103,24 +118,68 @@ export const ruleTextOf = (row: RuleRow) => {
   return notes ? `${ruleMainTextOf(row)}\u0000${notes}` : ruleMainTextOf(row)
 }
 
+/** Where a rule's text is found on a row (both false when its merchant limit leaves the row out) */
+export function ruleMatch(rule: Pick<KeywordRule, 'pattern' | 'scope' | 'merchant'>, row: RuleRow): { name: boolean; notes: boolean } {
+  const main = ruleMainTextOf(row)
+  if (rule.merchant && folded(rule.merchant) !== folded(main)) return { name: false, notes: false }
+  const scope = rule.scope ?? 'ANY'
+  const notes = ruleNotesOf(row)
+  return {
+    name: scope !== 'NOTES' && keywordMatches(rule.pattern, main),
+    notes: scope !== 'NAME' && !!notes && keywordMatches(rule.pattern, notes),
+  }
+}
+
+/** Whether the rule reaches the row at all */
+export const ruleReaches = (rule: Pick<KeywordRule, 'pattern' | 'scope' | 'merchant'>, row: RuleRow) => {
+  const m = ruleMatch(rule, row)
+  return m.name || m.notes
+}
+
+/** Whether the rule, when it reaches the row, wins over the row's exact rule (steps 2 and 3) */
+export const ruleBeatsExact = (rule: Pick<KeywordRule, 'pattern' | 'scope' | 'merchant'>, row: RuleRow) => {
+  const m = ruleMatch(rule, row)
+  return rule.merchant ? m.name || m.notes : m.notes
+}
+
+/** The longest pattern among the rules, then the oldest */
+function longest<R extends KeywordRule>(rules: R[]): R | null {
+  let best: R | null = null
+  for (const r of rules) {
+    if (
+      !best ||
+      r.pattern.length > best.pattern.length ||
+      (r.pattern.length === best.pattern.length && r.createdAt.getTime() < best.createdAt.getTime())
+    ) {
+      best = r
+    }
+  }
+  return best
+}
+
+/** The contains rule that wins over the row's exact rule (steps 2 and 3), or null */
+export function ruleOverExact<R extends KeywordRule>(row: RuleRow, rules: R[]): R | null {
+  const kind = ruleKindOf(row)
+  if (!kind) return null
+  const ofKind = rules.filter(r => r.kind === kind)
+  return (
+    longest(ofKind.filter(r => r.merchant && ruleReaches(r, row))) ??
+    longest(ofKind.filter(r => !r.merchant && ruleMatch(r, row).notes))
+  )
+}
+
 /**
- * The category the rules give a row that nobody categorised by hand: its exact rule's
- * (`exact`, null when it has none), else the winning contains rule's, else null.
+ * The category the rules give a row that nobody categorised by hand, in the order at
+ * the top: a merchant-limited rule, a notes match, the exact rule (`exact`, null when
+ * it has none), a name match, else null.
  */
 export function resolveRuleCategory(row: RuleRow, exact: string | null, rules: KeywordRule[]): string | null {
   const kind = ruleKindOf(row)
   if (!kind) return null
-  const notes = ruleNotesOf(row)
-  const byNotes = notes ? keywordRuleFor(notes, rules, kind) : null
-  if (byNotes) return byNotes.category
+  const over = ruleOverExact(row, rules)
+  if (over) return over.category
   if (exact) return exact
-  return keywordRuleFor(ruleMainTextOf(row), rules, kind)?.category ?? null
-}
-
-/** Whether a contains pattern matches the row's notes, and so wins over its exact rule */
-export const matchesNotes = (pattern: string, row: RuleRow) => {
-  const notes = ruleNotesOf(row)
-  return !!notes && keywordMatches(pattern, notes)
+  return longest(rules.filter(r => r.kind === kind && !r.merchant && ruleMatch(r, row).name))?.category ?? null
 }
 
 /**

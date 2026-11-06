@@ -235,6 +235,30 @@ describe('when an exact rule goes', () => {
   })
 })
 
+describe('conditions', () => {
+  it('a rule limited to one merchant and to the notes reaches only those rows, and counts only them', async () => {
+    const toDana = await card('FAKEPAY', { notes: 'Dana Example' })
+    const otherMerchant = await card('OTHERPAY', { notes: 'Dana Example' })
+    const danaInName = await card('DANA SHOP')
+    const conditions = { scope: 'NOTES' as const, merchant: 'FAKEPAY' }
+
+    expect(await rules.previewKeywordRule('Dana', 'EXPENSE', conditions)).toEqual({ matches: 1, applies: 1 })
+    await rules.saveKeywordRule({ pattern: 'Dana', category: 'Fake Phone', ...conditions })
+    expect(cardRow(toDana).categoryOverride).toBe('Fake Phone')
+    expect(cardRow(otherMerchant).categoryOverride).toBeNull()
+    expect(cardRow(danaInName).categoryOverride).toBeNull()
+  })
+
+  it('the same text for another merchant or place is a rule of its own; the same rule again is updated', async () => {
+    const a = await rules.saveKeywordRule({ pattern: 'Dana', category: 'Fake Phone', scope: 'NOTES', merchant: 'FAKEPAY' })
+    const b = await rules.saveKeywordRule({ pattern: 'Dana', category: 'Fake Music', scope: 'NOTES', merchant: 'OTHERPAY' })
+    const c = await rules.saveKeywordRule({ pattern: 'dana', category: 'Fake Music', scope: 'NOTES', merchant: 'fakepay' })
+    expect(b.rule.id).not.toBe(a.rule.id)
+    expect(c.rule.id).toBe(a.rule.id)
+    expect(db.query(`SELECT COUNT(*) AS n FROM CategoryKeywordRule`)[0]).toEqual({ n: 2 })
+  })
+})
+
 describe('notes', () => {
   it('a rule reaches rows by their notes, over a merchant rule, and other rows of the merchant keep it', async () => {
     const aliases = await import('../aliases')

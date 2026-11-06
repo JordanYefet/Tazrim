@@ -94,6 +94,25 @@ describe('resolveRuleCategory', () => {
   it('never matches a pattern across the merchant and the notes', () => {
     expect(resolveRuleCategory({ source: 'card', originalMerchantName: 'SHOP AC', notes: 'ME' }, null, rules)).toBeNull()
   })
+  it('looks only where the rule says: the name, or the notes', () => {
+    const inNotes: RuleRow = { source: 'card', originalMerchantName: 'FAKEPAY', notes: 'Dana Example' }
+    const inName: RuleRow = { source: 'card', originalMerchantName: 'DANA SHOP', notes: '' }
+    const nameOnly = [rule('Dana', 'Fake Therapy', { scope: 'NAME' })]
+    const notesOnly = [rule('Dana', 'Fake Therapy', { scope: 'NOTES' })]
+    expect(resolveRuleCategory(inNotes, null, nameOnly)).toBeNull()
+    expect(resolveRuleCategory(inName, null, nameOnly)).toBe('Fake Therapy')
+    expect(resolveRuleCategory(inNotes, null, notesOnly)).toBe('Fake Therapy')
+    expect(resolveRuleCategory(inName, null, notesOnly)).toBeNull()
+  })
+  it('limits a rule to one merchant, and that rule wins over a notes rule and the exact rule', () => {
+    const limited = rule('Dana', 'Fake Therapy', { scope: 'NOTES', merchant: 'fakepay' })
+    const broad = rule('Dana Example', 'Fake Gifts')
+    const transfer: RuleRow = { source: 'card', originalMerchantName: 'FAKEPAY', notes: 'Dana Example' }
+    expect(resolveRuleCategory(transfer, 'Fake Exact', [limited, broad])).toBe('Fake Therapy')
+    // Another merchant: the limited rule doesn't reach it, the broad notes rule does
+    expect(resolveRuleCategory({ ...transfer, originalMerchantName: 'OTHERPAY' }, 'Fake Exact', [limited, broad])).toBe('Fake Gifts')
+    expect(resolveRuleCategory({ ...transfer, originalMerchantName: 'OTHERPAY' }, 'Fake Exact', [limited])).toBe('Fake Exact')
+  })
   it('falls back to the contains rule, then to none', () => {
     expect(resolveRuleCategory(card('ACME MUSIC P1'), null, rules)).toBe('Fake Phone')
     expect(resolveRuleCategory(card('OTHER SHOP'), null, rules)).toBeNull()
