@@ -320,6 +320,14 @@ html {
 .sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 @keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
+/* The header's sync panel (components/sync/sync-button.tsx): the "עוד" sheet's
+   rise on phones; wider, a dropdown that grows down out of its button, from the
+   button's centre (the panel's right edge is the button's), like the period panel */
+@media (min-width: 768px) {
+  .sheet.sync-panel { --panel-dy: -6px; transform-origin: calc(100% - 5.25rem) 0; }
+  .sheet.sync-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
+  .sheet.sync-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
+}
 
 /* Windows: no translate, so the scale alone carries them out of the tap (and
    open-origin.ts can find the untransformed box from the centre) */

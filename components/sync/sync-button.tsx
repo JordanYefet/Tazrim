@@ -117,11 +117,11 @@ export function SyncButton() {
           aria-describedby={undefined}
           style={anchor}
           className={cn(
-            'sheet fixed z-50 overflow-hidden surface-overlay text-card-foreground focus:outline-none',
+            'sheet sync-panel fixed z-50 overflow-hidden surface-overlay text-card-foreground focus:outline-none',
             // Phones: the "עוד" sheet's place, above the tab bar
             'inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] max-h-[calc(100dvh-8rem)] overflow-y-auto overscroll-contain rounded-3xl',
             // Wider: a dropdown under the button, at the header's start
-            'md:inset-x-auto md:bottom-auto md:left-auto md:right-[var(--sync-right,1rem)] md:top-[var(--sync-top,3.75rem)] md:max-h-[calc(100dvh-5rem)] md:w-[22rem] md:origin-top-right md:rounded-2xl'
+            'md:inset-x-auto md:bottom-auto md:left-auto md:right-[var(--sync-right,1rem)] md:top-[var(--sync-top,3.75rem)] md:max-h-[calc(100dvh-5rem)] md:w-[22rem] md:rounded-2xl'
           )}
         >
           <Dialog.Title className="sr-only">סנכרון</Dialog.Title>
