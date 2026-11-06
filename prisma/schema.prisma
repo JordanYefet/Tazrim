@@ -38,6 +38,7 @@ model Account {
   creditCardTransactions CreditCardTransaction[]
   uploads                UploadHistory[]
   importProfiles         ImportProfile[]
+  syncLinks              SyncLink[]
 
   @@index([kind, provider])
 }
@@ -310,4 +311,22 @@ model ImportProfile {
 model Setting {
   key   String @id
   value String
+}
+
+/// Bank sync (ENG-91): which Tazrim account an account the bank's or card company's
+/// website reports goes to. Asked once, the first time a sync finds it, then remembered.
+model SyncLink {
+  id              String    @id @default(uuid())
+  /// The scraper's company id, e.g. "leumi", "max" (israeli-bank-scrapers CompanyTypes)
+  company         String
+  /// The account number the site reports (a card's last four digits for card companies)
+  externalAccount String
+  /// Null when the owner chose to ignore this account
+  accountId       String?
+  account         Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ignored         Boolean   @default(false)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@unique([company, externalAccount])
 }

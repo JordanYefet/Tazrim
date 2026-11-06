@@ -140,8 +140,8 @@ async function storeCard(
   }
 }
 
-/** Stores rows parseUpload read, through the de-dup of the account's kind. */
-function storeRows(
+/** Stores rows parseUpload read (or a bank sync fetched, lib/sync), through the de-dup of the account's kind. */
+export function storeRows(
   account: ImportableAccount,
   parsed: Extract<ParsedUpload, { ok: true }>,
   fileName: string,

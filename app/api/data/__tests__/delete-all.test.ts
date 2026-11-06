@@ -26,6 +26,7 @@ const SEED = `
   INSERT INTO "UploadHistory" ("id","accountId","fileName","uploadedAt","recordCount") VALUES ('u1','acct_leumi','fake.xlsx',1893456000000,1);
   INSERT INTO "Category" ("id","name","createdAt") VALUES ('cat1','Fake category',1893456000000);
   INSERT INTO "Setting" ("key","value") VALUES ('projection.cushion','1000');
+  INSERT INTO "SyncLink" ("id","company","externalAccount","accountId","createdAt") VALUES ('sl1','leumi','000-000000/00','acct_leumi',1893456000000);
   INSERT INTO "RecurringSeriesOverride" ("id","key","baseKey","accountId","status","createdAt","updatedAt") VALUES
     ('r1','card|acct_test_card|fake shop|7','card|acct_test_card|fake shop','acct_test_card','CONFIRMED',1893456000000,1893456000000);
   INSERT INTO "UnusualDismissal" ("id","source","transactionId","createdAt") VALUES ('d1','card','c1',1893456000000);
