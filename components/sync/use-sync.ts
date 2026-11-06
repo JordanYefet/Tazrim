@@ -19,6 +19,8 @@ export interface CompanyInfo {
   /** The earliest start its site allows, YYYY-MM-DD */
   earliest: string
   historyMonths: number
+  /** Ranges past this many months are experimental (null: all are proven) */
+  provenMonths: number | null
 }
 
 export interface SyncInfo {

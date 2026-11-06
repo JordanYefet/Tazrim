@@ -14,7 +14,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
     "db:studio": "prisma studio",
-    "db:demo": "node scripts/seed-demo.mjs"
+    "db:demo": "node scripts/seed-demo.mjs",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "next": "^15.3.1",
@@ -50,6 +51,7 @@
     "eslint": "^9",
     "eslint-config-next": "^15",
     "prisma": "^6.6.0",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "patch-package": "^8.0.1"
   }
 }

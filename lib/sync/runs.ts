@@ -21,6 +21,7 @@ import {
   type UnknownAccount,
 } from './store'
 import { lastFour } from './map'
+import { localDay } from '@/lib/upload/card-dedupe'
 
 /** How long a sync waits for an SMS code */
 const OTP_TIMEOUT_MS = 3 * 60_000
@@ -38,6 +39,8 @@ export interface RunView {
   id: string
   company: string
   startedAt: string
+  /** The start date asked for, YYYY-MM-DD */
+  startDate: string
   finishedAt: string | null
   status: RunState
 }
@@ -46,6 +49,7 @@ interface Run {
   id: string
   company: SyncCompany
   startedAt: Date
+  startDate: Date
   finishedAt: Date | null
   status: RunState
   otp?: (code: string) => void
@@ -69,6 +73,7 @@ function view(r: Run): RunView {
     id: r.id,
     company: r.company.id,
     startedAt: r.startedAt.toISOString(),
+    startDate: localDay(r.startDate),
     finishedAt: r.finishedAt?.toISOString() ?? null,
     status: r.status,
   }
@@ -97,7 +102,7 @@ export type StartResult = { ok: true; run: RunView } | { ok: false; code: 'BUSY'
 /** Starts a sync; the login is handed to the scrape and blanked once the site has answered. */
 export function startRun(company: SyncCompany, credentials: Record<string, string>, startDate: Date): StartResult {
   if (active(registry.current)) return { ok: false, code: 'BUSY' }
-  const run: Run = { id: randomUUID(), company, startedAt: new Date(), finishedAt: null, status: { state: 'running', step: 'starting' } }
+  const run: Run = { id: randomUUID(), company, startedAt: new Date(), startDate, finishedAt: null, status: { state: 'running', step: 'starting' } }
   registry.current = run
   void execute(run, credentials, startDate)
   return { ok: true, run: view(run) }

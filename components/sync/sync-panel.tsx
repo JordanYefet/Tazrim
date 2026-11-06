@@ -156,7 +156,9 @@ function LoginForm({
     { value: 'default', label: `${company.lastSyncedAt ? 'מהסנכרון האחרון' : 'מהתנועה האחרונה'} (${shortDay(company.defaultStart)})`, day: company.defaultStart },
     ...RANGE_MONTHS.filter(m => m <= company.historyMonths).map(m => ({
       value: String(m),
-      label: m === company.historyMonths ? `${monthsLabel(m)} (הכי רחוק שהאתר מאפשר)` : monthsLabel(m),
+      label:
+        monthsLabel(m) +
+        (company.provenMonths && m > company.provenMonths ? ' (ניסיוני)' : m === company.historyMonths ? ' (הכי רחוק שהאתר מאפשר)' : ''),
       day: m === company.historyMonths ? earliest : monthsBackDay(m),
     })),
     { value: 'custom', label: 'תאריך אחר…', day: custom },
@@ -210,7 +212,11 @@ function LoginForm({
           <label className="flex flex-col gap-1.5 text-[13px] font-medium">
             <span className="sr-only">תאריך התחלה</span>
             <input type="date" min={earliest} max={today} value={custom} onChange={e => setCustom(e.target.value)} className={INPUT} />
-            <span className="text-xs font-normal text-muted-foreground">{`${company.label} מאפשר לחזור עד ${shortDay(earliest)}`}</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {company.provenMonths
+                ? `${company.label}: עד ${shortDay(monthsBackDay(company.provenMonths))} בוודאות, ועד ${shortDay(earliest)} בניסיון`
+                : `${company.label} מאפשר לחזור עד ${shortDay(earliest)}`}
+            </span>
           </label>
         )}
         <p className="text-xs text-muted-foreground">הסיסמה משמשת לסנכרון הזה בלבד ולא נשמרת. הדפדפן של הסנכרון רץ ברקע, בלי חלון.</p>
@@ -393,7 +399,7 @@ function LinkAccounts({
   )
 }
 
-function Result({ run, onAgain, onClose }: { run: RunView; onAgain: () => void; onClose: () => void }) {
+function Result({ run, company, onAgain, onClose }: { run: RunView; company: CompanyInfo; onAgain: () => void; onClose: () => void }) {
   const s = run.status
   if (s.state === 'failed') {
     return (
@@ -409,6 +415,11 @@ function Result({ run, onAgain, onClose }: { run: RunView; onAgain: () => void; 
   }
   if (s.state !== 'done') return null
   const pending = s.results.reduce((n, r) => n + r.pending, 0)
+  // Asked past the proven range (Cal past 18 months): say how far back the site answered
+  const experimental = !!company.provenMonths && run.startDate < monthsBackDay(company.provenMonths)
+  const reached = experimental
+    ? s.results.map(r => r.oldest).filter((d): d is string => !!d).sort()[0]
+    : undefined
   return (
     <div className="flex flex-col gap-3">
       {s.results.length ? (
@@ -434,6 +445,13 @@ function Result({ run, onAgain, onClose }: { run: RunView; onAgain: () => void; 
               {`${r.displayName}: היתרה המחושבת לא תואמת את הקובץ שהועלה ב-${shortDay(r.balanceMismatch.day)} (הפרש ₪${Math.abs(r.balanceMismatch.difference).toLocaleString('he-IL')}). התנועות נשמרו; כדאי לבדוק את היתרה מול האתר.`}
             </p>
           )
+      )}
+      {experimental && (
+        <p className="rounded-xl bg-muted px-3 py-2.5 text-xs text-muted-foreground">
+          {reached
+            ? `${company.label} החזירה תנועות עד ${shortDay(reached)} (ביקשת מ-${shortDay(run.startDate)}).`
+            : `${company.label} לא החזירה תנועות מהתקופה שביקשת.`}
+        </p>
       )}
       {pending > 0 && (
         <p className="text-xs text-muted-foreground">
@@ -491,6 +509,7 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
           )}
           {s.state === 'running' && <p className="text-xs text-muted-foreground">אפשר לסגור את החלון; הסנכרון ממשיך, והכפתור בכותרת יראה מתי הוא מסתיים.</p>}
           <Result
+            company={runCompany}
             run={run}
             onAgain={() => {
               setPicked(runCompany.id)

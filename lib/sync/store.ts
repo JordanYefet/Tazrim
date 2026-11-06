@@ -158,6 +158,8 @@ export interface AccountResult {
   /** Of `skipped`: rows an uploaded file has under other wording, matched by day and amount */
   skippedByAmount: number
   pending: number
+  /** The oldest settled transaction the site returned, YYYY-MM-DD; null when none */
+  oldest: string | null
   /** Banks: the worked-out balance disagrees with an uploaded statement's on this day */
   balanceMismatch?: BalanceMismatch
 }
@@ -262,12 +264,14 @@ export async function storeScrape(company: SyncCompany, scraped: ScrapedAccount[
 
     let stored: ImportResult
     let pending: number
+    let oldest: Date | null = null
     let byAmount = 0
     let mismatch: BalanceMismatch | null = null
     if (company.kind === 'BANK') {
       const first = site.txns.filter(t => t.status !== 'pending').map(t => new Date(t.date)).sort((a, b) => +a - +b)[0]
       const anchor = typeof site.balance === 'number' || !first ? undefined : await balanceBefore(account.id, first)
       const mapped = mapBankAccount(site, sourceFile, anchor)
+      oldest = mapped.rows[0]?.date ?? null
       const { rows, dropped } = await dropKnownReferences(account, mapped.rows)
       const nearby = await storedBankRows(account.id, mapped.rows)
       mismatch = balanceMismatch(mapped.rows, nearby)
@@ -278,6 +282,7 @@ export async function storeScrape(company: SyncCompany, scraped: ScrapedAccount[
       if (stored.ok) stored = { ...stored, skipped: stored.skipped + dropped + byAmount }
     } else {
       const mapped = mapCardAccount(site)
+      oldest = mapped.rows.reduce<Date | null>((a, r) => (!a || r.transactionDate < a ? r.transactionDate : a), null)
       const { rows, dropped } = await dropKnownReferences(account, mapped.rows)
       const loose = matchCardByDayAndAmount(rows, await storedCardRows(account.id, rows))
       byAmount = loose.dropped
@@ -294,6 +299,7 @@ export async function storeScrape(company: SyncCompany, scraped: ScrapedAccount[
       skipped: stored.skipped,
       skippedByAmount: byAmount,
       pending,
+      oldest: oldest ? localDay(oldest) : null,
       ...(mismatch ? { balanceMismatch: mismatch } : {}),
     })
   }

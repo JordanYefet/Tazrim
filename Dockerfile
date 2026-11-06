@@ -16,6 +16,8 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+# postinstall re-applies these to node_modules (patch-package; Cal's history, ENG-91)
+COPY patches ./patches
 # The bank sync's browser (puppeteer, ENG-91) is not in the image yet (ENG-100): skip its download
 ENV PUPPETEER_SKIP_DOWNLOAD=1
 RUN npm ci --no-audit --no-fund

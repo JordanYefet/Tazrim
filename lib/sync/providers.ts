@@ -25,6 +25,12 @@ export interface SyncCompany {
    * none, so the site decides; three years is asked there.
    */
   historyMonths: number
+  /**
+   * Set when `historyMonths` goes past what the library itself reaches (a patch lifts its
+   * limit, patches/): beyond this many months the site may refuse, so the form marks those
+   * ranges as experimental and the result says how far back it answered.
+   */
+  provenMonths?: number
 }
 
 export const SYNC_COMPANIES: SyncCompany[] = [
@@ -41,7 +47,7 @@ export const SYNC_COMPANIES: SyncCompany[] = [
   { id: 'union', label: 'בנק איגוד', kind: 'BANK', provider: 'union', fields: ['username', 'password'], historyMonths: 12 },
   { id: 'oneZero', label: 'וואן זירו', kind: 'BANK', provider: 'onezero', fields: ['email', 'password', 'phoneNumber'], historyMonths: 12, otp: true },
   { id: 'max', label: 'מקס', kind: 'CREDIT_CARD', provider: 'max', fields: ['username', 'password'], historyMonths: 48 },
-  { id: 'visaCal', label: 'כאל', kind: 'CREDIT_CARD', provider: 'cal', fields: ['username', 'password'], historyMonths: 18 },
+  { id: 'visaCal', label: 'כאל', kind: 'CREDIT_CARD', provider: 'cal', fields: ['username', 'password'], historyMonths: 36, provenMonths: 18 },
   { id: 'isracard', label: 'ישראכרט', kind: 'CREDIT_CARD', provider: 'isracard', fields: ['id', 'card6Digits', 'password'], historyMonths: 12 },
   { id: 'amex', label: 'אמריקן אקספרס', kind: 'CREDIT_CARD', provider: 'amex', fields: ['id', 'card6Digits', 'password'], historyMonths: 12 },
 ]

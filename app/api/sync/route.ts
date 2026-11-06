@@ -30,6 +30,7 @@ export async function GET(req: Request) {
       fields: c.fields,
       otp: !!c.otp,
       historyMonths: c.historyMonths,
+      provenMonths: c.provenMonths ?? null,
       verified: VERIFIED_COMPANIES.has(c.id),
       hasAccounts: accounts.some(a => a.kind === c.kind && a.provider === c.provider),
       ...(await sourceSummary(c)),

@@ -112,7 +112,7 @@ describe('history limits', () => {
   it('gives every company a limit, MAX the longest and Yahav the shortest', () => {
     const months = Object.fromEntries(SYNC_COMPANIES.map(c => [c.id, c.historyMonths]))
     expect(SYNC_COMPANIES.every(c => c.historyMonths > 0)).toBe(true)
-    expect(months).toMatchObject({ max: 48, leumi: 36, visaCal: 18, isracard: 12, yahav: 3 })
+    expect(months).toMatchObject({ max: 48, leumi: 36, visaCal: 36, isracard: 12, yahav: 3 })
   })
   it('lets a sync start as far back as the site allows, not further', () => {
     const now = new Date(2030, 5, 15)
