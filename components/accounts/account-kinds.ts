@@ -1,4 +1,5 @@
 import { Building2, CreditCard, LineChart, PiggyBank, type LucideIcon } from 'lucide-react'
+import { SYNC_COMPANIES } from '@/lib/sync/providers'
 
 export type AccountKindValue = 'BANK' | 'CREDIT_CARD' | 'TRADING' | 'PENSION'
 export type CreatableKindValue = 'BANK' | 'CREDIT_CARD'
@@ -13,19 +14,16 @@ export const KIND_META: { kind: AccountKindValue; label: string; single: string;
 export const CREATABLE: CreatableKindValue[] = ['BANK', 'CREDIT_CARD']
 
 /**
- * Known providers offered in the add form, per kind. Every provider's files
- * are imported through a column mapping (lib/upload/import.ts).
+ * The companies offered in the add form, per kind: the ones the sync logs in to
+ * (lib/sync/providers.ts, ENG-102), so an account's provider is also the site it
+ * syncs through. Anything else is added as upload only, by name. Every
+ * provider's files are imported through a column mapping (lib/upload/import.ts).
  */
-export const KNOWN_PROVIDERS: { key: string; label: string; kind: CreatableKindValue }[] = [
-  { key: 'leumi', label: 'לאומי', kind: 'BANK' },
-  { key: 'hapoalim', label: 'הפועלים', kind: 'BANK' },
-  { key: 'discount', label: 'דיסקונט', kind: 'BANK' },
-  { key: 'mizrahi', label: 'מזרחי טפחות', kind: 'BANK' },
-  { key: 'max', label: 'מקס', kind: 'CREDIT_CARD' },
-  { key: 'cal', label: 'כאל', kind: 'CREDIT_CARD' },
-  { key: 'isracard', label: 'ישראכרט', kind: 'CREDIT_CARD' },
-  { key: 'amex', label: 'אמריקן אקספרס', kind: 'CREDIT_CARD' },
-]
+export const KNOWN_PROVIDERS: { key: string; label: string; kind: CreatableKindValue }[] = SYNC_COMPANIES.map(c => ({
+  key: c.provider,
+  label: c.label,
+  kind: c.kind,
+}))
 
 /** `?new=` on /accounts: BANK / CREDIT_CARD (any case), plus the short forms bank / card. */
 export function parseNewKind(value: string | undefined): CreatableKindValue | null {

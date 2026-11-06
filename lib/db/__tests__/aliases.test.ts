@@ -34,7 +34,7 @@ describe('normalizeProvider', () => {
   it('maps the legacy enum values to provider strings', () => {
     expect(aliases.normalizeProvider('BANK')).toBe('leumi')
     expect(aliases.normalizeProvider('MAX')).toBe('max')
-    expect(aliases.normalizeProvider('HITECH')).toBe('hitech')
+    expect(aliases.normalizeProvider('HITECH')).toBe('cal')
   })
 
   it('lower-cases and trims anything else', () => {

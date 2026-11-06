@@ -94,16 +94,16 @@ export function SyncButton() {
         ref={trigger}
         aria-label={`${title}, ${sub}`}
         className={cn(
-          'flex h-9 shrink-0 items-center gap-2 rounded-xl border text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          'w-9 justify-center md:w-[9.5rem] md:justify-start md:px-3',
+          'flex h-9 shrink-0 items-center gap-2.5 rounded-xl border text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'w-9 justify-center md:w-[10.5rem] md:justify-start md:px-3.5',
           'hover:bg-muted data-[state=open]:bg-card data-[state=open]:ring-2 data-[state=open]:ring-ring/30',
           TONE_BOX[tone]
         )}
       >
         <ToneIcon tone={tone} attentionCode={needsCode} />
-        <span className="hidden min-w-0 flex-1 flex-col leading-tight md:flex">
-          <span className="truncate text-sm font-semibold">{title}</span>
-          <span className={cn('truncate text-[11px]', tone === 'idle' || tone === 'busy' || tone === 'done' ? 'text-muted-foreground' : 'opacity-80')}>
+        <span className="hidden min-w-0 flex-1 flex-col gap-[3px] md:flex">
+          <span className="truncate text-[13px] font-semibold leading-[15px]">{title}</span>
+          <span className={cn('truncate text-[11px] leading-[13px]', tone === 'idle' || tone === 'busy' || tone === 'done' ? 'text-muted-foreground' : 'opacity-80')}>
             {sub}
           </span>
         </span>
@@ -117,11 +117,11 @@ export function SyncButton() {
           aria-describedby={undefined}
           style={anchor}
           className={cn(
-            'sheet fixed z-50 overflow-hidden surface-overlay text-card-foreground focus:outline-none',
+            'sheet sync-panel fixed z-50 overflow-hidden surface-overlay text-card-foreground focus:outline-none',
             // Phones: the "עוד" sheet's place, above the tab bar
             'inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] max-h-[calc(100dvh-8rem)] overflow-y-auto overscroll-contain rounded-3xl',
             // Wider: a dropdown under the button, at the header's start
-            'md:inset-x-auto md:bottom-auto md:left-auto md:right-[var(--sync-right,1rem)] md:top-[var(--sync-top,3.75rem)] md:max-h-[calc(100dvh-5rem)] md:w-[22rem] md:origin-top-right md:rounded-2xl'
+            'md:inset-x-auto md:bottom-auto md:left-auto md:right-[var(--sync-right,1rem)] md:top-[var(--sync-top,3.75rem)] md:max-h-[calc(100dvh-5rem)] md:w-[22rem] md:rounded-2xl'
           )}
         >
           <Dialog.Title className="sr-only">סנכרון</Dialog.Title>

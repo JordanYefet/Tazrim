@@ -17,7 +17,8 @@ export interface AliasInput {
 const LEGACY_SOURCES: Record<string, string> = {
   BANK: PROVIDERS.LEUMI,
   MAX: PROVIDERS.MAX,
-  HITECH: PROVIDERS.HITECH,
+  // A hitech card is a Cal card (ENG-102)
+  HITECH: PROVIDERS.CAL,
 }
 
 /** Provider key for an API value: legacy enum names (BANK/MAX/HITECH) map to their provider, anything else is lower-cased. */

@@ -13,7 +13,8 @@ export interface CompanyInfo {
   fields: LoginField[]
   otp: boolean
   verified: boolean
-  hasAccounts: boolean
+  /** Display names of the household's accounts this company's sync fills */
+  accounts: string[]
   lastSyncedAt: string | null
   defaultStart: string
   /** The earliest start its site allows, YYYY-MM-DD */

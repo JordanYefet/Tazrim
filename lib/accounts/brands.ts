@@ -82,10 +82,13 @@ export const BANK_FACES: Record<string, Face> = {
 export const NEUTRAL_FACE: Face = { key: 'neutral', stops: ['#5d6878', '#363e4b', '#1b2029'] }
 
 /**
- * Hebrew names (and common spellings) typed as a free-text provider, mapped
- * to the provider key, so "ישראכרט" gets the Isracard face.
+ * Provider names typed as free text before ENG-102 (Hebrew names, other
+ * spellings) and club brands that are a company's cards, mapped to the
+ * company's provider key, so "ישראכרט" gets the Isracard face and a hitech
+ * card is a Cal card. The issuer_providers migration moved stored values the
+ * same way: keep the two lists in step.
  */
-const PROVIDER_ALIASES: Record<string, string> = {
+export const PROVIDER_ALIASES: Record<string, string> = {
   לאומי: 'leumi',
   'בנק לאומי': 'leumi',
   הפועלים: 'hapoalim',
@@ -96,25 +99,54 @@ const PROVIDER_ALIASES: Record<string, string> = {
   מזרחי: 'mizrahi',
   'מזרחי טפחות': 'mizrahi',
   'mizrahi tefahot': 'mizrahi',
+  מרכנתיל: 'mercantile',
+  'בנק מרכנתיל': 'mercantile',
+  בינלאומי: 'beinleumi',
+  'הבנק הבינלאומי': 'beinleumi',
+  'אוצר החייל': 'otsarhahayal',
+  'בנק אוצר החייל': 'otsarhahayal',
+  'otsar hahayal': 'otsarhahayal',
+  מסד: 'massad',
+  'בנק מסד': 'massad',
+  פאגי: 'pagi',
+  'פאג"י': 'pagi',
+  'בנק פאג"י': 'pagi',
+  יהב: 'yahav',
+  'בנק יהב': 'yahav',
+  איגוד: 'union',
+  'בנק איגוד': 'union',
+  'וואן זירו': 'onezero',
+  'one zero': 'onezero',
   מקס: 'max',
   כאל: 'cal',
+  visacal: 'cal',
+  'visa cal': 'cal',
+  hitech: 'cal',
+  הייטקזון: 'cal',
   ישראכרט: 'isracard',
   'אמריקן אקספרס': 'amex',
   'american express': 'amex',
   אמקס: 'amex',
 }
 
-/** Hebrew names of the providers the app knows. */
+/** Hebrew names of the providers the app knows (the sync companies, lib/sync/providers.ts). */
 export const PROVIDER_LABELS: Record<string, string> = {
   leumi: 'לאומי',
   hapoalim: 'הפועלים',
   discount: 'דיסקונט',
   mizrahi: 'מזרחי טפחות',
+  mercantile: 'מרכנתיל',
+  beinleumi: 'הבינלאומי',
+  otsarhahayal: 'אוצר החייל',
+  massad: 'מסד',
+  pagi: 'פאג"י',
+  yahav: 'יהב',
+  union: 'איגוד',
+  onezero: 'וואן זירו',
   max: 'מקס',
   cal: 'כאל',
   isracard: 'ישראכרט',
   amex: 'אמריקן אקספרס',
-  hitech: 'הייטקזון',
 }
 
 export function providerLabel(provider: string): string {

@@ -11,19 +11,29 @@ export const dynamic = 'force-dynamic'
 /** Until there is a login and HTTPS (ENG-89), a bank password may only be typed on the machine the app runs on. */
 const NOT_LOCAL = { error: 'בשלב הזה אפשר לסנכרן רק מהמחשב שעליו האפליקציה רצה', code: 'NOT_LOCAL' }
 
+/** The household's accounts a company's sync fills: not archived, its kind and provider (ENG-102). */
+async function ownAccounts() {
+  return prisma.account.findMany({
+    where: { archived: false, kind: { in: ['BANK', 'CREDIT_CARD'] } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: { kind: true, provider: true, displayName: true },
+  })
+}
+
 /**
  * GET: what the sync sheet shows (ENG-91): whether this device may sync, the
- * companies (the household's own first, with their last sync and default
- * start) and the latest run.
+ * companies the household's accounts sync through (ENG-102), each with its
+ * accounts, last sync and default start, and the latest run.
  */
 export async function GET(req: Request) {
   const available = !isReadOnly() && isLocalRequest(req.headers)
-  const accounts = await prisma.account.findMany({
-    where: { archived: false, kind: { in: ['BANK', 'CREDIT_CARD'] } },
-    select: { kind: true, provider: true },
-  })
+  const accounts = await ownAccounts()
+  const owned = SYNC_COMPANIES.map(c => ({
+    company: c,
+    names: accounts.filter(a => a.kind === c.kind && a.provider === c.provider).map(a => a.displayName),
+  })).filter(o => o.names.length > 0)
   const companies = await Promise.all(
-    SYNC_COMPANIES.map(async c => ({
+    owned.map(async ({ company: c, names }) => ({
       id: c.id,
       label: c.label,
       kind: c.kind,
@@ -32,7 +42,7 @@ export async function GET(req: Request) {
       historyMonths: c.historyMonths,
       provenMonths: c.provenMonths ?? null,
       verified: VERIFIED_COMPANIES.has(c.id),
-      hasAccounts: accounts.some(a => a.kind === c.kind && a.provider === c.provider),
+      accounts: names,
       ...(await sourceSummary(c)),
     }))
   )
@@ -47,6 +57,9 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { company?: unknown; credentials?: unknown; startDate?: unknown } | null
   const company = syncCompany(body?.company)
   if (!company) return NextResponse.json({ error: 'ספק לא נתמך', code: 'UNKNOWN_COMPANY' }, { status: 400 })
+  if (!(await ownAccounts()).some(a => a.kind === company.kind && a.provider === company.provider)) {
+    return NextResponse.json({ error: `אין חשבון של ${company.label}. מוסיפים אותו בהגדרות`, code: 'NO_ACCOUNTS' }, { status: 400 })
+  }
   const credentials = validateCredentials(company, body?.credentials)
   if (!credentials) return NextResponse.json({ error: 'יש למלא את כל פרטי הכניסה', code: 'MISSING_FIELDS' }, { status: 400 })
 
