@@ -434,10 +434,14 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
           {s.results.map(r => (
             <li key={r.accountId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-[13px]">
               <span className="min-w-0 truncate font-medium">{r.displayName}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">
-                <span className="font-semibold text-foreground">{r.created} חדשות</span>
-                {r.skipped > 0 && ` · ${r.skipped} כבר היו`}
-                {r.skippedByAmount > 0 && ` (${r.skippedByAmount} לפי סכום ותאריך)`}
+              <span className="flex shrink-0 flex-col items-end tabular-nums text-muted-foreground">
+                <span>
+                  <span className="font-semibold text-foreground">{r.created} חדשות</span>
+                  {r.skipped > 0 && ` · ${r.skipped} כבר היו`}
+                  {r.skippedByAmount > 0 && ` (${r.skippedByAmount} לפי סכום ותאריך)`}
+                </span>
+                {/* Uploaded rows the site gave a missing אסמכתא or note (ENG-103) */}
+                {r.filled > 0 && <span className="text-[12px]">הושלמו אסמכתא או הערות ב-{r.filled}</span>}
               </span>
             </li>
           ))}

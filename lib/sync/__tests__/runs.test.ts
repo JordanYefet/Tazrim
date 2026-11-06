@@ -81,6 +81,42 @@ describe('a card sync', () => {
     expect(await prisma.creditCardTransaction.count()).toBe(4)
   })
 
+  it('fills in a charge an uploaded file left without voucher or notes (ENG-103)', async () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    const day = israelDay(d.toISOString())!
+    const bare = await prisma.creditCardTransaction.create({
+      data: {
+        accountId: 'acct_max',
+        transactionDate: day,
+        billingDate: day,
+        originalMerchantName: 'FAKE RESTAURANT (FILE)',
+        merchantName: 'FAKE RESTAURANT (FILE)',
+        chargedAmount: 120,
+        originalAmount: 120,
+        originalCurrency: '₪',
+        category: '',
+        cardLastFour: '1234',
+        transactionType: 'רגילה',
+        sourceFile: 'fake-upload.xlsx',
+      },
+    })
+    await prisma.syncLink.createMany({
+      data: [
+        { company: 'max', externalAccount: '1234', accountId: 'acct_max' },
+        { company: 'max', externalAccount: '5678', ignored: true },
+      ],
+    })
+    const run = await startAndSettle('max')
+    if (run.status.state !== 'done') throw new Error(run.status.state)
+    expect(run.status.results[0]).toMatchObject({ created: 2, filled: 1 })
+    expect(await prisma.creditCardTransaction.findUniqueOrThrow({ where: { id: bare.id } })).toMatchObject({
+      reference: '80001',
+      notes: 'הערה דמו',
+      merchantName: 'FAKE RESTAURANT (FILE)',
+    })
+  })
+
   it('stores nothing for an ignored card', async () => {
     const first = await startAndSettle('max')
     await runs.submitLinks(first.id, [
@@ -129,6 +165,47 @@ describe('a bank sync', () => {
 
     const rows = await prisma.bankTransaction.findMany({ where: { sourceFile: { startsWith: 'sync-leumi-' } }, orderBy: { date: 'asc' } })
     expect(rows.at(-1)!.balance).toBe(5432.1)
+  })
+
+  it('fills in the אסמכתא and note an uploaded row lacks, and the next sync knows it by its reference (ENG-103)', async () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 5)
+    const day = israelDay(d.toISOString())!
+    // Exported without אסמכתא or notes, worded differently; a second row keeps a note typed by hand
+    const bare = await prisma.bankTransaction.create({
+      data: { accountId: 'acct_leumi', date: day, originalDescription: 'FAKE SUPER (FILE)', description: 'FAKE SUPER (FILE)', debit: 312.4, balance: 0, sourceFile: 'fake-upload.xlsx' },
+    })
+    d.setDate(d.getDate() + 2)
+    const typed = await prisma.bankTransaction.create({
+      data: {
+        accountId: 'acct_leumi',
+        date: israelDay(d.toISOString())!,
+        originalDescription: 'FAKE TRANSFER (FILE)',
+        description: 'FAKE TRANSFER (FILE)',
+        debit: 1500,
+        balance: 0,
+        note: 'MY OWN NOTE',
+        sourceFile: 'fake-upload.xlsx',
+      },
+    })
+    await prisma.syncLink.create({ data: { company: 'leumi', externalAccount: '000-000000/00', accountId: 'acct_leumi' } })
+
+    const first = await startAndSettle('leumi')
+    expect(first.status.state).toBe('done')
+    if (first.status.state !== 'done') return
+    expect(first.status.results[0]).toMatchObject({ created: 2, skipped: 2, skippedByAmount: 2, filled: 2 })
+    expect(await prisma.bankTransaction.findUniqueOrThrow({ where: { id: bare.id } })).toMatchObject({
+      reference: '90002',
+      note: 'הערה דמו',
+      description: 'FAKE SUPER (FILE)',
+    })
+    expect(await prisma.bankTransaction.findUniqueOrThrow({ where: { id: typed.id } })).toMatchObject({ reference: '90003', note: 'MY OWN NOTE' })
+
+    // Again: both are known by their reference now, nothing new and nothing left to fill
+    const again = await startAndSettle('leumi')
+    if (again.status.state !== 'done') throw new Error(again.status.state)
+    expect(again.status.results[0]).toMatchObject({ created: 0, skippedByAmount: 0, filled: 0 })
+    expect(await prisma.bankTransaction.count({ where: { accountId: 'acct_leumi' } })).toBe(4)
   })
 
   it('fails with a code, not the site text, on a wrong password, and blanks the login', async () => {
