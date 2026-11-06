@@ -35,7 +35,10 @@ jobs:
       - name: sqlite3 CLI
         run: command -v sqlite3 || (sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3)
 
+      # The bank sync's tests use a made-up site, so puppeteer's browser is not needed here
       - run: npm ci --no-audit --no-fund
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: '1'
       - run: npx prisma generate
 
       - name: Types

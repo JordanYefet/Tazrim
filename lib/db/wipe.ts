@@ -24,8 +24,9 @@ const WIPE_ORDER = {
   UploadHistory: 12,
   BankTransaction: 13,
   CreditCardTransaction: 14,
-  Account: 15,
-  Setting: 16,
+  SyncLink: 15,
+  Account: 16,
+  Setting: 17,
 } satisfies Record<Prisma.ModelName, number>
 
 export type WipeTable = keyof typeof WIPE_ORDER

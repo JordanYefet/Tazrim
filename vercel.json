@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "PUPPETEER_SKIP_DOWNLOAD=1 npm install",
   "buildCommand": "npx prisma generate && node scripts/seed-demo.mjs && npx next build",
   "git": { "deploymentEnabled": { "**": false, "release": true } }
 }

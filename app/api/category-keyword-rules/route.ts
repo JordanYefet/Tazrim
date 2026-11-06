@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { KeywordRuleError, listKeywordRules, saveKeywordRule, type FromRow } from '@/lib/db/keyword-rules'
+import { isKeywordScope } from '@/lib/insights/keyword-rules'
 
 // Contains-text category rules (lib/db/keyword-rules.ts), saved from a row's category
 // window ("כל התנועות שמכילות…") or the categories page. Saving recomputes the rows the
@@ -18,14 +19,19 @@ export async function GET() {
   return NextResponse.json(await listKeywordRules())
 }
 
-/** { pattern, category, fromRow? }: the rule (a rule with the same text is updated), and { cardIds, bankIds } it changed */
+/**
+ * { pattern, category, scope?, merchant?, fromRow? }: the rule (the same rule is updated), and
+ * { cardIds, bankIds } it changed. scope: ANY | NAME | NOTES; merchant: limit to one merchant or description.
+ */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const pattern = text(body.pattern)
   const category = text(body.category)
   if (!pattern || !category) return NextResponse.json({ error: 'חסרים טקסט או קטגוריה' }, { status: 400 })
   try {
-    return NextResponse.json(await saveKeywordRule({ pattern, category, fromRow: fromRowOf(body.fromRow) }))
+    const scope = isKeywordScope(body.scope) ? body.scope : 'ANY'
+    const merchant = text(body.merchant) || null
+    return NextResponse.json(await saveKeywordRule({ pattern, category, scope, merchant, fromRow: fromRowOf(body.fromRow) }))
   } catch (e) {
     if (e instanceof KeywordRuleError) return NextResponse.json({ error: e.message }, { status: e.status })
     throw e

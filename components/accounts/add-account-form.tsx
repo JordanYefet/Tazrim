@@ -9,9 +9,12 @@ import { BankElement, PaymentCard } from './account-element'
 import { ColorPicker } from './color-picker'
 import { CARD_NETWORKS, impliedNetwork, providerLabel } from '@/lib/accounts/brands'
 import { Reveal } from '@/components/ui/reveal'
+import { AppDialog } from '@/components/ui/app-dialog'
 import { PaidCardsField, PayerPicker, PayerTiles, linkableBanks, payerSuggestion, type PayerContext } from './payer-field'
 
 const OTHER = '__other__'
+/** The select's "another company…" row: opens the naming window, never stays selected */
+const NEW_OTHER = '__new_other__'
 
 export interface CreatedAccount {
   id: string
@@ -40,16 +43,14 @@ const defaultProvider = (kind: CreatableKindValue) => KNOWN_PROVIDERS.find(p => 
 
 const NAME_PLACEHOLDER: Record<CreatableKindValue, string> = { CREDIT_CARD: 'הכרטיס שלי', BANK: 'החשבון שלי' }
 
-const chip = (selected: boolean) =>
-  cn(
-    'inline-flex h-9 items-center rounded-lg border px-3 text-sm transition-[background-color,border-color,color,transform] duration-quick active:scale-[0.97] motion-reduce:transition-none',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-    selected
-      ? 'border-primary/50 bg-primary/10 font-medium text-primary'
-      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-  )
-
 const n = (v: number) => v.toLocaleString('he-IL')
+
+/** Under the company: what the choice means for the sync (ENG-102). */
+function providerHint(kind: CreatableKindValue, choice: string): string {
+  if (choice === OTHER) return 'בלי סנכרון: התנועות נכנסות מהעלאת קבצים'
+  const label = KNOWN_PROVIDERS.find(p => p.kind === kind && p.key === choice)?.label ?? ''
+  return kind === 'BANK' ? `הסנכרון מתחבר לאתר של ${label}` : `מי ששולחת את הפירוט החודשי. הסנכרון מתחבר לאתר של ${label}`
+}
 
 type CreateProps = {
   mode?: 'create'
@@ -98,6 +99,8 @@ export function AccountForm(props: CreateProps | EditProps) {
   const [kind, setKind] = useState<CreatableKindValue>(initialKind)
   const [providerChoice, setProviderChoice] = useState(initialProvider.choice)
   const [otherProvider, setOtherProvider] = useState(initialProvider.other)
+  // The naming window for a company the list doesn't have (null = closed)
+  const [otherDraft, setOtherDraft] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState(editing?.displayName ?? '')
   const [lastFour, setLastFour] = useState(editing?.cardLastFour ?? '')
   // '' = other / unknown. Follows the issuer (Amex) until the user picks one.
@@ -211,11 +214,12 @@ export function AccountForm(props: CreateProps | EditProps) {
 
   return (
     <form onSubmit={submit} className="space-y-4" aria-labelledby={editing && props.mode === 'edit' && props.heading ? undefined : `${id}-title`} noValidate>
-      {props.mode === 'edit' && props.heading ? props.heading : <h2 id={`${id}-title`} className="font-semibold">{title}</h2>}
-
-      {/* Wide screens: the element and its colour beside the fields, in view while they scroll */}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:items-start md:gap-6">
-        <div className="space-y-4 md:sticky md:top-0">
+      {props.mode === 'edit' && props.heading ? (
+        props.heading
+      ) : (
+        // The kind switch in the far corner, so the element below lines up with the fields
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id={`${id}-title`} className="font-semibold">{title}</h2>
           {!editing && (
             <SegmentedTrack
               role="radiogroup"
@@ -250,8 +254,14 @@ export function AccountForm(props: CreateProps | EditProps) {
               })}
             </SegmentedTrack>
           )}
+        </div>
+      )}
+
+      {/* Wide screens: the element and its colour beside the fields, in view while they scroll */}
+      <div className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:items-start md:gap-6">
+        <div className="space-y-4 md:sticky md:top-0">
           {/* Live preview: the element the account will get, reacting to every field (ENG-56/57) */}
-          <div className="acct-preview flex justify-center rounded-xl bg-muted/50 px-4 py-6 sm:py-8">
+          <div className="acct-preview flex justify-center px-4 pb-2">
             <div key={kind} className={cn('acct-enter w-full', kind === 'CREDIT_CARD' ? 'max-w-[19rem]' : 'max-w-[22rem]')}>
               {kind === 'CREDIT_CARD' ? (
                 <PaymentCard
@@ -289,35 +299,24 @@ export function AccountForm(props: CreateProps | EditProps) {
           <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'ספק'}</label>
+                <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'חברת האשראי'}</label>
                 <select
                   id={`${id}-provider`}
                   className={inputClass}
                   value={providerChoice}
-                  onChange={e => chooseProvider(e.target.value)}
+                  onChange={e => (e.target.value === NEW_OTHER ? setOtherDraft(otherProvider) : chooseProvider(e.target.value))}
+                  aria-invalid={!!fieldError('provider')}
                 >
                   {KNOWN_PROVIDERS.filter(p => p.kind === kind).map(p => (
                     <option key={p.key} value={p.key}>{p.label}</option>
                   ))}
-                  <option value={OTHER}>אחר…</option>
+                  {otherProvider.trim() && <option value={OTHER}>{otherProvider.trim()}</option>}
+                  <option value={NEW_OTHER}>{kind === 'BANK' ? 'בנק אחר…' : 'חברה אחרת…'}</option>
                 </select>
+                <p className={cn('text-xs', fieldError('provider') ? 'text-destructive' : 'text-muted-foreground')}>
+                  {fieldError('provider') ?? providerHint(kind, providerChoice)}
+                </p>
               </div>
-
-              {providerChoice === OTHER && (
-                <div className="space-y-1.5">
-                  <label htmlFor={`${id}-other`} className="text-sm font-medium">שם הספק</label>
-                  <input
-                    id={`${id}-other`}
-                    className={inputClass}
-                    value={otherProvider}
-                    onChange={e => setOtherProvider(e.target.value)}
-                    placeholder={kind === 'BANK' ? 'לדוגמה: yahav' : 'לדוגמה: diners'}
-                    aria-invalid={!!fieldError('provider')}
-                    autoFocus={!editing}
-                  />
-                  {fieldError('provider') && <p className="text-xs text-destructive">{fieldError('provider')}</p>}
-                </div>
-              )}
 
               {warnProvider && (
                 <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed sm:col-span-2">
@@ -341,7 +340,11 @@ export function AccountForm(props: CreateProps | EditProps) {
                   maxLength={60}
                   aria-invalid={!!fieldError('displayName')}
                 />
-                {fieldError('displayName') && <p className="text-xs text-destructive">{fieldError('displayName')}</p>}
+                {fieldError('displayName') ? (
+                  <p className="text-xs text-destructive">{fieldError('displayName')}</p>
+                ) : (
+                  kind === 'CREDIT_CARD' && <p className="text-xs text-muted-foreground">כרטיס מועדון? כאן שמים את שם המועדון</p>
+                )}
               </div>
 
               {kind === 'CREDIT_CARD' && (
@@ -368,25 +371,22 @@ export function AccountForm(props: CreateProps | EditProps) {
               )}
 
               {kind === 'CREDIT_CARD' && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <p id={`${id}-network`} className="text-sm font-medium">
-                    רשת <span className="font-normal text-muted-foreground">(לא חובה)</span>
-                  </p>
-                  <div role="radiogroup" aria-labelledby={`${id}-network`} className="flex flex-wrap gap-2">
-                    {[...CARD_NETWORKS, { key: '', label: 'אחר / לא ידוע' }].map(nw => (
-                      <button
-                        key={nw.key || 'other'}
-                        type="button"
-                        role="radio"
-                        aria-checked={network === nw.key}
-                        data-network={nw.key || 'other'}
-                        onClick={() => { setNetwork(nw.key); setNetworkTouched(true) }}
-                        className={chip(network === nw.key)}
-                      >
-                        {nw.key ? <span dir="ltr">{nw.label}</span> : nw.label}
-                      </button>
+                <div className="space-y-1.5">
+                  <label htmlFor={`${id}-network`} className="text-sm font-medium">
+                    רשת בינלאומית <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                  </label>
+                  <select
+                    id={`${id}-network`}
+                    className={inputClass}
+                    value={network}
+                    onChange={e => { setNetwork(e.target.value); setNetworkTouched(true) }}
+                    aria-invalid={!!fieldError('cardNetwork')}
+                  >
+                    {CARD_NETWORKS.map(nw => (
+                      <option key={nw.key} value={nw.key}>{nw.label}</option>
                     ))}
-                  </div>
+                    <option value="">אחר / לא ידוע</option>
+                  </select>
                   {fieldError('cardNetwork') && <p className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
                 </div>
               )}
@@ -423,7 +423,6 @@ export function AccountForm(props: CreateProps | EditProps) {
 
           {error && !error.field && <p className="text-sm text-destructive" role="alert">{error.message}</p>}
           {(error?.field === 'kind' || error?.field === 'archived') && <p className="text-sm text-destructive" role="alert">{error.message}</p>}
-          {error?.field === 'provider' && providerChoice !== OTHER && <p className="text-sm text-destructive" role="alert">{error.message}</p>}
         </div>
       </div>
 
@@ -449,6 +448,80 @@ export function AccountForm(props: CreateProps | EditProps) {
           ביטול
         </button>
       </div>
+      <OtherProviderDialog
+        kind={kind}
+        value={otherDraft}
+        onChange={setOtherDraft}
+        onApprove={name => {
+          setOtherProvider(name)
+          chooseProvider(OTHER)
+          setOtherDraft(null)
+        }}
+      />
     </form>
+  )
+}
+
+/**
+ * A company the list doesn't have (ENG-102): its name, asked in the app's
+ * window, becomes the select's own row once approved. No <form> here: the
+ * window is portaled, and a submit would still bubble to the account form.
+ */
+function OtherProviderDialog({
+  kind,
+  value,
+  onChange,
+  onApprove,
+}: {
+  kind: CreatableKindValue
+  /** The name being typed; null when closed */
+  value: string | null
+  onChange: (value: string | null) => void
+  onApprove: (name: string) => void
+}) {
+  const id = useId()
+  const name = (value ?? '').trim()
+  const approve = () => name && onApprove(name)
+  return (
+    <AppDialog open={value !== null} onOpenChange={open => !open && onChange(null)} title={kind === 'BANK' ? 'בנק שלא ברשימה' : 'חברה שלא ברשימה'}>
+      <div className="mt-2 space-y-4">
+        <p className="text-sm text-muted-foreground">הסנכרון לא מגיע אליה, אז התנועות ייכנסו מהעלאת קבצים.</p>
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-name`} className="text-sm font-medium">{kind === 'BANK' ? 'שם הבנק' : 'שם החברה'}</label>
+          <input
+            id={`${id}-name`}
+            className={inputClass}
+            value={value ?? ''}
+            onChange={e => onChange(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                approve()
+              }
+            }}
+            placeholder={kind === 'BANK' ? 'לדוגמה: בנק ירושלים' : 'לדוגמה: דיינרס'}
+            maxLength={40}
+            autoFocus
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={approve}
+            disabled={!name}
+            className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50"
+          >
+            אישור
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="inline-flex h-10 items-center rounded-lg px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            ביטול
+          </button>
+        </div>
+      </div>
+    </AppDialog>
   )
 }

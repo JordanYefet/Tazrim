@@ -37,7 +37,7 @@ describe('categorySources', () => {
   it('puts contains-text rules last', () => {
     const keywordRules = [{ id: 'k1', pattern: 'FAKE GROCER', category: 'Food' }]
     const s = categorySources({ issuer, aliases, bankRules, keywordRules })
-    expect(s.Food.at(-1)).toEqual({ type: 'keyword', id: 'k1', pattern: 'FAKE GROCER' })
+    expect(s.Food.at(-1)).toEqual({ type: 'keyword', id: 'k1', pattern: 'FAKE GROCER', scope: 'ANY', merchant: null })
   })
 })
 

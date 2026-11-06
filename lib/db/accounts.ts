@@ -1,7 +1,8 @@
 import type { Account, AccountKind } from '@prisma/client'
 import { dropProfileSamples } from './import-profiles'
 import { prisma } from './client'
-import { CARD_NETWORKS, isCardNetwork, type CardNetwork } from '@/lib/accounts/brands'
+import { CARD_NETWORKS, isCardNetwork, providerKey, type CardNetwork } from '@/lib/accounts/brands'
+import { SYNC_COMPANIES } from '@/lib/sync/providers'
 import { normalizeColorValue } from '@/lib/accounts/colors'
 
 export type { Account, AccountKind }
@@ -10,7 +11,7 @@ export type { Account, AccountKind }
 export const PROVIDERS = {
   LEUMI: 'leumi',
   MAX: 'max',
-  HITECH: 'hitech',
+  CAL: 'cal',
 } as const
 
 export interface AccountQuery {
@@ -185,12 +186,23 @@ export function normalizeDisplayName(value: unknown): string {
   return name
 }
 
-/** Provider keys are lowercase: letters (any script), digits, space, "-" and "_". */
-export function normalizeProvider(value: unknown): string {
-  const provider = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').toLowerCase() : ''
-  if (!provider) throw new AccountValidationError('provider', 'ספק נדרש')
-  if (provider.length > PROVIDER_MAX || !/^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u.test(provider)) {
+/**
+ * Provider keys are lowercase: letters (any script), digits, space, "-" and "_".
+ * A known company's other names and club brands become its key (ENG-102:
+ * "כאל" and a hitech card are "cal"). With `kind`, a key of a company of the
+ * other kind is refused (a bank account can't be "max"); any other name is an
+ * upload-only provider the sync doesn't reach.
+ */
+export function normalizeProvider(value: unknown, kind?: string): string {
+  const raw = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').toLowerCase() : ''
+  if (!raw) throw new AccountValidationError('provider', 'ספק נדרש')
+  if (raw.length > PROVIDER_MAX || !/^[\p{L}\p{N}][\p{L}\p{N} _"-]*$/u.test(raw)) {
     throw new AccountValidationError('provider', 'שם ספק לא תקין')
+  }
+  const provider = providerKey(raw)
+  const company = SYNC_COMPANIES.find(c => c.provider === provider)
+  if (kind && company && company.kind !== kind) {
+    throw new AccountValidationError('provider', company.kind === 'BANK' ? `${company.label} הוא בנק` : `${company.label} היא חברת אשראי`)
   }
   return provider
 }
@@ -228,7 +240,7 @@ export function validateNewAccount(input: NewAccountInput): {
   if (typeof kind !== 'string' || !(CREATABLE_KINDS as readonly string[]).includes(kind)) {
     throw new AccountValidationError('kind', 'סוג חשבון לא נתמך')
   }
-  const provider = normalizeProvider(input.provider)
+  const provider = normalizeProvider(input.provider, kind)
   const displayName = normalizeDisplayName(input.displayName)
   const cardLastFour = normalizeCardLastFour(input.cardLastFour, kind)
   const cardNetwork = normalizeCardNetwork(input.cardNetwork, kind)
@@ -326,7 +338,7 @@ export async function updateAccount(id: string, input: AccountUpdateInput): Prom
     payerAccountId?: string | null
   } = {}
   if (input.displayName !== undefined) data.displayName = normalizeDisplayName(input.displayName)
-  if (input.provider !== undefined) data.provider = normalizeProvider(input.provider)
+  if (input.provider !== undefined) data.provider = normalizeProvider(input.provider, account.kind)
   if (input.cardLastFour !== undefined) data.cardLastFour = normalizeCardLastFour(input.cardLastFour, account.kind)
   if (input.cardNetwork !== undefined) data.cardNetwork = normalizeCardNetwork(input.cardNetwork, account.kind)
   if (input.color !== undefined) data.color = normalizeAccountColor(input.color)

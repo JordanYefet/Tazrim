@@ -6,12 +6,12 @@ export type CategorySource =
   | { type: 'issuer'; provider: string; sourceCategory: string; count: number }
   | { type: 'merchant'; provider: string; originalName: string; displayName: string }
   | { type: 'bank'; provider: string; originalDescription: string; direction: string }
-  | { type: 'keyword'; id: string; pattern: string }
+  | { type: 'keyword'; id: string; pattern: string; scope?: string; merchant?: string | null }
 
 interface IssuerRow { provider: string; sourceCategory: string; count: number; category: string | null }
 interface AliasRow { provider: string; originalName: string; displayName: string; categoryOverride: string | null }
 interface BankRuleRow { provider: string; originalDescription: string; direction: string; category: string }
-interface KeywordRuleRow { id: string; pattern: string; category: string }
+interface KeywordRuleRow { id: string; pattern: string; category: string; scope?: string; merchant?: string | null }
 
 /** category name -> its automatic sources, issuer mappings first, then merchants, bank rules, contains-text rules */
 export function categorySources({ issuer, aliases, bankRules, keywordRules = [] }: {
@@ -33,7 +33,9 @@ export function categorySources({ issuer, aliases, bankRules, keywordRules = [] 
   for (const r of bankRules) {
     add(r.category, { type: 'bank', provider: r.provider, originalDescription: r.originalDescription, direction: r.direction })
   }
-  for (const r of keywordRules) add(r.category, { type: 'keyword', id: r.id, pattern: r.pattern })
+  for (const r of keywordRules) {
+    add(r.category, { type: 'keyword', id: r.id, pattern: r.pattern, scope: r.scope ?? 'ANY', merchant: r.merchant ?? null })
+  }
   return out
 }
 
