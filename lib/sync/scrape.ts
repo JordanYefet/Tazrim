@@ -122,7 +122,7 @@ async function fakeScrape({ company, credentials, onStep, requestOtp }: ScrapeRe
           balance: 5432.1,
           txns: [
             tx(6, 'משכורת דמו', 9000, { identifier: 90001 }),
-            tx(5, 'סופר דמו', -312.4, { identifier: 90002 }),
+            tx(5, 'סופר דמו', -312.4, { identifier: 90002, memo: 'הערה דמו' }),
             tx(3, 'העברה דמו', -1500, { identifier: 90003 }),
             tx(1, 'קפה דמו', -18, { identifier: 90004 }),
             tx(0, 'בהמתנה דמו', -50, { status: 'pending' }),
@@ -137,7 +137,7 @@ async function fakeScrape({ company, credentials, onStep, requestOtp }: ScrapeRe
       {
         accountNumber: '1234',
         txns: [
-          tx(7, 'מסעדה דמו', -120),
+          tx(7, 'מסעדה דמו', -120, { identifier: 80001, memo: 'הערה דמו' }),
           tx(4, 'חנות בגדים דמו', -300, { type: 'installments', installments: { number: 1, total: 3 }, chargedAmount: -100 }),
           tx(2, 'מנוי דמו', -39.9, { category: 'פנאי' }),
           tx(0, 'חיוב בהמתנה דמו', -75, { status: 'pending' }),
