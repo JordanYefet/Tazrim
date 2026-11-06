@@ -1,7 +1,7 @@
 'use client'
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { useChartAnimation } from '@/hooks/use-chart-animation'
+import { useChartEntrance } from '@/hooks/use-chart-entrance'
 import { useDataSwap } from '@/hooks/use-data-swap'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -44,12 +44,11 @@ function CategoryDonutInner({
 }: Props) {
   const router = useRouter()
   const params = useSearchParams()
-  // Entrance on the shared page beat (ENG-67)
-  const anim = useChartAnimation()
-
   const chartData = Object.entries(data)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
+  // Entrance on the shared page beat (ENG-67), in CSS; data changes tween in Recharts
+  const { recharts: anim, entering } = useChartEntrance(chartData.map(d => `${d.name}:${d.value}`).join('\n'))
   // Stable per-category colors when provided, so they match the trend chart
   const colorOf = (name: string, i: number) => colors?.[name] ?? COLORS[i % COLORS.length]
   // The ring animates itself; the legend eases in when another period or filter
@@ -88,7 +87,7 @@ function CategoryDonutInner({
         <p className="flex flex-1 items-center justify-center py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
       <div className="flex flex-col md:flex-row gap-4 items-center">
-        <div className="h-52 w-52 flex-shrink-0">
+        <div className={`h-52 w-52 flex-shrink-0${entering ? ' chart-entrance-ring' : ''}`}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie {...anim}
