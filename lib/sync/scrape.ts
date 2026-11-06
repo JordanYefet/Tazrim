@@ -7,6 +7,10 @@
  * TAZRIM_FAKE_SYNC=1 swaps the site for made-up data (development, the demo
  * of the flow, tests); TAZRIM_SYNC_SHOW_BROWSER=1 shows the browser window
  * while debugging a login.
+ *
+ * In dev the browser is puppeteer's own download. The Docker image has none:
+ * it sets PUPPETEER_EXECUTABLE_PATH to Debian's Chromium and TAZRIM_CHROMIUM_ARGS
+ * to the flags it needs in a container (ENG-100, see the Dockerfile).
  */
 import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
@@ -38,6 +42,11 @@ export function safeReason(text: unknown): string {
     .slice(0, 300)
 }
 
+/** TAZRIM_CHROMIUM_ARGS split on whitespace: extra browser flags, e.g. `--no-sandbox --disable-dev-shm-usage`. */
+export function chromiumArgs(value: string | undefined): string[] {
+  return (value ?? '').split(/\s+/).filter(Boolean)
+}
+
 const ERROR_CODES: Record<string, ScrapeErrorCode> = {
   INVALID_PASSWORD: 'INVALID_PASSWORD',
   CHANGE_PASSWORD: 'CHANGE_PASSWORD',
@@ -58,6 +67,8 @@ async function realScrape({ company, credentials, startDate, onStep, requestOtp 
     startDate,
     combineInstallments: false,
     showBrowser: process.env.TAZRIM_SYNC_SHOW_BROWSER === '1',
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    args: chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS),
     verbose: false,
   })
   scraper.onProgress((_id, { type }) => {
