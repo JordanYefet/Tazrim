@@ -94,18 +94,19 @@ export interface Candidate {
   provider: string
 }
 
-/** Accounts a site account can be linked to: the company's kind, not archived. */
+/** Accounts a site account can be linked to: the company's own (its provider and kind), not archived (ENG-102). */
 export async function linkCandidates(company: SyncCompany): Promise<Candidate[]> {
-  const accounts = await prisma.account.findMany({
-    where: { kind: company.kind, archived: false },
+  return prisma.account.findMany({
+    where: { kind: company.kind, provider: company.provider, archived: false },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: { id: true, displayName: true, cardLastFour: true, provider: true },
   })
-  // The company's own accounts first
-  return [...accounts.filter(a => a.provider === company.provider), ...accounts.filter(a => a.provider !== company.provider)]
 }
 
-/** The likely match: a card with the same last four digits; else the company's only account of the kind. */
+/**
+ * The likely match: a card with the same last four digits, else the company's
+ * only card that has no digits yet; a bank's only account.
+ */
 export function suggestAccount(
   company: SyncCompany,
   externalAccount: string,
@@ -113,7 +114,10 @@ export function suggestAccount(
 ): string | null {
   if (company.kind === 'CREDIT_CARD') {
     const four = lastFour(externalAccount)
-    return accounts.find(a => four && a.cardLastFour === four)?.id ?? null
+    const same = accounts.find(a => four && a.cardLastFour === four)
+    if (same) return same.id
+    const own = accounts.filter(a => a.provider === company.provider)
+    return own.length === 1 && !own[0].cardLastFour ? own[0].id : null
   }
   const own = accounts.filter(a => a.provider === company.provider)
   return own.length === 1 ? own[0].id : null
@@ -128,7 +132,7 @@ export async function saveLinks(company: SyncCompany, actions: LinkAction[]): Pr
   for (const a of actions) {
     let accountId: string | null = null
     if (a.action === 'link') {
-      const target = await prisma.account.findFirst({ where: { id: a.accountId, kind: company.kind } })
+      const target = await prisma.account.findFirst({ where: { id: a.accountId, kind: company.kind, provider: company.provider } })
       if (!target) throw new Error('INVALID_ACCOUNT')
       accountId = target.id
     } else if (a.action === 'create') {

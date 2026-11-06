@@ -51,6 +51,13 @@ const chip = (selected: boolean) =>
 
 const n = (v: number) => v.toLocaleString('he-IL')
 
+/** Under the company: what the choice means for the sync (ENG-102). */
+function providerHint(kind: CreatableKindValue, choice: string): string {
+  if (choice === OTHER) return 'בלי סנכרון: התנועות נכנסות מהעלאת קבצים'
+  const label = KNOWN_PROVIDERS.find(p => p.kind === kind && p.key === choice)?.label ?? ''
+  return kind === 'BANK' ? `הסנכרון מתחבר לאתר של ${label}` : `מי ששולחת את הפירוט החודשי. הסנכרון מתחבר לאתר של ${label}`
+}
+
 type CreateProps = {
   mode?: 'create'
   initialKind: CreatableKindValue
@@ -211,11 +218,12 @@ export function AccountForm(props: CreateProps | EditProps) {
 
   return (
     <form onSubmit={submit} className="space-y-4" aria-labelledby={editing && props.mode === 'edit' && props.heading ? undefined : `${id}-title`} noValidate>
-      {props.mode === 'edit' && props.heading ? props.heading : <h2 id={`${id}-title`} className="font-semibold">{title}</h2>}
-
-      {/* Wide screens: the element and its colour beside the fields, in view while they scroll */}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:items-start md:gap-6">
-        <div className="space-y-4 md:sticky md:top-0">
+      {props.mode === 'edit' && props.heading ? (
+        props.heading
+      ) : (
+        // The kind switch in the far corner, so the element below lines up with the fields
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id={`${id}-title`} className="font-semibold">{title}</h2>
           {!editing && (
             <SegmentedTrack
               role="radiogroup"
@@ -250,8 +258,14 @@ export function AccountForm(props: CreateProps | EditProps) {
               })}
             </SegmentedTrack>
           )}
+        </div>
+      )}
+
+      {/* Wide screens: the element and its colour beside the fields, in view while they scroll */}
+      <div className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:items-start md:gap-6">
+        <div className="space-y-4 md:sticky md:top-0">
           {/* Live preview: the element the account will get, reacting to every field (ENG-56/57) */}
-          <div className="acct-preview flex justify-center rounded-xl bg-muted/50 px-4 py-6 sm:py-8">
+          <div className="acct-preview flex justify-center px-4 pb-2">
             <div key={kind} className={cn('acct-enter w-full', kind === 'CREDIT_CARD' ? 'max-w-[19rem]' : 'max-w-[22rem]')}>
               {kind === 'CREDIT_CARD' ? (
                 <PaymentCard
@@ -289,7 +303,7 @@ export function AccountForm(props: CreateProps | EditProps) {
           <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'ספק'}</label>
+                <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'חברת האשראי'}</label>
                 <select
                   id={`${id}-provider`}
                   className={inputClass}
@@ -299,25 +313,10 @@ export function AccountForm(props: CreateProps | EditProps) {
                   {KNOWN_PROVIDERS.filter(p => p.kind === kind).map(p => (
                     <option key={p.key} value={p.key}>{p.label}</option>
                   ))}
-                  <option value={OTHER}>אחר…</option>
+                  <option value={OTHER}>{kind === 'BANK' ? 'אחר (העלאת קבצים בלבד)' : 'אחרת (העלאת קבצים בלבד)'}</option>
                 </select>
+                <p className="text-xs text-muted-foreground">{providerHint(kind, providerChoice)}</p>
               </div>
-
-              {providerChoice === OTHER && (
-                <div className="space-y-1.5">
-                  <label htmlFor={`${id}-other`} className="text-sm font-medium">שם הספק</label>
-                  <input
-                    id={`${id}-other`}
-                    className={inputClass}
-                    value={otherProvider}
-                    onChange={e => setOtherProvider(e.target.value)}
-                    placeholder={kind === 'BANK' ? 'לדוגמה: yahav' : 'לדוגמה: diners'}
-                    aria-invalid={!!fieldError('provider')}
-                    autoFocus={!editing}
-                  />
-                  {fieldError('provider') && <p className="text-xs text-destructive">{fieldError('provider')}</p>}
-                </div>
-              )}
 
               {warnProvider && (
                 <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed sm:col-span-2">
@@ -341,7 +340,28 @@ export function AccountForm(props: CreateProps | EditProps) {
                   maxLength={60}
                   aria-invalid={!!fieldError('displayName')}
                 />
-                {fieldError('displayName') && <p className="text-xs text-destructive">{fieldError('displayName')}</p>}
+                {fieldError('displayName') ? (
+                  <p className="text-xs text-destructive">{fieldError('displayName')}</p>
+                ) : (
+                  kind === 'CREDIT_CARD' && <p className="text-xs text-muted-foreground">כרטיס מועדון? כאן שמים את שם המועדון</p>
+                )}
+              </div>
+
+              {/* Its own slot whatever the choice, dimmed until "other", so nothing moves */}
+              <div className={cn('space-y-1.5 transition-opacity duration-base', providerChoice !== OTHER && 'opacity-40')}>
+                <label htmlFor={`${id}-other`} className="text-sm font-medium">{kind === 'BANK' ? 'שם הבנק' : 'שם החברה'}</label>
+                <input
+                  id={`${id}-other`}
+                  className={inputClass}
+                  value={otherProvider}
+                  onChange={e => setOtherProvider(e.target.value)}
+                  placeholder={kind === 'BANK' ? 'לדוגמה: בנק ירושלים' : 'לדוגמה: דיינרס'}
+                  disabled={providerChoice !== OTHER}
+                  aria-invalid={!!fieldError('provider')}
+                />
+                <p className={cn('text-xs', fieldError('provider') ? 'text-destructive' : 'text-muted-foreground')}>
+                  {fieldError('provider') ?? (kind === 'BANK' ? 'רק לבנק שלא ברשימה' : 'רק לחברה שלא ברשימה')}
+                </p>
               </div>
 
               {kind === 'CREDIT_CARD' && (
@@ -370,7 +390,7 @@ export function AccountForm(props: CreateProps | EditProps) {
               {kind === 'CREDIT_CARD' && (
                 <div className="space-y-1.5 sm:col-span-2">
                   <p id={`${id}-network`} className="text-sm font-medium">
-                    רשת <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                    רשת בינלאומית <span className="font-normal text-muted-foreground">(לא חובה)</span>
                   </p>
                   <div role="radiogroup" aria-labelledby={`${id}-network`} className="flex flex-wrap gap-2">
                     {[...CARD_NETWORKS, { key: '', label: 'אחר / לא ידוע' }].map(nw => (

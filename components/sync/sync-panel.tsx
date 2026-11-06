@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Circle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { faceFor } from '@/lib/accounts/brands'
@@ -18,6 +19,12 @@ const PRIMARY =
   'inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-[opacity,transform] duration-quick ease-ui active:scale-[0.97] disabled:opacity-40 md:h-10 md:text-sm'
 const SECONDARY =
   'inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-4 text-[15px] font-medium transition-colors hover:bg-muted md:h-10 md:text-sm'
+
+/** "עו״ש משותף", "2 כרטיסים": what a company's row fills */
+function accountsLabel(c: CompanyInfo): string {
+  if (c.accounts.length === 1) return c.accounts[0]
+  return c.kind === 'CREDIT_CARD' ? `${c.accounts.length} כרטיסים` : `${c.accounts.length} חשבונות`
+}
 
 /** The company's mini face: the same colours its accounts' cards and statements carry. */
 function Swatch({ company }: { company: Pick<CompanyInfo, 'kind' | 'id'> }) {
@@ -55,10 +62,12 @@ function BackHeader({ company, onBack, back = true }: { company: CompanyInfo; on
   )
 }
 
-/** The list: the household's banks and cards, then any other company the sync knows. */
-function CompanyList({ info, onPick }: { info: NonNullable<SyncApi['info']>; onPick: (id: string) => void }) {
-  const own = info.companies.filter(c => c.hasAccounts)
-  const others = info.companies.filter(c => !c.hasAccounts)
+/**
+ * The list: the companies the household's accounts sync through (ENG-102), each
+ * with its accounts. None yet: a way to add one in Settings.
+ */
+function CompanyList({ info, onPick, onClose }: { info: NonNullable<SyncApi['info']>; onPick: (id: string) => void; onClose: () => void }) {
+  const own = info.companies
   const last = own.map(c => c.lastSyncedAt).filter(Boolean).sort().at(-1)
   const disabled = !info.available
   return (
@@ -67,54 +76,49 @@ function CompanyList({ info, onPick }: { info: NonNullable<SyncApi['info']>; onP
         <div className="text-[17px] font-semibold">סנכרון</div>
         <div className="text-xs text-muted-foreground">{last ? `סנכרון אחרון ${timeAgo(last)}` : 'משיכת תנועות ישירות מאתר הבנק או חברת האשראי'}</div>
       </div>
-      {disabled && (
+      {disabled && own.length > 0 && (
         <p className="mx-4 mb-2 rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
           בשלב הזה אפשר לסנכרן רק מהמחשב שעליו Tazrim רץ. מהטלפון זה יתאפשר אחרי שתתווסף כניסה מאובטחת.
         </p>
       )}
-      <ul className={cn(disabled && 'pointer-events-none opacity-50')} aria-disabled={disabled || undefined}>
-        {own.map((c, i) => (
-          <li key={c.id}>
-            {i > 0 && <div aria-hidden className="ms-[3.75rem] h-px bg-border" />}
-            <button type="button" disabled={disabled} onClick={() => onPick(c.id)} className={cn(ROW, 'hover:bg-muted active:bg-muted')}>
-              <Swatch company={c} />
-              <span className="flex min-w-0 flex-1 flex-col leading-snug">
-                <span className="text-[15px] font-medium md:text-sm">{c.label}</span>
-                <span className="text-xs text-muted-foreground">{c.lastSyncedAt ? timeAgo(c.lastSyncedAt) : 'טרם סונכרן'}</span>
-              </span>
-              <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className={cn('px-4 pt-2', disabled && 'pointer-events-none opacity-50')}>
-        <label className="sr-only" htmlFor="sync-other">
-          בנק או חברת אשראי אחרים
-        </label>
-        <select
-          id="sync-other"
-          disabled={disabled}
-          value=""
-          onChange={e => e.target.value && onPick(e.target.value)}
-          className={cn(INPUT, 'text-muted-foreground')}
-        >
-          <option value="">{own.length ? 'בנק או חברת אשראי אחרים…' : 'בחירת בנק או חברת אשראי…'}</option>
-          {[...own, ...others].map(c => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
+      {own.length === 0 ? (
+        <div className="mx-4 mb-1 mt-1 flex flex-col items-center gap-2 rounded-xl bg-muted px-4 py-5 text-center">
+          <span className="text-sm font-medium">אין עדיין חשבון שמסתנכרן</span>
+          <span className="text-xs leading-relaxed text-muted-foreground">מוסיפים חשבון בנק או כרטיס מחברה שנתמכת בסנכרון, והיא תופיע כאן.</span>
+          <Link href="/settings?new=bank" onClick={onClose} className="mt-1 text-sm font-medium text-primary underline-offset-2 hover:underline">
+            הוספת חשבון בהגדרות
+          </Link>
+        </div>
+      ) : (
+        <ul className={cn(disabled && 'pointer-events-none opacity-50')} aria-disabled={disabled || undefined}>
+          {own.map((c, i) => (
+            <li key={c.id}>
+              {i > 0 && <div aria-hidden className="ms-[3.75rem] h-px bg-border" />}
+              <button type="button" disabled={disabled} onClick={() => onPick(c.id)} className={cn(ROW, 'hover:bg-muted active:bg-muted')}>
+                <Swatch company={c} />
+                <span className="flex min-w-0 flex-1 flex-col leading-snug">
+                  <span className="text-[15px] font-medium md:text-sm">{c.label}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {accountsLabel(c)} · {c.lastSyncedAt ? timeAgo(c.lastSyncedAt) : 'טרם סונכרן'}
+                  </span>
+                </span>
+                <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </button>
+            </li>
           ))}
-        </select>
-      </div>
-      <div className="px-4 pb-2 pt-3">
-        {/* Its final place, switched on once passwords can be kept (the vault, ENG-90) */}
-        <button type="button" disabled className={SECONDARY + ' w-full disabled:opacity-50'} aria-describedby="sync-all-hint">
-          סנכרן הכול
-        </button>
-        <p id="sync-all-hint" className="mt-1.5 text-center text-[11px] text-muted-foreground">
-          יתאפשר כשאפשר יהיה לשמור סיסמאות בכספת. בינתיים הסיסמה מוקלדת בכל סנכרון ולא נשמרת.
-        </p>
-      </div>
+        </ul>
+      )}
+      {own.length > 0 && (
+        <div className="px-4 pb-2 pt-3">
+          {/* Its final place, switched on once passwords can be kept (the vault, ENG-90) */}
+          <button type="button" disabled className={SECONDARY + ' w-full disabled:opacity-50'} aria-describedby="sync-all-hint">
+            סנכרן הכול
+          </button>
+          <p id="sync-all-hint" className="mt-1.5 text-center text-[11px] text-muted-foreground">
+            יתאפשר כשאפשר יהיה לשמור סיסמאות בכספת. בינתיים הסיסמה מוקלדת בכל סנכרון ולא נשמרת.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -543,5 +547,5 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
       />
     )
   }
-  return <CompanyList info={info} onPick={setPicked} />
+  return <CompanyList info={info} onPick={setPicked} onClose={onClose} />
 }
