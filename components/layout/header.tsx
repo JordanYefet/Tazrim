@@ -10,9 +10,10 @@ import { useCurrentPeriod, useRememberPeriod, useToday } from './period-context'
 import { PeriodPicker } from './period-picker'
 import { TodayButton } from './today-button'
 import { ReadOnlyBadge } from './read-only-guard'
+import { SyncButton } from '@/components/sync/sync-button'
 
 /**
- * Sticky, translucent header: the period picker in the middle, search at the end. It slides
+ * Sticky, translucent header: sync at the start, the period picker in the middle, search at the end. It slides
  * up out of the way while scrolling down and comes back on any scroll up
  * (transform only). It stays put while focus is inside it and under
  * reduced motion.
@@ -53,9 +54,9 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
           'motion-reduce:!translate-y-0 motion-reduce:transition-none'
         )}
       >
-        {/* The start column is as wide as the end one, so the period sits in the middle;
-            in read-only mode (the demo) it says so */}
-        <div className="flex min-w-0 items-center">{readOnly && <ReadOnlyBadge />}</div>
+        {/* The start column is as wide as the end one, so the period sits in the middle.
+            It holds the bank sync (ENG-91); in read-only mode (the demo) it says so instead */}
+        <div className="flex min-w-0 items-center">{readOnly ? <ReadOnlyBadge /> : <SyncButton />}</div>
         {/* The picker and, away from this month, the way back to it; the pair stays centred */}
         <div data-period-controls className="flex items-center">
           <PeriodPicker period={{ year: current.year, month: current.month }} onChange={update} />

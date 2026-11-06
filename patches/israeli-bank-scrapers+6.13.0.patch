@@ -1,0 +1,35 @@
+diff --git a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+index 1e38c90..995b204 100644
+--- a/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
++++ b/node_modules/israeli-bank-scrapers/lib/scrapers/visa-cal.js
+@@ -357,8 +357,18 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+         'Content-Type': 'application/json',
+         ...apiHeaders
+       });
+-      if (monthData?.statusCode !== 1) throw new Error(`failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`);
++      // Tazrim patch: past the 18 months the library used to stop at, a month the site refuses
++      // ends the walk back and keeps the newer months, instead of failing the whole sync
++      const pastUsualHistory = month.isBefore((0, _moment.default)().subtract(18, 'months'), 'month');
++      if (monthData?.statusCode !== 1) {
++        if (pastUsualHistory) {
++          debug(`stopped at ${month.format('YYYY-MM')} for card ${card.last4Digits}: ${monthData?.title || ''}`);
++          break;
++        }
++        throw new Error(`failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`);
++      }
+       if (!isCardTransactionDetails(monthData)) {
++        if (pastUsualHistory) break;
+         throw new Error('monthData is not of type CardTransactionDetails');
+       }
+       allMonthsData.push(monthData);
+@@ -387,7 +397,9 @@ class VisaCalScraper extends _baseScraperWithBrowser.BaseScraperWithBrowser {
+   async fetchData() {
+     const defaultStartMoment = (0, _moment.default)().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
+     const startDate = this.options.startDate || defaultStartMoment.toDate();
+-    const startMoment = _moment.default.max(defaultStartMoment, (0, _moment.default)(startDate));
++    // Tazrim patch: the site's monthly endpoint answers further back than 18 months; reach up to 3 years
++    const startMomentLimit = (0, _moment.default)().subtract(3, 'years').add(1, 'day');
++    const startMoment = _moment.default.max(startMomentLimit, (0, _moment.default)(startDate));
+     debug(`fetch transactions starting ${startMoment.format()}`);
+     const [cards, xSiteId, Authorization] = await Promise.all([this.getCards(), this.getXSiteId(), this.getAuthorizationHeader()]);
+     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;

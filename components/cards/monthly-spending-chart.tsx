@@ -1,7 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
-import { useChartAnimation } from '@/hooks/use-chart-animation'
+import { useChartEntrance } from '@/hooks/use-chart-entrance'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
@@ -78,9 +78,6 @@ function MonthlySpendingChartInner({
   const textColor = isDark ? '#8a9ab0' : '#607080'
   const gridColor = isDark ? '#283040' : '#e2e8ed'
   const axes = useChartAxes(textColor)
-  // Entrance on the shared page beat (ENG-67)
-  const anim = useChartAnimation()
-
   // January to December; months without charges are empty slots (ENG-70)
   const rows = yearChartRows(
     series.map(s => s.key),
@@ -96,6 +93,8 @@ function MonthlySpendingChartInner({
   }
 
   const chartData = useStableData(rows)
+  // Entrance on the shared page beat (ENG-67), in CSS; data changes tween in Recharts
+  const { recharts: anim, entering } = useChartEntrance(JSON.stringify(chartData))
 
   return (
     <section className={`${SECTION} flex flex-col`}>
@@ -105,7 +104,7 @@ function MonthlySpendingChartInner({
         legend={series.length > 1 ? series.map(s => ({ label: s.label, color: s.color })) : undefined}
       />
       {/* Fills the card: as tall as a taller neighbour in its row (a long category legend), never shorter than this */}
-      <div className="min-h-48 flex-1 sm:min-h-64">
+      <div className={`min-h-48 flex-1 sm:min-h-64${entering ? ' chart-entrance-bars' : ''}`}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
