@@ -100,9 +100,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git ls-remote --exit-code --heads origin release >/dev/null; then
             git checkout -B release origin/release
-            # release differs from main only by its version commits, which the next
-            # line sets again, so main wins any conflict
-            git merge --no-ff -X theirs "$GITHUB_SHA" -m "Merge main for v$VERSION"
+            # A merge that records main as merged but takes main's files exactly: a
+            # line-by-line merge (even -X theirs) can mix the two package.json files
+            # and drop dependencies (v1.10.0's first run lost next). The next line
+            # sets the version again, the only thing release adds.
+            git merge --no-ff -s ours --no-commit "$GITHUB_SHA"
+            git read-tree -u --reset "$GITHUB_SHA"
+            git commit -m "Merge main for v$VERSION"
+            git diff --quiet "$GITHUB_SHA" HEAD || { echo "::error::release differs from main after the merge"; exit 1; }
           else
             git checkout -B release "$GITHUB_SHA"
           fi
