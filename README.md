@@ -230,7 +230,31 @@ Tazrim מבקש כניסה לפני כל עמוד. נכנסים עם מפתח (p
 
 ### עם reverse proxy משלכם
 
-מי שכבר מריץ Nginx Proxy Manager, Traefik, Caddy או nginx מפנה אותו לפורט של Tazrim (`3000` כברירת מחדל). הדרישה היחידה: להעביר לאפליקציה את הכתובת שהדפדפן ביקש ואת הפרוטוקול. רוב ה-proxies עושים את זה מעצמם. ב-nginx:
+מי שכבר מריץ reverse proxy מפנה אותו לפורט של Tazrim (`3000` כברירת מחדל). הדרישה היחידה: להעביר לאפליקציה את הכתובת שהדפדפן ביקש (`Host` או `X-Forwarded-Host`) ואת הפרוטוקול (`X-Forwarded-Proto`), כי המפתחות קשורים לכתובת הזו. כל אלה עושים את זה מעצמם, חוץ מ-nginx רגיל:
+
+**Nginx Proxy Manager:** Proxy Host חדש ← Domain Names: `tazrim.internal`, Scheme: `http`, Forward Hostname / IP: כתובת המחשב, Forward Port: `3000`, ולסמן **Websockets Support**. בלשונית SSL בוחרים את האישור שלכם (Custom).
+
+**Traefik** (labels על השירות `tazrim` בקובץ ההגדרות):
+
+```yaml
+labels:
+  - traefik.enable=true
+  - traefik.http.routers.tazrim.rule=Host(`tazrim.internal`)
+  - traefik.http.routers.tazrim.entrypoints=websecure
+  - traefik.http.routers.tazrim.tls=true
+  - traefik.http.services.tazrim.loadbalancer.server.port=3000
+```
+
+**Caddy** (`tls internal` נותן אישור מרשות האישורים של Caddy עצמו):
+
+```
+tazrim.internal {
+	tls internal
+	reverse_proxy 127.0.0.1:3000
+}
+```
+
+**nginx:**
 
 ```nginx
 location / {
