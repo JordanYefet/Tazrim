@@ -8,7 +8,7 @@ export const NOT_LOCAL = { error: 'בלי כניסה עם מפתח, אפשר ל�
  * May this request start or answer a sync (a bank password typed into it)?
  * With the login on (ENG-89) the middleware already let only a signed-in
  * household member through, so any of their devices may; with it off, only
- * this machine, as before. Deleting all data stays this-machine only.
+ * this machine, as before. Deleting all data also asks for the passkey or password then.
  */
 export function maySync(headers: Headers): boolean {
   return isAuthRequired() || isLocalRequest(headers)

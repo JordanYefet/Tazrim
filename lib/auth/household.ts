@@ -4,6 +4,7 @@
  */
 import { prisma } from '@/lib/db/client'
 import { INVITE_TTL_MS } from './config'
+import { burnPasswordCheck, hashPassword, verifyPassword } from './password'
 import { hashToken, normalizeCode, randomToken, readableCode, sameHash } from './tokens'
 
 const RECOVERY_KEY = 'auth.recoveryCodeHash'
@@ -91,33 +92,105 @@ export async function consumeInvite(id: string, now = new Date()): Promise<boole
   return count === 1
 }
 
-/** Settings → People: everyone, their devices, oldest first. */
+/** Settings → People: everyone, their devices and whether they have a password, oldest first. */
 export async function listPeople() {
-  return prisma.person.findMany({
+  const people = await prisma.person.findMany({
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: {
       id: true,
       name: true,
+      passwordHash: true,
       passkeys: {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         select: { id: true, label: true, createdAt: true, lastUsedAt: true },
       },
     },
   })
+  return people.map(({ passwordHash, ...p }) => ({ ...p, hasPassword: passwordHash !== null }))
+}
+
+/** A name as typed at sign-in: trimmed, spaces collapsed, any case */
+const nameKey = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+
+export type SetPasswordResult = 'ok' | 'name-taken'
+
+/**
+ * Sets (or replaces) a person's password. Sign-in asks for the name too, so it
+ * must tell people apart: refused while someone else has the same name. Other
+ * password sign-ins of this person end, except `keepSessionId` (this browser).
+ */
+export async function setPassword(personId: string, password: string, keepSessionId?: string): Promise<SetPasswordResult> {
+  const people = await prisma.person.findMany({ select: { id: true, name: true } })
+  const me = people.find(p => p.id === personId)
+  if (!me) return 'name-taken'
+  if (people.some(p => p.id !== personId && nameKey(p.name) === nameKey(me.name))) return 'name-taken'
+  const passwordHash = await hashPassword(password)
+  await prisma.$transaction([
+    prisma.person.updateMany({ where: { id: personId }, data: { passwordHash } }),
+    endPasswordSessions(personId, keepSessionId),
+  ])
+  return 'ok'
+}
+
+export type RemovePasswordResult = 'ok' | 'no-password' | 'last-way-in'
+
+/** Removes a person's password; refused when it is the household's last way in (no passkey left anywhere). */
+export async function removePassword(personId: string, keepSessionId?: string): Promise<RemovePasswordResult> {
+  return prisma.$transaction(async tx => {
+    const person = await tx.person.findUnique({ where: { id: personId }, select: { passwordHash: true } })
+    if (!person?.passwordHash) return 'no-password'
+    const otherPasswords = await tx.person.count({ where: { id: { not: personId }, passwordHash: { not: null } } })
+    if ((await tx.passkey.count()) === 0 && otherPasswords === 0) return 'last-way-in'
+    await tx.person.updateMany({ where: { id: personId }, data: { passwordHash: null } })
+    await tx.session.deleteMany({ where: { personId, passkeyId: null, ...(keepSessionId ? { id: { not: keepSessionId } } : {}) } })
+    return 'ok'
+  })
+}
+
+/** Sessions that came from a password (or a recovery code): no passkey behind them */
+function endPasswordSessions(personId: string, keepSessionId?: string) {
+  return prisma.session.deleteMany({ where: { personId, passkeyId: null, ...(keepSessionId ? { id: { not: keepSessionId } } : {}) } })
+}
+
+/** The person a name and password belong to, or null. Takes as long for an unknown name. */
+export async function checkPassword(name: unknown, password: unknown): Promise<{ id: string } | null> {
+  if (typeof name !== 'string' || typeof password !== 'string' || !name.trim() || !password) return null
+  const people = await prisma.person.findMany({ where: { passwordHash: { not: null } }, select: { id: true, name: true, passwordHash: true } })
+  const match = people.find(p => nameKey(p.name) === nameKey(name))
+  if (!match?.passwordHash) {
+    await burnPasswordCheck(password)
+    return null
+  }
+  return (await verifyPassword(password, match.passwordHash)) ? { id: match.id } : null
+}
+
+export async function hasOwnPassword(personId: string): Promise<boolean> {
+  const person = await prisma.person.findUnique({ where: { id: personId }, select: { passwordHash: true } })
+  return !!person?.passwordHash
+}
+
+/** Does this signed-in person's password match? (Confirming a dangerous action.) */
+export async function checkOwnPassword(personId: string, password: unknown): Promise<boolean> {
+  if (typeof password !== 'string' || !password) return false
+  const person = await prisma.person.findUnique({ where: { id: personId }, select: { passwordHash: true } })
+  if (!person?.passwordHash) return false
+  return verifyPassword(password, person.passwordHash)
 }
 
 export type RevokeResult = 'ok' | 'not-found' | 'last-passkey'
 
 /**
  * Revokes a device: deletes the passkey, which deletes its sessions, so that
- * device's next request fails. The household's very last passkey stays, so
- * nobody is locked out by a mis-tap (the recovery code is the way back).
+ * device's next request fails. The household's very last way in stays (its
+ * last passkey, unless someone has a password), so nobody is locked out by a
+ * mis-tap (the recovery code is the way back).
  */
 export async function revokePasskey(id: string): Promise<RevokeResult> {
   return prisma.$transaction(async tx => {
     const passkey = await tx.passkey.findUnique({ where: { id }, select: { id: true } })
     if (!passkey) return 'not-found'
-    if ((await tx.passkey.count()) <= 1) return 'last-passkey'
+    const passwords = await tx.person.count({ where: { passwordHash: { not: null } } })
+    if ((await tx.passkey.count()) <= 1 && passwords === 0) return 'last-passkey'
     await tx.passkey.delete({ where: { id } })
     return 'ok'
   })

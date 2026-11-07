@@ -13,6 +13,8 @@ import { getCushion } from '@/lib/db/settings'
 import { DangerZone } from '@/components/settings/danger-zone'
 import { PeopleSettings } from '@/components/settings/people-settings'
 import { isAuthRequired } from '@/lib/auth/config'
+import { currentSession } from '@/lib/auth/http'
+import { hasOwnPassword } from '@/lib/auth/household'
 import { BANK_COLORS, CARD_COLORS } from '@/lib/nav/state'
 
 export const dynamic = 'force-dynamic'
@@ -28,11 +30,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     return colors[position[kind]++ % colors.length]
   }
   const now = new Date()
-  const [profileRows, rows, payerEvidence, cushion] = await Promise.all([
+  const session = isAuthRequired() ? await currentSession() : null
+  const [profileRows, rows, payerEvidence, cushion, hasPassword] = await Promise.all([
     listImportProfiles(),
     listAccountsWithCounts(),
     getCardPayerEvidence(now),
     getCushion(),
+    session ? hasOwnPassword(session.personId) : false,
   ])
   const ownProfile = (a: { id: string; kind: string }) => {
     const p = profileRows.find(p => p.accountId === a.id && p.accountKind === a.kind)
@@ -98,7 +102,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </section>
 
       <section id="danger-zone" aria-labelledby="danger-zone-title">
-        <DangerZone />
+        <DangerZone confirmIdentity={isAuthRequired()} hasPassword={hasPassword} />
       </section>
     </div>
   )

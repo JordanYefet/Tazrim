@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { inputClass } from '@/components/accounts/add-account-form'
+import { answerChallenge } from '@/components/auth/passkey-client'
 import { DELETE_ALL_PHRASE, matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
 
 const BACKUP_DOCS = 'https://github.com/JordanYefet/Tazrim#גיבוי-ושחזור'
@@ -22,12 +23,15 @@ const DELETED = [
 
 /**
  * Settings → danger zone (ENG-62): deletes all data after the user types
- * DELETE_ALL_PHRASE. The server checks the phrase again and only accepts the
- * request from this machine. Afterwards the app reloads on the empty overview.
+ * DELETE_ALL_PHRASE. With the login on (`confirmIdentity`, ENG-89) the
+ * signed-in person also confirms right then: their password if they type it,
+ * else their passkey (Face ID / Touch ID). The server checks both again.
+ * Afterwards the app reloads on the empty overview.
  */
-export function DangerZone() {
+export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: boolean; hasPassword: boolean }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const matches = matchesDeleteAllPhrase(typed)
@@ -36,9 +40,21 @@ export function DangerZone() {
     if (deleting) return
     if (!next) {
       setTyped('')
+      setPassword('')
       setError(null)
     }
     setOpen(next)
+  }
+
+  /** The proof the server wants with the login on: the password, or the passkey's answer */
+  async function proof(): Promise<object> {
+    if (!confirmIdentity) return {}
+    if (password) return { password }
+    const res = await fetch('/api/data/delete-all/options', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error ?? 'המחיקה נכשלה')
+    if (!data.passkey) throw new Error('אין לך מפתח. הקלידו את הסיסמה שלך כדי לאשר')
+    return { flowId: data.passkey.flowId, response: await answerChallenge(data.passkey.options) }
   }
 
   async function confirm() {
@@ -49,7 +65,7 @@ export function DangerZone() {
       const res = await fetch('/api/data/delete-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: typed }),
+        body: JSON.stringify({ confirm: typed, ...(await proof()) }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -59,8 +75,8 @@ export function DangerZone() {
       }
       // A full load, so no page keeps showing data from the client cache
       window.location.assign('/?deleted=1')
-    } catch {
-      setError('המחיקה נכשלה')
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'המחיקה נכשלה')
       setDeleting(false)
     }
   }
@@ -95,7 +111,7 @@ export function DangerZone() {
         title="למחוק את כל הנתונים?"
         description={
           <>
-            <p>יימחקו מהמחשב הזה:</p>
+            <p>יימחקו:</p>
             <ul className="list-disc space-y-0.5 ps-5">
               {DELETED.map(item => (
                 <li key={item}>{item}</li>
@@ -137,6 +153,29 @@ export function DangerZone() {
             autoFocus
           />
         </div>
+        {confirmIdentity && (
+          <div className="space-y-1.5">
+            {hasPassword ? (
+              <>
+                <label htmlFor="delete-all-password" className="text-sm font-medium">
+                  הסיסמה שלך
+                </label>
+                <input
+                  id="delete-all-password"
+                  type="password"
+                  className={inputClass}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  disabled={deleting}
+                />
+                <p className="text-xs text-muted-foreground">או השאירו ריק ואשרו עם Face ID, Touch ID או קוד המכשיר.</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">אחרי הלחיצה תתבקשו לאשר עם Face ID, Touch ID או קוד המכשיר.</p>
+            )}
+          </div>
+        )}
       </ConfirmDialog>
     </div>
   )

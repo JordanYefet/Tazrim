@@ -339,11 +339,13 @@ model SyncLink {
 
 /// Login (ENG-89): someone in the household. Everyone has the same rights.
 model Person {
-  id        String    @id @default(uuid())
-  name      String
-  createdAt DateTime  @default(now())
-  passkeys  Passkey[]
-  sessions  Session[]
+  id           String    @id @default(uuid())
+  name         String
+  /// Optional second way in (scrypt, lib/auth/password.ts); null = passkeys only
+  passwordHash String?
+  createdAt    DateTime  @default(now())
+  passkeys     Passkey[]
+  sessions     Session[]
 }
 
 /// A passkey (WebAuthn credential) a person signs in with; one per device or password manager.

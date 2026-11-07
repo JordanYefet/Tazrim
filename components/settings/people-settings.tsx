@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { KeyRound, LogOut, Smartphone, UserPlus } from 'lucide-react'
+import { KeyRound, LockKeyhole, LogOut, Smartphone, UserPlus } from 'lucide-react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
 import { createPasskey, guessDeviceLabel, passkeyBlocker } from '@/components/auth/passkey-client'
-import { errorText, secondaryButton } from '@/components/auth/ui'
+import { errorText, primaryButton, secondaryButton } from '@/components/auth/ui'
+import { inputClass } from '@/components/accounts/add-account-form'
 
 interface Device { id: string; label: string; createdAt: string; lastUsedAt: string | null }
-interface Person { id: string; name: string; passkeys: Device[] }
+interface Person { id: string; name: string; hasPassword: boolean; passkeys: Device[] }
 interface PeopleInfo { people: Person[]; me: string | null; thisDevice: string | null; hasRecoveryCode: boolean }
 
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' }) : 'עוד לא')
@@ -25,7 +26,8 @@ async function call(url: string, method: string, body?: unknown) {
 /**
  * Settings → People (ENG-89): everyone in the household and their devices,
  * invite links (a new person or another device), revoking a device, a passkey
- * on this device, a new recovery code, and signing out. Everyone has the same rights.
+ * on this device, your own password (a way in on a device without a passkey),
+ * a new recovery code, and signing out. Everyone has the same rights.
  */
 export function PeopleSettings({ recovered }: { recovered: boolean }) {
   const [info, setInfo] = useState<PeopleInfo | null>(null)
@@ -35,6 +37,11 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
   const [busy, setBusy] = useState(false)
   const [confirmRecovery, setConfirmRecovery] = useState(false)
   const [recovery, setRecovery] = useState<string | null>(null)
+  const [editingPassword, setEditingPassword] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [repeatPassword, setRepeatPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [removingPassword, setRemovingPassword] = useState(false)
 
   const load = useCallback(() => {
     call('/api/people', 'GET').then(setInfo, e => setError(e.message))
@@ -95,6 +102,40 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
     setBusy(false)
   }
 
+  function closePassword() {
+    setEditingPassword(false)
+    setNewPassword('')
+    setRepeatPassword('')
+    setPasswordError(null)
+  }
+
+  async function savePassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (newPassword !== repeatPassword) return setPasswordError('הסיסמאות לא זהות')
+    setBusy(true)
+    setPasswordError(null)
+    try {
+      await call('/api/people/password', 'PUT', { password: newPassword })
+      closePassword()
+      load()
+    } catch (e) {
+      setPasswordError((e as Error).message)
+    }
+    setBusy(false)
+  }
+
+  async function removePassword() {
+    setBusy(true)
+    try {
+      await call('/api/people/password', 'DELETE')
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    setRemovingPassword(false)
+    setBusy(false)
+  }
+
   async function signOut() {
     await call('/api/auth/logout', 'POST').catch(() => {})
     window.location.assign('/login')
@@ -105,7 +146,7 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
     <div className="space-y-3">
       <div>
         <h2 id="people-title" className="text-lg font-semibold">אנשים ומכשירים</h2>
-        <p className="text-sm text-muted-foreground">כל מי שכאן רואה ועורך את אותם נתונים. כניסה עם מפתח (passkey) בלבד.</p>
+        <p className="text-sm text-muted-foreground">כל מי שכאן רואה ועורך את אותם נתונים. נכנסים עם מפתח (passkey), ומי שרוצה גם עם סיסמה.</p>
       </div>
       {recovered && info?.thisDevice === null && (
         <p className="rounded-xl bg-muted px-3 py-2 text-sm">
@@ -143,6 +184,24 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
                   </li>
                 ))}
               </ul>
+              <div className={`${row} text-sm`}>
+                <span className="min-w-0">
+                  <LockKeyhole className="me-1.5 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                  {p.hasPassword ? 'יש סיסמה' : 'אין סיסמה'}
+                </span>
+                {p.id === info.me && (
+                  <span className="flex gap-3">
+                    <button type="button" onClick={() => setEditingPassword(true)} className="text-sm text-primary underline-offset-4 hover:underline">
+                      {p.hasPassword ? 'שינוי סיסמה' : 'הגדרת סיסמה'}
+                    </button>
+                    {p.hasPassword && (
+                      <button type="button" onClick={() => setRemovingPassword(true)} className="text-sm text-destructive underline-offset-4 hover:underline dark:text-red-400">
+                        הסרה
+                      </button>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -188,6 +247,35 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
           </div>
         )}
       </AppDialog>
+
+      <AppDialog open={editingPassword} onOpenChange={o => !o && closePassword()} title="סיסמה">
+        <form onSubmit={savePassword} className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground text-pretty">
+            לכניסה ממכשיר בלי מפתח: בעמוד הכניסה ← כניסה עם סיסמה, עם השם שלך והסיסמה. לפחות 10 תווים. כניסות אחרות עם סיסמה ייסגרו.
+          </p>
+          {passwordError && <p className={errorText} role="alert">{passwordError}</p>}
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">סיסמה חדשה</span>
+            <input type="password" dir="ltr" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">שוב, לאימות</span>
+            <input type="password" dir="ltr" autoComplete="new-password" value={repeatPassword} onChange={e => setRepeatPassword(e.target.value)} className={inputClass} />
+          </label>
+          <button type="submit" disabled={busy || !newPassword || !repeatPassword} className={primaryButton}>שמירה</button>
+        </form>
+      </AppDialog>
+
+      <ConfirmDialog
+        open={removingPassword}
+        onOpenChange={setRemovingPassword}
+        onConfirm={removePassword}
+        busy={busy}
+        title="להסיר את הסיסמה?"
+        description="אחרי זה אפשר להיכנס רק עם מפתח. כניסות אחרות עם סיסמה ייסגרו."
+        confirmLabel="הסרה"
+        cancelLabel="השארה"
+      />
 
       <ConfirmDialog
         open={!!revoking}

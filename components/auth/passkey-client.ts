@@ -27,6 +27,16 @@ function friendly(e: unknown): Error {
   return e instanceof Error ? e : new Error('משהו השתבש. נסו שוב')
 }
 
+/** The browser's answer to a sign-in style challenge (Face ID / Touch ID), with errors in Hebrew */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function answerChallenge(options: any) {
+  try {
+    return await startAuthentication({ optionsJSON: options })
+  } catch (e) {
+    throw friendly(e)
+  }
+}
+
 export async function signInWithPasskey() {
   const { flowId, options } = await post('/api/auth/options', {})
   let response

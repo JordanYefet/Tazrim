@@ -49,6 +49,7 @@ export type Flow =
   | { kind: 'setup'; personId: string; name: string }
   | { kind: 'invite'; inviteId: string; personId: string; name: string; isNewPerson: boolean }
   | { kind: 'device'; personId: string }
+  | { kind: 'confirm'; personId: string }
 
 interface Pending {
   challenge: string
@@ -87,7 +88,7 @@ function parseTransports(json: string | null): AuthenticatorTransportFuture[] | 
 }
 
 /** Options to create a passkey for a person (new or existing), and the flow id to answer with. */
-export async function registrationOptions(rp: RelyingParty, flow: Exclude<Flow, { kind: 'login' }>, userName: string) {
+export async function registrationOptions(rp: RelyingParty, flow: Exclude<Flow, { kind: 'login' | 'confirm' }>, userName: string) {
   const existing = await prisma.passkey.findMany({
     where: { personId: flow.personId },
     select: { credentialId: true, transports: true },
@@ -139,6 +140,22 @@ export async function verifyRegistration(p: Pending, response: RegistrationRespo
 export async function authenticationOptions(rp: RelyingParty) {
   const options = await generateAuthenticationOptions({ rpID: rp.rpID, userVerification: 'required' })
   return { flowId: remember(options.challenge, { kind: 'login' }, rp), options }
+}
+
+/**
+ * A challenge to confirm a dangerous action (deleting all data) with the
+ * signed-in person's own passkey, or null when they have none (then their
+ * password confirms instead).
+ */
+export async function confirmOptions(rp: RelyingParty, personId: string) {
+  const mine = await prisma.passkey.findMany({ where: { personId }, select: { credentialId: true, transports: true } })
+  if (mine.length === 0) return null
+  const options = await generateAuthenticationOptions({
+    rpID: rp.rpID,
+    userVerification: 'required',
+    allowCredentials: mine.map(c => ({ id: c.credentialId, transports: parseTransports(c.transports) })),
+  })
+  return { flowId: remember(options.challenge, { kind: 'confirm', personId }, rp), options }
 }
 
 /** The passkey that signed the challenge (its counter updated), or null. */

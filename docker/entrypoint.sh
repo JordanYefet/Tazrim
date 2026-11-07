@@ -23,5 +23,4 @@ if [ "$TAZRIM_DEMO" = "1" ]; then
   node /app/scripts/seed-demo.mjs "$db_file" --data-only
 fi
 
-# local-port.cjs opens TAZRIM_LOCAL_PORT next to the server (ENG-100)
-exec node --require /app/local-port.cjs /app/server.js
+exec node /app/server.js

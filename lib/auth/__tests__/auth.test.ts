@@ -122,6 +122,39 @@ describe('sessions and revoking', () => {
     expect(await household.revokePasskey('k1')).toBe('last-passkey')
     expect(await household.revokePasskey('nope')).toBe('not-found')
   })
+
+  it('with a password in the household, the last passkey can go; the last way in cannot', async () => {
+    expect(await household.revokePasskey('k2')).toBe('ok')
+    expect(await household.setPassword('p2', 'a long enough password')).toBe('ok')
+    expect(await household.revokePasskey('k1')).toBe('ok')
+    // No passkey left anywhere: Spouse's password is the household's only way in
+    expect(await household.removePassword('p2')).toBe('last-way-in')
+    expect(await household.removePassword('p1')).toBe('no-password')
+  })
+
+  it("a password needs a name nobody else has (sign-in asks for it)", async () => {
+    db.exec(`UPDATE "Person" SET name = ' spouse' WHERE id = 'p1'`)
+    expect(await household.setPassword('p2', 'a long enough password')).toBe('name-taken')
+    db.exec(`UPDATE "Person" SET name = 'Owner' WHERE id = 'p1'`)
+    expect(await household.setPassword('p2', 'a long enough password')).toBe('ok')
+    expect(await household.checkPassword('SPOUSE', 'a long enough password')).toEqual({ id: 'p2' })
+    expect(await household.checkPassword('Owner', 'a long enough password')).toBeNull()
+  })
+})
+
+describe('password hashing', () => {
+  it('scrypt with its own salt; only the same password matches', async () => {
+    const { hashPassword, verifyPassword, passwordProblem } = await import('../password')
+    const a = await hashPassword('סיסמה ארוכה מספיק')
+    const b = await hashPassword('סיסמה ארוכה מספיק')
+    expect(a).not.toBe(b)
+    expect(await verifyPassword('סיסמה ארוכה מספיק', a)).toBe(true)
+    expect(await verifyPassword('סיסמה ארוכה מספיק!', a)).toBe(false)
+    expect(await verifyPassword('anything', 'garbage')).toBe(false)
+    expect(passwordProblem('123456789')).not.toBeNull()
+    expect(passwordProblem('1234567890')).toBeNull()
+    expect(passwordProblem(undefined)).not.toBeNull()
+  })
 })
 
 describe('middleware', () => {

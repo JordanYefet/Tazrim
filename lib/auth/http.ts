@@ -4,6 +4,7 @@ import { SESSION_COOKIE } from './config'
 import { clientKey, rateLimit } from './rate-limit'
 import { readSession, sessionCookie } from './session'
 import { relyingParty, type RelyingParty } from './webauthn'
+import { isLoopbackHost } from '@/lib/local-request'
 
 export const fail = (status: number, error: string, code: string) => NextResponse.json({ error, code }, { status })
 
@@ -15,6 +16,16 @@ export function rpOr400(req: Request): RelyingParty | NextResponse {
 /** False once this client went over `limit` calls of `bucket` in `windowMs` */
 export function allow(req: Request, bucket: string, limit: number, windowMs = 10 * 60 * 1000): boolean {
   return rateLimit(`${bucket}:${clientKey(req.headers)}`, limit, windowMs)
+}
+
+/**
+ * A password may only travel encrypted: https, or http on this computer itself
+ * (localhost). Plain http from another device would send it over the Wi-Fi as is.
+ */
+export function passwordTransportOr400(req: Request, rp: RelyingParty): NextResponse | null {
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? ''
+  if (rp.secure || isLoopbackHost(host.split(',')[0])) return null
+  return fail(400, 'סיסמה עובדת רק בחיבור מאובטח (https), או ב-localhost על המחשב עצמו', 'INSECURE')
 }
 
 export const TOO_MANY = () => fail(429, 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות', 'RATE_LIMITED')

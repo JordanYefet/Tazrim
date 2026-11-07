@@ -61,7 +61,12 @@ const post = (body: unknown, headers: Record<string, string> = LOCAL) =>
     })
   )
 
+// These cover the login-off path (development): this machine only. With the login on,
+// the signed-in person confirms instead (lib/auth/__tests__/passkey-flow.test.ts).
+const authBefore = process.env.TAZRIM_AUTH
+
 beforeAll(async () => {
+  process.env.TAZRIM_AUTH = 'off'
   db = createTestDb()
   db.exec(SEED)
   usePrismaOn(db)
@@ -70,6 +75,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  if (authBefore === undefined) delete process.env.TAZRIM_AUTH
+  else process.env.TAZRIM_AUTH = authBefore
   await releasePrisma()
   db.cleanup()
 })

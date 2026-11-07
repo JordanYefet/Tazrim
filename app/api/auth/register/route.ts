@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if (!allow(req, 'register', 10)) return TOO_MANY()
   const body = (await req.json().catch(() => null)) as { flowId?: unknown; response?: unknown; label?: unknown } | null
   const pending = takeChallenge(body?.flowId)
-  if (!pending || pending.flow.kind === 'login') return fail(400, 'פג תוקף הבקשה. נסו שוב', 'EXPIRED')
+  if (!pending || pending.flow.kind === 'login' || pending.flow.kind === 'confirm') return fail(400, 'פג תוקף הבקשה. נסו שוב', 'EXPIRED')
   const flow = pending.flow
   const label = cleanLabel(body?.label, 'מכשיר')
 
