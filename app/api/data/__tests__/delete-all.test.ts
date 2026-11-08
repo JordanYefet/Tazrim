@@ -84,7 +84,7 @@ afterAll(async () => {
 describe('wipe table list', () => {
   it('covers every Prisma model and every table in the database', () => {
     const models = Prisma.dmmf.datamodel.models.map(m => m.dbName ?? m.name).sort()
-    expect([...wipe.WIPE_TABLES, ...wipe.KEPT_TABLES].sort()).toEqual(models)
+    expect([...wipe.WIPE_TABLES].sort()).toEqual(models)
     expect(dataTables()).toEqual(models)
   })
 
@@ -142,12 +142,10 @@ describe('POST /api/data/delete-all', () => {
 
     for (const table of dataTables()) {
       if (table === 'Category' || table === 'GenericDescription') continue
-      // The login stays (ENG-89): the household, its passkeys and sessions, and the recovery code
-      if ((wipe.KEPT_TABLES as string[]).includes(table)) expect(count(table), table).toBe(1)
-      else if (table === 'Setting') expect(db.query<{ key: string }>(`SELECT key FROM "Setting"`)).toEqual([{ key: 'auth.recoveryCodeHash' }])
-      else expect(count(table), table).toBe(0)
+      // The login too (ENG-89): people, passkeys, sessions, invites and the recovery code
+      expect(count(table), table).toBe(0)
     }
-    expect(dataTables()).toEqual([...wipe.WIPE_TABLES, ...wipe.KEPT_TABLES].sort())
+    expect(dataTables()).toEqual([...wipe.WIPE_TABLES].sort())
     // Like a new install (ENG-76): the starting categories, and nothing else
     expect(db.query<{ name: string; kind: string }>(`SELECT name, kind FROM "Category" ORDER BY rowid`)).toEqual(
       STARTING_CATEGORIES.map(c => ({ name: c.name, kind: c.kind }))

@@ -19,6 +19,7 @@ const DELETED = [
   'מיפויי הייבוא השמורים',
   'ההחלטות על חיובים קבועים',
   'התנועות שסימנת כלא חריגות',
+  'האנשים, המכשירים, הסיסמאות וקוד השחזור: כולם יוצאים',
 ]
 
 /**
@@ -26,7 +27,8 @@ const DELETED = [
  * DELETE_ALL_PHRASE. With the login on (`confirmIdentity`, ENG-89) the
  * signed-in person also confirms right then: their password if they type it,
  * else their passkey (Face ID / Touch ID). The server checks both again.
- * Afterwards the app reloads on the empty overview.
+ * The login goes too, so afterwards the app opens at /setup (with the login
+ * off, on the empty overview).
  */
 export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: boolean; hasPassword: boolean }) {
   const [open, setOpen] = useState(false)
@@ -74,7 +76,7 @@ export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: 
         return
       }
       // A full load, so no page keeps showing data from the client cache
-      window.location.assign('/?deleted=1')
+      window.location.assign(confirmIdentity ? '/setup' : '/?deleted=1')
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : 'המחיקה נכשלה')
       setDeleting(false)
@@ -91,7 +93,7 @@ export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: 
         <div className="min-w-0 max-w-md">
           <p className="text-sm font-medium">מחיקת כל הנתונים</p>
           <p className="text-sm text-muted-foreground text-pretty">
-            מוחק את כל החשבונות, התנועות וההגדרות, והאפליקציה חוזרת למצב של התקנה חדשה.
+            מוחק את כל החשבונות, התנועות, ההגדרות והאנשים, והאפליקציה חוזרת למצב של התקנה חדשה.
           </p>
         </div>
         <button
@@ -118,6 +120,9 @@ export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: 
               ))}
             </ul>
             <p className="font-medium text-foreground">אי אפשר לבטל את הפעולה.</p>
+            {confirmIdentity && (
+              <p>אחר כך מתחילים מחדש עם קוד ההתקנה שבלוג של השרת, כמו בהתקנה ראשונה.</p>
+            )}
             <p>
               כדאי לגבות קודם את קובץ הנתונים:{' '}
               <a

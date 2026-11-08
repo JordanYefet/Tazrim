@@ -229,12 +229,24 @@ describe('confirming "delete all data" (ENG-89)', () => {
     const opts = await call('/data/delete-all/options', {})
     expect(opts.body.passkey.options.allowCredentials.map((c: { id: string }) => c.id)).toEqual([me.id])
     const answer = me.get(opts.body.passkey.options.challenge)
-    expect((await call('/data/delete-all', { confirm: PHRASE, flowId: opts.body.passkey.flowId, response: answer })).status).toBe(200)
-    expect((await call('/data/delete-all', { confirm: PHRASE, flowId: opts.body.passkey.flowId, response: answer })).status).toBe(403)
+    const done = await call('/data/delete-all', { confirm: PHRASE, flowId: opts.body.passkey.flowId, response: answer })
+    expect(done.status).toBe(200)
+    // The login went with the data: signed out, nobody left, back to first-run setup
+    expect(done.setCookie).toMatch(/tazrim_session=;/)
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "Person"')[0].n).toBe(0)
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "Passkey"')[0].n).toBe(0)
+    expect((await call('/data/delete-all', { confirm: PHRASE, flowId: opts.body.passkey.flowId, response: answer })).status).toBe(401)
+  })
 
-    // Or their password
+  it('or with their password, after setting up again', async () => {
+    const { setupCode } = await import('../household')
+    ;(await import('../rate-limit')).resetRateLimits()
+    const again = authenticator()
+    const reg = await call('/auth/register/options', { mode: 'setup', code: setupCode(), name: 'Owner again' })
+    expect((await call('/auth/register', { flowId: reg.body.flowId, response: again.create(reg.body.options.challenge), label: 'Mac' })).status).toBe(200)
     expect((await call('/people/password', { password: PASSWORD }, 'PUT')).status).toBe(200)
     expect((await call('/data/delete-all', { confirm: PHRASE, password: PASSWORD })).status).toBe(200)
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "Person"')[0].n).toBe(0)
   })
 
   it('signed out: 401', async () => {

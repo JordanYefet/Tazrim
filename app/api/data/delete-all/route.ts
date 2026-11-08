@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isAuthRequired } from '@/lib/auth/config'
+import { clearedSessionCookie } from '@/lib/auth/session'
+import { relyingParty } from '@/lib/auth/webauthn'
 import { checkOwnPassword } from '@/lib/auth/household'
 import { allow, currentSession, fail, TOO_MANY } from '@/lib/auth/http'
 import { takeChallenge, verifyAuthentication } from '@/lib/auth/webauthn'
@@ -22,6 +24,9 @@ interface Body {
  * { flowId, response } from their passkey (POST ./options) or { password }.
  * With the login off (development), only from this machine, as before.
  *
+ * The login goes with the data: everyone is signed out and the app opens at
+ * /setup, with a new setup code in the server log.
+ *
  * 400 for a wrong or missing phrase, 401/403 when not confirmed.
  * 200 { ok, deleted: { <table>: rows } }.
  */
@@ -37,7 +42,9 @@ export async function POST(req: Request) {
     return fail(400, 'יש להקליד את ביטוי האישור כדי למחוק', 'CONFIRMATION_REQUIRED')
   }
   const deleted = await wipeAllData()
-  return NextResponse.json({ ok: true, deleted })
+  const res = NextResponse.json({ ok: true, deleted })
+  res.cookies.set(clearedSessionCookie(relyingParty(req.headers)?.secure ?? false))
+  return res
 }
 
 /** Null when the signed-in person confirmed with their own passkey or password, else the error response */

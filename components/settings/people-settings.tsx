@@ -234,7 +234,7 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={invite.qr} alt="קוד QR של קישור ההזמנה" width={240} height={240} className="mx-auto rounded-xl bg-white p-2" />
-            <RecoveryCode code={invite.url} />
+            <RecoveryCode code={invite.url} link />
           </div>
         )}
       </AppDialog>
