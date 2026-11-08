@@ -5,6 +5,14 @@ export const primaryButton =
 export const secondaryButton =
   'inline-flex h-10 items-center justify-center gap-2 rounded-xl border bg-background px-4 text-sm font-medium transition-[background-color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
-export const card = 'w-full max-w-sm space-y-5 rounded-3xl surface p-6 md:p-8'
+/** A second full-width action, as tall as primaryButton (sign in with a password; back) */
+export const ghostButton =
+  'inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-card px-5 text-base font-semibold transition-[background-color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
+/** A quiet text action under a sign-in card's buttons */
+export const textButton =
+  'self-center rounded-lg px-2 py-2 text-sm text-muted-foreground underline-offset-4 transition-colors duration-quick hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+export const card = 'w-full max-w-sm space-y-5 rounded-[28px] surface-raised p-6 md:p-9'
 
 export const errorText = 'rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive dark:text-red-400'

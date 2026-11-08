@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { KeyRound, LockKeyhole, LogOut, Smartphone, UserPlus } from 'lucide-react'
+import { ChevronLeft, KeyRound, Laptop, LockKeyhole, LogOut, ShieldCheck, Smartphone, UserPlus, type LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
@@ -14,7 +15,27 @@ interface Device { id: string; label: string; createdAt: string; lastUsedAt: str
 interface Person { id: string; name: string; hasPassword: boolean; passkeys: Device[] }
 interface PeopleInfo { people: Person[]; me: string | null; thisDevice: string | null; hasRecoveryCode: boolean }
 
-const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' }) : 'עוד לא')
+const date = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/** A person's initial, tinted by position: the app's blue, then green, then the card amber */
+const AVATARS = ['bg-primary/10 text-primary', 'bg-[hsl(var(--income)/0.12)] text-[hsl(var(--income))]', 'bg-[hsl(var(--cc)/0.14)] text-[hsl(var(--cc))]']
+
+const ROW = 'flex min-h-14 items-center gap-3.5 px-4 py-2.5 md:px-5 [&+&]:border-t'
+const ROW_BUTTON = cn(ROW, 'w-full text-start transition-[background-color,transform] duration-quick ease-ui hover:bg-muted/60 active:scale-[0.99] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring')
+const TEXT_BUTTON = 'shrink-0 rounded-lg px-2 py-2 text-sm font-medium transition-colors duration-quick focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+/** Revoke and remove stay grey until pointed at, so a list of devices is not a column of red */
+const QUIET_DANGER = 'text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive dark:hover:text-red-400'
+
+/** The device's label, as guessed when its passkey was made: a computer or a phone */
+const isComputer = (label: string) => /mac|windows|linux|chrome ?os|מחשב/i.test(label)
+
+function RowIcon({ icon: Icon, muted = false }: { icon: LucideIcon; muted?: boolean }) {
+  return (
+    <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-muted', muted ? 'text-muted-foreground' : 'text-foreground/80')} aria-hidden>
+      <Icon className="h-[18px] w-[18px]" />
+    </span>
+  )
+}
 
 async function call(url: string, method: string, body?: unknown) {
   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
@@ -141,90 +162,132 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
     window.location.assign('/login')
   }
 
-  const row = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2'
   return (
-    <div className="space-y-3">
-      <div>
-        <h2 id="people-title" className="text-lg font-semibold">אנשים ומכשירים</h2>
-        <p className="text-sm text-muted-foreground">כל מי שכאן רואה ועורך את אותם נתונים. נכנסים עם מפתח (passkey), ומי שרוצה גם עם סיסמה.</p>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">אנשים ומכשירים</h1>
+        <p className="text-sm text-muted-foreground text-pretty">כל מי שכאן רואה ועורך את אותם נתונים. נכנסים עם מפתח (passkey), ומי שרוצה גם עם סיסמה.</p>
       </div>
       {recovered && info?.thisDevice === null && (
-        <p className="rounded-xl bg-muted px-3 py-2 text-sm">
+        <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">
           נכנסתם עם קוד השחזור, והוא כבר לא בתוקף. הוסיפו מפתח במכשיר הזה וצרו קוד שחזור חדש.
         </p>
       )}
       {error && <p className={errorText} role="alert">{error}</p>}
 
-      <div className="space-y-3 rounded-xl surface p-4 md:p-6">
-        {!info ? (
-          <p className="text-sm text-muted-foreground">טוען…</p>
-        ) : (
-          info.people.map(p => (
-            <div key={p.id} className="space-y-2 border-b pb-3 last:border-b-0 last:pb-0">
-              <div className={row}>
-                <p className="font-medium">{p.name}{p.id === info.me && <span className="ms-2 text-xs text-muted-foreground">(את/ה)</span>}</p>
-                <button type="button" onClick={() => makeInvite(p)} className={secondaryButton}>
-                  <Smartphone className="h-4 w-4" aria-hidden />
-                  מכשיר נוסף
-                </button>
-              </div>
-              {p.passkeys.length === 0 && <p className="text-sm text-muted-foreground">אין מכשירים</p>}
-              <ul className="space-y-1.5">
-                {p.passkeys.map(d => (
-                  <li key={d.id} className={`${row} text-sm`}>
-                    <span className="min-w-0">
-                      <KeyRound className="me-1.5 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                      {d.label}
-                      {d.id === info.thisDevice && <span className="ms-2 rounded-full bg-muted px-2 py-0.5 text-xs">המכשיר הזה</span>}
-                      <span className="ms-2 text-xs text-muted-foreground">נוסף {date(d.createdAt)} · שימוש אחרון {date(d.lastUsedAt)}</span>
+      {!info ? (
+        <div className="h-40 animate-pulse rounded-2xl bg-muted motion-reduce:animate-none" aria-label="טוען" />
+      ) : (
+        info.people.map((p, i) => (
+          <section key={p.id} aria-label={p.name} className="overflow-hidden rounded-2xl surface">
+            <div className="flex items-center gap-3.5 px-4 py-4 md:px-5">
+              <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-bold', AVATARS[i % AVATARS.length])} aria-hidden>
+                {[...p.name][0]}
+              </span>
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="truncate text-[17px] font-semibold">{p.name}</span>
+                {p.id === info.me && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">את/ה</span>}
+              </span>
+              <button type="button" onClick={() => makeInvite(p)} aria-label={`מכשיר נוסף עבור ${p.name}`} className={secondaryButton}>
+                <Smartphone className="h-4 w-4" aria-hidden />
+                {/* Icon only on a narrow phone, so the name keeps its room */}
+                <span className="max-[420px]:sr-only">מכשיר נוסף</span>
+              </button>
+            </div>
+            <ul className="border-t">
+              {p.passkeys.map(d => (
+                <li key={d.id} className={ROW}>
+                  <RowIcon icon={isComputer(d.label) ? Laptop : Smartphone} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2 text-[15px] font-medium">
+                      <span className="truncate">{d.label}</span>
+                      {d.id === info.thisDevice && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">המכשיר הזה</span>}
                     </span>
-                    <button type="button" onClick={() => setRevoking(d)} className="text-sm text-destructive underline-offset-4 hover:underline dark:text-red-400">
-                      ביטול
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className={`${row} text-sm`}>
-                <span className="min-w-0">
-                  <LockKeyhole className="me-1.5 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                  {p.hasPassword ? 'יש סיסמה' : 'אין סיסמה'}
-                </span>
-                {p.id === info.me && (
-                  <span className="flex gap-3">
-                    <button type="button" onClick={() => setEditingPassword(true)} className="text-sm text-primary underline-offset-4 hover:underline">
-                      {p.hasPassword ? 'שינוי סיסמה' : 'הגדרת סיסמה'}
+                    <span className="block text-[13px] text-muted-foreground text-pretty">
+                      מפתח. נוסף ב-{date(d.createdAt)}, {d.lastUsedAt ? `שימוש אחרון ${date(d.lastUsedAt)}` : 'עוד לא בשימוש'}
+                    </span>
+                  </span>
+                  <button type="button" onClick={() => setRevoking(d)} aria-label={`ביטול ${d.label}`} className={cn(TEXT_BUTTON, QUIET_DANGER)}>
+                    ביטול
+                  </button>
+                </li>
+              ))}
+              {p.passkeys.length === 0 && (
+                <li className={ROW}>
+                  <RowIcon icon={Smartphone} muted />
+                  <span className="flex-1 text-[15px] text-muted-foreground">אין מכשירים</span>
+                </li>
+              )}
+              <li className={ROW}>
+                <RowIcon icon={LockKeyhole} muted={!p.hasPassword} />
+                {p.id === info.me ? (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-medium">סיסמה</span>
+                      <span className="block text-[13px] text-muted-foreground text-pretty">
+                        {p.hasPassword ? 'מוגדרת. לכניסה ממכשיר בלי מפתח' : 'לא מוגדרת. אפשר להוסיף, לכניסה ממכשיר בלי מפתח'}
+                      </span>
+                    </span>
+                    <button type="button" onClick={() => setEditingPassword(true)} className={cn(TEXT_BUTTON, 'text-primary hover:bg-primary/10')}>
+                      {p.hasPassword ? 'שינוי' : 'הגדרה'}
                     </button>
                     {p.hasPassword && (
-                      <button type="button" onClick={() => setRemovingPassword(true)} className="text-sm text-destructive underline-offset-4 hover:underline dark:text-red-400">
+                      <button type="button" onClick={() => setRemovingPassword(true)} className={cn(TEXT_BUTTON, QUIET_DANGER)}>
                         הסרה
                       </button>
                     )}
-                  </span>
+                  </>
+                ) : (
+                  <span className={cn('flex-1 text-[15px]', p.hasPassword ? 'font-medium' : 'text-muted-foreground')}>{p.hasPassword ? 'יש סיסמה' : 'אין סיסמה'}</span>
                 )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+              </li>
+            </ul>
+          </section>
+        ))
+      )}
 
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => makeInvite(null)} className={secondaryButton}>
-          <UserPlus className="h-4 w-4" aria-hidden />
-          הזמנת אדם
-        </button>
-        <button type="button" onClick={addHere} disabled={busy} className={secondaryButton}>
-          <KeyRound className="h-4 w-4" aria-hidden />
-          מפתח במכשיר הזה
-        </button>
-        <button type="button" onClick={() => setConfirmRecovery(true)} className={secondaryButton}>
-          קוד שחזור חדש
-        </button>
-        <button type="button" onClick={signOut} className={secondaryButton}>
-          <LogOut className="h-4 w-4" aria-hidden />
-          יציאה
-        </button>
-      </div>
-      {info && !info.hasRecoveryCode && <p className="text-sm text-muted-foreground">אין כרגע קוד שחזור בתוקף.</p>}
+      <section aria-labelledby="household-title" className="space-y-2">
+        <h2 id="household-title" className="px-1 text-[13px] font-semibold text-muted-foreground">משק הבית</h2>
+        <ul className="overflow-hidden rounded-2xl surface">
+          <li className="border-b">
+            <button type="button" onClick={() => makeInvite(null)} className={ROW_BUTTON}>
+              <RowIcon icon={UserPlus} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-medium">הזמנת אדם</span>
+                <span className="block text-[13px] text-muted-foreground">קישור או QR, עובד פעם אחת, לכ-15 דקות</span>
+              </span>
+              <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70" aria-hidden />
+            </button>
+          </li>
+          <li className="border-b">
+            <button type="button" onClick={addHere} disabled={busy} className={ROW_BUTTON}>
+              <RowIcon icon={KeyRound} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-medium">מפתח במכשיר הזה</span>
+                <span className="block text-[13px] text-muted-foreground">Face ID, Touch ID או קוד המכשיר</span>
+              </span>
+              <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70" aria-hidden />
+            </button>
+          </li>
+          <li className={ROW}>
+            <RowIcon icon={ShieldCheck} muted={!!info && !info.hasRecoveryCode} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-medium">קוד שחזור</span>
+              <span className="block text-[13px] text-muted-foreground text-pretty">
+                {info && !info.hasRecoveryCode ? 'אין קוד בתוקף. כדאי ליצור אחד' : 'בתוקף. כניסה אחת אם אין גישה לאף מכשיר'}
+              </span>
+            </span>
+            <button type="button" onClick={() => setConfirmRecovery(true)} className={cn(TEXT_BUTTON, 'text-primary hover:bg-primary/10')}>
+              קוד חדש
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <button type="button" onClick={signOut} className={secondaryButton}>
+        <LogOut className="h-4 w-4 -scale-x-100" aria-hidden />
+        יציאה
+      </button>
 
       <AppDialog open={!!invite} onOpenChange={o => !o && setInvite(null)} title={invite?.title ?? ''}>
         {invite && (

@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       >
         <body>
           <Providers>
-            <main className="flex min-h-dvh items-center justify-center p-4">{children}</main>
+            <main>{children}</main>
           </Providers>
         </body>
       </html>

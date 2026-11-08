@@ -84,9 +84,9 @@ export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: 
   }
 
   return (
-    <div className="space-y-3 border-t border-destructive/25 pt-8">
+    <div className="space-y-3">
       <div>
-        <h2 id="danger-zone-title" className="text-lg font-semibold text-destructive dark:text-red-400">אזור מסוכן</h2>
+        <h1 className="text-2xl font-semibold tracking-tight text-destructive dark:text-red-400">אזור מסוכן</h1>
         <p className="text-sm text-muted-foreground">פעולות שאי אפשר לבטל.</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-xl surface border-destructive/40 p-4 md:p-6">

@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { KeyRound } from 'lucide-react'
+import { CircleAlert, KeyRound } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 import { inputClass } from '@/components/accounts/add-account-form'
 import { passkeyBlocker, safeNext, signInWithPasskey } from './passkey-client'
-import { card, errorText, primaryButton, secondaryButton } from './ui'
+import { BrandMark } from './auth-shell'
+import { card, errorText, ghostButton, primaryButton, textButton } from './ui'
 
 type Mode = 'passkey' | 'password' | 'recovery'
 
-const link = 'w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline'
-
 /**
- * /login (ENG-89): "Sign in with passkey"; a password for a device without
- * one (set in Settings → People); the recovery code as the way back.
+ * /login (ENG-89): "Sign in with passkey", and under it in the same card a
+ * name and password, for a device without a passkey (set in Settings →
+ * People); the recovery code as the way back.
  */
 export function LoginForm() {
   const next = safeNext(useSearchParams().get('next'))
@@ -34,6 +35,7 @@ export function LoginForm() {
   }
 
   async function signIn() {
+    setMode('passkey')
     setBusy(true)
     setError(null)
     setNoPasskeyHere(false)
@@ -65,66 +67,105 @@ export function LoginForm() {
     window.location.assign(then)
   }
 
+  const passwordError = mode === 'password' ? error : null
   return (
     <div className={card}>
-      <div className="space-y-1 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">תזרים</h1>
-        <p className="text-sm text-muted-foreground">כניסה עם Face ID, Touch ID או קוד המכשיר</p>
-      </div>
-      {blocker && mode === 'passkey' && <p className={errorText}>{blocker}</p>}
-      {error && <p className={errorText} role="alert">{error}</p>}
+      <BrandMark />
+      {blocker && <p className={errorText}>{blocker}</p>}
 
-      {mode === 'passkey' && (
-        <>
-          {noPasskeyHere && (
-            <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">
-              אין מפתח במכשיר הזה? היכנסו עם סיסמה, או הוסיפו את המכשיר מהטלפון: הגדרות ← אנשים ומכשירים ← מכשיר נוסף.
-            </p>
-          )}
-          <button type="button" onClick={signIn} disabled={busy || !!blocker} className={primaryButton}>
-            <KeyRound className="h-5 w-5" aria-hidden />
-            כניסה עם מפתח
-          </button>
-          <div className="space-y-2">
-            <button type="button" onClick={() => show('password')} className={link}>
+      {mode !== 'recovery' ? (
+        <div key="main" className="auth-swap flex flex-col gap-5">
+          <div className="space-y-3">
+            <p className="text-center text-sm text-muted-foreground">כניסה עם Face ID, Touch ID או קוד המכשיר</p>
+            <button type="button" onClick={signIn} disabled={busy || !!blocker} className={primaryButton}>
+              <KeyRound className="h-5 w-5" aria-hidden />
+              כניסה עם מפתח
+            </button>
+            {mode === 'passkey' && error && <p className={errorText} role="alert">{error}</p>}
+            {noPasskeyHere && (
+              <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">
+                אין מפתח במכשיר הזה? היכנסו עם סיסמה, או הוסיפו את המכשיר מהטלפון: הגדרות ← אנשים ומכשירים ← מכשיר נוסף.
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 text-[13px] text-muted-foreground" aria-hidden>
+            <span className="h-px flex-1 bg-border" />
+            או
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <form
+            onSubmit={e => { e.preventDefault(); setMode('password'); post('/api/auth/password', { name, password }, next) }}
+            className="space-y-3"
+            aria-label="כניסה עם סיסמה"
+          >
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">שם</span>
+              <input
+                autoComplete="username"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                aria-invalid={!!passwordError || undefined}
+                className={cn(inputClass, passwordError && 'border-destructive')}
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">סיסמה</span>
+              <input
+                type="password"
+                dir="ltr"
+                autoComplete="current-password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                aria-invalid={!!passwordError || undefined}
+                aria-describedby={passwordError ? 'password-error' : undefined}
+                className={cn(inputClass, passwordError && 'border-destructive')}
+              />
+            </label>
+            {passwordError && (
+              <p id="password-error" role="alert" className="flex items-center gap-1.5 text-[13px] text-destructive dark:text-red-400">
+                <CircleAlert className="h-4 w-4 shrink-0" aria-hidden />
+                {passwordError}
+              </p>
+            )}
+            <button type="submit" disabled={busy || !name.trim() || !password} className={cn(ghostButton, 'mt-1')}>
               כניסה עם סיסמה
             </button>
-            <button type="button" onClick={() => show('recovery')} className={link}>
-              אין גישה למפתח? כניסה עם קוד שחזור
-            </button>
-          </div>
-        </>
-      )}
+          </form>
 
-      {mode === 'password' && (
-        <form onSubmit={e => { e.preventDefault(); post('/api/auth/password', { name, password }, next) }} className="space-y-3">
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">שם</span>
-            <input autoComplete="username" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">סיסמה</span>
-            <input type="password" dir="ltr" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className={inputClass} />
-          </label>
-          <p className="text-xs text-muted-foreground">סיסמה מגדירים בהגדרות ← אנשים ומכשירים, אחרי כניסה עם מפתח.</p>
-          <div className="flex gap-2">
-            <button type="submit" disabled={busy || !name.trim() || !password} className={primaryButton}>כניסה</button>
-            <button type="button" onClick={() => show('passkey')} className={secondaryButton}>חזרה</button>
-          </div>
-        </form>
-      )}
-
-      {mode === 'recovery' && (
+          <button type="button" onClick={() => show('recovery')} className={textButton}>
+            אין גישה? כניסה עם קוד שחזור
+          </button>
+        </div>
+      ) : (
         // Straight to People, to add a passkey on this device and make a new recovery code
-        <form onSubmit={e => { e.preventDefault(); post('/api/auth/recover', { code }, '/settings?recovered=1#people') }} className="space-y-3">
+        <form
+          key="recovery"
+          onSubmit={e => { e.preventDefault(); post('/api/auth/recover', { code }, '/settings/people?recovered=1') }}
+          className="auth-swap flex flex-col gap-5"
+        >
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold">קוד שחזור</h1>
+            <p className="text-sm text-muted-foreground text-pretty">הקוד עובד פעם אחת. אחרי הכניסה מוסיפים מפתח חדש ויוצרים קוד חדש.</p>
+          </div>
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium">קוד שחזור</span>
-            <input dir="ltr" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={code} onChange={e => setCode(e.target.value)} className={`${inputClass} font-mono`} />
+            <span className="text-sm font-medium">הקוד</span>
+            <input
+              dir="ltr"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              aria-invalid={!!error || undefined}
+              className={cn(inputClass, 'text-center font-mono tracking-wider', error && 'border-destructive')}
+            />
           </label>
-          <p className="text-xs text-muted-foreground">הקוד עובד פעם אחת. אחרי הכניסה מוסיפים מפתח חדש ויוצרים קוד חדש.</p>
-          <div className="flex gap-2">
+          {error && <p className={errorText} role="alert">{error}</p>}
+          <div className="flex flex-col gap-2.5">
             <button type="submit" disabled={busy || !code.trim()} className={primaryButton}>כניסה</button>
-            <button type="button" onClick={() => show('passkey')} className={secondaryButton}>ביטול</button>
+            <button type="button" onClick={() => show('passkey')} className={ghostButton}>חזרה</button>
           </div>
         </form>
       )}
