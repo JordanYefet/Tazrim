@@ -6,7 +6,7 @@ import { browserSupportsWebAuthn, startAuthentication, startRegistration } from 
 export function passkeyBlocker(): string | null {
   if (typeof window === 'undefined') return null
   if (!window.isSecureContext) {
-    return 'מפתחות עובדים רק בחיבור מאובטח (https), או ב-localhost על המחשב עצמו. פתחו את Tazrim בכתובת ה-https שלו.'
+    return 'מפתחות (Face ID, Touch ID) עובדים רק בחיבור מאובטח (https). בכתובת הזאת נכנסים עם סיסמה.'
   }
   if (!browserSupportsWebAuthn()) return 'הדפדפן הזה לא תומך במפתחות (passkeys).'
   return null

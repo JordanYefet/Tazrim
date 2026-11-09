@@ -49,12 +49,17 @@ describe('the setup code', () => {
 })
 
 describe('POST /api/auth/setup (with a password)', () => {
-  it('needs the code and a long enough password, and only over https or on this computer', async () => {
+  it('needs the code and a long enough password; with TAZRIM_REQUIRE_HTTPS, only over https or on this computer', async () => {
     process.env.TAZRIM_SETUP_CODE = 'Kitchen-Table-42'
     expect((await setup({ code: 'wrong-code-00', name: 'Owner', password: 'a long password' })).status).toBe(401)
     expect((await setup({ code: 'Kitchen-Table-42', name: 'Owner', password: 'short' })).status).toBe(400)
-    const plain = { host: 'tazrim.example.lan' }
-    expect((await setup({ code: 'Kitchen-Table-42', name: 'Owner', password: 'a long password' }, plain)).status).toBe(400)
+    process.env.TAZRIM_REQUIRE_HTTPS = '1'
+    try {
+      const plain = { host: 'tazrim.example.lan' }
+      expect((await setup({ code: 'Kitchen-Table-42', name: 'Owner', password: 'a long password' }, plain)).status).toBe(400)
+    } finally {
+      delete process.env.TAZRIM_REQUIRE_HTTPS
+    }
     expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "Person"')[0].n).toBe(0)
   })
 

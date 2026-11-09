@@ -18,11 +18,19 @@ export function allow(req: Request, bucket: string, limit: number, windowMs = 10
   return rateLimit(`${bucket}:${clientKey(req.headers)}`, limit, windowMs)
 }
 
+/** TAZRIM_REQUIRE_HTTPS=1: passwords only over https (or on this computer itself) */
+export function httpsRequired(): boolean {
+  return /^(1|true|yes|on)$/i.test(process.env.TAZRIM_REQUIRE_HTTPS ?? '')
+}
+
 /**
- * A password may only travel encrypted: https, or http on this computer itself
- * (localhost). Plain http from another device would send it over the Wi-Fi as is.
+ * Passwords work over plain http from the home network by default, so a new
+ * install works from a phone with nothing to set up (passkeys need https, so
+ * they can't). The password and cookie then cross the Wi-Fi unencrypted:
+ * TAZRIM_REQUIRE_HTTPS=1 refuses that, keeping https and localhost only.
  */
 export function passwordTransportOr400(req: Request, rp: RelyingParty): NextResponse | null {
+  if (!httpsRequired()) return null
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? ''
   if (rp.secure || isLoopbackHost(host.split(',')[0])) return null
   return fail(400, 'סיסמה עובדת רק בחיבור מאובטח (https), או ב-localhost על המחשב עצמו', 'INSECURE')

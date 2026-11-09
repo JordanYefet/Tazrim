@@ -77,7 +77,6 @@ export function LoginForm() {
   return (
     <div className={card}>
       <BrandMark />
-      {blocker && <p className={errorText}>{blocker}</p>}
 
       {mode !== 'recovery' ? (
         <div key="main" className="auth-swap flex flex-col gap-5">
@@ -127,7 +126,9 @@ export function LoginForm() {
           </div>
 
           <div className="space-y-3">
-            <p className="text-center text-sm text-muted-foreground">כניסה עם Face ID, Touch ID או קוד המכשיר</p>
+            <p className="text-center text-sm text-muted-foreground text-pretty">
+              {blocker ?? 'כניסה עם Face ID, Touch ID או קוד המכשיר'}
+            </p>
             <button ref={passkeyButton} type="button" onClick={signIn} disabled={busy || !!blocker} className={primaryButton}>
               <KeyRound className="h-5 w-5" aria-hidden />
               כניסה עם מפתח
