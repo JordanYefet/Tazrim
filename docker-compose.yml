@@ -25,6 +25,8 @@ services:
       TAZRIM_ORIGINS: "${TAZRIM_ORIGINS:-}"
       # First run: the code /setup asks for (8+ characters). Empty = a code printed to the log
       TAZRIM_SETUP_CODE: "${TAZRIM_SETUP_CODE:-}"
+      # The vault with the bank sign-ins locks after this many idle minutes
+      TAZRIM_VAULT_IDLE_MINUTES: "${TAZRIM_VAULT_IDLE_MINUTES:-15}"
       # The clock dates and months follow; keep it the same as wherever the data was made
       TZ: "${TAZRIM_TZ:-Asia/Jerusalem}"
     volumes:

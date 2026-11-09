@@ -9,6 +9,8 @@ import { STARTING_GENERIC_DESCRIPTIONS } from './starting-generic-descriptions'
  * a model to the schema fails type-checking until it is listed here.
  */
 const WIPE_ORDER = {
+  // The vault's sign-ins (ENG-90) point at accounts
+  BankCredential: 0,
   UnusualDismissal: 1,
   RecurringSeriesOverride: 2,
   // members before their series (FK)
@@ -31,8 +33,10 @@ const WIPE_ORDER = {
   // Sessions and invites point at people and passkeys, passkeys at people.
   Session: 18,
   Invite: 19,
-  Passkey: 20,
-  Person: 21,
+  // The vault key's copies point at passkeys
+  VaultKeyWrap: 20,
+  Passkey: 21,
+  Person: 22,
 }
 
 WIPE_ORDER satisfies Record<Prisma.ModelName, number>
