@@ -234,3 +234,60 @@ describe('an SMS code', () => {
     expect((await settle(res.run.id)).state).toBe('needs-links')
   })
 })
+
+describe('"sync all" (ENG-92)', () => {
+  async function settleQueue() {
+    await vi.waitFor(() => {
+      if (!runs.currentQueue()?.finishedAt) throw new Error('still going')
+    })
+    return runs.currentQueue()!
+  }
+
+  it('runs each company in turn, reading each login only when its turn comes, and skips one the vault locked meanwhile', async () => {
+    await prisma.syncLink.create({ data: { company: 'leumi', externalAccount: '000-000000/00', accountId: 'acct_leumi' } })
+    const read: string[] = []
+    const res = await runs.startQueue([
+      { company: company('leumi'), startDate: start(), login: async () => (read.push('leumi'), { username: 'someone', password: 'fake-password' }) },
+      { company: company('max'), startDate: start(), login: async () => (read.push('max'), 'VAULT_LOCKED' as const) },
+    ])
+    expect(res.ok).toBe(true)
+    // Only the first login was read so far
+    expect(read).toEqual(['leumi'])
+    // Another sync can't start meanwhile
+    expect(runs.startRun(company('max'), { username: 'x', password: 'y' }, start())).toEqual({ ok: false, code: 'BUSY' })
+    const q = await settleQueue()
+    expect(read).toEqual(['leumi', 'max'])
+    expect(q.items[0]).toMatchObject({ company: 'leumi', state: 'done' })
+    expect(q.items[0].created).toBeGreaterThan(0)
+    expect(q.items[1]).toEqual({ company: 'max', state: 'skipped', code: 'VAULT_LOCKED' })
+  })
+
+  it('a run that waits for links holds the queue until it is answered', async () => {
+    const res = await runs.startQueue([
+      { company: company('max'), startDate: start(), login: async () => ({ username: 'someone', password: 'fake-password' }) },
+      { company: company('leumi'), startDate: start(), login: async () => ({ username: 'someone', password: 'fake-password' }) },
+    ])
+    if (!res.ok) throw new Error('not started')
+    const first = runs.currentRun()!
+    const waiting = await settle(first.id)
+    expect(waiting.state).toBe('needs-links')
+    expect(runs.currentQueue()!.items.map(i => i.state)).toEqual(['running', 'waiting'])
+    await runs.submitLinks(first.id, [
+      { externalAccount: '1234', action: 'link', accountId: 'acct_max' },
+      { externalAccount: '5678', action: 'ignore' },
+    ])
+    // Leumi asks about its account next; ignore it so the queue ends
+    await vi.waitFor(() => {
+      const r = runs.currentRun()!
+      if (r.company !== 'leumi' || r.status.state !== 'needs-links') throw new Error('not yet')
+    })
+    const second = runs.currentRun()!
+    await runs.submitLinks(second.id, [{ externalAccount: '000-000000/00', action: 'ignore' }])
+    const q = await settleQueue()
+    expect(q.items.map(i => i.state)).toEqual(['done', 'done'])
+  })
+
+  it('nothing to sync: EMPTY', async () => {
+    expect(await runs.startQueue([])).toEqual({ ok: false, code: 'EMPTY' })
+  })
+})

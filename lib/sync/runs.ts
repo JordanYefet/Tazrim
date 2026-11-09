@@ -47,6 +47,8 @@ export interface RunView {
 
 interface Run {
   id: string
+  /** Set when the run is one of "sync all" (ENG-92) */
+  queued?: boolean
   company: SyncCompany
   startedAt: Date
   startDate: Date
@@ -57,8 +59,42 @@ interface Run {
   timer?: ReturnType<typeof setTimeout>
 }
 
+/** One company in "sync all", as the sheet shows it */
+export interface QueueItemView {
+  company: string
+  state: 'waiting' | 'running' | 'done' | 'failed' | 'skipped'
+  /** New rows, once done */
+  created?: number
+  /** Why it failed or was skipped: a FAILURE_TEXT key, or VAULT_LOCKED */
+  code?: string
+}
+
+export interface QueueView {
+  id: string
+  items: QueueItemView[]
+  finishedAt: string | null
+}
+
+/** Where a queued company's login comes from: read only when its turn comes (the vault, ENG-92) */
+export type LoginSource = () => Promise<Record<string, string> | 'VAULT_LOCKED' | null>
+
+interface QueueItem {
+  company: SyncCompany
+  startDate: Date
+  login: LoginSource
+  view: QueueItemView
+}
+
+interface Queue {
+  id: string
+  items: QueueItem[]
+  index: number
+  finishedAt: Date | null
+}
+
 interface Registry {
   current: Run | null
+  queue?: Queue | null
 }
 
 // One registry per server process (and across dev hot reloads)
@@ -86,7 +122,10 @@ function finish(run: Run, status: RunState) {
   run.scraped = undefined
   run.status = status
   run.finishedAt = new Date()
+  if (run.queued) void nextInQueue(status)
 }
+
+const queueActive = () => !!registry.queue && !registry.queue.finishedAt
 
 /** The latest run, finished or not. */
 export function currentRun(): RunView | null {
@@ -101,11 +140,65 @@ export type StartResult = { ok: true; run: RunView } | { ok: false; code: 'BUSY'
 
 /** Starts a sync; the login is handed to the scrape and blanked once the site has answered. */
 export function startRun(company: SyncCompany, credentials: Record<string, string>, startDate: Date): StartResult {
-  if (active(registry.current)) return { ok: false, code: 'BUSY' }
-  const run: Run = { id: randomUUID(), company, startedAt: new Date(), startDate, finishedAt: null, status: { state: 'running', step: 'starting' } }
+  if (active(registry.current) || queueActive()) return { ok: false, code: 'BUSY' }
+  registry.queue = null
+  return { ok: true, run: view(launch(company, credentials, startDate)) }
+}
+
+function launch(company: SyncCompany, credentials: Record<string, string>, startDate: Date, queued = false): Run {
+  const run: Run = { id: randomUUID(), queued, company, startedAt: new Date(), startDate, finishedAt: null, status: { state: 'running', step: 'starting' } }
   registry.current = run
   void execute(run, credentials, startDate)
-  return { ok: true, run: view(run) }
+  return run
+}
+
+// ── "Sync all" (ENG-92) ────────────────────────────────────────────────
+
+export function currentQueue(): QueueView | null {
+  const q = registry.queue
+  return q ? { id: q.id, items: q.items.map(i => ({ ...i.view })), finishedAt: q.finishedAt?.toISOString() ?? null } : null
+}
+
+export type QueueStart = { ok: true; queue: QueueView } | { ok: false; code: 'BUSY' | 'EMPTY' }
+
+/**
+ * Syncs several companies one after another, each with a login read only when
+ * its turn comes. A company whose login can't be read (the vault locked
+ * meanwhile) is skipped and the rest go on; a run waiting for a code or for
+ * links holds the queue until it is answered.
+ */
+export async function startQueue(items: { company: SyncCompany; startDate: Date; login: LoginSource }[]): Promise<QueueStart> {
+  if (active(registry.current) || queueActive()) return { ok: false, code: 'BUSY' }
+  if (!items.length) return { ok: false, code: 'EMPTY' }
+  registry.queue = {
+    id: randomUUID(),
+    items: items.map(i => ({ ...i, view: { company: i.company.id, state: 'waiting' } })),
+    index: -1,
+    finishedAt: null,
+  }
+  await nextInQueue(null)
+  return { ok: true, queue: currentQueue()! }
+}
+
+async function nextInQueue(finished: RunState | null) {
+  const q = registry.queue
+  if (!q || q.finishedAt) return
+  const prev = q.items[q.index]
+  if (prev && finished) {
+    if (finished.state === 'done') prev.view = { ...prev.view, state: 'done', created: finished.results.reduce((n, r) => n + r.created, 0) }
+    else if (finished.state === 'failed') prev.view = { ...prev.view, state: 'failed', code: finished.code }
+  }
+  while (++q.index < q.items.length) {
+    const item = q.items[q.index]
+    const login = await item.login().catch(() => null)
+    if (login && typeof login === 'object') {
+      item.view = { ...item.view, state: 'running' }
+      launch(item.company, login, item.startDate, true)
+      return
+    }
+    item.view = { ...item.view, state: 'skipped', code: login === 'VAULT_LOCKED' ? 'VAULT_LOCKED' : 'GENERIC' }
+  }
+  q.finishedAt = new Date()
 }
 
 async function execute(run: Run, credentials: Record<string, string>, startDate: Date) {
@@ -212,4 +305,5 @@ export function cancelRun(id: string): boolean {
 export function resetRuns() {
   if (registry.current?.timer) clearTimeout(registry.current.timer)
   registry.current = null
+  registry.queue = null
 }

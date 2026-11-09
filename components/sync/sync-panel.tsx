@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Circle, Loader2 } from 'lucide-react'
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Circle, Loader2, LockKeyhole } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { faceFor } from '@/lib/accounts/brands'
 import { FIELD_LABELS, syncCompany, type LoginField } from '@/lib/sync/providers'
 import { FAILURE_TEXT, monthsBackDay, shortDay, timeAgo } from '@/lib/sync/format'
-import type { RunView } from '@/lib/sync/runs'
+import type { QueueView, RunView } from '@/lib/sync/runs'
 import type { LinkAction, UnknownAccount, Candidate } from '@/lib/sync/store'
-import type { CompanyInfo, SyncApi } from './use-sync'
+import type { CompanyInfo, LoginInput, SyncApi } from './use-sync'
 
 const ROW =
   'flex min-h-14 w-full items-center gap-3 px-4 py-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
@@ -66,8 +66,21 @@ function BackHeader({ company, onBack, back = true }: { company: CompanyInfo; on
  * The list: the companies the household's accounts sync through (ENG-102), each
  * with its accounts. None yet: a way to add one in Settings.
  */
-function CompanyList({ info, onPick, onClose }: { info: NonNullable<SyncApi['info']>; onPick: (id: string) => void; onClose: () => void }) {
+function CompanyList({
+  info,
+  onPick,
+  onClose,
+  onAll,
+}: {
+  info: NonNullable<SyncApi['info']>
+  onPick: (id: string) => void
+  onClose: () => void
+  onAll: () => Promise<string | null>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const own = info.companies
+  const saved = own.filter(c => c.savedLogin)
   const last = own.map(c => c.lastSyncedAt).filter(Boolean).sort().at(-1)
   const disabled = !info.available
   return (
@@ -102,6 +115,12 @@ function CompanyList({ info, onPick, onClose }: { info: NonNullable<SyncApi['inf
                     {accountsLabel(c)} · {c.lastSyncedAt ? timeAgo(c.lastSyncedAt) : 'טרם סונכרן'}
                   </span>
                 </span>
+                {c.savedLogin && (
+                  <span title="פרטי הכניסה שמורים בכספת" className="shrink-0 text-muted-foreground">
+                    <LockKeyhole className="h-3.5 w-3.5" aria-hidden />
+                    <span className="sr-only">פרטי הכניסה שמורים בכספת</span>
+                  </span>
+                )}
                 <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               </button>
             </li>
@@ -110,12 +129,36 @@ function CompanyList({ info, onPick, onClose }: { info: NonNullable<SyncApi['inf
       )}
       {own.length > 0 && (
         <div className="px-4 pb-2 pt-3">
-          {/* Its final place, switched on once passwords can be kept (the vault, ENG-90) */}
-          <button type="button" disabled className={SECONDARY + ' w-full disabled:opacity-50'} aria-describedby="sync-all-hint">
-            סנכרן הכול
+          {/* Every company with a sign-in saved in the vault, one after another (ENG-92) */}
+          <button
+            type="button"
+            disabled={disabled || busy || saved.length === 0}
+            onClick={async () => {
+              setBusy(true)
+              setError(null)
+              const err = await onAll()
+              setBusy(false)
+              setError(err)
+            }}
+            className={SECONDARY + ' w-full gap-2 disabled:opacity-50'}
+            aria-describedby="sync-all-hint"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />}
+            {saved.length > 1 ? `סנכרן הכול (${saved.length})` : 'סנכרן הכול'}
           </button>
-          <p id="sync-all-hint" className="mt-1.5 text-center text-[11px] text-muted-foreground">
-            יתאפשר כשאפשר יהיה לשמור סיסמאות בכספת. בינתיים הסיסמה מוקלדת בכל סנכרון ולא נשמרת.
+          {error && (
+            <p role="alert" className="mt-1.5 text-center text-xs text-red-700 dark:text-red-300">
+              {error}
+            </p>
+          )}
+          <p id="sync-all-hint" className="mt-1.5 text-center text-[11px] leading-relaxed text-muted-foreground text-pretty">
+            {saved.length === 0
+              ? info.vault.exists
+                ? 'שומרים את פרטי הכניסה בכספת בסנכרון של חשבון, ואז הכול מסתנכרן בלחיצה אחת.'
+                : 'כדי לסנכרן הכול בלחיצה אחת, יוצרים כספת בהגדרות ← כספת ושומרים בה את פרטי הכניסה.'
+              : info.vault.open
+                ? 'כל חשבון עם פרטים שמורים, בזה אחר זה, מהסנכרון האחרון שלו.'
+                : 'Face ID או Touch ID פותח את הכספת, ואז כל חשבון עם פרטים שמורים מסתנכרן בזה אחר זה.'}
           </p>
         </div>
       )}
@@ -139,13 +182,18 @@ const RANGE_MONTHS = [1, 3, 6, 12, 18, 24, 36, 48]
 
 function LoginForm({
   company,
+  vault,
   onBack,
   onStart,
 }: {
   company: CompanyInfo
+  vault: { exists: boolean; open: boolean }
   onBack: () => void
-  onStart: (credentials: Record<string, string>, startDate: string) => Promise<string | null>
+  onStart: (login: LoginInput, startDate: string) => Promise<string | null>
 }) {
+  // A sign-in saved in the vault (ENG-92) is used as is; "other details" types new ones
+  const [typing, setTyping] = useState(!company.savedLogin)
+  const [save, setSave] = useState(vault.exists)
   const [values, setValues] = useState<Record<string, string>>({})
   const [range, setRange] = useState('default')
   const [error, setError] = useState<string | null>(null)
@@ -167,7 +215,8 @@ function LoginForm({
     })),
     { value: 'custom', label: 'תאריך אחר…', day: custom },
   ]
-  const complete = company.fields.every(f => (values[f] ?? '').trim()) && (range !== 'custom' || (custom >= earliest && custom <= today))
+  const complete =
+    (!typing || company.fields.every(f => (values[f] ?? '').trim())) && (range !== 'custom' || (custom >= earliest && custom <= today))
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -175,7 +224,8 @@ function LoginForm({
     setBusy(true)
     setError(null)
     const day = options.find(o => o.value === range)?.day ?? company.defaultStart
-    const err = await onStart(values, day < earliest ? earliest : day)
+    const login: LoginInput = typing ? { credentials: values, save: vault.exists && save } : { saved: true }
+    const err = await onStart(login, day < earliest ? earliest : day)
     // The typed password is not kept in the page either
     setValues({})
     setBusy(false)
@@ -186,7 +236,21 @@ function LoginForm({
     <form onSubmit={submit} autoComplete="off" className="pb-4">
       <BackHeader company={company} onBack={onBack} />
       <div className="flex flex-col gap-3 px-4">
-        {company.fields.map((f: LoginField, i) => (
+        {!typing && (
+          <div className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5">
+            <LockKeyhole className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 flex-1 text-[13px]">
+              <span className="block font-medium">פרטי הכניסה שמורים בכספת</span>
+              <span className="block text-xs text-muted-foreground">
+                {vault.open ? 'הם נקראים בשרת ולא מגיעים לדפדפן.' : 'Face ID או Touch ID יפתח את הכספת.'}
+              </span>
+            </span>
+            <button type="button" onClick={() => setTyping(true)} className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
+              פרטים אחרים
+            </button>
+          </div>
+        )}
+        {typing && company.fields.map((f: LoginField, i) => (
           <label key={f} className="flex flex-col gap-1.5 text-[13px] font-medium">
             {FIELD_LABELS[f]}
             <input
@@ -223,7 +287,19 @@ function LoginForm({
             </span>
           </label>
         )}
-        <p className="text-xs text-muted-foreground">הסיסמה משמשת לסנכרון הזה בלבד ולא נשמרת. הדפדפן של הסנכרון רץ ברקע, בלי חלון.</p>
+        {typing && vault.exists && (
+          <label className="flex items-center gap-2.5 text-[13px]">
+            <input type="checkbox" checked={save} onChange={e => setSave(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
+            {company.savedLogin ? 'לעדכן בכספת, במקום הפרטים השמורים' : 'לשמור בכספת, לסנכרונים הבאים'}
+          </label>
+        )}
+        <p className="text-xs text-muted-foreground text-pretty">
+          {!typing
+            ? 'הדפדפן של הסנכרון רץ ברקע, בלי חלון.'
+            : vault.exists && save
+              ? `נשמרים מוצפנים בכספת${vault.open ? '' : ' (Face ID או Touch ID יפתח אותה)'}. הדפדפן של הסנכרון רץ ברקע, בלי חלון.`
+              : 'הסיסמה משמשת לסנכרון הזה בלבד ולא נשמרת. הדפדפן של הסנכרון רץ ברקע, בלי חלון.'}
+        </p>
         {error && (
           <p role="alert" className="text-sm text-red-700 dark:text-red-300">
             {error}
@@ -478,6 +554,46 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
   )
 }
 
+/** "Sync all" (ENG-92): every company in it, where it stands, in a fixed order */
+function QueueList({ queue, companies }: { queue: QueueView; companies: CompanyInfo[] }) {
+  return (
+    <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
+      {queue.items.map(item => {
+        const c = companies.find(x => x.id === item.company)
+        const text =
+          item.state === 'waiting'
+            ? 'בתור'
+            : item.state === 'running'
+              ? 'מסתנכרן…'
+              : item.state === 'done'
+                ? `${item.created ?? 0} חדשות`
+                : item.state === 'skipped'
+                  ? item.code === 'VAULT_LOCKED'
+                    ? 'דולג: הכספת ננעלה'
+                    : 'דולג: פרטי הכניסה השמורים חסרים'
+                  : (FAILURE_TEXT[item.code ?? ''] ?? FAILURE_TEXT.GENERIC)
+        return (
+          <li key={item.company} className="flex min-h-11 items-center gap-3 px-3 py-2 text-[13px]">
+            {item.state === 'running' ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden />
+            ) : item.state === 'done' ? (
+              <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            ) : item.state === 'failed' ? (
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
+            ) : (
+              <Circle className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
+            )}
+            <span className="min-w-0 flex-1 truncate font-medium">{c?.label ?? item.company}</span>
+            <span className={cn('shrink-0 text-end tabular-nums', item.state === 'failed' ? 'text-red-700 dark:text-red-300' : 'text-muted-foreground')}>
+              {text}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /**
  * What the sync button opens (ENG-91): the companies, then a company's login,
  * then the run (progress, the SMS code, linking new accounts, the result).
@@ -496,6 +612,57 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
     return (
       <div className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> טוען…
+      </div>
+    )
+  }
+
+  const queue = info.queue
+  if (showRun && queue) {
+    const going = !queue.finishedAt
+    const current = run && run.company === queue.items.find(i => i.state === 'running')?.company ? run : null
+    const currentCompany = current ? info.companies.find(c => c.id === current.company) : undefined
+    const s = current?.status
+    const finished = queue.items.filter(i => i.state !== 'waiting' && i.state !== 'running').length
+    return (
+      <div className="pb-4">
+        <div className="px-4 pb-3 pt-3">
+          <div className="text-[17px] font-semibold">סנכרון הכול</div>
+          <div className="text-xs tabular-nums text-muted-foreground">
+            {going ? `${Math.min(finished + 1, queue.items.length)} מתוך ${queue.items.length}` : 'הסתיים'}
+          </div>
+        </div>
+        <div className="flex flex-col gap-4 px-4">
+          <QueueList queue={queue} companies={info.companies} />
+          {current && currentCompany && s && (s.state === 'running' || s.state === 'needs-code' || s.state === 'needs-links') && (
+            <>
+              <Steps run={current} company={currentCompany} />
+              {s.state === 'needs-code' && <CodeEntry onSubmit={code => sync.act({ code })} onCancel={() => void sync.act({ cancel: true })} />}
+              {s.state === 'needs-links' && (
+                <LinkAccounts
+                  company={currentCompany}
+                  unknown={s.unknown}
+                  candidates={s.candidates}
+                  onSubmit={links => sync.act({ links })}
+                  onCancel={() => void sync.act({ cancel: true })}
+                />
+              )}
+            </>
+          )}
+          {going ? (
+            <p className="text-xs text-muted-foreground">אפשר לסגור את החלון; הסנכרון ממשיך, והכפתור בכותרת יראה מתי הוא מסתיים.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setShowRun(false)
+                onClose()
+              }}
+              className={PRIMARY}
+            >
+              סגור
+            </button>
+          )}
+        </div>
       </div>
     )
   }
@@ -541,15 +708,28 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
   if (company && info.available) {
     return (
       <LoginForm
+        key={company.id + (company.savedLogin ?? '')}
         company={company}
+        vault={info.vault}
         onBack={() => setPicked(null)}
-        onStart={async (credentials, startDate) => {
-          const err = await sync.start(company.id, credentials, startDate)
+        onStart={async (login, startDate) => {
+          const err = await sync.start(company.id, login, startDate)
           if (!err) setShowRun(true)
           return err
         }}
       />
     )
   }
-  return <CompanyList info={info} onPick={setPicked} onClose={onClose} />
+  return (
+    <CompanyList
+      info={info}
+      onPick={setPicked}
+      onClose={onClose}
+      onAll={async () => {
+        const err = await sync.startAll()
+        if (!err) setShowRun(true)
+        return err
+      }}
+    />
+  )
 }
