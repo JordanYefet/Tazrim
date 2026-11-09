@@ -39,6 +39,7 @@ model Account {
   uploads                UploadHistory[]
   importProfiles         ImportProfile[]
   syncLinks              SyncLink[]
+  bankCredentials        BankCredential[]
 
   @@index([kind, provider])
 }
@@ -365,6 +366,7 @@ model Passkey {
   createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
   sessions     Session[]
+  vaultWrap    VaultKeyWrap?
 }
 
 /// A signed-in browser. The cookie holds a random token; only its SHA-256 is stored.
@@ -390,4 +392,39 @@ model Invite {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+}
+
+/// The vault's key (ENG-90), locked once per passkey that may open it, and once
+/// for the recovery key. The key itself is never stored: a passkey's WebAuthn
+/// PRF output (or the recovery key) derives the key that opens its copy here.
+/// Revoking a passkey deletes its copy.
+model VaultKeyWrap {
+  id         String   @id @default(uuid())
+  /// Null for the recovery key's copy (one at most)
+  passkeyId  String?  @unique
+  passkey    Passkey? @relation(fields: [passkeyId], references: [id], onDelete: Cascade)
+  /// The salt this passkey's PRF is asked with, base64url (null for the recovery key)
+  prfSalt    String?
+  /// The vault key, AES-256-GCM under the derived key: "v1.<iv>.<tag>.<ciphertext>", base64url
+  wrappedKey String
+  createdAt  DateTime @default(now())
+}
+
+/// A sign-in to a bank or card company's site (ENG-90), for the sync. Only the
+/// company and a label are readable; the fields (user name, password, ID...) are
+/// AES-256-GCM under the vault key, bound to this row's id.
+model BankCredential {
+  id        String   @id @default(uuid())
+  /// israeli-bank-scrapers company id (lib/sync/providers.ts)
+  company   String
+  label     String
+  /// The account it fills, if chosen
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  /// JSON of the login fields, sealed: "v1.<iv>.<tag>.<ciphertext>", base64url
+  sealed    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
 }

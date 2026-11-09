@@ -29,6 +29,8 @@ services:
       # 1 = passwords only over https or on this computer. Default: plain http from the home
       # network works too, so phones can sign in with nothing set up (unencrypted on the Wi-Fi)
       TAZRIM_REQUIRE_HTTPS: "${TAZRIM_REQUIRE_HTTPS:-}"
+      # The vault with the bank sign-ins locks after this many idle minutes
+      TAZRIM_VAULT_IDLE_MINUTES: "${TAZRIM_VAULT_IDLE_MINUTES:-15}"
       # The clock dates and months follow; keep it the same as wherever the data was made
       TZ: "${TAZRIM_TZ:-Asia/Jerusalem}"
     volumes:

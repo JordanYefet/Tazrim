@@ -293,3 +293,69 @@ describe('confirming "delete all data" (ENG-89)', () => {
     expect((await call('/data/delete-all', { confirm: PHRASE, password: PASSWORD })).status).toBe(401)
   })
 })
+
+describe('the vault (ENG-90) through its routes', () => {
+  const owner = authenticator()
+  // What the authenticator's PRF would answer for its salt: the browser sends it, unsigned
+  const prf = Buffer.alloc(32, 7).toString('base64url')
+  let recoveryKey = ''
+
+  async function answer(purpose: string, prfValue = prf) {
+    const opts = await call('/vault/options', { purpose })
+    expect(opts.status).toBe(200)
+    expect(Object.keys(opts.body.prf)).toEqual([owner.id])
+    return call('/vault/passkey', { flowId: opts.body.flowId, response: owner.get(opts.body.options.challenge), prf: prfValue })
+  }
+
+  it('is created with the signed-in person passkey, and gives a recovery key once', async () => {
+    ;(await import('../rate-limit')).resetRateLimits()
+    cookieJar = ''
+    const { setupCode } = await import('../household')
+    const reg = await call('/auth/register/options', { mode: 'setup', code: setupCode(), name: 'Vault owner' })
+    expect((await call('/auth/register', { flowId: reg.body.flowId, response: owner.create(reg.body.options.challenge), label: 'iPhone' })).status).toBe(200)
+
+    expect((await call('/vault/options', { purpose: 'unlock' })).body.code).toBe('NO_VAULT')
+    const created = await answer('create')
+    expect(created.status).toBe(200)
+    recoveryKey = created.body.recoveryKey
+    expect(recoveryKey).toMatch(/^([0-9A-Z]{4}-){12}[0-9A-Z]{4}$/)
+    expect((await call('/vault/options', { purpose: 'create' })).body.code).toBe('VAULT_EXISTS')
+  })
+
+  it('stores sign-ins only while open, and never sends a secret back', async () => {
+    const saved = await call('/vault/logins', { company: 'max', label: 'MAX', fields: { username: 'fake-user', password: 'fake-pass' } })
+    expect(saved.status).toBe(200)
+    expect((await call('/vault/logins', { company: 'max', label: 'MAX', fields: { username: 'u' } })).body.code).toBe('BAD_FIELDS')
+    const listed = await call('/vault', undefined, 'GET')
+    expect(listed.body.vault).toMatchObject({ exists: true, open: true, hasRecoveryKey: true })
+    expect(JSON.stringify(listed.body)).not.toContain('fake-pass')
+    expect(listed.body.passkeys[0]).toMatchObject({ opens: true, mine: true, thisDevice: true })
+
+    // An edit with the password left empty keeps it
+    const { readCredential } = await import('@/lib/vault/vault')
+    expect((await call(`/vault/logins/[id]`, { id: saved.body.id, label: 'MAX renamed', fields: { username: 'new-user', password: '' } }, 'PUT')).status).toBe(200)
+    expect(await readCredential(saved.body.id)).toEqual({ username: 'new-user', password: 'fake-pass' })
+
+    expect((await call('/vault/lock', {})).status).toBe(200)
+    expect((await call('/vault/logins', { company: 'max', label: 'MAX 2', fields: { username: 'u', password: 'p' } })).status).toBe(423)
+    expect((await call(`/vault/logins/[id]`, { id: saved.body.id }, 'DELETE')).status).toBe(423)
+  })
+
+  it('opens with the same PRF output only, or with the recovery key', async () => {
+    expect((await answer('unlock', Buffer.alloc(32, 9).toString('base64url'))).body.code).toBe('WRONG_KEY')
+    expect((await answer('unlock', '')).body.code).toBe('NO_PRF')
+    expect((await answer('unlock')).status).toBe(200)
+    expect((await call('/vault/lock', {})).status).toBe(200)
+    expect((await call('/vault/recover', { recoveryKey: 'AAAA-BBBB' })).status).toBe(403)
+    expect((await call('/vault/recover', { recoveryKey: recoveryKey.toLowerCase() })).status).toBe(200)
+  })
+
+  it('a vault challenge is not a sign-in, and signed out nothing works', async () => {
+    const opts = await call('/vault/options', { purpose: 'unlock' })
+    expect((await call('/auth/login', { flowId: opts.body.flowId, response: owner.get(opts.body.options.challenge) })).status).toBe(400)
+    cookieJar = ''
+    expect((await call('/vault', undefined, 'GET')).status).toBe(401)
+    expect((await call('/vault/options', { purpose: 'unlock' })).status).toBe(401)
+    ;(await import('@/lib/vault/vault')).lock()
+  })
+})

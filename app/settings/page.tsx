@@ -4,6 +4,7 @@ import { listAccounts } from '@/lib/db/accounts'
 import { listImportProfiles } from '@/lib/db/import-profiles'
 import { getCushion } from '@/lib/db/settings'
 import { isAuthRequired } from '@/lib/auth/config'
+import { status as vaultStatus } from '@/lib/vault/vault'
 import { settingsAccountsHref, type QueryInput } from '@/lib/accounts/routes'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SettingsTiles, type SettingsTile } from '@/components/settings/settings-tiles'
@@ -24,12 +25,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (params.recovered === '1') redirect('/settings/people?recovered=1')
 
   const auth = isAuthRequired()
-  const [accounts, profiles, cushion, people, devices] = await Promise.all([
+  const [accounts, profiles, cushion, people, devices, vault, logins] = await Promise.all([
     listAccounts(),
     listImportProfiles(),
     getCushion(),
     auth ? prisma.person.count() : 0,
     auth ? prisma.passkey.count() : 0,
+    vaultStatus(),
+    auth ? prisma.bankCredential.count() : 0,
   ])
   const banks = accounts.filter(a => a.kind === 'BANK').length
   const cards = accounts.filter(a => a.kind === 'CREDIT_CARD').length
@@ -63,6 +66,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           icon: 'people' as const,
           title: 'אנשים ומכשירים',
           summary: `${count(people, 'אדם אחד', 'אנשים')}, ${count(devices, 'מכשיר אחד', 'מכשירים', 'בלי מכשירים')}. הזמנות, סיסמה וקוד שחזור.`,
+        },
+        {
+          href: '/settings/vault',
+          icon: 'vault' as const,
+          title: 'כספת',
+          summary: !vault.exists
+            ? 'פרטי הכניסה לבנקים לסנכרון, מוצפנים. עוד לא נוצרה.'
+            : `${count(logins, 'פרטי כניסה שמורים לחשבון אחד', 'פרטי כניסה שמורים')}. ${vault.open ? 'פתוחה עכשיו.' : 'נעולה.'}`,
         }]
       : []),
     { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },

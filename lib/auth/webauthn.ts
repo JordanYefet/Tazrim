@@ -6,7 +6,7 @@
  * https://tazrim.home.arpa works there only. WebAuthn needs a secure context:
  * HTTPS, or http://localhost on the machine itself.
  */
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -50,6 +50,11 @@ export type Flow =
   | { kind: 'invite'; inviteId: string; personId: string; name: string; isNewPerson: boolean }
   | { kind: 'device'; personId: string }
   | { kind: 'confirm'; personId: string }
+  /** The vault (ENG-90): the PRF salt asked of each allowed passkey, by credential id */
+  | { kind: 'vault'; personId: string; purpose: VaultPurpose; salts: Record<string, string> }
+
+/** Open the vault, create it (first use), or give this passkey its own copy */
+export type VaultPurpose = 'unlock' | 'create' | 'add'
 
 interface Pending {
   challenge: string
@@ -88,7 +93,7 @@ function parseTransports(json: string | null): AuthenticatorTransportFuture[] | 
 }
 
 /** Options to create a passkey for a person (new or existing), and the flow id to answer with. */
-export async function registrationOptions(rp: RelyingParty, flow: Exclude<Flow, { kind: 'login' | 'confirm' }>, userName: string) {
+export async function registrationOptions(rp: RelyingParty, flow: Exclude<Flow, { kind: 'login' | 'confirm' | 'vault' }>, userName: string) {
   const existing = await prisma.passkey.findMany({
     where: { personId: flow.personId },
     select: { credentialId: true, transports: true },
@@ -187,3 +192,27 @@ export async function verifyAuthentication(p: Pending, response: AuthenticationR
     return null
   }
 }
+
+/**
+ * A challenge for the vault (ENG-90), limited to the signed-in person's own
+ * passkeys, each asked for its PRF output with a salt: for "unlock" the salt
+ * stored with its copy of the vault key, for "create" and "add" a new one.
+ * Null when none of their passkeys fits (no copy to open, or all have one).
+ */
+export async function vaultOptions(rp: RelyingParty, personId: string, purpose: VaultPurpose) {
+  const mine = await prisma.passkey.findMany({
+    where: { personId },
+    select: { credentialId: true, transports: true, vaultWrap: { select: { prfSalt: true } } },
+  })
+  const fit = mine.filter(c => (purpose === 'unlock' ? !!c.vaultWrap?.prfSalt : purpose === 'add' ? !c.vaultWrap : true))
+  if (fit.length === 0) return null
+  const salts = Object.fromEntries(fit.map(c => [c.credentialId, purpose === 'unlock' ? c.vaultWrap!.prfSalt! : newPrfSalt()]))
+  const options = await generateAuthenticationOptions({
+    rpID: rp.rpID,
+    userVerification: 'required',
+    allowCredentials: fit.map(c => ({ id: c.credentialId, transports: parseTransports(c.transports) })),
+  })
+  return { flowId: remember(options.challenge, { kind: 'vault', personId, purpose, salts }, rp), options, prf: salts }
+}
+
+const newPrfSalt = () => randomBytes(32).toString('base64url')
