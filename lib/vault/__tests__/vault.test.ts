@@ -150,4 +150,16 @@ describe('the vault', () => {
       }
     }
   })
+
+  it('starting over deletes the vault and its sign-ins, and keeps accounts and transactions', async () => {
+    db.exec(`INSERT INTO "Account" ("id","kind","provider","displayName","createdAt") VALUES ('acct_test_reset', 'BANK', 'testbank', 'Test bank', 1900000000000)`)
+    const tx = db.query<{ n: number }>(`SELECT COUNT(*) AS n FROM "BankTransaction"`)[0].n
+    await vault.resetVault()
+    expect((await vault.status())).toMatchObject({ exists: false, open: false })
+    expect(db.query(`SELECT 1 FROM "BankCredential"`)).toHaveLength(0)
+    expect(db.query(`SELECT 1 FROM "VaultKeyWrap"`)).toHaveLength(0)
+    expect(db.query(`SELECT 1 FROM "Account" WHERE id = 'acct_test_reset'`)).toHaveLength(1)
+    expect(db.query<{ n: number }>(`SELECT COUNT(*) AS n FROM "BankTransaction"`)[0].n).toBe(tx)
+    expect(await vault.createVault(phone.id, phone.prf, phone.salt, 'Owner, iPhone')).not.toBe('exists')
+  })
 })

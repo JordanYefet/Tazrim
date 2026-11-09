@@ -1567,7 +1567,7 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
     radial-gradient(45% 55% at 70% 75%, hsl(322 70% 90%) 0%, transparent 70%),
     radial-gradient(40% 45% at 80% 20%, hsl(203 62% 88%) 0%, transparent 70%),
     linear-gradient(150deg, hsl(254 60% 96%) 0%, hsl(var(--background)) 50%, hsl(203 50% 96%) 100%);
-  animation: auth-drift 28s ease-in-out infinite alternate;
+  animation: auth-drift 12s ease-in-out infinite alternate;
   will-change: transform;
 }
 .dark .auth-gradient {
@@ -1579,8 +1579,8 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
 }
 @keyframes auth-drift {
   0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-4%, 3%) scale(1.06); }
-  100% { transform: translate(3%, -3%) scale(1.03); }
+  50% { transform: translate(-6%, 4%) scale(1.08); }
+  100% { transform: translate(5%, -4%) scale(1.04); }
 }
 /* A sign-in card's content swapping (passkey ↔ recovery code), and the gallery's caption */
 .auth-swap { animation: page-in var(--motion-base) var(--ease-ui) backwards; }

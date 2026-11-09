@@ -45,14 +45,11 @@ export function LoginStory() {
         </div>
       </div>
 
-      <figure className="flex items-start gap-4 rounded-[20px] border border-white/80 bg-card/70 p-5 shadow-e1 dark:border-white/10 md:p-6">
-        <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">י</span>
-        <div className="space-y-2.5">
-          <figcaption className="text-[15px] font-bold">למה בניתי את תזרים</figcaption>
-          <blockquote className="max-w-[62ch] space-y-2 text-[15px] leading-relaxed text-pretty">
-            {STORY.map(p => <p key={p}>{p}</p>)}
-          </blockquote>
-        </div>
+      <figure className="space-y-2.5 rounded-[20px] border border-white/80 bg-card/70 p-5 shadow-e1 dark:border-white/10 md:p-6">
+        <figcaption className="text-[15px] font-bold">למה בניתי את תזרים</figcaption>
+        <blockquote className="max-w-[62ch] space-y-2 text-[15px] leading-relaxed text-pretty">
+          {STORY.map(p => <p key={p}>{p}</p>)}
+        </blockquote>
       </figure>
     </section>
   )

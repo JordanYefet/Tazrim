@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { KeyRound, Laptop, LockKeyhole, LockKeyholeOpen, Plus, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react'
+import { KeyRound, Laptop, RotateCcw, LockKeyhole, LockKeyholeOpen, Plus, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
@@ -54,6 +54,7 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
   const [draftError, setDraftError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Credential | null>(null)
   const [renewing, setRenewing] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   const load = useCallback(() => {
     fetch('/api/vault').then(async r => {
@@ -252,9 +253,17 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
                 </span>
                 <button type="button" disabled={!open} onClick={() => setRenewing(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>מפתח חדש</button>
               </div>
+              <div className={ROW}>
+                <RowIcon icon={RotateCcw} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-medium">התחלה מחדש</span>
+                  <span className="block text-[13px] text-muted-foreground text-pretty">מוחק את הכספת ואת פרטי הכניסה שבה. החשבונות והתנועות נשארים.</span>
+                </span>
+                <button type="button" disabled={busy} onClick={() => setResetting(true)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
+              </div>
             </div>
             <p className="px-1 text-[12.5px] leading-relaxed text-muted-foreground text-pretty">
-              בלי מפתח ובלי מפתח השחזור אי אפשר לפתוח את הכספת, גם לא מהשרת. התנועות עצמן לא נפגעות: רק מקלידים את פרטי הכניסה מחדש.
+              בלי מפתח ובלי מפתח השחזור אי אפשר לפתוח את הכספת, גם לא מהשרת. אז מתחילים מחדש ומקלידים את פרטי הכניסה שוב: התנועות לא נפגעות.
             </p>
           </section>
         </>
@@ -335,6 +344,16 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
         description="הסנכרון של החשבון הזה יבקש את הסיסמה בכל פעם, עד שתשמרו אותה שוב."
         confirmLabel="מחיקה"
         cancelLabel="השארה"
+      />
+      <ConfirmDialog
+        open={resetting}
+        onOpenChange={setResetting}
+        onConfirm={() => run(async () => { await post('/api/vault/reset', {}); setResetting(false) })}
+        busy={busy}
+        title="למחוק את הכספת?"
+        description={`${credentials.length ? `${credentials.length} פרטי כניסה יימחקו, ` : ''}וכל המפתחות יפסיקו לפתוח אותה. אחר כך יוצרים כספת חדשה ושומרים בה את פרטי הכניסה מחדש. החשבונות והתנועות לא נמחקים.`}
+        confirmLabel="מחיקת הכספת"
+        cancelLabel="ביטול"
       />
       <ConfirmDialog
         open={renewing}

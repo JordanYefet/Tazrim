@@ -150,6 +150,16 @@ export async function replaceRecoveryKey(): Promise<string> {
   return recovery
 }
 
+/**
+ * When every key is lost: deletes the vault and the sign-ins in it, to set it
+ * up again from a passkey. Accounts and transactions are untouched; the sign-ins
+ * are typed in again.
+ */
+export async function resetVault() {
+  lock()
+  await prisma.$transaction([prisma.bankCredential.deleteMany(), prisma.vaultKeyWrap.deleteMany()])
+}
+
 // ── Sign-ins ────────────────────────────────────────────────────────────
 
 export type LoginFields = Record<string, string>
