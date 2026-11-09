@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, FileText, Palette, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, CreditCard, FileText, Info, Palette, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 export interface SettingsTile {
   href: string
   title: string
   summary: string
-  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people'
+  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'about'
 }
 
 const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
@@ -15,15 +15,17 @@ const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
   accounts: CreditCard,
   'import-profiles': FileText,
   people: Users,
+  about: Info,
 }
 
 /**
  * The Settings home: a tile per section, each opening its own page. Rows split
- * evenly: five tiles are thirds then halves, four are halves. The danger zone
+ * evenly: six tiles are two rows of thirds, five are thirds then halves, four
+ * are halves. The danger zone
  * is a quiet link under them, apart from the everyday sections.
  */
 export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
-  const thirds = tiles.length % 2 === 1 ? 3 : 0
+  const thirds = tiles.length % 3 === 0 ? tiles.length : tiles.length % 2 === 1 ? 3 : 0
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6">

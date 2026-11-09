@@ -65,6 +65,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           summary: `${count(people, 'אדם אחד', 'אנשים')}, ${count(devices, 'מכשיר אחד', 'מכשירים', 'בלי מכשירים')}. הזמנות, סיסמה וקוד שחזור.`,
         }]
       : []),
+    { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 
   return (

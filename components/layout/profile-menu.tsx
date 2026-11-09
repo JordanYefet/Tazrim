@@ -4,7 +4,8 @@ import { createContext, useContext } from 'react'
 import Link from 'next/link'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { ChevronLeft, ChevronsUpDown, LockKeyhole, LogOut, Smartphone, Users, type LucideIcon } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { ChevronLeft, ChevronsUpDown, LockKeyhole, LogOut, Settings, Smartphone, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 /** The signed-in person (ENG-89): their name and how this browser signed in; null with the login off */
@@ -16,6 +17,11 @@ export interface Me {
 
 const MeContext = createContext<Me | null>(null)
 
+/** Null with the login off: the sidebar and the "עוד" sheet then show Settings and About as plain links */
+export function useMe() {
+  return useContext(MeContext)
+}
+
 export function MeProvider({ me, children }: { me: Me | null; children: React.ReactNode }) {
   return <MeContext.Provider value={me}>{children}</MeContext.Provider>
 }
@@ -24,6 +30,7 @@ const initial = (name: string) => [...name.trim()][0] ?? '?'
 const signedInWith = (me: Me) => (me.device ? `מפתח ב-${me.device}` : 'סיסמה')
 
 const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: '/settings', label: 'הגדרות', icon: Settings },
   { href: '/settings/people', label: 'אנשים ומכשירים', icon: Users },
   { href: '/settings/people?open=device', label: 'הוספת מכשיר', icon: Smartphone },
   { href: '/settings/people?open=password', label: 'סיסמה', icon: LockKeyhole },
@@ -46,18 +53,23 @@ const MENU_ITEM =
   'flex h-10 cursor-pointer select-none items-center gap-3 rounded-lg px-2.5 text-sm outline-none transition-colors data-[highlighted]:bg-muted'
 
 /**
- * The bottom of the sidebar: who is signed in, opening a small menu (people
- * and devices, adding a device, the password, signing out). On the rail, the
- * avatar alone, with the name as a tooltip.
+ * The bottom of the sidebar: who is signed in, opening a small menu (settings,
+ * people and devices, adding a device, the password, signing out). Settings
+ * and About (a Settings tile) live there rather than in the sidebar, so it
+ * stays highlighted on those pages. On the rail, the avatar alone, with the
+ * name as a tooltip.
  */
 export function SidebarProfile({ collapsed }: { collapsed: boolean }) {
   const me = useContext(MeContext)
+  const pathname = usePathname()
   if (!me) return null
+  const here = pathname === '/about' || pathname === '/settings' || pathname.startsWith('/settings/')
   const trigger = (
     <DropdownMenu.Trigger
       aria-label={`${me.name}: תפריט אישי`}
       className={cn(
-        'flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted'
+        'flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted',
+        here && 'bg-primary/10'
       )}
     >
       <Avatar me={me} className="h-8 w-8 text-sm" />

@@ -1,4 +1,5 @@
 import { Home, CreditCard, TrendingUp, Users, type LucideIcon } from 'lucide-react'
+import { STORY } from '@/lib/about/content'
 import { AppGallery } from './app-gallery'
 
 const FACTS: { icon: LucideIcon; title: string; body: string }[] = [
@@ -49,12 +50,7 @@ export function LoginStory() {
         <div className="space-y-2.5">
           <figcaption className="text-[15px] font-bold">למה בניתי את תזרים</figcaption>
           <blockquote className="max-w-[62ch] space-y-2 text-[15px] leading-relaxed text-pretty">
-            <p>
-              קוראים לי ירדן, נשוי ואבא לשתי בנות. פעם בחודש קבענו ביומן ערב לעבור על כל הוצאות הבית: חשבון הבנק וכל כרטיסי האשראי. רצינו להבין כמה נכנס, כמה יוצא ועל מה, ומה ההוצאות הקבועות שלנו. זה התברר כאתגר לא פשוט, ורציתי לפתור אותו. כך נולד תזרים, שמרכז את כל התזרים של הבית במקום אחד.
-            </p>
-            <p>
-              הוא רץ אצלכם בבית בכוונה. כך שום מידע לא נשמר אצל אף אחד אחר, והוא חינמי לגמרי: לא רציתי לגבות על זה כסף, ולכן הוא לא יכול היה להיות שירות בענן.
-            </p>
+            {STORY.map(p => <p key={p}>{p}</p>)}
           </blockquote>
         </div>
       </figure>
