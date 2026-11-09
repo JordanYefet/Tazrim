@@ -137,6 +137,14 @@ export function LoginForm() {
           <button type="button" onClick={() => show('recovery')} className={textButton}>
             אין גישה? כניסה עם קוד שחזור
           </button>
+
+          {/* There is no open sign-up: people join the household by invite */}
+          <div className="space-y-1 border-t pt-4 text-center">
+            <p className="text-sm font-semibold">חדשים כאן?</p>
+            <p className="text-[13px] leading-relaxed text-muted-foreground text-pretty">
+              מצטרפים עם קישור הזמנה ממי שכבר בפנים: הגדרות ← אנשים ומכשירים ← הזמנת אדם.
+            </p>
+          </div>
         </div>
       ) : (
         // Straight to People, to add a passkey on this device and make a new recovery code

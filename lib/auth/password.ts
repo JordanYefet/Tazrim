@@ -8,8 +8,9 @@
  */
 import { randomBytes, scrypt as scryptCb, timingSafeEqual, type ScryptOptions } from 'node:crypto'
 
-export const PASSWORD_MIN = 10
-export const PASSWORD_MAX = 200
+import { PASSWORD_MAX, PASSWORD_MIN } from './password-rules'
+
+export { PASSWORD_MAX, PASSWORD_MIN }
 
 const N = 32768
 const R = 8

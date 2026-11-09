@@ -15,12 +15,39 @@ export async function hasPeople(): Promise<boolean> {
 
 /**
  * First run: whoever reaches the server before anyone has signed up could
- * claim it, so setup asks for a code printed only to the server's log
- * (`docker compose logs tazrim`). It lives in memory and changes on restart.
+ * claim it, so setup asks for a code only the person who installed it knows:
+ * TAZRIM_SETUP_CODE from `.env` (at least 8 characters), or else one printed
+ * to the server's log (`docker compose logs tazrim`), kept in memory and
+ * changed on restart.
  */
-const g = globalThis as unknown as { __tazrimSetupCode?: string }
+const g = globalThis as unknown as { __tazrimSetupCode?: string; __tazrimSetupNoticed?: boolean }
+
+export const SETUP_CODE_MIN = 8
+
+/** The code from `.env`, or null when unset or too short to guess safely */
+export function configuredSetupCode(): string | null {
+  const code = process.env.TAZRIM_SETUP_CODE?.trim()
+  if (!code) return null
+  if (code.length < SETUP_CODE_MIN) {
+    if (!g.__tazrimSetupNoticed) console.warn(`[tazrim] TAZRIM_SETUP_CODE is shorter than ${SETUP_CODE_MIN} characters, so it is ignored`)
+    g.__tazrimSetupNoticed = true
+    return null
+  }
+  return code
+}
+
+/** Where the setup page tells the person to find the code */
+export function setupCodeSource(): 'env' | 'log' {
+  return configuredSetupCode() ? 'env' : 'log'
+}
 
 export function setupCode(): string {
+  const configured = configuredSetupCode()
+  if (configured) {
+    if (!g.__tazrimSetupNoticed) console.log('[tazrim] First run: open /setup and type the TAZRIM_SETUP_CODE from .env')
+    g.__tazrimSetupNoticed = true
+    return configured
+  }
   if (!g.__tazrimSetupCode) {
     g.__tazrimSetupCode = readableCode(2)
     console.log(`[tazrim] First-run setup code: ${g.__tazrimSetupCode} (open /setup in the browser)`)
@@ -29,8 +56,9 @@ export function setupCode(): string {
 }
 
 export function checkSetupCode(input: unknown): boolean {
-  if (typeof input !== 'string' || !g.__tazrimSetupCode) return false
-  return sameHash(hashToken(normalizeCode(input)), hashToken(normalizeCode(g.__tazrimSetupCode)))
+  const expected = configuredSetupCode() ?? g.__tazrimSetupCode
+  if (typeof input !== 'string' || !expected) return false
+  return sameHash(hashToken(normalizeCode(input)), hashToken(normalizeCode(expected)))
 }
 
 export function clearSetupCode() {
@@ -162,6 +190,17 @@ export async function checkPassword(name: unknown, password: unknown): Promise<{
     return null
   }
   return (await verifyPassword(password, match.passwordHash)) ? { id: match.id } : null
+}
+
+export type FirstPersonResult = { id: string } | 'already-set-up'
+
+/** First run with a password instead of a passkey: the household's first person */
+export async function createFirstPerson(name: string, password: string): Promise<FirstPersonResult> {
+  const passwordHash = await hashPassword(password)
+  return prisma.$transaction(async tx => {
+    if ((await tx.person.count()) > 0) return 'already-set-up' as const
+    return tx.person.create({ data: { name, passwordHash }, select: { id: true } })
+  })
 }
 
 export async function hasOwnPassword(personId: string): Promise<boolean> {

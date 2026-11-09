@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { ChevronLeft, KeyRound, Laptop, LockKeyhole, LogOut, ShieldCheck, Smartphone, UserPlus, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -49,8 +49,9 @@ async function call(url: string, method: string, body?: unknown) {
  * invite links (a new person or another device), revoking a device, a passkey
  * on this device, your own password (a way in on a device without a passkey),
  * a new recovery code, and signing out. Everyone has the same rights.
+ * `open` (from the profile menu) opens adding a device for me, or my password, at once.
  */
-export function PeopleSettings({ recovered }: { recovered: boolean }) {
+export function PeopleSettings({ recovered, open }: { recovered: boolean; open?: 'device' | 'password' }) {
   const [info, setInfo] = useState<PeopleInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [invite, setInvite] = useState<{ title: string; url: string; qr: string; expiresAt: string } | null>(null)
@@ -68,6 +69,18 @@ export function PeopleSettings({ recovered }: { recovered: boolean }) {
     call('/api/people', 'GET').then(setInfo, e => setError(e.message))
   }, [])
   useEffect(load, [load])
+
+  // The profile menu's shortcuts, once the household has loaded; the URL drops ?open= so a refresh doesn't reopen it
+  const opened = useRef(false)
+  useEffect(() => {
+    if (!open || !info || opened.current) return
+    opened.current = true
+    window.history.replaceState(null, '', '/settings/people')
+    const me = info.people.find(p => p.id === info.me)
+    if (open === 'password') setEditingPassword(true)
+    else if (me) makeInvite(me)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, info])
 
   async function makeInvite(person: Person | null) {
     setError(null)

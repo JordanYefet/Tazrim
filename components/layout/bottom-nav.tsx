@@ -10,6 +10,7 @@ import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
 import { usePeriodHref } from './period-context'
 import { useOpenOrigin } from '@/components/ui/open-origin'
+import { SheetProfile } from './profile-menu'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -110,6 +111,7 @@ export function BottomNav() {
             <div aria-hidden className="flex justify-center pt-2">
               <span className="h-1 w-9 rounded-full bg-border" />
             </div>
+            <SheetProfile onNavigate={() => setMoreOpen(false)} />
             <ul className="pb-1">
               {MORE_LINKS.map(({ href, label, hint, icon: Icon }, i) => {
                 const active = isNavActive(pathname, href)

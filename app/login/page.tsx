@@ -13,7 +13,7 @@ export default async function LoginPage() {
   if (!(await hasPeople())) redirect('/setup')
   if (await currentSession()) redirect('/')
   return (
-    <AuthShell gallery>
+    <AuthShell story>
       <Suspense><LoginForm /></Suspense>
     </AuthShell>
   )
