@@ -78,7 +78,7 @@ function CompanyList({ info, onPick, onClose }: { info: NonNullable<SyncApi['inf
       </div>
       {disabled && own.length > 0 && (
         <p className="mx-4 mb-2 rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
-          בשלב הזה אפשר לסנכרן רק מהמחשב שעליו Tazrim רץ. מהטלפון זה יתאפשר אחרי שתתווסף כניסה מאובטחת.
+          הכניסה עם מפתח כבויה בשרת הזה, אז אפשר לסנכרן רק מהמחשב שעליו Tazrim רץ.
         </p>
       )}
       {own.length === 0 ? (

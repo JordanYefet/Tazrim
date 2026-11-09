@@ -82,7 +82,7 @@ export function ProjectionHero({ months, start, end, tight, cushion }: {
         <Fact
           label={
             <Link
-              href="/settings#projection"
+              href="/settings/projection"
               className="inline-flex items-center gap-1.5 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title="שינוי הכרית בהגדרות"
             >

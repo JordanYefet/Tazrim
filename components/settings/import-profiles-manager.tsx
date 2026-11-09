@@ -65,7 +65,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
   return (
     <div className="space-y-3">
       <div>
-        <h2 id="import-profiles-title" className="text-lg font-semibold">מיפויי ייבוא</h2>
+        <h1 className="text-2xl font-semibold tracking-tight">מיפויי ייבוא</h1>
         <p className="text-sm text-muted-foreground">
           מיפויי עמודות שנשמרו בהעלאת קבצים. קובץ עם אותן כותרות מזוהה לבד, ואפשר לערוך מיפוי גם בלי קובץ.
         </p>

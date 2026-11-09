@@ -84,7 +84,7 @@ export default async function AnalysisPage({
             text="הוסף חשבון בנק או כרטיס אשראי והעלה קבצים כדי לראות כאן את ההוצאות וההכנסות לפי קטגוריה."
             actions={[
               { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
-              { href: '/settings#accounts', label: 'ניהול חשבונות' },
+              { href: '/settings/accounts', label: 'ניהול חשבונות' },
             ]}
           />
         ) : (

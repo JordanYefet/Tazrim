@@ -124,15 +124,18 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         {heading}
-        <EmptyState
-          icon={CreditCard}
-          title="אין כרטיסי אשראי"
-          text="הוסף כרטיס או העלה פירוט חיובים כדי לראות כאן את החיובים לפי כרטיס."
-          actions={[
-            { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
-            { href: '/settings#accounts', label: 'ניהול חשבונות' },
-          ]}
-        />
+        {/* The heading is a div (PageHeading), so the entrance goes on the empty state's own wrapper */}
+        <div className="page-in">
+          <EmptyState
+            icon={CreditCard}
+            title="אין כרטיסי אשראי"
+            text="הוסף כרטיס או העלה פירוט חיובים כדי לראות כאן את החיובים לפי כרטיס."
+            actions={[
+              { href: '/upload', label: 'העלאת קבצים', icon: Upload, primary: true },
+              { href: '/settings/accounts', label: 'ניהול חשבונות' },
+            ]}
+          />
+        </div>
       </div>
     )
   }

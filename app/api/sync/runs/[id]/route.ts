@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isLocalRequest } from '@/lib/local-request'
+import { NOT_LOCAL, maySync } from '@/lib/sync/access'
 import { cancelRun, getRun, submitCode, submitLinks } from '@/lib/sync/runs'
 import type { LinkAction } from '@/lib/sync/store'
 
@@ -28,9 +28,7 @@ function linkActions(value: unknown): LinkAction[] | null {
 
 /** POST { code } (the SMS code), { links } (answers for unknown accounts) or { cancel: true }. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!isLocalRequest(req.headers)) {
-    return NextResponse.json({ error: 'בשלב הזה אפשר לסנכרן רק מהמחשב שעליו האפליקציה רצה', code: 'NOT_LOCAL' }, { status: 403 })
-  }
+  if (!maySync(req.headers)) return NextResponse.json(NOT_LOCAL, { status: 403 })
   const { id } = await params
   const body = (await req.json().catch(() => null)) as { code?: unknown; links?: unknown; cancel?: unknown } | null
 

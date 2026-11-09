@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { ArrowUpLeft, EyeOff, HardDrive, ServerOff, UserX, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowUpLeft, ChevronRight, EyeOff, HardDrive, ServerOff, UserX, type LucideIcon } from 'lucide-react'
 import pkg from '@/package.json'
 import { CREDITS, ISSUES_URL, LICENSE_URL, NEW_ISSUE_URL, REPO_URL, STORY } from '@/lib/about/content'
 
@@ -69,6 +70,14 @@ export default function AboutPage() {
     // Header static, the sections and footer rise in on the page beat (.page-in)
     <article className="page-in mx-auto max-w-2xl min-w-0 space-y-12 pb-4 md:pt-4">
       <header className="space-y-2">
+        {/* About is a Settings tile (the profile menu holds Settings) */}
+        <Link
+          href="/settings"
+          className="-ms-2 inline-flex min-h-11 items-center gap-0.5 rounded-lg pe-3 ps-1 text-sm font-medium text-primary transition-colors duration-quick hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden />
+          הגדרות
+        </Link>
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">אודות תזרים</h1>
         <p className="text-muted-foreground">
           כלי חינמי וקוד פתוח למעקב אחרי התזרים החודשי של משק בית, שרץ על המחשב שלכם.

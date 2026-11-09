@@ -50,11 +50,11 @@ export function legacyAccountRedirect(
 }
 
 /**
- * The account management section of /settings (it used to be /accounts).
+ * Settings → accounts (it used to be /accounts).
  * Every param is kept, so `/accounts?new=card` still opens the add form.
  */
 export function settingsAccountsHref(params: QueryInput): string {
-  return `${withQuery('/settings', params)}#accounts`
+  return withQuery('/settings/accounts', params)
 }
 
 /**

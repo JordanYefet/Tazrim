@@ -104,14 +104,14 @@ describe('isNavActive', () => {
 })
 
 describe('settingsAccountsHref', () => {
-  it('points at the accounts section of /settings', () => {
-    expect(settingsAccountsHref({})).toBe('/settings#accounts')
-    expect(settingsAccountsHref(undefined)).toBe('/settings#accounts')
+  it('points at Settings → accounts', () => {
+    expect(settingsAccountsHref({})).toBe('/settings/accounts')
+    expect(settingsAccountsHref(undefined)).toBe('/settings/accounts')
   })
 
   it('keeps ?new= and any other param (the old /accounts redirect)', () => {
-    expect(settingsAccountsHref({ new: 'card' })).toBe('/settings?new=card#accounts')
-    expect(settingsAccountsHref({ new: 'BANK', extra: ['a', 'b'] })).toBe('/settings?new=BANK&extra=a&extra=b#accounts')
+    expect(settingsAccountsHref({ new: 'card' })).toBe('/settings/accounts?new=card')
+    expect(settingsAccountsHref({ new: 'BANK', extra: ['a', 'b'] })).toBe('/settings/accounts?new=BANK&extra=a&extra=b')
   })
 })
 
