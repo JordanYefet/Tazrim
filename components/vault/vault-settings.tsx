@@ -134,32 +134,35 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
       {error && <p className={errorText} role="alert">{error}</p>}
 
       {/* Status: none yet, locked, or open (and until when) */}
-      <section aria-label="מצב הכספת" className="flex flex-wrap items-center gap-4 rounded-2xl surface p-4 md:p-5">
-        <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl', open ? 'bg-[hsl(var(--income)/0.12)] text-[hsl(var(--income))]' : 'bg-muted text-muted-foreground')} aria-hidden>
-          {open ? <LockKeyholeOpen className="h-6 w-6" /> : <LockKeyhole className="h-6 w-6" />}
-        </span>
-        <span className="min-w-0 flex-1 space-y-0.5">
-          <span className="block text-[17px] font-bold">{!vault.exists ? 'עוד אין כספת' : open ? 'פתוחה' : 'נעולה'}</span>
-          <span className="block text-[13px] text-muted-foreground text-pretty">
-            {!vault.exists
-              ? 'יוצרים אותה עם Face ID או Touch ID, ומקבלים מפתח שחזור לשמור.'
-              : open
-                ? `נפתחה ב-${time(vault.openedAt)} (${vault.openedBy}). תינעל ב-${time(vault.locksAt)} אם לא ישתמשו בה, או כשהשרת מופעל מחדש.`
-                : 'כדי להוסיף, לשנות או למחוק פרטי כניסה, פותחים אותה.'}
+      {/* Phones: the state above, the action under it at full width; wider, one row */}
+      <section aria-label="מצב הכספת" className="flex flex-col gap-4 rounded-2xl surface p-4 sm:flex-row sm:items-center md:p-5">
+        <div className="flex min-w-0 flex-1 items-start gap-4 sm:items-center">
+          <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl', open ? 'bg-[hsl(var(--income)/0.12)] text-[hsl(var(--income))]' : 'bg-muted text-muted-foreground')} aria-hidden>
+            {open ? <LockKeyholeOpen className="h-6 w-6" /> : <LockKeyhole className="h-6 w-6" />}
           </span>
-        </span>
+          <span className="min-w-0 flex-1 space-y-0.5">
+            <span className="block text-[17px] font-bold">{!vault.exists ? 'עוד אין כספת' : open ? 'פתוחה' : 'נעולה'}</span>
+            <span className="block text-[13px] text-muted-foreground text-pretty">
+              {!vault.exists
+                ? 'יוצרים אותה עם Face ID או Touch ID, ומקבלים מפתח שחזור לשמור.'
+                : open
+                  ? `נפתחה ב-${time(vault.openedAt)} (${vault.openedBy}). תינעל ב-${time(vault.locksAt)} אם לא ישתמשו בה, או כשהשרת מופעל מחדש.`
+                  : 'כדי להוסיף, לשנות או למחוק פרטי כניסה, פותחים אותה.'}
+            </span>
+          </span>
+        </div>
         {!vault.exists ? (
-          <button type="button" onClick={create} disabled={busy} className={cn(secondaryButton, 'bg-primary text-primary-foreground hover:bg-primary/90 border-transparent')}>
+          <button type="button" onClick={create} disabled={busy} className={cn(secondaryButton, 'w-full border-transparent bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto')}>
             <KeyRound className="h-4 w-4" aria-hidden />
             יצירת כספת
           </button>
         ) : open ? (
-          <button type="button" onClick={() => run(() => post('/api/vault/lock', {}))} disabled={busy} className={secondaryButton}>
+          <button type="button" onClick={() => run(() => post('/api/vault/lock', {}))} disabled={busy} className={cn(secondaryButton, 'w-full sm:w-auto')}>
             נעילה עכשיו
           </button>
         ) : (
-          <span className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => run(() => vaultWithPasskey('unlock'))} disabled={busy} className={cn(secondaryButton, 'bg-primary text-primary-foreground hover:bg-primary/90 border-transparent')}>
+          <span className="flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <button type="button" onClick={() => run(() => vaultWithPasskey('unlock'))} disabled={busy} className={cn(secondaryButton, 'w-full border-transparent bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto')}>
               <KeyRound className="h-4 w-4" aria-hidden />
               פתיחה
             </button>
