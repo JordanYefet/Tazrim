@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { inputClass } from '@/components/accounts/add-account-form'
+import { answerChallenge } from '@/components/auth/passkey-client'
 import { DELETE_ALL_PHRASE, matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
 
 const BACKUP_DOCS = 'https://github.com/JordanYefet/Tazrim#גיבוי-ושחזור'
@@ -18,16 +19,21 @@ const DELETED = [
   'מיפויי הייבוא השמורים',
   'ההחלטות על חיובים קבועים',
   'התנועות שסימנת כלא חריגות',
+  'האנשים, המכשירים, הסיסמאות וקוד השחזור: כולם יוצאים',
 ]
 
 /**
  * Settings → danger zone (ENG-62): deletes all data after the user types
- * DELETE_ALL_PHRASE. The server checks the phrase again and only accepts the
- * request from this machine. Afterwards the app reloads on the empty overview.
+ * DELETE_ALL_PHRASE. With the login on (`confirmIdentity`, ENG-89) the
+ * signed-in person also confirms right then: their password if they type it,
+ * else their passkey (Face ID / Touch ID). The server checks both again.
+ * The login goes too, so afterwards the app opens at /setup (with the login
+ * off, on the empty overview).
  */
-export function DangerZone() {
+export function DangerZone({ confirmIdentity, hasPassword }: { confirmIdentity: boolean; hasPassword: boolean }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const matches = matchesDeleteAllPhrase(typed)
@@ -36,9 +42,21 @@ export function DangerZone() {
     if (deleting) return
     if (!next) {
       setTyped('')
+      setPassword('')
       setError(null)
     }
     setOpen(next)
+  }
+
+  /** The proof the server wants with the login on: the password, or the passkey's answer */
+  async function proof(): Promise<object> {
+    if (!confirmIdentity) return {}
+    if (password) return { password }
+    const res = await fetch('/api/data/delete-all/options', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error ?? 'המחיקה נכשלה')
+    if (!data.passkey) throw new Error('אין לך מפתח. הקלידו את הסיסמה שלך כדי לאשר')
+    return { flowId: data.passkey.flowId, response: await answerChallenge(data.passkey.options) }
   }
 
   async function confirm() {
@@ -49,7 +67,7 @@ export function DangerZone() {
       const res = await fetch('/api/data/delete-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: typed }),
+        body: JSON.stringify({ confirm: typed, ...(await proof()) }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -58,24 +76,24 @@ export function DangerZone() {
         return
       }
       // A full load, so no page keeps showing data from the client cache
-      window.location.assign('/?deleted=1')
-    } catch {
-      setError('המחיקה נכשלה')
+      window.location.assign(confirmIdentity ? '/setup' : '/?deleted=1')
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'המחיקה נכשלה')
       setDeleting(false)
     }
   }
 
   return (
-    <div className="space-y-3 border-t border-destructive/25 pt-8">
+    <div className="space-y-3">
       <div>
-        <h2 id="danger-zone-title" className="text-lg font-semibold text-destructive dark:text-red-400">אזור מסוכן</h2>
+        <h1 className="text-2xl font-semibold tracking-tight text-destructive dark:text-red-400">אזור מסוכן</h1>
         <p className="text-sm text-muted-foreground">פעולות שאי אפשר לבטל.</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-xl surface border-destructive/40 p-4 md:p-6">
         <div className="min-w-0 max-w-md">
           <p className="text-sm font-medium">מחיקת כל הנתונים</p>
           <p className="text-sm text-muted-foreground text-pretty">
-            מוחק את כל החשבונות, התנועות וההגדרות, והאפליקציה חוזרת למצב של התקנה חדשה.
+            מוחק את כל החשבונות, התנועות, ההגדרות והאנשים, והאפליקציה חוזרת למצב של התקנה חדשה.
           </p>
         </div>
         <button
@@ -95,13 +113,16 @@ export function DangerZone() {
         title="למחוק את כל הנתונים?"
         description={
           <>
-            <p>יימחקו מהמחשב הזה:</p>
+            <p>יימחקו:</p>
             <ul className="list-disc space-y-0.5 ps-5">
               {DELETED.map(item => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
             <p className="font-medium text-foreground">אי אפשר לבטל את הפעולה.</p>
+            {confirmIdentity && (
+              <p>אחר כך מתחילים מחדש עם קוד ההתקנה שבלוג של השרת, כמו בהתקנה ראשונה.</p>
+            )}
             <p>
               כדאי לגבות קודם את קובץ הנתונים:{' '}
               <a
@@ -137,6 +158,29 @@ export function DangerZone() {
             autoFocus
           />
         </div>
+        {confirmIdentity && (
+          <div className="space-y-1.5">
+            {hasPassword ? (
+              <>
+                <label htmlFor="delete-all-password" className="text-sm font-medium">
+                  הסיסמה שלך
+                </label>
+                <input
+                  id="delete-all-password"
+                  type="password"
+                  className={inputClass}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  disabled={deleting}
+                />
+                <p className="text-xs text-muted-foreground">או השאירו ריק ואשרו עם Face ID, Touch ID או קוד המכשיר.</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">אחרי הלחיצה תתבקשו לאשר עם Face ID, Touch ID או קוד המכשיר.</p>
+            )}
+          </div>
+        )}
       </ConfirmDialog>
     </div>
   )

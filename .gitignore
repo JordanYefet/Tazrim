@@ -27,3 +27,7 @@ prisma/*.backup.db
 .sync-dry-run/
 *.tsbuildinfo
 .DS_Store
+
+# Files the device-profile service writes (docker-compose.yml)
+tazrim.mobileconfig
+tazrim-root.crt

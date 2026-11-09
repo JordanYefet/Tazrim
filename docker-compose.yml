@@ -1,10 +1,11 @@
 # Tazrim with one command:   docker compose up -d   ->   http://localhost:3000
 #
 # Another port:   TAZRIM_PORT=3005 docker compose up -d   (or put TAZRIM_PORT=3005 in a .env file)
-# Bank sync:      http://localhost:3001 on this computer (TAZRIM_SYNC_PORT for another port)
 # Demo data:      TAZRIM_DEMO=1 docker compose up -d      (only fills an empty database)
 # Time zone:      TAZRIM_TZ=Europe/London docker compose up -d   (default Asia/Jerusalem)
 # Update:         docker compose pull && docker compose up -d
+# Phones: http://<this computer's IP>:3000 with a password, or HTTPS for passkeys:
+#                 COMPOSE_PROFILES=https,dns in .env, see the README
 #
 # All data is in the "tazrim_tazrim-data" volume on this machine (/data/tazrim.db inside the container).
 
@@ -19,12 +20,15 @@ services:
     image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
     ports:
       - "${TAZRIM_PORT:-3000}:3000"
-      # Bank sync and delete-all, from this computer only: http://localhost:3001
-      # (another port: TAZRIM_SYNC_PORT=3006). Keep the 127.0.0.1: everything that
-      # arrives here counts as this machine, so it must never be open to the network.
-      - "127.0.0.1:${TAZRIM_SYNC_PORT:-3001}:3001"
     environment:
       TAZRIM_DEMO: "${TAZRIM_DEMO:-0}"
+      # Only these addresses may sign in, e.g. https://tazrim.internal (comma-separated; empty = any)
+      TAZRIM_ORIGINS: "${TAZRIM_ORIGINS:-}"
+      # First run: the code /setup asks for (8+ characters). Empty = a code printed to the log
+      TAZRIM_SETUP_CODE: "${TAZRIM_SETUP_CODE:-}"
+      # 1 = passwords only over https or on this computer. Default: plain http from the home
+      # network works too, so phones can sign in with nothing set up (unencrypted on the Wi-Fi)
+      TAZRIM_REQUIRE_HTTPS: "${TAZRIM_REQUIRE_HTTPS:-}"
       # The clock dates and months follow; keep it the same as wherever the data was made
       TZ: "${TAZRIM_TZ:-Asia/Jerusalem}"
     volumes:
@@ -38,5 +42,199 @@ services:
       start_interval: 2s
       retries: 3
 
+  # ---------------------------------------------------------------------------
+  # Optional: HTTPS and local names, so phones can use passkeys (README: "פתיחה מהטלפון").
+  # Off unless .env turns them on:
+  #   COMPOSE_PROFILES=https        Caddy: https://tazrim.internal, certificates from its own CA
+  #   COMPOSE_PROFILES=https,dns    + AdGuard Home: answers *.internal for your own devices only
+  # Already running a reverse proxy or local DNS? Leave these off and use yours.
+  # ---------------------------------------------------------------------------
+
+  caddy:
+    profiles: [https]
+    image: caddy:2.10-alpine
+    ports:
+      - "${TAZRIM_HTTP_PORT:-80}:80"
+      - "${TAZRIM_HTTPS_PORT:-443}:443"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      # The CA's private key and the issued certificates. Keep this volume: a new one is a
+      # new root certificate, to trust again on every device.
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+  adguard:
+    profiles: [dns]
+    image: adguard/adguardhome:v0.107.69
+    ports:
+      # This computer only. Phones ask over HTTPS through Caddy, so no open DNS on any network.
+      - "127.0.0.1:${TAZRIM_DNS_PORT:-53}:53/udp"
+      - "127.0.0.1:${TAZRIM_DNS_PORT:-53}:53/tcp"
+      # Admin page, this computer only: http://localhost:3053
+      - "127.0.0.1:${TAZRIM_ADGUARD_PORT:-3053}:80"
+    configs:
+      - source: adguard-seed
+        target: /seed/AdGuardHome.yaml
+    # First start: the settings below instead of AdGuard's setup wizard. Later starts keep
+    # whatever was changed on the admin page.
+    entrypoint:
+      - sh
+      - -c
+      - test -f /opt/adguardhome/conf/AdGuardHome.yaml || cp /seed/AdGuardHome.yaml /opt/adguardhome/conf/; exec /opt/adguardhome/AdGuardHome --no-check-update -c /opt/adguardhome/conf/AdGuardHome.yaml -w /opt/adguardhome/work
+    volumes:
+      - adguard-conf:/opt/adguardhome/conf
+      - adguard-work:/opt/adguardhome/work
+    restart: unless-stopped
+
+  # Builds the file a phone or tablet installs once:   docker compose run --rm device-profile
+  # Writes tazrim.mobileconfig (iPhone/iPad: the root certificate + DNS for .internal) and
+  # tazrim-root.crt (Mac, Android, Windows) into this folder.
+  device-profile:
+    profiles: [tools]
+    image: caddy:2.10-alpine
+    configs:
+      - source: device-profile
+        target: /make-profile.sh
+    entrypoint: ["sh", "/make-profile.sh"]
+    environment:
+      TAZRIM_LAN_IP: "${TAZRIM_LAN_IP:-}"
+      TAZRIM_DNS_HOST: "${TAZRIM_DNS_HOST:-dns.internal}"
+      TAZRIM_HTTPS_PORT: "${TAZRIM_HTTPS_PORT:-443}"
+    volumes:
+      - caddy-data:/data:ro
+      - .:/out
+
+configs:
+  caddyfile:
+    content: |
+      {
+      	# Certificates from Caddy's own certificate authority: no internet, no public domain
+      	local_certs
+      }
+
+      # Tazrim. Caddy passes the address the browser used on to the app (X-Forwarded-Host
+      # and -Proto), which is the address passkeys are tied to.
+      ${TAZRIM_HOST:-tazrim.internal} {
+      	reverse_proxy tazrim:3000
+      }
+
+      # Encrypted DNS (DoH) for phones and tablets: AdGuard Home's /dns-query only;
+      # its admin page stays on this computer
+      ${TAZRIM_DNS_HOST:-dns.internal} {
+      	handle /dns-query* {
+      		reverse_proxy adguard:80
+      	}
+      	handle {
+      		respond 404
+      	}
+      }
+
+  adguard-seed:
+    content: |
+      # Starting settings (schema of AdGuard Home v0.107). No admin password: the admin page
+      # only opens on this computer. Add one under Settings if others use this computer.
+      http:
+        address: 0.0.0.0:80
+      users: []
+      dns:
+        bind_hosts:
+          - 0.0.0.0
+        port: 53
+        # Every request arrives from Docker's network, so a per-address limit would hit everyone
+        ratelimit: 0
+        # Caddy forwards the phones' DoH; trust it to say who asked
+        trusted_proxies:
+          - 127.0.0.0/8
+          - ::1/128
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+      tls:
+        enabled: false
+        # Caddy does the TLS and hands AdGuard plain DoH
+        allow_unencrypted_doh: true
+      # Phones and tablets ask at /dns-query/phones (the profile sets it): that names them
+      clients:
+        persistent:
+          - name: phones
+            ids:
+              - phones
+            use_global_settings: true
+            use_global_blocked_services: true
+      # Only names under .internal; no blocklists
+      filters: []
+      user_rules:
+        - "! Phones and tablets: this computer's address on the home network"
+        - "||internal^$$dnsrewrite=NOERROR;A;${TAZRIM_LAN_IP:-127.0.0.1},client=phones"
+        - "! Anything else is this computer itself: 127.0.0.1, wherever it is"
+        - "||internal^$$dnsrewrite=NOERROR;A;127.0.0.1,client=~phones"
+      schema_version: 31
+
+  device-profile:
+    content: |
+      set -eu
+      root=/data/caddy/pki/authorities/local/root.crt
+      if [ ! -f "$$root" ]; then
+        echo "No certificate yet: start Caddy first (COMPOSE_PROFILES=https, docker compose up -d)" >&2
+        exit 1
+      fi
+      cp "$$root" /out/tazrim-root.crt
+      # A PEM body is the base64 of the DER the profile wants
+      cert=$$(grep -v -- '-----' "$$root" | tr -d '\n\r')
+      host="$$TAZRIM_DNS_HOST"
+      [ "$$TAZRIM_HTTPS_PORT" = 443 ] || host="$$host:$$TAZRIM_HTTPS_PORT"
+      dns=""
+      if [ -n "$$TAZRIM_LAN_IP" ]; then
+        dns="<dict>
+            <key>PayloadDisplayName</key><string>Tazrim names (.internal)</string>
+            <key>PayloadIdentifier</key><string>tazrim.profile.dns</string>
+            <key>PayloadType</key><string>com.apple.dnsSettings.managed</string>
+            <key>PayloadUUID</key><string>7A1D2C3B-4E5F-4A6B-8C7D-9E0F1A2B3C03</string>
+            <key>PayloadVersion</key><integer>1</integer>
+            <key>DNSSettings</key>
+            <dict>
+              <key>DNSProtocol</key><string>HTTPS</string>
+              <key>ServerURL</key><string>https://$$host/dns-query/phones</string>
+              <key>ServerAddresses</key><array><string>$$TAZRIM_LAN_IP</string></array>
+              <key>SupplementalMatchDomains</key><array><string>internal</string></array>
+            </dict>
+          </dict>"
+      fi
+      cat > /out/tazrim.mobileconfig <<XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>PayloadDisplayName</key><string>Tazrim</string>
+        <key>PayloadDescription</key><string>Trusts Tazrim's own certificates and finds its .internal names on the computer that runs it.</string>
+        <key>PayloadIdentifier</key><string>tazrim.profile</string>
+        <key>PayloadType</key><string>Configuration</string>
+        <key>PayloadUUID</key><string>7A1D2C3B-4E5F-4A6B-8C7D-9E0F1A2B3C01</string>
+        <key>PayloadVersion</key><integer>1</integer>
+        <key>PayloadContent</key>
+        <array>
+          <dict>
+            <key>PayloadDisplayName</key><string>Caddy Local Authority</string>
+            <key>PayloadIdentifier</key><string>tazrim.profile.root</string>
+            <key>PayloadType</key><string>com.apple.security.root</string>
+            <key>PayloadUUID</key><string>7A1D2C3B-4E5F-4A6B-8C7D-9E0F1A2B3C02</string>
+            <key>PayloadVersion</key><integer>1</integer>
+            <key>PayloadContent</key><data>$$cert</data>
+          </dict>
+          $$dns
+        </array>
+      </dict>
+      </plist>
+      XML
+      echo "Wrote tazrim.mobileconfig and tazrim-root.crt"
+      [ -n "$$TAZRIM_LAN_IP" ] || echo "(No TAZRIM_LAN_IP in .env: the profile has the certificate only, no DNS)"
+
 volumes:
   tazrim-data:
+  caddy-data:
+  caddy-config:
+  adguard-conf:
+  adguard-work:

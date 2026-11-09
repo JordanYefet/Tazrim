@@ -1,97 +1,78 @@
-import { listAccountsWithCounts } from '@/lib/db/accounts'
-import { getCardPayerEvidence, localToday } from '@/lib/db/card-payers'
-import { isImportSupported } from '@/lib/upload/import'
-import { AccountsManager, type ManagedAccount } from '@/components/accounts/accounts-manager'
-import { parseNewKind } from '@/components/accounts/account-kinds'
-import { ThemeSelector } from '@/components/layout/theme-selector'
-import { BackgroundSettings } from '@/components/settings/background-settings'
-import { ImportProfilesManager } from '@/components/settings/import-profiles-manager'
+import { redirect } from 'next/navigation'
+import { prisma } from '@/lib/db/client'
+import { listAccounts } from '@/lib/db/accounts'
 import { listImportProfiles } from '@/lib/db/import-profiles'
-import { toProfileView } from '@/lib/import/profile-view'
-import { CushionSetting } from '@/components/settings/cushion-setting'
 import { getCushion } from '@/lib/db/settings'
-import { DangerZone } from '@/components/settings/danger-zone'
-import { BANK_COLORS, CARD_COLORS } from '@/lib/nav/state'
+import { isAuthRequired } from '@/lib/auth/config'
+import { settingsAccountsHref, type QueryInput } from '@/lib/accounts/routes'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { SettingsTiles, type SettingsTile } from '@/components/settings/settings-tiles'
+import { LegacySettingsHash } from '@/components/settings/legacy-settings-hash'
 
 export const dynamic = 'force-dynamic'
 
-/** Appearance, account management (the old /accounts page, at #accounts) and saved import mappings (#import-profiles). */
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
-  const { new: newParam } = await searchParams
-  // The colour each account has by position (dots, charts), as in the nav: the brand default's fallback
-  const position = { BANK: 0, CREDIT_CARD: 0 } as Record<string, number>
-  const positionColor = (kind: string, archived: boolean) => {
-    const colors = kind === 'BANK' ? BANK_COLORS : kind === 'CREDIT_CARD' ? CARD_COLORS : null
-    if (!colors || archived) return undefined
-    return colors[position[kind]++ % colors.length]
-  }
-  const now = new Date()
-  const [profileRows, rows, payerEvidence, cushion] = await Promise.all([
+const count = (n: number, one: string, many: string, none = `אין ${many}`) => (n === 0 ? none : n === 1 ? one : `${n} ${many}`)
+
+/**
+ * The Settings home: a tile per section, each with a line on its current
+ * state. Old links keep working: ?new= opens the add-account form,
+ * ?recovered=1 the people page, and #section anchors their page.
+ */
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams
+  if (params.new) redirect(settingsAccountsHref(params as QueryInput))
+  if (params.recovered === '1') redirect('/settings/people?recovered=1')
+
+  const auth = isAuthRequired()
+  const [accounts, profiles, cushion, people, devices] = await Promise.all([
+    listAccounts(),
     listImportProfiles(),
-    listAccountsWithCounts(),
-    getCardPayerEvidence(now),
     getCushion(),
+    auth ? prisma.person.count() : 0,
+    auth ? prisma.passkey.count() : 0,
   ])
-  const ownProfile = (a: { id: string; kind: string }) => {
-    const p = profileRows.find(p => p.accountId === a.id && p.accountKind === a.kind)
-    return p ? { id: p.id, name: p.name } : null
-  }
-  const accounts: ManagedAccount[] = rows.map(a => ({
-    id: a.id,
-    kind: a.kind,
-    provider: a.provider,
-    displayName: a.displayName,
-    cardLastFour: a.cardLastFour,
-    cardNetwork: a.cardNetwork,
-    color: a.color,
-    archived: a.archived,
-    transactionCount: a.transactionCount,
-    uploadCount: a.counts.uploads,
-    importSupported: isImportSupported(a),
-    importProfile: ownProfile(a),
-    positionColor: positionColor(a.kind, a.archived),
-    payerAccountId: a.payerAccountId,
-  }))
-  const profiles = profileRows.map(toProfileView)
+  const banks = accounts.filter(a => a.kind === 'BANK').length
+  const cards = accounts.filter(a => a.kind === 'CREDIT_CARD').length
+
+  const tiles: SettingsTile[] = [
+    { href: '/settings/appearance', icon: 'appearance', title: 'מראה', summary: 'ערכת נושא, בהירה או כהה, והרקע מאחורי הדפים.' },
+    {
+      href: '/settings/projection',
+      icon: 'projection',
+      title: 'תחזית',
+      summary: cushion > 0 ? `כרית ביטחון של ${formatCurrencyWhole(cushion)}.` : 'בלי כרית ביטחון. אפשר לסמן חודשים שהיתרה בהם יורדת מתחת לסכום.',
+    },
+    {
+      href: '/settings/accounts',
+      icon: 'accounts',
+      title: 'חשבונות וכרטיסים',
+      summary:
+        banks + cards === 0
+          ? 'עוד אין חשבונות. מוסיפים חשבון בנק או כרטיס אשראי.'
+          : `${count(banks, 'חשבון בנק אחד', 'חשבונות בנק')} ו${count(cards, 'כרטיס אחד', 'כרטיסים')}. שמות, צבעים ומי משלם כל כרטיס.`,
+    },
+    {
+      href: '/settings/import-profiles',
+      icon: 'import-profiles',
+      title: 'מיפויי ייבוא',
+      summary: profiles.length ? `${count(profiles.length, 'מיפוי שמור אחד', 'מיפויים שמורים')} לקבצים שהאפליקציה לא מכירה.` : 'אין מיפויים שמורים. הם נוצרים בהעלאת קובץ שהאפליקציה לא מכירה.',
+    },
+    ...(auth
+      ? [{
+          href: '/settings/people',
+          icon: 'people' as const,
+          title: 'אנשים ומכשירים',
+          summary: `${count(people, 'אדם אחד', 'אנשים')}, ${count(devices, 'מכשיר אחד', 'מכשירים', 'בלי מכשירים')}. הזמנות, סיסמה וקוד שחזור.`,
+        }]
+      : []),
+    { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
+  ]
 
   return (
-    // page-in: the sections under the heading rise in on arrival, as on every page
-    <div className="page-in mx-auto max-w-3xl min-w-0 space-y-10">
+    <div className="page-in mx-auto max-w-4xl min-w-0 space-y-6">
+      <LegacySettingsHash />
       <h1 className="text-2xl font-semibold tracking-tight">הגדרות</h1>
-
-      <section id="appearance" aria-labelledby="appearance-title" className="space-y-3">
-        <h2 id="appearance-title" className="text-lg font-semibold">מראה</h2>
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl surface p-4 md:p-6">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">ערכת נושא</p>
-            <p className="text-sm text-muted-foreground">בהיר, כהה, או לפי הגדרות המערכת</p>
-          </div>
-          <ThemeSelector />
-        </div>
-        <BackgroundSettings />
-      </section>
-
-      <section id="projection" aria-labelledby="projection-title" className="space-y-3">
-        <h2 id="projection-title" className="text-lg font-semibold">תחזית</h2>
-        <CushionSetting initial={cushion} />
-      </section>
-
-      <section id="accounts" aria-label="ניהול חשבונות">
-        <AccountsManager
-          accounts={accounts}
-          initialNewKind={parseNewKind(newParam)}
-          payerEvidence={payerEvidence}
-          today={localToday(now)}
-        />
-      </section>
-
-      <section id="import-profiles" aria-labelledby="import-profiles-title">
-        <ImportProfilesManager profiles={profiles} />
-      </section>
-
-      <section id="danger-zone" aria-labelledby="danger-zone-title">
-        <DangerZone />
-      </section>
+      <SettingsTiles tiles={tiles} />
     </div>
   )
 }

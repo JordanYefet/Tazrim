@@ -1558,3 +1558,32 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
   animation: chart-ring-in calc(var(--motion-page) - 60ms) ease-out backwards;
 }
 @keyframes chart-ring-in { from { --chart-sweep: 0deg; } }
+
+/* Sign-in, first run and invites (components/auth/auth-shell.tsx): a soft
+   lavender, pink and light-blue gradient drifting slowly behind a solid card */
+.auth-gradient {
+  background:
+    radial-gradient(40% 50% at 25% 30%, hsl(256 80% 90%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 70% 75%, hsl(322 70% 90%) 0%, transparent 70%),
+    radial-gradient(40% 45% at 80% 20%, hsl(203 62% 88%) 0%, transparent 70%),
+    linear-gradient(150deg, hsl(254 60% 96%) 0%, hsl(var(--background)) 50%, hsl(203 50% 96%) 100%);
+  animation: auth-drift 12s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.dark .auth-gradient {
+  background:
+    radial-gradient(40% 50% at 25% 30%, hsl(256 45% 24%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 70% 75%, hsl(322 35% 20%) 0%, transparent 70%),
+    radial-gradient(40% 45% at 80% 20%, hsl(203 45% 20%) 0%, transparent 70%),
+    hsl(var(--background));
+}
+@keyframes auth-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-6%, 4%) scale(1.08); }
+  100% { transform: translate(5%, -4%) scale(1.04); }
+}
+/* A sign-in card's content swapping (passkey ↔ recovery code), and the gallery's caption */
+.auth-swap { animation: page-in var(--motion-base) var(--ease-ui) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-gradient, .auth-swap { animation: none; }
+}

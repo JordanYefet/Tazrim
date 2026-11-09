@@ -10,6 +10,7 @@ import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
 import { usePeriodHref } from './period-context'
 import { useOpenOrigin } from '@/components/ui/open-origin'
+import { SheetProfile, useMe } from './profile-menu'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -27,6 +28,9 @@ const MORE_LINKS = [
   { href: '/settings', label: 'הגדרות', hint: 'ערכת נושא · ניהול חשבונות', icon: Settings },
   { href: '/about', label: 'אודות', hint: 'הסיפור, פרטיות ויצירת קשר', icon: Info },
 ]
+
+/** Signed in, these sit in the profile section at the top of the sheet (About as a Settings tile) */
+const SIGNED_IN_ELSEWHERE = ['/settings', '/about']
 
 // Each tab is a 1/5 slot of the pill; the active highlight slides between slots
 const TAB =
@@ -47,6 +51,7 @@ function TabIcon({ active, icon: Icon }: { active: boolean; icon: typeof LayoutD
  * "עוד", a sheet with the rest). Labels live in aria-label only.
  */
 export function BottomNav() {
+  const me = useMe()
   const pathname = usePathname()
   const periodHref = usePeriodHref()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -110,8 +115,9 @@ export function BottomNav() {
             <div aria-hidden className="flex justify-center pt-2">
               <span className="h-1 w-9 rounded-full bg-border" />
             </div>
+            <SheetProfile onNavigate={() => setMoreOpen(false)} />
             <ul className="pb-1">
-              {MORE_LINKS.map(({ href, label, hint, icon: Icon }, i) => {
+              {(me ? MORE_LINKS.filter(l => !SIGNED_IN_ELSEWHERE.includes(l.href)) : MORE_LINKS).map(({ href, label, hint, icon: Icon }, i) => {
                 const active = isNavActive(pathname, href)
                 return (
                   <li key={href}>

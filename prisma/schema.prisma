@@ -336,3 +336,58 @@ model SyncLink {
 
   @@unique([company, externalAccount])
 }
+
+/// Login (ENG-89): someone in the household. Everyone has the same rights.
+model Person {
+  id           String    @id @default(uuid())
+  name         String
+  /// Optional second way in (scrypt, lib/auth/password.ts); null = passkeys only
+  passwordHash String?
+  createdAt    DateTime  @default(now())
+  passkeys     Passkey[]
+  sessions     Session[]
+}
+
+/// A passkey (WebAuthn credential) a person signs in with; one per device or password manager.
+model Passkey {
+  id           String    @id @default(uuid())
+  personId     String
+  person       Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  /// The credential id, base64url, as the browser reports it
+  credentialId String    @unique
+  /// The COSE public key
+  publicKey    Bytes
+  counter      Int       @default(0)
+  /// JSON array of AuthenticatorTransport values, e.g. ["internal","hybrid"]
+  transports   String?
+  /// What the owner calls the device, e.g. "iPhone"
+  label        String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  sessions     Session[]
+}
+
+/// A signed-in browser. The cookie holds a random token; only its SHA-256 is stored.
+/// Revoking the passkey deletes its sessions, so that device's next request fails.
+model Session {
+  id         String   @id @default(uuid())
+  tokenHash  String   @unique
+  personId   String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  /// Null for a session opened with the recovery code
+  passkeyId  String?
+  passkey    Passkey? @relation(fields: [passkeyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+}
+
+/// A one-time link (about 15 minutes) that registers a new person or another device for a person.
+model Invite {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  /// Null: the link creates a new person (who types their name)
+  personId  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}

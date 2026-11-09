@@ -38,6 +38,7 @@ import { monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 import { withResolvedPeriod } from '@/lib/period-server'
 import { PeriodSync } from '@/components/layout/period-context'
+import { ManageAccountsLink } from '@/components/accounts/page-parts'
 
 interface SearchParams { year?: string; month?: string; card?: string; deleted?: string }
 
@@ -151,7 +152,11 @@ export default async function DashboardPage({
       {/* Remembers the period across the app (ENG-63) */}
       <PeriodSync year={Number(year)} month={month} />
       {/* The header's pickers show the period; the title doesn't repeat it (ENG-64) */}
-      <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
+      {/* A header, not a div: .page-in leaves it in place, as it does the h1 on every page */}
+      <header className="flex min-h-[2.375rem] flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">סקירה כללית</h1>
+        <ManageAccountsLink />
+      </header>
 
       <DataDeletedNotice show={params.deleted === '1'} />
 

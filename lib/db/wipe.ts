@@ -4,9 +4,9 @@ import { STARTING_CATEGORIES } from './starting-categories'
 import { STARTING_GENERIC_DESCRIPTIONS } from './starting-generic-descriptions'
 
 /**
- * Every data table, in the order its rows are deleted: rows that point at an
- * Account go before Account itself. Typed as a Record over Prisma.ModelName,
- * so adding a model to the schema fails type-checking until it is listed here.
+ * Every table, in the order its rows are deleted: rows that point at an
+ * Account go before Account itself. It covers every Prisma.ModelName, so adding
+ * a model to the schema fails type-checking until it is listed here.
  */
 const WIPE_ORDER = {
   UnusualDismissal: 1,
@@ -27,16 +27,24 @@ const WIPE_ORDER = {
   SyncLink: 15,
   Account: 16,
   Setting: 17,
-} satisfies Record<Prisma.ModelName, number>
+  // The login (ENG-89) goes too, so the app opens like a new install, at /setup.
+  // Sessions and invites point at people and passkeys, passkeys at people.
+  Session: 18,
+  Invite: 19,
+  Passkey: 20,
+  Person: 21,
+}
+
+WIPE_ORDER satisfies Record<Prisma.ModelName, number>
 
 export type WipeTable = keyof typeof WIPE_ORDER
 
 export const WIPE_TABLES = (Object.keys(WIPE_ORDER) as WipeTable[]).sort((a, b) => WIPE_ORDER[a] - WIPE_ORDER[b])
 
 /**
- * Deletes every row of every data table in one transaction (ENG-62). The
- * schema and _prisma_migrations stay, so the app opens like a fresh install,
- * with no accounts, the starting categories and the starting generic descriptions. Returns how many rows went per table.
+ * Deletes every row of every table in one transaction (ENG-62). The schema
+ * and _prisma_migrations stay, so the app opens like a fresh install: no
+ * accounts and no people, the starting categories and the starting generic descriptions. Returns how many rows went per table.
  *
  * Afterwards VACUUM rebuilds the database file, so the deleted rows don't
  * linger in its free pages. A failed VACUUM leaves the data deleted, just not
@@ -46,7 +54,9 @@ export async function wipeAllData(): Promise<Record<WipeTable, number>> {
   const deleted = await prisma.$transaction(async tx => {
     const counts = {} as Record<WipeTable, number>
     // Table names come from the constant above, never from input
-    for (const table of WIPE_TABLES) counts[table] = await tx.$executeRawUnsafe(`DELETE FROM "${table}"`)
+    for (const table of WIPE_TABLES) {
+      counts[table] = await tx.$executeRawUnsafe(`DELETE FROM "${table}"`)
+    }
     // A new install starts with the starting categories (ENG-76), so this does too
     await tx.category.createMany({ data: STARTING_CATEGORIES })
     await tx.genericDescription.createMany({ data: STARTING_GENERIC_DESCRIPTIONS.map(description => ({ description })) })
