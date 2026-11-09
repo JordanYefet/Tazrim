@@ -5,6 +5,7 @@ import { KeyRound, Laptop, RotateCcw, LockKeyhole, LockKeyholeOpen, Plus, Shield
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
+import { SaveToPasswords, VAULT_KEY_NAME } from './save-to-passwords'
 import { errorText, ghostButton, primaryButton, secondaryButton, textButton } from '@/components/auth/ui'
 import { inputClass } from '@/components/accounts/add-account-form'
 import { FIELD_LABELS, SYNC_COMPANIES, syncCompany } from '@/lib/sync/providers'
@@ -272,8 +273,9 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
       <AppDialog open={!!shownKey} onOpenChange={o => !o && setShownKey(null)} title={shownKey?.title ?? ''}>
         {shownKey && (
           <div className="mt-4 space-y-3">
-            <p className="text-sm text-muted-foreground text-pretty">שמרו אותו במנהל סיסמאות או על דף. הוא לא יוצג שוב, ובלעדיו, אם כל המפתחות יאבדו, אי אפשר לפתוח את הכספת.</p>
+            <p className="text-sm text-muted-foreground text-pretty">שמרו אותו באפליקציית סיסמאות או על דף. הוא לא יוצג שוב, ובלעדיו, אם כל המפתחות יאבדו, אי אפשר לפתוח את הכספת.</p>
             <RecoveryCode code={shownKey.key} link />
+            <SaveToPasswords secret={shownKey.key} />
           </div>
         )}
       </AppDialog>
@@ -281,7 +283,9 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
       <AppDialog open={recovering} onOpenChange={setRecovering} title="פתיחה עם מפתח השחזור">
         <form onSubmit={recover} className="mt-4 space-y-3">
           {error && <p className={errorText} role="alert">{error}</p>}
-          <input dir="ltr" autoComplete="off" spellCheck={false} value={recoveryInput} onChange={e => setRecoveryInput(e.target.value)} className={cn(inputClass, 'font-mono')} aria-label="מפתח השחזור" />
+          {/* With the name it was saved under, so Passwords can fill the key in */}
+          <input type="text" name="username" autoComplete="username" value={VAULT_KEY_NAME} readOnly hidden />
+          <input dir="ltr" name="password" autoComplete="current-password" autoCapitalize="characters" spellCheck={false} value={recoveryInput} onChange={e => setRecoveryInput(e.target.value)} className={cn(inputClass, 'font-mono')} aria-label="מפתח השחזור" />
           <button type="submit" disabled={busy || !recoveryInput.trim()} className={primaryButton}>פתיחה</button>
         </form>
       </AppDialog>
