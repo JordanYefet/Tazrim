@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CircleAlert, KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -12,9 +12,9 @@ import { card, errorText, ghostButton, primaryButton, textButton } from './ui'
 type Mode = 'passkey' | 'password' | 'recovery'
 
 /**
- * /login (ENG-89): "Sign in with passkey", and under it in the same card a
- * name and password, for a device without a passkey (set in Settings →
- * People); the recovery code as the way back.
+ * /login (ENG-89): a name and password, and under them in the same card
+ * "Sign in with passkey" (which has the focus); the recovery code as the
+ * way back.
  */
 export function LoginForm() {
   const next = safeNext(useSearchParams().get('next'))
@@ -26,7 +26,13 @@ export function LoginForm() {
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
+  const passkeyButton = useRef<HTMLButtonElement>(null)
   useEffect(() => setBlocker(passkeyBlocker()), [])
+  // Focus starts on the passkey button, not in the name field: a focused field
+  // makes iOS open its Passwords sheet on every load
+  useEffect(() => {
+    passkeyButton.current?.focus({ preventScroll: true })
+  }, [])
 
   function show(m: Mode) {
     setMode(m)
@@ -75,26 +81,6 @@ export function LoginForm() {
 
       {mode !== 'recovery' ? (
         <div key="main" className="auth-swap flex flex-col gap-5">
-          <div className="space-y-3">
-            <p className="text-center text-sm text-muted-foreground">כניסה עם Face ID, Touch ID או קוד המכשיר</p>
-            <button type="button" onClick={signIn} disabled={busy || !!blocker} className={primaryButton}>
-              <KeyRound className="h-5 w-5" aria-hidden />
-              כניסה עם מפתח
-            </button>
-            {mode === 'passkey' && error && <p className={errorText} role="alert">{error}</p>}
-            {noPasskeyHere && (
-              <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">
-                אין מפתח במכשיר הזה? היכנסו עם סיסמה, או הוסיפו את המכשיר מהטלפון: הגדרות ← אנשים ומכשירים ← מכשיר נוסף.
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 text-[13px] text-muted-foreground" aria-hidden>
-            <span className="h-px flex-1 bg-border" />
-            או
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
           <form
             onSubmit={e => { e.preventDefault(); setMode('password'); post('/api/auth/password', { name, password }, next) }}
             className="space-y-3"
@@ -133,6 +119,26 @@ export function LoginForm() {
               כניסה עם סיסמה
             </button>
           </form>
+
+          <div className="flex items-center gap-3 text-[13px] text-muted-foreground" aria-hidden>
+            <span className="h-px flex-1 bg-border" />
+            או
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-center text-sm text-muted-foreground">כניסה עם Face ID, Touch ID או קוד המכשיר</p>
+            <button ref={passkeyButton} type="button" onClick={signIn} disabled={busy || !!blocker} className={primaryButton}>
+              <KeyRound className="h-5 w-5" aria-hidden />
+              כניסה עם מפתח
+            </button>
+            {mode === 'passkey' && error && <p className={errorText} role="alert">{error}</p>}
+            {noPasskeyHere && (
+              <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">
+                אין מפתח במכשיר הזה? היכנסו עם הסיסמה שלמעלה, או הוסיפו את המכשיר מהטלפון: הגדרות ← אנשים ומכשירים ← מכשיר נוסף.
+              </p>
+            )}
+          </div>
 
           <button type="button" onClick={() => show('recovery')} className={textButton}>
             אין גישה? כניסה עם קוד שחזור
