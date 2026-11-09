@@ -179,14 +179,53 @@ describe('passwords', () => {
     expect(cookieJar).not.toBe('')
   })
 
-  it('never over plain http from another device; localhost is fine', async () => {
+  it('works over plain http from another device (a phone on a fresh install); the cookie is then not Secure', async () => {
     cookieJar = ''
     const lan = { host: '192.168.1.20:3000' }
-    expect((await call('/auth/password', { name: 'Partner', password: PASSWORD }, 'POST', lan)).body.code).toBe('INSECURE')
-    expect((await call('/auth/password', { name: 'Partner', password: PASSWORD }, 'POST', { host: 'localhost:3000' })).status).toBe(200)
+    const res = await call('/auth/password', { name: 'Partner', password: PASSWORD }, 'POST', lan)
+    expect(res.status).toBe(200)
+    expect(res.setCookie).not.toMatch(/Secure/i)
+  })
+
+  it('TAZRIM_REQUIRE_HTTPS=1 refuses plain http from another device; localhost is still fine', async () => {
+    process.env.TAZRIM_REQUIRE_HTTPS = '1'
+    try {
+      cookieJar = ''
+      const lan = { host: '192.168.1.20:3000' }
+      expect((await call('/auth/password', { name: 'Partner', password: PASSWORD }, 'POST', lan)).body.code).toBe('INSECURE')
+      expect((await call('/auth/invite', { token: 'x', name: 'X', password: PASSWORD }, 'POST', lan)).body.code).toBe('INSECURE')
+      expect((await call('/auth/password', { name: 'Partner', password: PASSWORD }, 'POST', { host: 'localhost:3000' })).status).toBe(200)
+    } finally {
+      delete process.env.TAZRIM_REQUIRE_HTTPS
+    }
+  })
+
+  it('an invite link joins with a password instead of a passkey: once, with a free name', async () => {
+    ;(await import('../rate-limit')).resetRateLimits()
+    await call('/auth/password', { name: 'Partner', password: PASSWORD })
+    const token = (await call('/people/invites', { personId: null })).body.url.split('/invite/')[1]
+    const lan = { host: '192.168.1.20:3000' }
+    cookieJar = ''
+    expect((await call('/auth/invite', { token, name: ' partner ', password: PASSWORD }, 'POST', lan)).body.code).toBe('NAME_TAKEN')
+    expect((await call('/auth/invite', { token, name: 'Kid', password: 'short' }, 'POST', lan)).body.code).toBe('BAD_PASSWORD')
+    expect((await call('/auth/invite', { token, name: 'Kid', password: PASSWORD }, 'POST', lan)).status).toBe(200)
+    expect(cookieJar).not.toBe('')
+    expect((await call('/auth/invite', { token, name: 'Kid2', password: PASSWORD }, 'POST', lan)).body.code).toBe('INVITE_GONE')
+    cookieJar = ''
+    expect((await call('/auth/password', { name: 'kid', password: PASSWORD }, 'POST', lan)).status).toBe(200)
+  })
+
+  it("a link for another device of someone doesn't take a password", async () => {
+    ;(await import('../rate-limit')).resetRateLimits()
+    await call('/auth/password', { name: 'Partner', password: PASSWORD })
+    const people = await call('/people', undefined, 'GET')
+    const partner = people.body.people.find((p: { name: string }) => p.name === 'Partner')
+    const token = (await call('/people/invites', { personId: partner.id })).body.url.split('/invite/')[1]
+    expect((await call('/auth/invite', { token, name: 'X', password: PASSWORD })).body.code).toBe('DEVICE_INVITE')
   })
 
   it('a new password ends the other password sign-ins, not this one', async () => {
+    ;(await import('../rate-limit')).resetRateLimits()
     const { prisma } = await import('@/lib/db/client')
     const partner = await prisma.person.findFirstOrThrow({ where: { name: 'Partner' } })
     const passwordSessions = () => prisma.session.count({ where: { personId: partner.id, passkeyId: null } })

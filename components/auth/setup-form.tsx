@@ -33,7 +33,12 @@ export function SetupForm({ codeFrom }: { codeFrom: 'env' | 'log' }) {
   const [error, setError] = useState<string | null>(null)
   const [blocker, setBlocker] = useState<string | null>(null)
   const [recovery, setRecovery] = useState<string | null>(null)
-  useEffect(() => setBlocker(passkeyBlocker()), [])
+  useEffect(() => {
+    const b = passkeyBlocker()
+    setBlocker(b)
+    // No passkeys here (plain http from another device): start with a password
+    if (b) setWithPassword(true)
+  }, [])
 
   async function withPasskey() {
     setBusy(true)
@@ -125,7 +130,9 @@ export function SetupForm({ codeFrom }: { codeFrom: 'env' | 'log' }) {
               <input type="password" dir="ltr" autoComplete="new-password" value={repeat} onChange={e => setRepeat(e.target.value)} className={inputClass} />
             </label>
             <button type="submit" disabled={busy || !ready || !password || !repeat} className={primaryButton}>יצירה והתחלה</button>
-            <button type="button" onClick={() => { setWithPassword(false); setError(null) }} className={ghostButton}>עם מפתח במקום</button>
+            {!blocker && (
+              <button type="button" onClick={() => { setWithPassword(false); setError(null) }} className={ghostButton}>עם מפתח במקום</button>
+            )}
           </div>
         ) : (
           <div key="passkey" className="auth-swap flex flex-col gap-3">

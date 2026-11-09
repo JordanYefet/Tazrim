@@ -192,6 +192,24 @@ export async function checkPassword(name: unknown, password: unknown): Promise<{
   return (await verifyPassword(password, match.passwordHash)) ? { id: match.id } : null
 }
 
+export type JoinResult = { id: string } | 'gone' | 'name-taken'
+
+/**
+ * An invite link used with a password instead of a passkey (plain http,
+ * where passkeys can't work): a new person with this name and password. The
+ * name must be free, since password sign-in asks for it.
+ */
+export async function joinWithPassword(inviteId: string, name: string, password: string, now = new Date()): Promise<JoinResult> {
+  const passwordHash = await hashPassword(password)
+  return prisma.$transaction(async tx => {
+    const people = await tx.person.findMany({ select: { name: true } })
+    if (people.some(p => nameKey(p.name) === nameKey(name))) return 'name-taken' as const
+    const { count } = await tx.invite.updateMany({ where: { id: inviteId, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } })
+    if (count !== 1) return 'gone' as const
+    return tx.person.create({ data: { name, passwordHash }, select: { id: true } })
+  })
+}
+
 export type FirstPersonResult = { id: string } | 'already-set-up'
 
 /** First run with a password instead of a passkey: the household's first person */
