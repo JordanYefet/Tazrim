@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { LoginField } from '@/lib/sync/providers'
-import type { RunView } from '@/lib/sync/runs'
+import type { QueueView, RunView } from '@/lib/sync/runs'
+import { vaultWithPasskey } from '@/components/vault/vault-client'
 import type { LinkAction } from '@/lib/sync/store'
 
 export interface CompanyInfo {
@@ -22,13 +23,21 @@ export interface CompanyInfo {
   historyMonths: number
   /** Ranges past this many months are experimental (null: all are proven) */
   provenMonths: number | null
+  /** The id of a sign-in saved in the vault for it (ENG-92), or null */
+  savedLogin: string | null
 }
 
 export interface SyncInfo {
   available: boolean
   companies: CompanyInfo[]
+  vault: { exists: boolean; open: boolean }
   run: RunView | null
+  /** "Sync all" (ENG-92), while going and after */
+  queue: QueueView | null
 }
+
+/** How a sync gets its login: typed in (and maybe saved to the vault), or the one saved there */
+export type LoginInput = { credentials: Record<string, string>; save?: boolean } | { saved: true }
 
 const POLL_MS = 1000
 
@@ -69,10 +78,21 @@ export function useSync() {
     void load()
   }, [load])
 
-  const active = isActive(run)
+  const queueGoing = !!info?.queue && !info.queue.finishedAt
+  const active = isActive(run) || queueGoing
   const runId = run?.id
+
+  // "Sync all" between two companies (the next login is being read): ask again
+  // until the next run shows up, or the queue ends
+  const between = queueGoing && !isActive(run)
   useEffect(() => {
-    if (!active || !runId) return
+    if (!between) return
+    const id = setInterval(() => void load(), POLL_MS)
+    return () => clearInterval(id)
+  }, [between, load])
+  const runGoing = isActive(run)
+  useEffect(() => {
+    if (!runGoing || !runId) return
     let stopped = false
     const tick = async () => {
       try {
@@ -94,13 +114,36 @@ export function useSync() {
       stopped = true
       clearInterval(id)
     }
-  }, [active, runId, load, router])
+  }, [runGoing, runId, load, router])
 
-  const start = useCallback(async (company: string, credentials: Record<string, string>, startDate: string) => {
-    const { ok, data } = await post('/api/sync', { company, credentials, startDate })
-    if (ok) setRun(data.run as RunView)
-    return ok ? null : String(data.error ?? 'הסנכרון לא התחיל')
-  }, [])
+  /**
+   * Runs `send`; when the vault is locked (423), opens it with Face ID / Touch ID
+   * and tries once more. Returns the error to show, or null.
+   */
+  const withVault = useCallback(async (send: () => Promise<{ ok: boolean; data: Record<string, unknown> }>) => {
+    let res = await send()
+    if (!res.ok && res.data.code === 'VAULT_LOCKED') {
+      try {
+        await vaultWithPasskey('unlock')
+      } catch (e) {
+        return (e as Error).message
+      }
+      res = await send()
+    }
+    if (res.ok) {
+      if (res.data.run) setRun(res.data.run as RunView)
+      void load()
+    }
+    return res.ok ? null : String(res.data.error ?? 'הסנכרון לא התחיל')
+  }, [load])
+
+  const start = useCallback(
+    (company: string, login: LoginInput, startDate: string) => withVault(() => post('/api/sync', { company, ...login, startDate })),
+    [withVault]
+  )
+
+  /** Every company with a saved sign-in, one after another (ENG-92) */
+  const startAll = useCallback(() => withVault(() => post('/api/sync', { all: true })), [withVault])
 
   const act = useCallback(async (body: { code: string } | { links: LinkAction[] } | { cancel: true }) => {
     const current = runRef.current
@@ -114,7 +157,7 @@ export function useSync() {
     return ok ? null : String(data.error ?? 'הפעולה נכשלה')
   }, [])
 
-  return { info, run, active, reload: load, start, act }
+  return { info, run, active, reload: load, start, startAll, act }
 }
 
 export type SyncApi = ReturnType<typeof useSync>
