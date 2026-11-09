@@ -8,6 +8,7 @@ import { takeChallenge, verifyAuthentication } from '@/lib/auth/webauthn'
 import { isLocalRequest } from '@/lib/local-request'
 import { matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
 import { wipeAllData } from '@/lib/db/wipe'
+import { lock } from '@/lib/vault/vault'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,8 @@ export async function POST(req: Request) {
     return fail(400, 'יש להקליד את ביטוי האישור כדי למחוק', 'CONFIRMATION_REQUIRED')
   }
   const deleted = await wipeAllData()
+  // The vault's copies went with the data; its key leaves memory too
+  lock()
   const res = NextResponse.json({ ok: true, deleted })
   res.cookies.set(clearedSessionCookie(relyingParty(req.headers)?.secure ?? false))
   return res
