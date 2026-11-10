@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeftRight, ChevronLeft, CreditCard, Landmark, Plus, Search, Store, TextSearch } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { SegmentedTabs } from '@/components/ui/segmented-tabs'
 import { SegmentedTrack } from '@/components/ui/segmented'
 import { providerLabel } from '@/lib/accounts/brands'
 import { AppDialog } from '@/components/ui/app-dialog'
@@ -242,32 +243,21 @@ export function CategoriesView({
 /** Expense / income, with a thumb that slides between them */
 function SegmentedKind({ kind, onChange, counts }: { kind: Kind; onChange: (k: Kind) => void; counts?: Record<Kind, number> }) {
   return (
-    <SegmentedTrack
-      role="tablist"
-      aria-label="סוג קטגוריה"
-      active={kind}
-      thumbClassName="rounded-[9px] bg-card shadow-sm"
-      className="grid grid-cols-2 rounded-xl bg-muted p-[3px]"
-    >
-      {(['EXPENSE', 'INCOME'] as const).map(k => (
-        <button
-          key={k}
-          role="tab"
-          data-segment={k}
-          data-on={kind === k || undefined}
-          aria-selected={kind === k}
-          onClick={() => onChange(k)}
-          className={cn(
-            'flex h-9 items-center justify-center gap-2 rounded-[9px] text-[15px] transition-colors duration-base',
-            kind === k ? 'bg-card font-semibold text-foreground shadow-sm' : 'font-medium text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <span className={cn('h-2 w-2 rounded-full', KIND_DOT[k])} aria-hidden />
-          {KIND_LABEL[k]}
-          {counts && <span className="text-xs font-normal tabular-nums text-muted-foreground">{counts[k]}</span>}
-        </button>
-      ))}
-    </SegmentedTrack>
+    <SegmentedTabs
+      ariaLabel="סוג קטגוריה"
+      value={kind}
+      onChange={onChange}
+      options={(['EXPENSE', 'INCOME'] as const).map(k => ({
+        key: k,
+        label: (
+          <>
+            <span className={cn('h-2 w-2 rounded-full', KIND_DOT[k])} aria-hidden />
+            {KIND_LABEL[k]}
+            {counts && <span className="text-xs font-normal tabular-nums text-muted-foreground">{counts[k]}</span>}
+          </>
+        ),
+      }))}
+    />
   )
 }
 

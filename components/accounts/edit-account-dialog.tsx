@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Archive, ArchiveRestore, ChevronRight, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -39,6 +39,7 @@ export function EditAccountDialog({
   onImported,
   manage,
   payer,
+  source,
 }: {
   account: EditDialogAccount | null
   /** The bank accounts and payment rows for a card's "משולם מחשבון" */
@@ -49,6 +50,8 @@ export function EditAccountDialog({
   onImported: () => void
   /** Archive (or restore) and delete, at the end of the edit view (/settings: the row has no buttons of its own) */
   manage?: AccountManage
+  /** "מקור הנתונים": synced or files (components/accounts/data-source.tsx) */
+  source?: ReactNode
 }) {
   const originRef = useOpenOrigin()
   const [view, setView] = useState<'edit' | 'remap' | 'mapping'>('edit')
@@ -112,6 +115,7 @@ export function EditAccountDialog({
                     </Dialog.Title>
                   }
                 >
+                  {source}
                   {importState && (
                     <ImportSection
                       state={importState}

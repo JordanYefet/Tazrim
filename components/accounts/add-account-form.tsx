@@ -82,10 +82,6 @@ function providerFields(kind: CreatableKindValue, provider: string) {
     : { choice: OTHER, other: provider }
 }
 
-export function AddAccountForm(props: Omit<CreateProps, 'mode'>) {
-  return <AccountForm {...props} mode="create" />
-}
-
 /**
  * Create an account, or edit one (ENG-65): the same fields either way, with
  * the element it will look like on top, reacting to every field.
