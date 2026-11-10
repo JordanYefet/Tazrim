@@ -8,7 +8,7 @@ import { useOpenOrigin } from '@/components/ui/open-origin'
 import { STEP_TEXT, timeAgo } from '@/lib/sync/format'
 import { useSync, type SyncInfo } from './use-sync'
 import { SyncPanel } from './sync-panel'
-import type { RunView } from '@/lib/sync/runs'
+import type { QueueView, RunView } from '@/lib/sync/runs'
 
 /** How long "עודכן · 12 חדשות" stays on the button after a sync */
 const DONE_SHOWN_MS = 8000
@@ -20,7 +20,34 @@ function lastSynced(info: SyncInfo | null): string | null {
   return times.length ? times.reduce((a, b) => (a > b ? a : b)) : null
 }
 
-function face(run: RunView | null, info: SyncInfo | null, now: number, seenFailure: string | null): { tone: Tone; title: string; sub: string } {
+/** "Sync all": a row waiting for the person first, then the count; once ended, like a single sync */
+function queueFace(queue: QueueView, info: SyncInfo | null, now: number, seenFailure: string | null): { tone: Tone; title: string; sub: string } | null {
+  const label = (company: string) => info?.companies.find(c => c.id === company)?.label ?? ''
+  const code = queue.items.filter(i => i.run?.status.state === 'needs-code')
+  const links = queue.items.find(i => i.run?.status.state === 'needs-links')
+  const finished = queue.items.filter(i => i.state !== 'waiting' && i.state !== 'running')
+  if (!queue.finishedAt) {
+    if (code.length) return { tone: 'attention', title: code.length > 1 ? `${code.length} קודים` : 'צריך קוד', sub: code.length > 1 ? 'SMS' : `SMS מ${label(code[0].company)}` }
+    if (links) return { tone: 'attention', title: 'חשבון חדש', sub: label(links.company) }
+    return { tone: 'busy', title: 'מסנכרן…', sub: `${finished.length} מתוך ${queue.items.length}` }
+  }
+  if (queue.items.some(i => i.state === 'failed' || i.state === 'skipped') && seenFailure !== queue.id) return { tone: 'failed', title: 'חלק נכשלו', sub: 'לפרטים' }
+  if (now - new Date(queue.finishedAt).getTime() < DONE_SHOWN_MS) {
+    const created = queue.items.reduce((n, i) => n + (i.created ?? 0), 0)
+    return { tone: 'done', title: 'עודכן', sub: created ? `${created} חדשות` : 'אין חדשות' }
+  }
+  return null
+}
+
+function face(
+  run: RunView | null,
+  queue: QueueView | null,
+  info: SyncInfo | null,
+  now: number,
+  seenFailure: string | null
+): { tone: Tone; title: string; sub: string } {
+  const fromQueue = queue && queueFace(queue, info, now, seenFailure)
+  if (fromQueue) return fromQueue
   const label = run ? (info?.companies.find(c => c.id === run.company)?.label ?? '') : ''
   const s = run?.status
   if (s?.state === 'running') return { tone: 'busy', title: 'מסנכרן…', sub: `${label} · ${STEP_TEXT[s.step] ?? ''}` }
@@ -71,9 +98,10 @@ export function SyncButton() {
 
   // Ticks "לפני 3 דקות" along, and ends the "עודכן" moment
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), sync.run?.status.state === 'done' ? 1000 : 30_000)
+    const recent = sync.run?.status.state === 'done' || !!sync.queue?.finishedAt
+    const id = setInterval(() => setNow(Date.now()), recent ? 1000 : 30_000)
     return () => clearInterval(id)
-  }, [sync.run?.status.state])
+  }, [sync.run?.status.state, sync.queue?.finishedAt])
 
   function onOpenChange(next: boolean) {
     setOpen(next)
@@ -81,12 +109,13 @@ export function SyncButton() {
       const r = trigger.current?.getBoundingClientRect()
       if (r) setAnchor({ '--sync-right': `${window.innerWidth - r.right}px`, '--sync-top': `${r.bottom + 8}px` } as CSSProperties)
       void sync.reload()
-      if (sync.run?.status.state === 'failed') setSeenFailure(sync.run.id)
+      if (sync.queue?.finishedAt) setSeenFailure(sync.queue.id)
+      else if (sync.run?.status.state === 'failed') setSeenFailure(sync.run.id)
     }
   }
 
-  const { tone, title, sub } = face(sync.run, sync.info, now, seenFailure)
-  const needsCode = sync.run?.status.state === 'needs-code'
+  const { tone, title, sub } = face(sync.run, sync.queue, sync.info, now, seenFailure)
+  const needsCode = sync.run?.status.state === 'needs-code' || !!sync.queue?.items.some(i => i.run?.status.state === 'needs-code')
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>

@@ -1,6 +1,7 @@
 /**
- * A sync in progress (ENG-91), held in the server's memory only: one at a
- * time. The page starts one with a login and then polls it. The login lives
+ * A sync in progress (ENG-91), held in the server's memory only: one
+ * company's, or "sync all" with several side by side. The page starts one
+ * with a login and then polls it. The login lives
  * only inside the running scrape and is blanked as soon as the site has
  * answered; the fetched rows wait here only while the person links unknown
  * accounts, and are dropped once stored.
@@ -10,11 +11,12 @@ import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
 import { scrape, type ScrapeErrorCode, type ScrapeStep } from './scrape'
 import {
+  chosenAccounts,
   findLinks,
   linkCandidates,
+  planLinks,
   saveLinks,
   storeScrape,
-  suggestAccount,
   type AccountResult,
   type Candidate,
   type LinkAction,
@@ -47,13 +49,15 @@ export interface RunView {
 
 interface Run {
   id: string
-  /** Set when the run is one of "sync all" (ENG-92) */
-  queued?: boolean
   company: SyncCompany
   startedAt: Date
   startDate: Date
   finishedAt: Date | null
   status: RunState
+  /** Its headless browser is open: from the start until the scrape returns */
+  browser: boolean
+  /** Told when the browser closes and when the run ends ("sync all" fills the free slot) */
+  onChange?: () => void
   otp?: (code: string) => void
   scraped?: ScrapedAccount[]
   timer?: ReturnType<typeof setTimeout>
@@ -63,6 +67,8 @@ interface Run {
 export interface QueueItemView {
   company: string
   state: 'waiting' | 'running' | 'done' | 'failed' | 'skipped'
+  /** Its run once it started: the step, or what it waits for (a code, links) */
+  run?: RunView
   /** New rows, once done */
   created?: number
   /** Why it failed or was skipped: a FAILURE_TEXT key, or VAULT_LOCKED */
@@ -82,27 +88,54 @@ interface QueueItem {
   company: SyncCompany
   startDate: Date
   login: LoginSource
-  view: QueueItemView
+  /** Its login is being read */
+  reading?: boolean
+  run?: Run
+  /** Set when it never started: its login couldn't be read */
+  skipped?: string
 }
 
 interface Queue {
   id: string
   items: QueueItem[]
-  index: number
+  /** The next item to start */
+  next: number
   finishedAt: Date | null
 }
 
 interface Registry {
+  /** The latest single sync (not one of "sync all") */
   current: Run | null
+  /** Every run since the last start, by id: the single one, or those of "sync all" */
+  runs: Map<string, Run>
   queue?: Queue | null
+  /** The tail of the writes: runs store one at a time */
+  writing?: Promise<unknown>
 }
 
 // One registry per server process (and across dev hot reloads)
 const KEY = Symbol.for('tazrim.sync.runs')
 const g = globalThis as unknown as Record<symbol, Registry>
-const registry: Registry = (g[KEY] ??= { current: null })
+const registry: Registry = (g[KEY] ??= { current: null, runs: new Map() })
+registry.runs ??= new Map()
 
-const active = (r: Run | null) => !!r && (r.status.state === 'running' || r.status.state === 'needs-code' || r.status.state === 'needs-links')
+const active = (r: Run | null | undefined) => !!r && (r.status.state === 'running' || r.status.state === 'needs-code' || r.status.state === 'needs-links')
+
+/** How many companies "sync all" runs at once: each opens its own headless browser (TAZRIM_SYNC_CONCURRENCY, default 3) */
+export function syncConcurrency(): number {
+  const n = Number(process.env.TAZRIM_SYNC_CONCURRENCY)
+  return Number.isInteger(n) && n >= 1 ? Math.min(n, 8) : 3
+}
+
+/**
+ * Runs a write after the ones before it: two runs never store at once, so
+ * their de-dup reads and writes can't interleave (and SQLite takes one writer anyway).
+ */
+function exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const next = (registry.writing ?? Promise.resolve()).then(fn, fn)
+  registry.writing = next.catch(() => {})
+  return next
+}
 
 function view(r: Run): RunView {
   return {
@@ -116,89 +149,120 @@ function view(r: Run): RunView {
 }
 
 function finish(run: Run, status: RunState) {
+  if (run.finishedAt) return
   if (run.timer) clearTimeout(run.timer)
   run.timer = undefined
   run.otp = undefined
   run.scraped = undefined
   run.status = status
   run.finishedAt = new Date()
-  if (run.queued) void nextInQueue(status)
+  run.onChange?.()
 }
 
 const queueActive = () => !!registry.queue && !registry.queue.finishedAt
+const anyActive = () => [...registry.runs.values()].some(active) || queueActive()
 
-/** The latest run, finished or not. */
+/** The latest single sync, finished or not ("sync all" shows in currentQueue). */
 export function currentRun(): RunView | null {
   return registry.current ? view(registry.current) : null
 }
 
 export function getRun(id: string): RunView | null {
-  return registry.current?.id === id ? view(registry.current) : null
+  const run = registry.runs.get(id)
+  return run ? view(run) : null
 }
 
 export type StartResult = { ok: true; run: RunView } | { ok: false; code: 'BUSY' }
 
 /** Starts a sync; the login is handed to the scrape and blanked once the site has answered. */
 export function startRun(company: SyncCompany, credentials: Record<string, string>, startDate: Date): StartResult {
-  if (active(registry.current) || queueActive()) return { ok: false, code: 'BUSY' }
+  if (anyActive()) return { ok: false, code: 'BUSY' }
   registry.queue = null
-  return { ok: true, run: view(launch(company, credentials, startDate)) }
+  registry.runs = new Map()
+  const run = launch(company, credentials, startDate)
+  registry.current = run
+  return { ok: true, run: view(run) }
 }
 
-function launch(company: SyncCompany, credentials: Record<string, string>, startDate: Date, queued = false): Run {
-  const run: Run = { id: randomUUID(), queued, company, startedAt: new Date(), startDate, finishedAt: null, status: { state: 'running', step: 'starting' } }
-  registry.current = run
+function launch(company: SyncCompany, credentials: Record<string, string>, startDate: Date, onChange?: () => void): Run {
+  const run: Run = {
+    id: randomUUID(),
+    company,
+    startedAt: new Date(),
+    startDate,
+    finishedAt: null,
+    status: { state: 'running', step: 'starting' },
+    browser: true,
+    onChange,
+  }
+  registry.runs.set(run.id, run)
   void execute(run, credentials, startDate)
   return run
 }
 
 // ── "Sync all" (ENG-92) ────────────────────────────────────────────────
 
+function itemView(i: QueueItem): QueueItemView {
+  const base = { company: i.company.id }
+  if (i.skipped) return { ...base, state: 'skipped', code: i.skipped }
+  if (!i.run) return { ...base, state: i.reading ? 'running' : 'waiting' }
+  const s = i.run.status
+  const run = view(i.run)
+  if (s.state === 'done') return { ...base, state: 'done', run, created: s.results.reduce((n, r) => n + r.created, 0) }
+  if (s.state === 'failed') return { ...base, state: 'failed', run, code: s.code }
+  return { ...base, state: 'running', run }
+}
+
 export function currentQueue(): QueueView | null {
   const q = registry.queue
-  return q ? { id: q.id, items: q.items.map(i => ({ ...i.view })), finishedAt: q.finishedAt?.toISOString() ?? null } : null
+  return q ? { id: q.id, items: q.items.map(itemView), finishedAt: q.finishedAt?.toISOString() ?? null } : null
 }
 
 export type QueueStart = { ok: true; queue: QueueView } | { ok: false; code: 'BUSY' | 'EMPTY' }
 
 /**
- * Syncs several companies one after another, each with a login read only when
- * its turn comes. A company whose login can't be read (the vault locked
- * meanwhile) is skipped and the rest go on; a run waiting for a code or for
- * links holds the queue until it is answered.
+ * Syncs several companies side by side, up to syncConcurrency() at once (each
+ * scrape opens its own browser), each with a login read only when its turn
+ * comes. A company whose login can't be read (the vault locked meanwhile) is
+ * skipped and the rest go on. A run waiting for links has closed its browser,
+ * so the next company starts; one waiting for an SMS code keeps its slot (its
+ * browser waits too) while the others go on.
  */
 export async function startQueue(items: { company: SyncCompany; startDate: Date; login: LoginSource }[]): Promise<QueueStart> {
-  if (active(registry.current) || queueActive()) return { ok: false, code: 'BUSY' }
+  if (anyActive()) return { ok: false, code: 'BUSY' }
   if (!items.length) return { ok: false, code: 'EMPTY' }
-  registry.queue = {
-    id: randomUUID(),
-    items: items.map(i => ({ ...i, view: { company: i.company.id, state: 'waiting' } })),
-    index: -1,
-    finishedAt: null,
-  }
-  await nextInQueue(null)
+  registry.current = null
+  registry.runs = new Map()
+  const q: Queue = { id: randomUUID(), items: items.map(i => ({ ...i })), next: 0, finishedAt: null }
+  registry.queue = q
+  // The first ones have started (or were skipped) by the time this answers
+  await Promise.all(pump(q))
   return { ok: true, queue: currentQueue()! }
 }
 
-async function nextInQueue(finished: RunState | null) {
-  const q = registry.queue
-  if (!q || q.finishedAt) return
-  const prev = q.items[q.index]
-  if (prev && finished) {
-    if (finished.state === 'done') prev.view = { ...prev.view, state: 'done', created: finished.results.reduce((n, r) => n + r.created, 0) }
-    else if (finished.state === 'failed') prev.view = { ...prev.view, state: 'failed', code: finished.code }
+/** Items holding a browser, or about to (their login being read) */
+const slotsTaken = (q: Queue) => q.items.filter(i => i.reading || i.run?.browser).length
+const settled = (i: QueueItem) => !!i.skipped || (!!i.run && !!i.run.finishedAt)
+
+/** Starts companies while there are free slots; ends the queue once every company has. Returns the starts it made. */
+function pump(q: Queue): Promise<void>[] {
+  if (registry.queue !== q || q.finishedAt) return []
+  const started: Promise<void>[] = []
+  while (q.next < q.items.length && slotsTaken(q) < syncConcurrency()) {
+    const item = q.items[q.next++]
+    item.reading = true
+    started.push(startItem(q, item))
   }
-  while (++q.index < q.items.length) {
-    const item = q.items[q.index]
-    const login = await item.login().catch(() => null)
-    if (login && typeof login === 'object') {
-      item.view = { ...item.view, state: 'running' }
-      launch(item.company, login, item.startDate, true)
-      return
-    }
-    item.view = { ...item.view, state: 'skipped', code: login === 'VAULT_LOCKED' ? 'VAULT_LOCKED' : 'GENERIC' }
-  }
-  q.finishedAt = new Date()
+  if (q.next >= q.items.length && q.items.every(settled)) q.finishedAt = new Date()
+  return started
+}
+
+async function startItem(q: Queue, item: QueueItem) {
+  const login = await item.login().catch(() => null)
+  item.reading = false
+  if (login && typeof login === 'object') item.run = launch(item.company, login, item.startDate, () => void pump(q))
+  else item.skipped = login === 'VAULT_LOCKED' ? 'VAULT_LOCKED' : 'GENERIC'
+  pump(q)
 }
 
 async function execute(run: Run, credentials: Record<string, string>, startDate: Date) {
@@ -222,6 +286,10 @@ async function execute(run: Run, credentials: Record<string, string>, startDate:
       }),
   }).catch(() => ({ ok: false as const, code: 'GENERIC' as const }))
   for (const k of Object.keys(credentials)) credentials[k] = ''
+  run.browser = false
+  run.onChange?.()
+  // Cancelled while it waited for the code: it ended already
+  if (run.finishedAt) return
 
   if (!result.ok) {
     const at = run.status.state === 'running' ? run.status.step : run.status.state === 'needs-code' ? 'code' : undefined
@@ -239,24 +307,31 @@ async function linkOrStore(run: Run) {
       run.company,
       scraped.map(a => a.accountNumber)
     )
-    const missing = scraped.filter(a => !links.some(l => l.externalAccount === a.accountNumber))
+    const missing = scraped
+      .filter(a => !links.some(l => l.externalAccount === a.accountNumber))
+      .map(a => ({ externalAccount: a.accountNumber, rows: a.txns.filter(t => t.status !== 'pending').length }))
     if (missing.length) {
       const candidates = await linkCandidates(run.company)
-      run.status = {
-        state: 'needs-links',
-        candidates,
-        unknown: missing.map(a => ({
-          externalAccount: a.accountNumber,
-          label: run.company.kind === 'CREDIT_CARD' ? lastFour(a.accountNumber) : a.accountNumber,
-          rows: a.txns.filter(t => t.status !== 'pending').length,
-          suggestedAccountId: suggestAccount(run.company, a.accountNumber, candidates),
-        })),
+      // The accounts chosen on the company's saved sign-ins settle what they can without asking
+      const plan = planLinks(run.company, scraped.length, missing, candidates, await chosenAccounts(run.company))
+      if (plan.auto.length) await saveLinks(run.company, plan.auto)
+      if (plan.ask.length) {
+        run.status = {
+          state: 'needs-links',
+          candidates,
+          unknown: plan.ask.map(a => ({
+            externalAccount: a.externalAccount,
+            label: run.company.kind === 'CREDIT_CARD' ? lastFour(a.externalAccount) : a.externalAccount,
+            rows: missing.find(m => m.externalAccount === a.externalAccount)!.rows,
+            suggestedAccountId: a.suggestedAccountId,
+          })),
+        }
+        run.timer = setTimeout(() => finish(run, { state: 'failed', code: 'EXPIRED' }), LINKS_TIMEOUT_MS)
+        return
       }
-      run.timer = setTimeout(() => finish(run, { state: 'failed', code: 'EXPIRED' }), LINKS_TIMEOUT_MS)
-      return
     }
     run.status = { state: 'running', step: 'storing' }
-    const results = await storeScrape(run.company, scraped)
+    const results = await exclusive(() => storeScrape(run.company, scraped))
     finish(run, { state: 'done', results })
   } catch {
     finish(run, { state: 'failed', code: 'STORE', at: 'storing' })
@@ -265,8 +340,8 @@ async function linkOrStore(run: Run) {
 
 /** The SMS code for a run that waits for one. */
 export function submitCode(id: string, code: string): boolean {
-  const run = registry.current
-  if (!run || run.id !== id || run.status.state !== 'needs-code' || !run.otp) return false
+  const run = registry.runs.get(id)
+  if (!run || run.status.state !== 'needs-code' || !run.otp) return false
   run.otp(code)
   return true
 }
@@ -275,14 +350,14 @@ export type LinksResult = { ok: true } | { ok: false; code: 'NOT_WAITING' | 'INV
 
 /** The person's answers for the unknown accounts; the run then stores. */
 export async function submitLinks(id: string, actions: LinkAction[]): Promise<LinksResult> {
-  const run = registry.current
-  if (!run || run.id !== id || run.status.state !== 'needs-links') return { ok: false, code: 'NOT_WAITING' }
+  const run = registry.runs.get(id)
+  if (!run || run.status.state !== 'needs-links') return { ok: false, code: 'NOT_WAITING' }
   const wanted = new Set(run.status.unknown.map(u => u.externalAccount))
   if (actions.length !== wanted.size || !actions.every(a => wanted.has(a.externalAccount))) return { ok: false, code: 'INVALID' }
   if (run.timer) clearTimeout(run.timer)
   run.timer = undefined
   try {
-    await saveLinks(run.company, actions)
+    await exclusive(() => saveLinks(run.company, actions))
   } catch {
     return { ok: false, code: 'INVALID' }
   }
@@ -293,17 +368,18 @@ export async function submitLinks(id: string, actions: LinkAction[]): Promise<Li
 
 /** Stops waiting (for a code or for links); nothing is stored. */
 export function cancelRun(id: string): boolean {
-  const run = registry.current
-  if (!run || run.id !== id || !active(run) || run.status.state === 'running') return false
+  const run = registry.runs.get(id)
+  if (!run || !active(run) || run.status.state === 'running') return false
   // An empty code makes the site refuse at once, so the browser closes instead of waiting
   run.otp?.('')
   finish(run, { state: 'failed', code: 'EXPIRED' })
   return true
 }
 
-/** Tests: forget the current run. */
+/** Tests: forget every run. */
 export function resetRuns() {
-  if (registry.current?.timer) clearTimeout(registry.current.timer)
+  for (const r of registry.runs.values()) if (r.timer) clearTimeout(r.timer)
   registry.current = null
+  registry.runs = new Map()
   registry.queue = null
 }
