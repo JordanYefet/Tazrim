@@ -3,11 +3,12 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, CheckCircle2, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, CheckCircle2, LockKeyhole, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { providerLabel } from '@/components/upload/account-picker'
 import { KIND_META, type AccountKindValue, type CreatableKindValue } from './account-kinds'
-import { AddAccountForm, type CreatedAccount } from './add-account-form'
+import { AddAccountSheet, type AddedAccount, type SyncReadiness } from './add-account-sheet'
+import { DataSource, type AccountSource } from './data-source'
 import { EditAccountDialog } from './edit-account-dialog'
 import { DeleteAccountDialog } from './delete-account-dialog'
 import { AccountMini } from './account-element'
@@ -34,6 +35,8 @@ export interface ManagedAccount {
   positionColor?: string
   /** Cards: the bank account that pays it */
   payerAccountId: string | null
+  /** The sign-in that syncs it, or null: its data comes from uploaded files */
+  source: AccountSource | null
 }
 
 const iconButton =
@@ -41,16 +44,19 @@ const iconButton =
 
 const n = (v: number) => v.toLocaleString('he-IL')
 
-type Notice = { kind: 'created'; account: CreatedAccount } | { kind: 'deleted'; name: string } | null
+type Notice = { kind: 'created'; accounts: AddedAccount[] } | { kind: 'deleted'; name: string } | null
 
 export function AccountsManager({
   accounts,
   initialNewKind,
   payerEvidence,
   today,
+  sync,
 }: {
   accounts: ManagedAccount[]
   initialNewKind: CreatableKindValue | null
+  /** Whether a new account can sync from here */
+  sync: SyncReadiness
   /** Which bank accounts' rows pay which card company (lib/db/card-payers.ts) */
   payerEvidence: PayerEvidence[]
   /** "YYYY-MM-DD", the evidence's today */
@@ -58,7 +64,7 @@ export function AccountsManager({
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const [adding, setAdding] = useState<CreatableKindValue | null>(initialNewKind)
+  const [adding, setAdding] = useState(!!initialNewKind)
   const [notice, setNotice] = useState<Notice>(null)
   const [deleting, setDeleting] = useState<ManagedAccount | null>(null)
   const [editing, setEditing] = useState<ManagedAccount | null>(null)
@@ -91,12 +97,15 @@ export function AccountsManager({
     today,
   }
 
-  function created(account: CreatedAccount) {
-    setAdding(null)
-    setNotice({ kind: 'created', account })
-    // Drop ?new= so a refresh does not reopen the form
-    router.replace('/settings/accounts', { scroll: false })
+  function added(list: AddedAccount[]) {
+    setNotice({ kind: 'created', accounts: list })
     refresh()
+  }
+
+  function addingChange(open: boolean) {
+    setAdding(open)
+    // Drop ?new= so a refresh does not reopen the sheet
+    if (!open && initialNewKind) router.replace('/settings/accounts', { scroll: false })
   }
 
   return (
@@ -104,27 +113,29 @@ export function AccountsManager({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight mb-1">חשבונות וכרטיסים</h1>
-          <p className="text-sm text-muted-foreground">חשבונות הבנק וכרטיסי האשראי שאליהם מעלים קבצים</p>
+          <p className="text-sm text-muted-foreground">חשבונות הבנק וכרטיסי האשראי, ומאיפה כל אחד מקבל את התנועות</p>
         </div>
-        {!adding && (
-          <button
-            type="button"
-            onClick={() => { setAdding('CREDIT_CARD'); setNotice(null) }}
-            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            חשבון חדש
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => { setAdding(true); setNotice(null) }}
+          className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          חשבון חדש
+        </button>
       </div>
 
       {notice && (
         <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-[hsl(var(--income)/0.35)] bg-[hsl(var(--income)/0.08)] px-4 py-3 text-sm">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-[hsl(var(--income))]" aria-hidden />
           <span className="flex-1 min-w-0">
-            {notice.kind === 'created' ? <>החשבון <b>{notice.account.displayName}</b> נוסף.</> : <>החשבון <b>{notice.name}</b> נמחק.</>}
+            {notice.kind === 'created' ? (
+              notice.accounts.length === 1 ? <>החשבון <b>{notice.accounts[0].displayName}</b> נוסף.</> : <>נוספו {notice.accounts.map(a => a.displayName).join(', ')}.</>
+            ) : (
+              <>החשבון <b>{notice.name}</b> נמחק.</>
+            )}
           </span>
-          {notice.kind === 'created' && (
+          {notice.kind === 'created' && !notice.accounts.some(a => accounts.find(x => x.id === a.id)?.source) && (
             <Link
               href="/upload"
               className="inline-flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 font-medium text-primary shadow-e1 hover:bg-muted"
@@ -139,11 +150,14 @@ export function AccountsManager({
         </div>
       )}
 
-      {adding && (
-        <section className="rounded-xl surface p-4 md:p-6">
-          <AddAccountForm key={adding} initialKind={adding} payer={payer} onCreated={created} onCancel={() => setAdding(null)} />
-        </section>
-      )}
+      <AddAccountSheet
+        open={adding}
+        onOpenChange={addingChange}
+        initialKind={initialNewKind ?? 'CREDIT_CARD'}
+        sync={sync}
+        existingAccounts={accounts.map(a => ({ id: a.id, displayName: a.displayName }))}
+        onAdded={added}
+      />
 
       {groups.length === 0 && (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">אין חשבונות פעילים</p>
@@ -213,6 +227,17 @@ export function AccountsManager({
           refresh()
         }}
         onImported={refresh}
+        source={
+          editing && (editing.kind === 'BANK' || editing.kind === 'CREDIT_CARD') ? (
+            <DataSource
+              key={editing.id}
+              account={{ id: editing.id, kind: editing.kind, provider: editing.provider }}
+              source={(accounts.find(a => a.id === editing.id) ?? editing).source}
+              sync={sync}
+              onChanged={refresh}
+            />
+          ) : undefined
+        }
         manage={
           editing
             ? {
@@ -398,6 +423,27 @@ function AccountText({ account, netLabel }: { account: ManagedAccount; netLabel:
               {n(account.transactionCount)} תנועות · {n(account.uploadCount)} העלאות
             </span>
           </p>
+          {(account.kind === 'BANK' || account.kind === 'CREDIT_CARD') && <SourceLine account={account} />}
         </div>
+  )
+}
+
+/** Under a row: where its data comes from ("מסונכרן · נשמר בכספת" or "העלאת קבצים") */
+function SourceLine({ account }: { account: ManagedAccount }) {
+  const source = account.source
+  const covers = source ? source.shares.length + 1 : 0
+  const isCard = account.kind === 'CREDIT_CARD'
+  return source ? (
+    <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-[hsl(var(--income))]">
+      <LockKeyhole className="h-3 w-3 shrink-0" aria-hidden />
+      <span className="truncate">
+        מסונכרן · {covers > 1 ? `כניסה אחת ל-${covers} ${isCard ? 'כרטיסים' : 'חשבונות'}` : 'נשמר בכספת'}
+      </span>
+    </p>
+  ) : (
+    <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+      <Upload className="h-3 w-3 shrink-0" aria-hidden />
+      העלאת קבצים
+    </p>
   )
 }
