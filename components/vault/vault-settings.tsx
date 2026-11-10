@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { KeyRound, Laptop, RotateCcw, LockKeyhole, LockKeyholeOpen, Plus, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronLeft, CreditCard, KeyRound, Laptop, RotateCcw, LockKeyhole, LockKeyholeOpen, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
-import { errorText, ghostButton, primaryButton, secondaryButton, textButton } from '@/components/auth/ui'
+import { errorText, primaryButton, secondaryButton, textButton } from '@/components/auth/ui'
 import { inputClass } from '@/components/accounts/add-account-form'
-import { FIELD_LABELS, SYNC_COMPANIES, syncCompany } from '@/lib/sync/providers'
 import { cn } from '@/lib/utils/cn'
 import { post, vaultWithPasskey } from './vault-client'
 
@@ -18,7 +18,6 @@ interface VaultInfo {
   credentials: Credential[]
   passkeys: Passkey[]
 }
-export interface VaultAccount { id: string; name: string; kind: string }
 
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '')
 const date = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })
@@ -36,23 +35,18 @@ function RowIcon({ icon: Icon, muted = false }: { icon: LucideIcon; muted?: bool
   )
 }
 
-interface Draft { id?: string; company: string; label: string; accountId: string; fields: Record<string, string> }
-
 /**
- * Settings → the vault (ENG-90): whether it is open and until when, the
- * stored bank and card sign-ins (names only: a stored value is never shown
- * again), which passkeys can open it, and the recovery key.
+ * Settings → the vault (ENG-90): whether it is open and until when, which
+ * passkeys can open it, the recovery key and starting over. The sign-ins it
+ * holds are managed on their accounts (Settings → accounts).
  */
-export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
+export function VaultSettings() {
   const [info, setInfo] = useState<VaultInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [shownKey, setShownKey] = useState<{ title: string; key: string } | null>(null)
   const [recovering, setRecovering] = useState(false)
   const [recoveryInput, setRecoveryInput] = useState('')
-  const [draft, setDraft] = useState<Draft | null>(null)
-  const [draftError, setDraftError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<Credential | null>(null)
   const [renewing, setRenewing] = useState(false)
   const [resetting, setResetting] = useState(false)
 
@@ -97,23 +91,6 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
     })
   }
 
-  async function saveDraft(e: React.FormEvent) {
-    e.preventDefault()
-    if (!draft) return
-    setDraftError(null)
-    setBusy(true)
-    try {
-      const body = { label: draft.label, accountId: draft.accountId || null, fields: draft.fields }
-      if (draft.id) await post(`/api/vault/logins/${draft.id}`, body, 'PUT')
-      else await post('/api/vault/logins', { company: draft.company, ...body })
-      setDraft(null)
-      load()
-    } catch (e) {
-      setDraftError((e as Error).message)
-    }
-    setBusy(false)
-  }
-
   if (!info) {
     return (
       <div className="space-y-6">
@@ -126,8 +103,6 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
   const { vault, credentials, passkeys } = info
   const open = vault.open
   const canAddMine = open && passkeys.some(p => p.mine && !p.opens)
-  const company = draft ? syncCompany(draft.company) : null
-  const accountName = (id: string | null) => accounts.find(a => a.id === id)?.name
 
   return (
     <div className="space-y-6">
@@ -148,7 +123,7 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
                 ? 'יוצרים אותה עם Face ID או Touch ID, ומקבלים מפתח שחזור לשמור.'
                 : open
                   ? `נפתחה ב-${time(vault.openedAt)} (${vault.openedBy}). תינעל ב-${time(vault.locksAt)} אם לא ישתמשו בה, או כשהשרת מופעל מחדש.`
-                  : 'כדי להוסיף, לשנות או למחוק פרטי כניסה, פותחים אותה.'}
+                  : 'נפתחת עם Face ID או Touch ID כשסנכרון צריך אותה.'}
             </span>
           </span>
         </div>
@@ -174,48 +149,16 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
 
       {vault.exists && (
         <>
-          <section aria-labelledby="logins-title" className="space-y-2">
-            <div className="flex items-end justify-between gap-3 px-1">
-              <h2 id="logins-title" className="text-[13px] font-semibold text-muted-foreground">פרטי כניסה שמורים</h2>
-              <button
-                type="button"
-                disabled={!open}
-                onClick={() => { setDraftError(null); setDraft({ company: SYNC_COMPANIES[0].id, label: '', accountId: '', fields: {} }) }}
-                className={cn(TEXT, 'inline-flex items-center gap-1 text-primary hover:bg-primary/10')}
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                הוספה
-              </button>
-            </div>
-            <ul className="overflow-hidden rounded-2xl surface">
-              {credentials.length === 0 && (
-                <li className={ROW}>
-                  <span className="flex-1 text-[15px] text-muted-foreground">עוד אין. מוסיפים כאן, או בעריכת חשבון.</span>
-                </li>
-              )}
-              {credentials.map(c => (
-                <li key={c.id} className={ROW}>
-                  <RowIcon icon={ShieldCheck} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium">{c.label}</span>
-                    <span className="block truncate text-[13px] text-muted-foreground">
-                      {syncCompany(c.company)?.label ?? c.company}
-                      {accountName(c.accountId) ? `, לחשבון "${accountName(c.accountId)}"` : ''}. עודכן ב-{date(c.updatedAt)}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!open}
-                    onClick={() => { setDraftError(null); setDraft({ id: c.id, company: c.company, label: c.label, accountId: c.accountId ?? '', fields: {} }) }}
-                    className={cn(TEXT, 'text-primary hover:bg-primary/10')}
-                  >
-                    עריכה
-                  </button>
-                  <button type="button" disabled={!open} onClick={() => setDeleting(c)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <Link href="/settings/accounts" className="flex min-h-14 items-center gap-3.5 rounded-2xl surface px-4 py-2.5 transition-colors hover:bg-muted/40 md:px-5">
+            <RowIcon icon={CreditCard} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-medium">
+                {credentials.length === 0 ? 'עוד אין בה פרטי כניסה' : credentials.length === 1 ? 'פרטי כניסה אחד שמור בה' : `${credentials.length} פרטי כניסה שמורים בה`}
+              </span>
+              <span className="block text-[13px] text-muted-foreground">מוסיפים, משנים ומסירים בחלון של כל חשבון</span>
+            </span>
+            <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden />
+          </Link>
 
           <section aria-labelledby="openers-title" className="space-y-2">
             <h2 id="openers-title" className="px-1 text-[13px] font-semibold text-muted-foreground">מי יכול לפתוח</h2>
@@ -286,65 +229,7 @@ export function VaultSettings({ accounts }: { accounts: VaultAccount[] }) {
         </form>
       </AppDialog>
 
-      <AppDialog open={!!draft} onOpenChange={o => !o && setDraft(null)} title={draft?.id ? 'עריכת פרטי כניסה' : 'פרטי כניסה חדשים'}>
-        {draft && company && (
-          <form onSubmit={saveDraft} className="mt-4 space-y-3">
-            {draftError && <p className={errorText} role="alert">{draftError}</p>}
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">בנק או חברת אשראי</span>
-              <select
-                value={draft.company}
-                disabled={!!draft.id}
-                onChange={e => setDraft({ ...draft, company: e.target.value, accountId: '', fields: {} })}
-                className={inputClass}
-              >
-                {SYNC_COMPANIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">שם</span>
-              <input value={draft.label} maxLength={60} placeholder={company.label} onChange={e => setDraft({ ...draft, label: e.target.value })} className={inputClass} />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">לחשבון</span>
-              <select value={draft.accountId} onChange={e => setDraft({ ...draft, accountId: e.target.value })} className={inputClass}>
-                <option value="">בלי חשבון</option>
-                {accounts.filter(a => a.kind === company.kind).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </label>
-            {company.fields.map(f => (
-              <label key={f} className="block space-y-1.5">
-                <span className="text-sm font-medium">{FIELD_LABELS[f]}</span>
-                <input
-                  type={f === 'password' ? 'password' : 'text'}
-                  dir="ltr"
-                  autoComplete={f === 'password' ? 'new-password' : 'off'}
-                  placeholder={draft.id ? 'ללא שינוי' : undefined}
-                  value={draft.fields[f] ?? ''}
-                  onChange={e => setDraft({ ...draft, fields: { ...draft.fields, [f]: e.target.value } })}
-                  className={inputClass}
-                />
-              </label>
-            ))}
-            <p className="text-xs text-muted-foreground text-pretty">נשמרים מוצפנים בכספת. אחרי השמירה לא מוצגים שוב.</p>
-            <div className="flex flex-col gap-2.5">
-              <button type="submit" disabled={busy} className={primaryButton}>שמירה</button>
-              <button type="button" onClick={() => setDraft(null)} className={ghostButton}>ביטול</button>
-            </div>
-          </form>
-        )}
-      </AppDialog>
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={o => !o && setDeleting(null)}
-        onConfirm={() => run(async () => { await post(`/api/vault/logins/${deleting!.id}`, undefined, 'DELETE'); setDeleting(null) })}
-        busy={busy}
-        title={`למחוק את "${deleting?.label}"?`}
-        description="הסנכרון של החשבון הזה יבקש את הסיסמה בכל פעם, עד שתשמרו אותה שוב."
-        confirmLabel="מחיקה"
-        cancelLabel="השארה"
-      />
       <ConfirmDialog
         open={resetting}
         onOpenChange={setResetting}
@@ -379,7 +264,7 @@ function Heading() {
     <div className="space-y-1">
       <h1 className="text-2xl font-semibold tracking-tight">כספת</h1>
       <p className="max-w-[62ch] text-sm text-muted-foreground text-pretty">
-        פרטי הכניסה לבנקים ולחברות האשראי, לסנכרון. נשמרים מוצפנים, ורק מפתח (Face ID, Touch ID) של מישהו בבית פותח אותם. הכספת ננעלת לבד.
+        שומרת מוצפנים את פרטי הכניסה של החשבונות המסונכרנים, ורק מפתח (Face ID, Touch ID) של מישהו בבית פותח אותה. הכספת ננעלת לבד.
       </p>
     </div>
   )
