@@ -6,8 +6,8 @@ import { AlertCircle, Check, ChevronLeft, ChevronRight, Circle, Loader2, LockKey
 import { cn } from '@/lib/utils/cn'
 import { faceFor } from '@/lib/accounts/brands'
 import { FIELD_LABELS, syncCompany, type LoginField } from '@/lib/sync/providers'
-import { FAILURE_TEXT, monthsBackDay, shortDay, timeAgo } from '@/lib/sync/format'
-import type { QueueView, RunView } from '@/lib/sync/runs'
+import { FAILURE_TEXT, STEP_TEXT, monthsBackDay, shortDay, timeAgo } from '@/lib/sync/format'
+import type { QueueItemView, QueueView, RunView } from '@/lib/sync/runs'
 import type { LinkAction, UnknownAccount, Candidate } from '@/lib/sync/store'
 import type { CompanyInfo, LoginInput, SyncApi } from './use-sync'
 
@@ -129,7 +129,7 @@ function CompanyList({
       )}
       {own.length > 0 && (
         <div className="px-4 pb-2 pt-3">
-          {/* Every company with a sign-in saved in the vault, one after another (ENG-92) */}
+          {/* Every company with a sign-in saved in the vault, several at once (ENG-92) */}
           <button
             type="button"
             disabled={disabled || busy || saved.length === 0}
@@ -157,8 +157,8 @@ function CompanyList({
                 ? 'שומרים את פרטי הכניסה בכספת בסנכרון של חשבון, ואז הכול מסתנכרן בלחיצה אחת.'
                 : 'כדי לסנכרן הכול בלחיצה אחת, יוצרים כספת בהגדרות ← כספת ושומרים בה את פרטי הכניסה.'
               : info.vault.open
-                ? 'כל חשבון עם פרטים שמורים, בזה אחר זה, מהסנכרון האחרון שלו.'
-                : 'Face ID או Touch ID פותח את הכספת, ואז כל חשבון עם פרטים שמורים מסתנכרן בזה אחר זה.'}
+                ? 'כל החשבונות עם פרטים שמורים, במקביל, כל אחד מהסנכרון האחרון שלו.'
+                : 'Face ID או Touch ID פותח את הכספת, ואז כל החשבונות עם פרטים שמורים מסתנכרנים במקביל.'}
           </p>
         </div>
       )}
@@ -373,7 +373,15 @@ function Steps({ run, company }: { run: RunView; company: CompanyInfo }) {
   )
 }
 
-function CodeEntry({ onSubmit, onCancel }: { onSubmit: (code: string) => Promise<string | null>; onCancel: () => void }) {
+function CodeEntry({
+  onSubmit,
+  onCancel,
+  autoFocus = true,
+}: {
+  onSubmit: (code: string) => Promise<string | null>
+  onCancel: () => void
+  autoFocus?: boolean
+}) {
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   return (
@@ -389,7 +397,7 @@ function CodeEntry({ onSubmit, onCancel }: { onSubmit: (code: string) => Promise
         <input
           inputMode="numeric"
           autoComplete="one-time-code"
-          autoFocus
+          autoFocus={autoFocus}
           dir="ltr"
           value={code}
           onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
@@ -554,43 +562,95 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
   )
 }
 
-/** "Sync all" (ENG-92): every company in it, where it stands, in a fixed order */
+type RowTone = 'waiting' | 'running' | 'attention' | 'done' | 'failed'
+
+/** A "sync all" row's icon tone and text: where that company stands */
+function rowState(item: QueueItemView): { tone: RowTone; text: string } {
+  const s = item.run?.status
+  if (s?.state === 'needs-code') return { tone: 'attention', text: 'מחכה לקוד SMS' }
+  if (s?.state === 'needs-links') return { tone: 'attention', text: 'מחכה לשיוך חשבונות' }
+  if (item.state === 'running') return { tone: 'running', text: s?.state === 'running' ? (STEP_TEXT[s.step] ?? 'מסתנכרן…') : 'פותח את הכספת' }
+  if (item.state === 'done') return { tone: 'done', text: `${item.created ?? 0} חדשות` }
+  if (item.state === 'skipped')
+    return { tone: 'failed', text: item.code === 'VAULT_LOCKED' ? 'דולג: הכספת ננעלה' : 'דולג: פרטי הכניסה השמורים חסרים' }
+  if (item.state === 'failed') return { tone: 'failed', text: FAILURE_TEXT[item.code ?? ''] ?? FAILURE_TEXT.GENERIC }
+  return { tone: 'waiting', text: 'בתור' }
+}
+
+/**
+ * "Sync all" (ENG-92): every company in it, side by side, in a fixed order.
+ * A row only changes its icon and text, so none moves as they run.
+ */
 function QueueList({ queue, companies }: { queue: QueueView; companies: CompanyInfo[] }) {
   return (
     <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
       {queue.items.map(item => {
         const c = companies.find(x => x.id === item.company)
-        const text =
-          item.state === 'waiting'
-            ? 'בתור'
-            : item.state === 'running'
-              ? 'מסתנכרן…'
-              : item.state === 'done'
-                ? `${item.created ?? 0} חדשות`
-                : item.state === 'skipped'
-                  ? item.code === 'VAULT_LOCKED'
-                    ? 'דולג: הכספת ננעלה'
-                    : 'דולג: פרטי הכניסה השמורים חסרים'
-                  : (FAILURE_TEXT[item.code ?? ''] ?? FAILURE_TEXT.GENERIC)
+        const { tone, text } = rowState(item)
         return (
           <li key={item.company} className="flex min-h-11 items-center gap-3 px-3 py-2 text-[13px]">
-            {item.state === 'running' ? (
+            {tone === 'running' ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden />
-            ) : item.state === 'done' ? (
+            ) : tone === 'done' ? (
               <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            ) : item.state === 'failed' ? (
+            ) : tone === 'failed' ? (
               <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
+            ) : tone === 'attention' ? (
+              <Circle className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" aria-hidden />
             ) : (
               <Circle className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
             )}
             <span className="min-w-0 flex-1 truncate font-medium">{c?.label ?? item.company}</span>
-            <span className={cn('shrink-0 text-end tabular-nums', item.state === 'failed' ? 'text-red-700 dark:text-red-300' : 'text-muted-foreground')}>
+            <span
+              className={cn(
+                'shrink-0 text-end tabular-nums',
+                tone === 'failed'
+                  ? 'text-red-700 dark:text-red-300'
+                  : tone === 'attention'
+                    ? 'font-medium text-amber-900 dark:text-amber-200'
+                    : 'text-muted-foreground'
+              )}
+            >
               {text}
             </span>
           </li>
         )
       })}
     </ul>
+  )
+}
+
+/** What a "sync all" row waits for (its SMS code, or links), under the list, each in its own box */
+function QueuePrompts({ queue, companies, sync }: { queue: QueueView; companies: CompanyInfo[]; sync: SyncApi }) {
+  const waiting = queue.items.filter(i => i.run && (i.run.status.state === 'needs-code' || i.run.status.state === 'needs-links'))
+  return (
+    <>
+      {waiting.map((item, n) => {
+        const run = item.run!
+        const s = run.status
+        const company = companies.find(c => c.id === item.company)
+        if (!company) return null
+        const cancel = () => void sync.act({ cancel: true }, run.id)
+        return (
+          <section key={run.id} aria-label={company.label} className="flex flex-col gap-3 rounded-xl border border-amber-300 p-3 dark:border-amber-500/40">
+            <div className="flex items-center gap-2.5">
+              <Swatch company={company} />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{company.label}</span>
+            </div>
+            {s.state === 'needs-code' && <CodeEntry autoFocus={n === 0} onSubmit={code => sync.act({ code }, run.id)} onCancel={cancel} />}
+            {s.state === 'needs-links' && (
+              <LinkAccounts
+                company={company}
+                unknown={s.unknown}
+                candidates={s.candidates}
+                onSubmit={links => sync.act({ links }, run.id)}
+                onCancel={cancel}
+              />
+            )}
+          </section>
+        )
+      })}
+    </>
   )
 }
 
@@ -616,38 +676,21 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
     )
   }
 
-  const queue = info.queue
+  const queue = sync.queue
   if (showRun && queue) {
     const going = !queue.finishedAt
-    const current = run && run.company === queue.items.find(i => i.state === 'running')?.company ? run : null
-    const currentCompany = current ? info.companies.find(c => c.id === current.company) : undefined
-    const s = current?.status
     const finished = queue.items.filter(i => i.state !== 'waiting' && i.state !== 'running').length
     return (
       <div className="pb-4">
         <div className="px-4 pb-3 pt-3">
           <div className="text-[17px] font-semibold">סנכרון הכול</div>
           <div className="text-xs tabular-nums text-muted-foreground">
-            {going ? `${Math.min(finished + 1, queue.items.length)} מתוך ${queue.items.length}` : 'הסתיים'}
+            {going ? `${finished} מתוך ${queue.items.length} הסתיימו` : 'הסתיים'}
           </div>
         </div>
         <div className="flex flex-col gap-4 px-4">
           <QueueList queue={queue} companies={info.companies} />
-          {current && currentCompany && s && (s.state === 'running' || s.state === 'needs-code' || s.state === 'needs-links') && (
-            <>
-              <Steps run={current} company={currentCompany} />
-              {s.state === 'needs-code' && <CodeEntry onSubmit={code => sync.act({ code })} onCancel={() => void sync.act({ cancel: true })} />}
-              {s.state === 'needs-links' && (
-                <LinkAccounts
-                  company={currentCompany}
-                  unknown={s.unknown}
-                  candidates={s.candidates}
-                  onSubmit={links => sync.act({ links })}
-                  onCancel={() => void sync.act({ cancel: true })}
-                />
-              )}
-            </>
-          )}
+          <QueuePrompts queue={queue} companies={info.companies} sync={sync} />
           {going ? (
             <p className="text-xs text-muted-foreground">אפשר לסגור את החלון; הסנכרון ממשיך, והכפתור בכותרת יראה מתי הוא מסתיים.</p>
           ) : (

@@ -122,14 +122,73 @@ export function suggestAccount(
   accounts: Candidate[]
 ): string | null {
   if (company.kind === 'CREDIT_CARD') {
-    const four = lastFour(externalAccount)
-    const same = accounts.find(a => four && a.cardLastFour === four)
-    if (same) return same.id
+    const same = sameDigits(company, externalAccount, accounts)
+    if (same) return same
     const own = accounts.filter(a => a.provider === company.provider)
     return own.length === 1 && !own[0].cardLastFour ? own[0].id : null
   }
   const own = accounts.filter(a => a.provider === company.provider)
   return own.length === 1 ? own[0].id : null
+}
+
+/** A card account with the found card's last four digits, if any */
+function sameDigits(company: SyncCompany, externalAccount: string, accounts: Candidate[]): string | null {
+  if (company.kind !== 'CREDIT_CARD') return null
+  const four = lastFour(externalAccount)
+  return (four && accounts.find(a => a.cardLastFour === four)?.id) || null
+}
+
+/** The accounts the company's saved sign-ins were set to fill ("לחשבון"), oldest sign-in first. */
+export async function chosenAccounts(company: SyncCompany): Promise<string[]> {
+  const rows = await prisma.bankCredential.findMany({
+    where: { company: company.id, accountId: { not: null } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: { accountId: true },
+  })
+  return [...new Set(rows.map(r => r.accountId!))]
+}
+
+export interface LinkPlan {
+  /** Found accounts the sign-ins settle: linked without asking */
+  auto: LinkAction[]
+  /** The rest, each with the account to suggest */
+  ask: { externalAccount: string; suggestedAccountId: string | null }[]
+}
+
+/**
+ * Where a sync's unlinked accounts go, given the accounts its sign-ins name:
+ * - the only account found, and a sign-in names one: that one (unless its card digits point elsewhere)
+ * - a found card with the digits of a named account: that one
+ * - the rest are asked, the busiest first offered a named account that has no digits yet
+ *   (card digits, and a company's only account, still win)
+ */
+export function planLinks(
+  company: SyncCompany,
+  found: number,
+  missing: { externalAccount: string; rows: number }[],
+  candidates: Candidate[],
+  chosen: string[]
+): LinkPlan {
+  const pool = chosen.filter(id => candidates.some(c => c.id === id))
+  const auto: LinkAction[] = []
+  if (found === 1 && missing.length === 1 && pool.length) {
+    const digits = sameDigits(company, missing[0].externalAccount, candidates)
+    if (!digits || digits === pool[0]) return { auto: [{ externalAccount: missing[0].externalAccount, action: 'link', accountId: pool[0] }], ask: [] }
+  }
+  const rest: typeof missing = []
+  for (const m of missing) {
+    const digits = sameDigits(company, m.externalAccount, candidates)
+    if (digits && pool.includes(digits)) {
+      auto.push({ externalAccount: m.externalAccount, action: 'link', accountId: digits })
+      pool.splice(pool.indexOf(digits), 1)
+    } else rest.push(m)
+  }
+  const offer = pool.filter(id => !candidates.find(c => c.id === id)!.cardLastFour)
+  const suggestions = new Map<string, string | null>()
+  for (const m of [...rest].sort((a, b) => b.rows - a.rows)) {
+    suggestions.set(m.externalAccount, suggestAccount(company, m.externalAccount, candidates) ?? offer.shift() ?? null)
+  }
+  return { auto, ask: rest.map(m => ({ externalAccount: m.externalAccount, suggestedAccountId: suggestions.get(m.externalAccount)! })) }
 }
 
 export async function findLinks(company: SyncCompany, externals: string[]) {
