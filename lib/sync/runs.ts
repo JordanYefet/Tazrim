@@ -10,11 +10,12 @@ import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
 import { scrape, type ScrapeErrorCode, type ScrapeStep } from './scrape'
 import {
+  chosenAccounts,
   findLinks,
   linkCandidates,
+  planLinks,
   saveLinks,
   storeScrape,
-  suggestAccount,
   type AccountResult,
   type Candidate,
   type LinkAction,
@@ -239,21 +240,28 @@ async function linkOrStore(run: Run) {
       run.company,
       scraped.map(a => a.accountNumber)
     )
-    const missing = scraped.filter(a => !links.some(l => l.externalAccount === a.accountNumber))
+    const missing = scraped
+      .filter(a => !links.some(l => l.externalAccount === a.accountNumber))
+      .map(a => ({ externalAccount: a.accountNumber, rows: a.txns.filter(t => t.status !== 'pending').length }))
     if (missing.length) {
       const candidates = await linkCandidates(run.company)
-      run.status = {
-        state: 'needs-links',
-        candidates,
-        unknown: missing.map(a => ({
-          externalAccount: a.accountNumber,
-          label: run.company.kind === 'CREDIT_CARD' ? lastFour(a.accountNumber) : a.accountNumber,
-          rows: a.txns.filter(t => t.status !== 'pending').length,
-          suggestedAccountId: suggestAccount(run.company, a.accountNumber, candidates),
-        })),
+      // The accounts chosen on the company's saved sign-ins settle what they can without asking
+      const plan = planLinks(run.company, scraped.length, missing, candidates, await chosenAccounts(run.company))
+      if (plan.auto.length) await saveLinks(run.company, plan.auto)
+      if (plan.ask.length) {
+        run.status = {
+          state: 'needs-links',
+          candidates,
+          unknown: plan.ask.map(a => ({
+            externalAccount: a.externalAccount,
+            label: run.company.kind === 'CREDIT_CARD' ? lastFour(a.externalAccount) : a.externalAccount,
+            rows: missing.find(m => m.externalAccount === a.externalAccount)!.rows,
+            suggestedAccountId: a.suggestedAccountId,
+          })),
+        }
+        run.timer = setTimeout(() => finish(run, { state: 'failed', code: 'EXPIRED' }), LINKS_TIMEOUT_MS)
+        return
       }
-      run.timer = setTimeout(() => finish(run, { state: 'failed', code: 'EXPIRED' }), LINKS_TIMEOUT_MS)
-      return
     }
     run.status = { state: 'running', step: 'storing' }
     const results = await storeScrape(run.company, scraped)
