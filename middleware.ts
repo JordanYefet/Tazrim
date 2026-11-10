@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { READ_ONLY_MESSAGE, isReadOnly, isWriteBlocked } from '@/lib/read-only'
 import { BARE_HEADER, SESSION_COOKIE, isAuthRequired, isBarePath, isPublicPath } from '@/lib/auth/config'
-import { readSession } from '@/lib/auth/session'
 
 /**
  * Two gates, before any page or route runs:
@@ -27,6 +26,9 @@ export async function middleware(req: NextRequest) {
 
   if (!isAuthRequired() || isPublicPath(pathname)) return next()
 
+  // Loaded only here: it brings Prisma, which the read-only demo's middleware
+  // must not load (on Vercel the middleware is bundled without the demo database)
+  const { readSession } = await import('@/lib/auth/session')
   const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null)
   if (session) return next()
 
