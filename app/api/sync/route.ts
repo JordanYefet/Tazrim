@@ -84,7 +84,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
  * POST, one of:
  *   { company, credentials, startDate: YYYY-MM-DD, save? }  typed in; `save` also keeps them in the vault
  *   { company, saved: true, startDate }                       the sign-in saved in the vault
- *   { all: true }                                             every company with a saved sign-in, one after another, each from where it left off
+ *   { all: true }                                             every company with a saved sign-in, several at once (TAZRIM_SYNC_CONCURRENCY), each from where it left off
  * 409 while another sync runs; 423 when the vault is needed and locked.
  */
 export async function POST(req: Request) {
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         ? NextResponse.json({ error: 'סנכרון אחר עדיין רץ', code: 'BUSY' }, { status: 409 })
         : NextResponse.json({ error: 'אין פרטי כניסה שמורים לאף חשבון', code: 'NOTHING_SAVED' }, { status: 400 })
     }
-    return NextResponse.json({ queue: res.queue, run: currentRun() })
+    return NextResponse.json({ queue: res.queue })
   }
 
   const company = syncCompany(body?.company)
