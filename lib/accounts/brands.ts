@@ -147,6 +147,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
   cal: 'כאל',
   isracard: 'ישראכרט',
   amex: 'אמריקן אקספרס',
+  behatsdaa: 'בהצדעה',
+  beyahad: 'ביחד בשבילך',
 }
 
 export function providerLabel(provider: string): string {

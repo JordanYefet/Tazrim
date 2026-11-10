@@ -357,6 +357,14 @@ html {
 .categories-list--from-right { --categories-from: 12px; }
 @keyframes categories-list-in { from { opacity: 0; transform: translateX(var(--categories-from, 0)); } }
 
+/* The add-account sheet: each step slides in a short way, from the left going on
+   (the reading direction) and from the right going back
+   (components/accounts/add-account-sheet.tsx) */
+.add-step { animation: add-step-in var(--motion-base) var(--ease-ui) backwards; }
+.add-step--forward { --add-step-from: -20px; }
+.add-step--back { --add-step-from: 20px; }
+@keyframes add-step-in { from { opacity: 0; transform: translateX(var(--add-step-from, 0)); } }
+
 /* A row's category window: the contains-text field drops in a short way under the
    scopes when that scope is picked (components/categories/category-picker.tsx) */
 .contains-field { animation: contains-field-in var(--motion-base) var(--ease-ui) backwards; }
@@ -495,6 +503,7 @@ html {
   .recharts-bar-rectangle path, .month-slot { transition: none; }
   /* The list only fades in */
   .categories-list { --categories-from: 0; }
+  .add-step { --add-step-from: 0; }
   .contains-field { animation: none; }
 }
 

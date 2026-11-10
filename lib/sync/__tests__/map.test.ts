@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { currencySymbol, installmentNote, israelDay, lastFour, mapBankAccount, mapCardAccount, type ScrapedTransaction } from '../map'
+import { SCRAPERS } from 'israeli-bank-scrapers/lib/definitions'
 import { SYNC_COMPANIES, validateCredentials, syncCompany } from '../providers'
 import { earliestStart } from '../store'
 
@@ -105,6 +106,16 @@ describe('validateCredentials', () => {
     expect(validateCredentials(max, { username: 'someone' })).toBeNull()
     expect(validateCredentials(max, { username: '  ', password: 'p' })).toBeNull()
     expect(validateCredentials(max, null)).toBeNull()
+  })
+})
+
+describe('company list', () => {
+  it('offers every company the scraper library logs in to, with its login fields', () => {
+    expect(SYNC_COMPANIES.map(c => c.id).sort()).toEqual(Object.keys(SCRAPERS).sort())
+    for (const c of SYNC_COMPANIES) {
+      const libraryFields = SCRAPERS[c.id as keyof typeof SCRAPERS].loginFields.filter(f => !f.startsWith('otp'))
+      expect(c.fields).toEqual(libraryFields)
+    }
   })
 })
 

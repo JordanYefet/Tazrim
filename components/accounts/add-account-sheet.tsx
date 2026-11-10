@@ -123,10 +123,21 @@ export function AddAccountSheet({
   const syncCo = company && company !== 'other' ? company : null
   const isCard = kind === 'CREDIT_CARD'
 
+  // Which way the step slides: on into the flow, or back out. Null until the
+  // first move, so opening the sheet doesn't slide on top of its own entrance
+  const [shown, setShown] = useState<{ step: Step; dir: 'forward' | 'back' | null }>({ step, dir: null })
+  if (shown.step !== step) {
+    setShown({ step, dir: STEP_ORDER.indexOf(step) >= STEP_ORDER.indexOf(shown.step) ? 'forward' : 'back' })
+  }
+  // The company list slides in from its tab's side after a switch, as on /categories
+  const [kindSwitched, setKindSwitched] = useState(false)
+
   // A fresh start each time the sheet opens
   useEffect(() => {
     if (!open) return
     setStep('pick')
+    setShown({ step: 'pick', dir: null })
+    setKindSwitched(false)
     setKind(initialKind)
     setCompany(null)
     setMethod(sync.available ? 'sync' : 'files')
@@ -400,16 +411,26 @@ export function AddAccountSheet({
           {title}
         </span>
       }
-      className="flex flex-col sm:min-h-[560px]"
+      // One height for every step and both kinds: the content scrolls inside it
+      className="flex h-[82dvh] flex-col overflow-hidden sm:h-[600px]"
     >
-      <div className="mt-4 flex min-h-[60dvh] flex-1 flex-col gap-4 sm:min-h-0">
+      <div
+        key={step}
+        className={cn('mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain', shown.dir && ['add-step', `add-step--${shown.dir}`])}
+      >
         {error && <p className={errorText} role="alert">{error}</p>}
 
         {step === 'pick' && (
           <>
-            <SegmentedTabs ariaLabel="סוג החשבון" value={kind} onChange={k => { setKind(k); setCompany(null) }} options={KIND_OPTIONS} />
+            <SegmentedTabs ariaLabel="סוג החשבון" value={kind} onChange={k => { setKind(k); setCompany(null); setKindSwitched(true) }} options={KIND_OPTIONS} />
             <p className="px-1 text-[13px] font-semibold text-muted-foreground">באיזו חברה?</p>
-            <ul className="overflow-hidden rounded-2xl surface divide-y">
+            <ul
+              key={kind}
+              className={cn(
+                'min-h-0 shrink overflow-y-auto overscroll-contain rounded-2xl surface divide-y',
+                kindSwitched && ['categories-list', isCard ? 'categories-list--from-left' : 'categories-list--from-right']
+              )}
+            >
               {companies.map(c => (
                 <li key={c.id}>
                   <button type="button" onClick={() => pickCompany(c)} className="flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-start transition-colors hover:bg-muted/40 active:bg-muted/60">
@@ -420,7 +441,7 @@ export function AddAccountSheet({
                 </li>
               ))}
             </ul>
-            <button type="button" onClick={() => pickCompany('other')} className="self-start rounded-lg px-1 py-2 text-sm font-medium text-primary hover:underline">
+            <button type="button" onClick={() => pickCompany('other')} className="mt-auto self-start rounded-lg px-1 py-2 text-sm font-medium text-primary hover:underline">
               {isCard ? 'חברה אחרת' : 'בנק אחר'} (העלאת קבצים בלבד)
             </button>
           </>
@@ -606,6 +627,9 @@ export function AddAccountSheet({
 
 const primary =
   'inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+/** The flow's order, to tell a step forward from a step back */
+const STEP_ORDER: Step[] = ['pick', 'how', 'upload', 'signin', 'recovery', 'syncing', 'found']
 
 function BackLink({ onClick }: { onClick: () => void }) {
   return (
