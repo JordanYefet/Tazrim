@@ -50,17 +50,35 @@ async function post(url: string, body: unknown): Promise<{ ok: boolean; data: Re
   return { ok: res.ok, data }
 }
 
+/** New rows "sync all" has stored so far */
+const createdIn = (queue: QueueView | null) => (queue?.items ?? []).reduce((n, i) => n + (i.created ?? 0), 0)
+
 /**
  * The sync state the header button and the sheet share (ENG-91): what
- * /api/sync reports, and the run, polled while it is going. When a run
- * finishes with new rows the page refreshes, so they show at once.
+ * /api/sync reports, and the run (or "sync all"), polled while it is going.
+ * When new rows are stored the page refreshes, so they show at once.
  */
 export function useSync() {
   const router = useRouter()
   const [info, setInfo] = useState<SyncInfo | null>(null)
   const [run, setRun] = useState<RunView | null>(null)
+  const [queue, setQueue] = useState<QueueView | null>(null)
   const runRef = useRef<RunView | null>(null)
   runRef.current = run
+  // What "sync all" had stored at the last look, so new rows refresh the page once
+  const seenCreated = useRef<{ id: string; created: number } | null>(null)
+
+  const takeQueue = useCallback(
+    (next: QueueView | null) => {
+      setQueue(next)
+      if (!next) return
+      const created = createdIn(next)
+      const seen = seenCreated.current
+      if (seen?.id === next.id && created > seen.created) router.refresh()
+      seenCreated.current = { id: next.id, created }
+    },
+    [router]
+  )
 
   const load = useCallback(async () => {
     try {
@@ -68,28 +86,39 @@ export function useSync() {
       if (!res.ok) return
       const data = (await res.json()) as SyncInfo
       setInfo(data)
-      setRun(prev => (prev && data.run && prev.id === data.run.id ? data.run : (data.run ?? prev)))
+      takeQueue(data.queue)
+      setRun(prev => (prev && data.run && prev.id === data.run.id ? data.run : (data.run ?? (data.queue ? null : prev))))
     } catch {
       // Offline or the server restarting: the button keeps what it had
     }
-  }, [])
+  }, [takeQueue])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const queueGoing = !!info?.queue && !info.queue.finishedAt
+  const queueGoing = !!queue && !queue.finishedAt
   const active = isActive(run) || queueGoing
   const runId = run?.id
 
-  // "Sync all" between two companies (the next login is being read): ask again
-  // until the next run shows up, or the queue ends
-  const between = queueGoing && !isActive(run)
+  // "Sync all": every company's row, polled until the last one ends
+  const loadQueue = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sync/all', { cache: 'no-store' })
+      if (!res.ok) return
+      const { queue: next } = (await res.json()) as { queue: QueueView | null }
+      takeQueue(next)
+      if (next?.finishedAt) void load()
+    } catch {
+      // Try again on the next tick
+    }
+  }, [takeQueue, load])
   useEffect(() => {
-    if (!between) return
-    const id = setInterval(() => void load(), POLL_MS)
+    if (!queueGoing) return
+    const id = setInterval(() => void loadQueue(), POLL_MS)
     return () => clearInterval(id)
-  }, [between, load])
+  }, [queueGoing, loadQueue])
+
   const runGoing = isActive(run)
   useEffect(() => {
     if (!runGoing || !runId) return
@@ -131,33 +160,47 @@ export function useSync() {
       res = await send()
     }
     if (res.ok) {
-      if (res.data.run) setRun(res.data.run as RunView)
+      if (res.data.run) {
+        setRun(res.data.run as RunView)
+        setQueue(null)
+      }
+      if (res.data.queue) {
+        setRun(null)
+        takeQueue(res.data.queue as QueueView)
+      }
       void load()
     }
     return res.ok ? null : String(res.data.error ?? 'הסנכרון לא התחיל')
-  }, [load])
+  }, [load, takeQueue])
 
   const start = useCallback(
     (company: string, login: LoginInput, startDate: string) => withVault(() => post('/api/sync', { company, ...login, startDate })),
     [withVault]
   )
 
-  /** Every company with a saved sign-in, one after another (ENG-92) */
+  /** Every company with a saved sign-in, several at once (ENG-92) */
   const startAll = useCallback(() => withVault(() => post('/api/sync', { all: true })), [withVault])
 
-  const act = useCallback(async (body: { code: string } | { links: LinkAction[] } | { cancel: true }) => {
-    const current = runRef.current
-    if (!current) return 'אין סנכרון פעיל'
-    const { ok, data } = await post(`/api/sync/runs/${current.id}`, body)
-    if (ok) {
-      // Show the next state at once instead of on the next tick
-      const res = await fetch(`/api/sync/runs/${current.id}`, { cache: 'no-store' }).catch(() => null)
-      if (res?.ok) setRun(((await res.json()) as { run: RunView }).run)
-    }
-    return ok ? null : String(data.error ?? 'הפעולה נכשלה')
-  }, [])
+  /** Answers a run: the single sync's, or one row of "sync all" when `runId` is given */
+  const act = useCallback(
+    async (body: { code: string } | { links: LinkAction[] } | { cancel: true }, runId?: string) => {
+      const id = runId ?? runRef.current?.id
+      if (!id) return 'אין סנכרון פעיל'
+      const { ok, data } = await post(`/api/sync/runs/${id}`, body)
+      if (ok) {
+        // Show the next state at once instead of on the next tick
+        if (runId) await loadQueue()
+        else {
+          const res = await fetch(`/api/sync/runs/${id}`, { cache: 'no-store' }).catch(() => null)
+          if (res?.ok) setRun(((await res.json()) as { run: RunView }).run)
+        }
+      }
+      return ok ? null : String(data.error ?? 'הפעולה נכשלה')
+    },
+    [loadQueue]
+  )
 
-  return { info, run, active, reload: load, start, startAll, act }
+  return { info, run, queue, active, reload: load, start, startAll, act }
 }
 
 export type SyncApi = ReturnType<typeof useSync>

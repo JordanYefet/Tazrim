@@ -62,7 +62,11 @@ async function settle() {
   await vi.waitFor(() => {
     const r = runs.currentRun()
     const q = runs.currentQueue()
-    if (q && !q.finishedAt) throw new Error('queue going')
+    // "Sync all" has no single run: its rows carry theirs
+    if (q) {
+      if (!q.finishedAt) throw new Error('queue going')
+      return
+    }
     if (!r || r.status.state === 'running') throw new Error('running')
   })
 }
@@ -108,7 +112,7 @@ describe('sync with the vault (ENG-92)', () => {
     expect((await call({ company: 'max', saved: true, startDate: monthAgo() })).body.code).toBe('NOTHING_SAVED')
   })
 
-  it('"sync all": every company with a saved sign-in, one after another', async () => {
+  it('"sync all": every company with a saved sign-in, side by side', async () => {
     await vault.unlockWithPasskey(phone.id, phone.prf, 'Owner, iPhone')
     await vault.saveCredential({ company: 'max', label: 'Max', accountId: null, fields: { username: 'someone', password: PASSWORD } })
     const res = await call({ all: true })
@@ -118,6 +122,7 @@ describe('sync with the vault (ENG-92)', () => {
     await settle()
     const q = (await call()).body.queue
     expect(q.items.map((i: { state: string }) => i.state)).toEqual(['done', 'done'])
+    expect(JSON.stringify(q)).not.toContain(PASSWORD)
     // A single sync afterwards replaces the finished queue
     await call({ company: 'max', saved: true, startDate: monthAgo() })
     expect((await call()).body.queue).toBeNull()

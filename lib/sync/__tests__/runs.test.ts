@@ -235,56 +235,147 @@ describe('an SMS code', () => {
   })
 })
 
-describe('"sync all" (ENG-92)', () => {
+describe('"sync all" (ENG-92), several at once', () => {
+  const login = (password = 'fake-password') => async () => ({ username: 'someone', password })
+  /** A made-up company that asks for an SMS code, holding its browser until it gets one */
+  const withCode = (id: string) => ({ ...company('leumi'), id, label: id, otp: true })
+  const item = (c: ReturnType<typeof company>, l: LoginSource = login()) => ({ company: c, startDate: start(), login: l })
+  type LoginSource = import('../runs').LoginSource
+
   async function settleQueue() {
     await vi.waitFor(() => {
       if (!runs.currentQueue()?.finishedAt) throw new Error('still going')
     })
     return runs.currentQueue()!
   }
+  const runOf = (company: string) => runs.currentQueue()!.items.find(i => i.company === company)!.run!
+  const waitFor = (company: string, state: string) =>
+    vi.waitFor(() => {
+      const r = runs.currentQueue()!.items.find(i => i.company === company)?.run
+      if (r?.status.state !== state) throw new Error(`${company}: ${r?.status.state}`)
+    })
 
-  it('runs each company in turn, reading each login only when its turn comes, and skips one the vault locked meanwhile', async () => {
-    await prisma.syncLink.create({ data: { company: 'leumi', externalAccount: '000-000000/00', accountId: 'acct_leumi' } })
-    const read: string[] = []
-    const res = await runs.startQueue([
-      { company: company('leumi'), startDate: start(), login: async () => (read.push('leumi'), { username: 'someone', password: 'fake-password' }) },
-      { company: company('max'), startDate: start(), login: async () => (read.push('max'), 'VAULT_LOCKED' as const) },
-    ])
-    expect(res.ok).toBe(true)
-    // Only the first login was read so far
-    expect(read).toEqual(['leumi'])
-    // Another sync can't start meanwhile
-    expect(runs.startRun(company('max'), { username: 'x', password: 'y' }, start())).toEqual({ ok: false, code: 'BUSY' })
-    const q = await settleQueue()
-    expect(read).toEqual(['leumi', 'max'])
-    expect(q.items[0]).toMatchObject({ company: 'leumi', state: 'done' })
-    expect(q.items[0].created).toBeGreaterThan(0)
-    expect(q.items[1]).toEqual({ company: 'max', state: 'skipped', code: 'VAULT_LOCKED' })
+  afterAll(() => {
+    delete process.env.TAZRIM_SYNC_CONCURRENCY
   })
 
-  it('a run that waits for links holds the queue until it is answered', async () => {
+  it('starts companies side by side, and skips only the one whose vault login is locked', async () => {
+    await prisma.syncLink.create({ data: { company: 'leumi', externalAccount: '000-000000/00', accountId: 'acct_leumi' } })
+    await prisma.syncLink.createMany({
+      data: [
+        { company: 'max', externalAccount: '1234', accountId: 'acct_max' },
+        { company: 'max', externalAccount: '5678', ignored: true },
+      ],
+    })
+    const read: string[] = []
     const res = await runs.startQueue([
-      { company: company('max'), startDate: start(), login: async () => ({ username: 'someone', password: 'fake-password' }) },
-      { company: company('leumi'), startDate: start(), login: async () => ({ username: 'someone', password: 'fake-password' }) },
+      item(company('leumi'), async () => (read.push('leumi'), { username: 'someone', password: 'fake-password' })),
+      item(company('visaCal'), async () => (read.push('visaCal'), 'VAULT_LOCKED' as const)),
+      item(company('max'), async () => (read.push('max'), { username: 'someone', password: 'fake-password' })),
     ])
-    if (!res.ok) throw new Error('not started')
-    const first = runs.currentRun()!
-    const waiting = await settle(first.id)
-    expect(waiting.state).toBe('needs-links')
-    expect(runs.currentQueue()!.items.map(i => i.state)).toEqual(['running', 'waiting'])
-    await runs.submitLinks(first.id, [
+    expect(res.ok).toBe(true)
+    // All three were within the cap, so all were read at the start
+    expect(read).toEqual(['leumi', 'visaCal', 'max'])
+    if (res.ok) expect(res.queue.items.map(i => i.state)).toEqual(['running', 'skipped', 'running'])
+    const q = await settleQueue()
+    expect(q.items.map(i => i.state)).toEqual(['done', 'skipped', 'done'])
+    expect(q.items[1]).toEqual({ company: 'visaCal', state: 'skipped', code: 'VAULT_LOCKED' })
+    expect(q.items[0].created).toBe(4)
+    expect(q.items[2].created).toBe(3)
+    // Each run is still there to read, by its id
+    expect(runs.getRun(q.items[0].run!.id)?.status.state).toBe('done')
+  })
+
+  it('never has more than TAZRIM_SYNC_CONCURRENCY browsers open; a free slot starts the next company', async () => {
+    process.env.TAZRIM_SYNC_CONCURRENCY = '2'
+    const read: string[] = []
+    const track = (id: string) => async () => (read.push(id), { username: 'someone', password: 'fake-password' })
+    await runs.startQueue([item(withCode('a'), track('a')), item(withCode('b'), track('b')), item(withCode('c'), track('c'))])
+    await waitFor('a', 'needs-code')
+    await waitFor('b', 'needs-code')
+    // Two wait for their codes with their browsers open: the third waits for a slot
+    expect(read).toEqual(['a', 'b'])
+    expect(runs.currentQueue()!.items[2]).toEqual({ company: 'c', state: 'waiting' })
+
+    expect(runs.submitCode(runOf('b').id, '123456')).toBe(true)
+    // b's browser closed once the site answered, so c starts
+    await waitFor('c', 'needs-code')
+    expect(read).toEqual(['a', 'b', 'c'])
+    expect(runs.cancelRun(runOf('a').id)).toBe(true)
+    expect(runs.cancelRun(runOf('c').id)).toBe(true)
+    await vi.waitFor(() => {
+      if (runOf('b').status.state === 'running') throw new Error('b still running')
+    })
+    if (runOf('b').status.state === 'needs-links') runs.cancelRun(runOf('b').id)
+    const q = await settleQueue()
+    expect(q.items.map(i => [i.company, i.state])).toEqual([
+      ['a', 'failed'],
+      ['b', 'failed'],
+      ['c', 'failed'],
+    ])
+  })
+
+  it('two SMS codes at once: each prompt answers its own run', async () => {
+    await runs.startQueue([item(withCode('a'), login()), item(company('oneZero'), async () => ({ email: 'a@example.com', password: 'p', phoneNumber: '0500000000' }))])
+    await waitFor('a', 'needs-code')
+    await waitFor('oneZero', 'needs-code')
+    // The second one first; a wrong code fails only its own run
+    expect(runs.submitCode(runOf('oneZero').id, '123456')).toBe(true)
+    expect(runs.submitCode(runOf('a').id, '000000')).toBe(true)
+    await waitFor('oneZero', 'needs-links')
+    await waitFor('a', 'failed')
+    expect(runOf('a').status).toMatchObject({ state: 'failed', code: 'OTP' })
+    runs.cancelRun(runOf('oneZero').id)
+    await settleQueue()
+  })
+
+  it('a run waiting for links holds only its own row: the others finish meanwhile', async () => {
+    await prisma.syncLink.create({ data: { company: 'leumi', externalAccount: '000-000000/00', accountId: 'acct_leumi' } })
+    process.env.TAZRIM_SYNC_CONCURRENCY = '1'
+    await runs.startQueue([item(company('max')), item(company('leumi'))])
+    await waitFor('max', 'needs-links')
+    // Even with one slot: waiting for links holds no browser, so leumi runs and ends
+    await waitFor('leumi', 'done')
+    expect(runs.currentQueue()!.finishedAt).toBeNull()
+    expect(runs.currentQueue()!.items.map(i => i.state)).toEqual(['running', 'done'])
+
+    await runs.submitLinks(runOf('max').id, [
       { externalAccount: '1234', action: 'link', accountId: 'acct_max' },
       { externalAccount: '5678', action: 'ignore' },
     ])
-    // Leumi asks about its account next; ignore it so the queue ends
-    await vi.waitFor(() => {
-      const r = runs.currentRun()!
-      if (r.company !== 'leumi' || r.status.state !== 'needs-links') throw new Error('not yet')
-    })
-    const second = runs.currentRun()!
-    await runs.submitLinks(second.id, [{ externalAccount: '000-000000/00', action: 'ignore' }])
     const q = await settleQueue()
     expect(q.items.map(i => i.state)).toEqual(['done', 'done'])
+  })
+
+  it('BUSY: nothing else starts while it goes, nor it while a single sync goes', async () => {
+    const single = runs.startRun(withCode('a'), { username: 'u', password: 'p' }, start())
+    if (!single.ok) throw new Error('busy')
+    await vi.waitFor(() => expect(runs.getRun(single.run.id)!.status.state).toBe('needs-code'))
+    expect(await runs.startQueue([item(company('max'))])).toEqual({ ok: false, code: 'BUSY' })
+    runs.cancelRun(single.run.id)
+
+    const res = await runs.startQueue([item(withCode('b'))])
+    expect(res.ok).toBe(true)
+    // The single sync's run is gone once "sync all" starts
+    expect(runs.currentRun()).toBeNull()
+    await waitFor('b', 'needs-code')
+    expect(runs.startRun(company('max'), { username: 'x', password: 'y' }, start())).toEqual({ ok: false, code: 'BUSY' })
+    expect(await runs.startQueue([item(company('max'))])).toEqual({ ok: false, code: 'BUSY' })
+    runs.cancelRun(runOf('b').id)
+    await settleQueue()
+    // Once it ended, a sync starts again
+    const after = runs.startRun(company('max'), { username: 'x', password: 'y' }, start())
+    expect(after.ok).toBe(true)
+    if (after.ok) await settle(after.run.id)
+  })
+
+  it('caps at 3 by default', () => {
+    delete process.env.TAZRIM_SYNC_CONCURRENCY
+    expect(runs.syncConcurrency()).toBe(3)
+    process.env.TAZRIM_SYNC_CONCURRENCY = 'nonsense'
+    expect(runs.syncConcurrency()).toBe(3)
+    process.env.TAZRIM_SYNC_CONCURRENCY = '5'
+    expect(runs.syncConcurrency()).toBe(5)
   })
 
   it('nothing to sync: EMPTY', async () => {
