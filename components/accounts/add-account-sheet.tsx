@@ -427,7 +427,7 @@ export function AddAccountSheet({
             <ul
               key={kind}
               className={cn(
-                'min-h-0 shrink overflow-y-auto overscroll-contain rounded-2xl surface divide-y',
+                'min-h-0 shrink overflow-y-auto overscroll-contain rounded-xl surface divide-y',
                 kindSwitched && ['categories-list', isCard ? 'categories-list--from-left' : 'categories-list--from-right']
               )}
             >
@@ -492,7 +492,7 @@ export function AddAccountSheet({
                 />
               </label>
             ))}
-            <p className="flex gap-2.5 rounded-2xl bg-muted/60 p-3.5 text-[13px] leading-relaxed text-muted-foreground">
+            <p className="flex gap-2.5 rounded-xl bg-muted/60 p-3.5 text-[13px] leading-relaxed text-muted-foreground">
               <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>נשמרים מוצפנים בכספת, ורק Face ID או Touch ID של מישהו בבית פותח אותה. אם עוד אין כספת, היא נוצרת עכשיו ומקבלים מפתח שחזור לשמור.</span>
             </p>
@@ -517,7 +517,7 @@ export function AddAccountSheet({
 
         {step === 'syncing' && syncCo && (
           <div className="flex flex-1 flex-col gap-4">
-            <p className="flex items-center gap-2.5 rounded-2xl bg-muted/60 p-4 text-[15px]">
+            <p className="flex items-center gap-2.5 rounded-xl bg-muted/60 p-4 text-[15px]">
               <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden />
               {run?.status.state === 'running' ? STEP_TEXT[run.status.step] ?? 'מסנכרן…' : run?.status.state === 'needs-code' ? `מחכה לקוד מ${syncCo.label}` : 'מסנכרן…'}
             </p>
@@ -540,7 +540,7 @@ export function AddAccountSheet({
                 ? `הכניסה של ${syncCo.label} מביאה את כולם. בוחרים אילו להוסיף ונותנים שם. מה שלא נבחר לא ייובא, וזה נשמר לסנכרונים הבאים.`
                 : 'נותנים לו שם. בפעם הבאה הוא יסונכרן לבד.'}
             </p>
-            <ul className="overflow-hidden rounded-2xl surface divide-y">
+            <ul className="overflow-hidden rounded-xl surface divide-y">
               {found.map((f, i) => (
                 <li key={f.externalAccount} className="flex min-h-16 items-center gap-3 px-4 py-2.5">
                   <button
@@ -626,7 +626,7 @@ export function AddAccountSheet({
 }
 
 const primary =
-  'inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** The flow's order, to tell a step forward from a step back */
 const STEP_ORDER: Step[] = ['pick', 'how', 'upload', 'signin', 'recovery', 'syncing', 'found']
@@ -649,7 +649,7 @@ function Choice({ on, disabled, onClick, title, text }: { on: boolean; disabled?
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'flex w-full items-start gap-3 rounded-2xl border bg-card p-4 text-start transition-[border-color,box-shadow] disabled:cursor-not-allowed disabled:opacity-55',
+        'flex w-full items-start gap-3 rounded-xl border bg-card p-4 text-start transition-[border-color,box-shadow] disabled:cursor-not-allowed disabled:opacity-55',
         on ? 'border-primary ring-[3px] ring-primary/15' : 'hover:border-foreground/20'
       )}
     >
