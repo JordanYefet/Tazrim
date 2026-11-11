@@ -14,9 +14,7 @@ import {
   step,
   velocityOf,
 } from '@/lib/nav/bubble-physics'
-
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+import { prefersReducedMotion } from '@/lib/spring'
 
 /** Movement past this many pixels makes a press a drag (below it, a tap). */
 const SLOP = 6

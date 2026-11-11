@@ -12,6 +12,7 @@ import { usePeriodHref } from './period-context'
 import { useOpenOrigin } from '@/components/ui/open-origin'
 import { SheetProfile, useMe } from './profile-menu'
 import { useTabBubble } from './tab-bubble'
+import { useDragToDismiss } from '@/hooks/use-drag-to-dismiss'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -83,6 +84,9 @@ export function BottomNav() {
   const pageSlot = isMoreActive(pathname) ? TABS.length : TABS.findIndex(t => isNavActive(pathname, t.href))
 
   const router = useRouter()
+  // The sheet follows a finger down and closes past ~40% or on a flick
+  const sheetScrimRef = useRef<HTMLDivElement | null>(null)
+  const sheetDragRef = useDragToDismiss({ scrimRef: sheetScrimRef, onDismiss: () => setMoreOpen(false) })
   const navRef = useRef<HTMLElement>(null)
   const capRef = useRef<HTMLSpanElement>(null)
   const bubble = useTabBubble({
@@ -150,9 +154,12 @@ export function BottomNav() {
         </Dialog.Trigger>
         <Dialog.Portal>
           {/* The pill sits above the scrim, so "עוד" stays visible (and tappable to close) */}
-          <Dialog.Overlay className="sheet-scrim fixed inset-0 z-40 bg-black/45 md:hidden" />
+          <Dialog.Overlay ref={sheetScrimRef} className="sheet-scrim fixed inset-0 z-40 bg-black/45 md:hidden" />
           <Dialog.Content
-            ref={sheetOrigin}
+            ref={el => {
+              sheetOrigin(el)
+              sheetDragRef(el)
+            }}
             // A touch on the tab bar is the capsule's (it may be dragging out of "עוד"), not a tap outside
             onInteractOutside={e => {
               if (navRef.current?.contains(e.target as Node)) e.preventDefault()

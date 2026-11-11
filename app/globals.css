@@ -347,6 +347,12 @@ html {
 /* Scrims: one fade for every popup */
 .sheet-scrim[data-state='open'], .dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
 .sheet-scrim[data-state='closed'], .dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
+/* A sheet dragged down (hooks/use-drag-to-dismiss.ts) is already off screen
+   when it closes: no exit animation from its resting place. While dragged it
+   follows the finger with no transition. */
+.sheet[data-dragged-away][data-state='closed'],
+.app-window[data-dragged-away][data-state='closed'] { animation: none; opacity: 0; }
+.sheet[data-dragging], .app-window[data-dragging] { transition: none; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
