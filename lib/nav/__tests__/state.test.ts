@@ -79,13 +79,13 @@ describe('routeAccountId', () => {
 
 describe('isMoreActive', () => {
   it('is active on the pages behind עוד', () => {
-    for (const p of ['/upload', '/upload/preview', '/categories', '/settings', '/accounts', '/about']) {
+    for (const p of ['/projection', '/upload', '/upload/preview', '/analysis', '/analysis/bank', '/categories', '/settings', '/accounts', '/about']) {
       expect(isMoreActive(p)).toBe(true)
     }
   })
 
   it('is not active on the main tabs', () => {
-    for (const p of ['/', '/banks', '/cards/acct_test_card', '/recurring', '/search', '/uploads']) {
+    for (const p of ['/', '/banks', '/cards/acct_test_card', '/recurring', '/search', '/uploads', '/projections']) {
       expect(isMoreActive(p)).toBe(false)
     }
   })

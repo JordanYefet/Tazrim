@@ -98,7 +98,7 @@ export function BottomNav() {
       <Dialog.Root open={moreOpen} onOpenChange={setMoreOpen}>
         <Dialog.Trigger
           className={cn(TAB, moreActive ? 'text-primary' : 'text-foreground/60')}
-          aria-label="עוד: העלאת קבצים, קטגוריות, הגדרות, אודות"
+          aria-label="עוד: תחזית, העלאת קבצים, ניתוח לפי קטגוריה, קטגוריות, הגדרות, אודות"
         >
           <TabIcon active={moreActive} icon={Ellipsis} />
         </Dialog.Trigger>
