@@ -9,6 +9,8 @@ Everything here is taken from the code as it is today. Where the code disagrees 
 
 - **Hebrew-first, RTL.** Use logical properties (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`), never physical left/right, so the layout mirrors on its own. Charts are the exception: they are laid out LTR inside (January on the left) because SVG `text-anchor` flips under `dir="rtl"` and pushes Recharts axis labels into the plot (see the comment above `.recharts-wrapper svg` in `app/globals.css`). Numbers and money use `tabular-nums`; Hebrew text that embeds a Latin or numeric name goes in `<bdi>`.
 - **Calm.** Data first. One hero figure per page (`.surface-hero`, for example the net balance on the overview). No decoration for its own sake.
+- **One hero, one list.** One hero + one list per page; the rest is one tap deeper. The overview's hero carries the net figure and the rows that make it; charts and breakdowns sit below or behind a tap.
+- **A month in progress is not a verdict.** A month in progress gets no verdict colour and no comparisons. Its figures are partial, so green, red and "above the average" would mislead.
 - **Stable layout.** Elements never change place when state changes. Dim them (`DimmablePair`: opacity and grayscale, the space and size are kept), reserve the space, or show a faint placeholder (`EmptyMonthSlots` for a month with no data yet) instead of collapsing or reflowing. A heading row keeps a minimum height whether or not it has actions, so the content under it starts at the same place on every page.
 - **No AI design tropes.** No coloured side stripe, accent bar or gradient wash on cards, rows or headers. An account's identity colour lives on its face (the card or bank element, and the mini face in pills and lists) and nowhere else. Surfaces are flat tonal fills with a hairline edge and an elevation shadow.
 - **Glass is baked.** The liquid-glass lens is pre-rendered once into a canvas (`glassBaked`, `components/glass/glass-surface.tsx`, `lib/glass/bake.ts`). Never put a live `backdrop-filter` on content. Live blur exists only on app chrome and floating panels (see Known gaps). Under reduced transparency or more contrast, glass becomes an opaque surface.
@@ -132,7 +134,7 @@ Heebo, self-hosted from `app/fonts.ts` (Hebrew and Latin subsets, so a page view
 | Chart / card title | `text-base font-semibold` | `ChartHeader` |
 | Body and controls | `text-sm` | Rows, buttons, fields, table cells |
 | Caption | `text-xs text-muted-foreground` | Hints, legends, table headers |
-| Hero figure | `text-4xl sm:text-[2.75rem] font-semibold tracking-tight tabular-nums` (`text-3xl` when compact) | The net balance in `components/dashboard/summary-cards.tsx` |
+| Hero figure | `text-4xl sm:text-[2.75rem] font-semibold tracking-tight tabular-nums` (`text-3xl` when compact) | The net figure in the overview hero, `components/dashboard/summary-cards.tsx` (foreground colour while the month is in progress) |
 
 On touch screens every input gets 16px so iOS does not zoom into it.
 
@@ -163,7 +165,7 @@ Page-level helpers live in `components/accounts/page-parts.tsx`: `PageHeading`, 
 
 **Page header.** `PageHeading` (`components/accounts/page-parts.tsx`): the `h1` page title, an optional badge, and actions at the end of the row. The row keeps a minimum height (`min-h-[2.375rem]`) with or without actions, so the content below starts in the same place on every page. The period is not repeated here: the header's month and year pickers show it. On `/banks` and `/cards` phones also get account pills under the heading. Pages wrap their content in `.page-in`: everything below the heading rises 6px and fades in on the page beat, together, while the heading stays put.
 
-**Hero figure with rolling digits.** One per page, on `.surface-hero`: a muted label (`text-sm font-medium text-muted-foreground`), then the figure in `text-4xl` semibold with `tabular-nums` inside a `RollingNumber`, coloured `--income` when positive and `--expense` when negative. Supporting numbers around it are also `RollingNumber`s so the whole page lands on the same beat.
+**Hero figure with rolling digits.** One per page, on `.surface-hero`: a muted label (`text-sm font-medium text-muted-foreground`), then the figure in `text-4xl` semibold with `tabular-nums` inside a `RollingNumber`, coloured `--income` when positive and `--expense` when negative, then a muted sub line. Under it, on the overview, a `dl` of rows, each at least 44px tall with a hairline top border: income, expenses (with a small chip against the monthly average) and the card charges ("מתוכן בכרטיסים", a breakdown of the expenses, never added to them). Every row figure is a `RollingNumber`, so the whole card lands on the same beat. The chip keeps its space when empty (`opacity-0`). On wide screens the figure and the rows are two equal halves. A month in progress (`monthProgress` in `lib/insights/month-progress.ts`) is labelled "החודש עד כה", its figure is in the foreground colour, its sub line says how many days have passed, and the chip is hidden; the rows stay where they are. The year view shows yearly totals and the monthly average in the expenses row's hint.
 
 **Charts.** Every monthly chart plots January to December. A month with no data is an empty slot (`EmptyMonthSlots`, a tooltip saying there is no data), and months after the latest data are faint stubs, never a bar that reads as "spent 0". Rows come from `yearChartRows` (`lib/insights/chart-months.ts`), which sets empty months to null. Charts are laid out LTR inside the RTL page, with January on the left. Axis spacing and tick size come from `useChartAxes` (`hooks/use-chart-axes.ts`): on phones every other month label shows, but the selected month always does. Entrance animation comes from `CHART_ANIMATION` in `lib/motion.ts` so charts land on the page beat. Series use the chart tokens; the selected month's bars brighten and the others dim with a soft fade (opacity only). Tooltips are `.surface-overlay`.
 
@@ -191,6 +193,8 @@ Run through this before opening a UI PR.
 - Do take every colour from a token (`hsl(var(--...))` or the Tailwind alias). Don't add a hex or rgb value to a component; add or reuse a token.
 - Do take every duration and easing from the motion tokens (`duration-quick|fast|base|page`, `ease-ui|spring`, `lib/motion.ts`). Don't write `300ms` or `ease-in-out`.
 - Do make every window an `AppDialog` (or `ConfirmDialog` for a yes/no). Don't build a new `Dialog.Root`, and don't make the create window differ from the edit window.
+- Do keep to one hero and one list per page; the rest is one tap deeper. Don't stack a row of stat tiles beside the hero.
+- Do show a month in progress in the foreground colour with no comparisons. Don't colour it green or red, or tell it is above the average.
 - Do keep elements in place when state changes: dim (`DimmablePair`), reserve the space, show a faint placeholder. Don't collapse, hide or reflow.
 - Do keep an account's colour on its face. Don't add a coloured side stripe, accent bar or gradient wash to a card, row or header.
 - Do use the baked lens for glass. Don't add `backdrop-filter` to content.

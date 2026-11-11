@@ -34,6 +34,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { UnusualCard } from '@/components/dashboard/unusual-card'
 import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
+import { finishedMonths, monthProgress } from '@/lib/insights/month-progress'
 import { monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -137,8 +138,11 @@ export default async function DashboardPage({
 
   // Bank expenses already include the monthly card payment, so card charges
   // are a breakdown of that money — never add them on top.
-  // Always the yearly average, so a selected month can be compared with it
-  const averageExpense = monthlyAverage(Object.fromEntries(Object.entries(bank).map(([m, v]) => [m, v.expense])))
+  // Always the yearly average, so a selected month can be compared with it; the month
+  // in progress is left out, its partial total would drag the average down (ENG-107)
+  const averageExpense = monthlyAverage(
+    Object.fromEntries(Object.entries(finishedMonths(Number(year), bank)).map(([m, v]) => [m, v.expense]))
+  )
 
   const hasData =
     Object.values(bank).some(m => m.income > 0 || m.expense > 0) ||
@@ -171,6 +175,7 @@ export default async function DashboardPage({
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
             monthHasData={!!month && (monthHasData(bank, month) || monthHasData(cards, month))}
+            progress={month ? monthProgress(Number(year), month) : undefined}
             query={query}
             bankHint={bankHint}
             cardHint={cardHint}

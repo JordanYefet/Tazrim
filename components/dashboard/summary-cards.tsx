@@ -5,6 +5,7 @@ import { RollingNumber, type RollingFormat } from '@/components/ui/rolling-numbe
 import { cn } from '@/lib/utils/cn'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { monthAverageDelta } from '@/lib/insights/account-overview'
+import type { MonthProgress } from '@/lib/insights/month-progress'
 
 export type Tone = 'income' | 'expense' | 'cc' | 'neutral'
 
@@ -102,6 +103,8 @@ interface Props {
   monthLabel?: string
   /** Whether the selected month has any data; without, the average gets no comparison chip */
   monthHasData?: boolean
+  /** Where the selected month stands today; a month in progress gets no verdict and no comparison */
+  progress?: MonthProgress
   /** Current year/month query string, carried over to drill-down links */
   query: string
   /** Bank account name, or a count when there are several */
@@ -364,6 +367,83 @@ export function NetBalance({
   )
 }
 
+/**
+ * The average chip of the expenses row. It is always laid out (the unseen text
+ * reserves its width), and only fades in when there is something to compare.
+ */
+function AverageChip({ delta, visible, title }: { delta: number | null; visible: boolean; title?: string }) {
+  const rounded = delta === null ? 0 : Math.round(delta * 100)
+  const relation = rounded > 0 ? 'מעל הממוצע' : rounded < 0 ? 'מתחת לממוצע' : 'כמו הממוצע'
+  const shown = visible && delta !== null
+  return (
+    <span
+      className={cn(
+        'shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium tabular-nums transition-opacity duration-fast',
+        shown ? 'opacity-100' : 'opacity-0',
+        // Spending above its average is bad news, below it good
+        rounded > 0 && 'bg-[hsl(var(--expense))]/10 text-[hsl(var(--expense))]',
+        rounded < 0 && 'bg-[hsl(var(--income))]/10 text-[hsl(var(--income))]',
+        rounded === 0 && 'bg-muted text-muted-foreground'
+      )}
+      title={shown ? title : undefined}
+      aria-hidden={!shown}
+    >
+      {rounded === 0 ? (
+        relation
+      ) : (
+        <>
+          <RollingNumber value={Math.abs(rounded)} format="percent" /> {relation}
+        </>
+      )}
+    </span>
+  )
+}
+
+function HeroRow({
+  label,
+  hint,
+  href,
+  chip,
+  value,
+  tone,
+  extra,
+}: {
+  label: string
+  hint?: string
+  href: string
+  chip?: ReactNode
+  value: number
+  tone: Tone
+  extra?: ReactNode
+}) {
+  return (
+    <div className="border-t">
+      <Link
+        href={href}
+        className="group flex min-h-[44px] items-center gap-2 rounded-md py-2 transition-colors duration-fast hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT[tone])} aria-hidden />
+        <dt className="min-w-0 flex-1 text-sm">
+          <span className="font-medium">{label}</span>
+          {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
+        </dt>
+        {chip}
+        <dd className="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-foreground">
+          <RollingNumber value={value} />
+        </dd>
+      </Link>
+      {extra}
+    </div>
+  )
+}
+
+/**
+ * The overview's one hero: the net figure and, under it, the rows that make it
+ * (income, expenses with the monthly average, the card charges inside them).
+ * The same rows sit in the same places for a finished month, a month in
+ * progress, an empty month and the whole year. A month in progress gets no
+ * verdict colour and no comparison, only what it holds so far.
+ */
 export function DashboardSummaryCards({
   bankIncome,
   bankExpense,
@@ -371,35 +451,90 @@ export function DashboardSummaryCards({
   averageExpense,
   monthLabel,
   monthHasData = true,
+  progress,
   query,
   bankHint,
   cardHint,
   cardSplit,
 }: Props) {
   const qs = query ? `?${query}` : ''
+  // Bank expenses already include the card payment, so the net is bank-only
+  const net = bankIncome - bankExpense
+  const inProgress = !!progress?.inProgress
+  const verdict = !inProgress && monthHasData
+  const positive = net >= 0
+  const spentPct = bankIncome > 0 ? (bankExpense / bankIncome) * 100 : 0
+  const delta = monthLabel && verdict ? monthAverageDelta(bankExpense, averageExpense, monthHasData) : null
 
-  const stats: StatDef[] = [
-    { label: 'הכנסות', value: bankIncome, tone: 'income', href: `/banks${qs}`, hint: bankHint },
-    { label: 'הוצאות', value: bankExpense, tone: 'expense', href: `/banks${qs}`, hint: bankHint },
-    {
-      label: 'חיובי כרטיס',
-      value: ccTotal,
-      tone: 'cc',
-      href: `/cards${qs}`,
-      hint: `${cardHint} · כלול בהוצאות`,
-      split: cardSplit,
-    },
-    averageStat(
-      { label: 'ממוצע חודשי', tone: 'neutral', href: `/banks${qs}`, hint: 'הוצאות בנק' },
-      averageExpense,
-      monthLabel ? { label: monthLabel, value: bankExpense, hasData: monthHasData } : undefined
-    ),
-  ]
+  const label = inProgress ? 'החודש עד כה' : 'מאזן נטו'
+  let sub: ReactNode
+  if (inProgress && progress) {
+    sub = `${progress.day} ימים מתוך ${progress.daysInMonth} · עוד אין השוואות`
+  } else if (!monthHasData) {
+    sub = 'אין נתונים לתקופה הזו'
+  } else if (bankIncome > 0) {
+    sub = positive ? (
+      <>נשאר <RollingNumber value={Math.round(100 - spentPct)} format="percent" /> מההכנסות</>
+    ) : (
+      <>ההוצאות גבוהות ב־<RollingNumber value={Math.round(spentPct - 100)} format="percent" /> מההכנסות</>
+    )
+  } else {
+    sub = 'אין הכנסות בתקופה הזו'
+  }
+
+  // The year has no month to compare: its chip stays hidden and the row's hint tells the average
+  const chip = (
+    <AverageChip delta={delta} visible={verdict} title={monthLabel ? `${monthLabel} לעומת הממוצע החודשי` : undefined} />
+  )
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <NetBalance bankIncome={bankIncome} bankExpense={bankExpense} />
-      <StatGrid stats={stats} />
-    </div>
+    <section aria-label={label} className="grid gap-x-10 gap-y-5 rounded-xl surface-hero p-4 sm:p-6 lg:grid-cols-2">
+      <div className="flex flex-col justify-center">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p
+          className={cn(
+            'mt-1 text-4xl font-semibold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none',
+            !verdict
+              ? 'text-foreground'
+              : positive
+                ? 'text-[hsl(var(--income))]'
+                : 'text-[hsl(var(--expense))]'
+          )}
+        >
+          <RollingNumber value={net} />
+        </p>
+        <p className="mt-2 min-h-5 text-sm text-muted-foreground">{sub}</p>
+      </div>
+      <dl className="flex flex-col justify-end">
+        <HeroRow label="הכנסות" hint={bankHint} href={`/banks${qs}`} value={bankIncome} tone="income" />
+        <HeroRow
+          label="הוצאות"
+          hint={`ממוצע חודשי ${formatCurrencyWhole(averageExpense)}`}
+          href={`/banks${qs}`}
+          value={bankExpense}
+          tone="expense"
+          chip={chip}
+        />
+        <HeroRow
+          label="מתוכן בכרטיסים"
+          hint={`${cardHint} · כלול בהוצאות`}
+          href={`/cards${qs}`}
+          value={ccTotal}
+          tone="cc"
+          extra={
+            cardSplit && cardSplit.length > 1 ? (
+              <ul className="mb-2 ms-4 space-y-0.5 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
+                {cardSplit.map(s => (
+                  <li key={s.label} className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 truncate">{s.label}</span>
+                    <span className="shrink-0 font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.value)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null
+          }
+        />
+      </dl>
+    </section>
   )
 }
