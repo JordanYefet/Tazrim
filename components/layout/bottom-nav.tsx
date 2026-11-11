@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Building2, ChartPie, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashboard, Repeat, Settings, Tag, TrendingUp, Upload } from 'lucide-react'
+import { Building2, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashboard, Lightbulb, Settings, Tag, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { isNavActive } from '@/lib/accounts/routes'
 import { isMoreActive } from '@/lib/nav/state'
+import { INSIGHTS_DEFAULT, isInsightsActive, readInsightsChoice } from '@/lib/nav/insights'
 import { usePeriodHref } from './period-context'
 import { useOpenOrigin } from '@/components/ui/open-origin'
 import { SheetProfile, useMe } from './profile-menu'
@@ -19,13 +20,15 @@ const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDa
   { href: '/banks', label: 'בנקים', icon: Building2 },
   { href: '/cards', label: 'כרטיסים', title: 'כרטיסי אשראי', icon: CreditCard },
   { href: '/', label: 'ראשי', icon: House },
-  { href: '/recurring', label: 'קבועים', title: 'חיובים קבועים', icon: Repeat },
+  { href: INSIGHTS_DEFAULT, label: 'תובנות', title: 'תובנות: תחזית, קבועים, ניתוח', icon: Lightbulb },
 ]
 
+/** The tab is "on" for every page it holds, not only for its own href */
+const tabActive = (pathname: string, href: string) =>
+  href === INSIGHTS_DEFAULT ? isInsightsActive(pathname) : isNavActive(pathname, href)
+
 const MORE_LINKS = [
-  { href: '/projection', label: 'תחזית', hint: 'היתרה הצפויה בשנה הקרובה', icon: TrendingUp },
   { href: '/upload', label: 'העלאת קבצים', icon: Upload },
-  { href: '/analysis', label: 'ניתוח לפי קטגוריה', hint: 'הוצאות והכנסות לפי קטגוריה, בנק וכרטיסים', icon: ChartPie },
   { href: '/categories', label: 'קטגוריות', icon: Tag },
   { href: '/settings', label: 'הגדרות', hint: 'ערכת נושא · ניהול חשבונות', icon: Settings },
   { href: '/about', label: 'אודות', hint: 'הסיפור, פרטיות ויצירת קשר', icon: Info },
@@ -59,6 +62,10 @@ export function BottomNav() {
   const pathname = usePathname()
   const periodHref = usePeriodHref()
   const [moreOpen, setMoreOpen] = useState(false)
+  // The insights page last chosen; read after mount so the server render and hydration agree
+  const [insightsHref, setInsightsHref] = useState(INSIGHTS_DEFAULT)
+  useEffect(() => setInsightsHref(readInsightsChoice()), [pathname])
+  const tabHref = (href: string) => (href === INSIGHTS_DEFAULT ? insightsHref : href)
   // A link in the sheet was tapped and its page is on its way: every page the sheet
   // opens lights "עוד", so the capsule stays there instead of falling back to the
   // page being left while the server answers
@@ -78,10 +85,10 @@ export function BottomNav() {
 
   const sheetSide = moreOpen || leaving
   const moreActive = sheetSide || isMoreActive(pathname)
-  const tabIndex = sheetSide ? -1 : TABS.findIndex(t => isNavActive(pathname, t.href))
+  const tabIndex = sheetSide ? -1 : TABS.findIndex(t => tabActive(pathname, t.href))
   const activeSlot = moreActive ? TABS.length : tabIndex
   // Where the capsule belongs once the sheet is closed: the page's own slot
-  const pageSlot = isMoreActive(pathname) ? TABS.length : TABS.findIndex(t => isNavActive(pathname, t.href))
+  const pageSlot = isMoreActive(pathname) ? TABS.length : TABS.findIndex(t => tabActive(pathname, t.href))
 
   const router = useRouter()
   // The sheet follows a finger down and closes past ~40% or on a flick
@@ -103,7 +110,7 @@ export function BottomNav() {
       }
       setMoreOpen(false)
       setLeaving(false)
-      if (!isNavActive(pathname, TABS[slot].href)) router.push(periodHref(TABS[slot].href))
+      if (!tabActive(pathname, TABS[slot].href)) router.push(periodHref(tabHref(TABS[slot].href)))
       return slot
     },
   })
@@ -128,13 +135,13 @@ export function BottomNav() {
       />
 
       {TABS.map(({ href, label, title, icon }) => {
-        const active = !sheetSide && isNavActive(pathname, href)
+        const active = !sheetSide && tabActive(pathname, href)
         return (
           <Link
             key={href}
-            href={periodHref(href)}
+            href={periodHref(tabHref(href))}
             aria-label={title ?? label}
-            aria-current={isNavActive(pathname, href) ? 'page' : undefined}
+            aria-current={tabActive(pathname, href) ? 'page' : undefined}
             data-slot
             draggable={false}
             className={cn(TAB, active ? 'text-primary' : 'text-foreground/60')}
@@ -148,7 +155,7 @@ export function BottomNav() {
         <Dialog.Trigger
           data-slot
           className={cn(TAB, moreActive ? 'text-primary' : 'text-foreground/60')}
-          aria-label="עוד: תחזית, העלאת קבצים, ניתוח לפי קטגוריה, קטגוריות, הגדרות, אודות"
+          aria-label="עוד: העלאת קבצים, קטגוריות, הגדרות, אודות"
         >
           <TabIcon active={moreActive} icon={Ellipsis} />
         </Dialog.Trigger>
