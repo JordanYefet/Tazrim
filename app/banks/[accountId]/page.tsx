@@ -185,7 +185,7 @@ export default async function BankAccountPage({
 
       {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
       <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
-        {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currencyExact" />}
+        {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currency" />}
         {hasData ? (
           <StatPanel
             className="min-h-0 flex-1"
@@ -224,7 +224,6 @@ export default async function BankAccountPage({
               <CategoryDonut
                 pagePath={accountPath('BANK', account.id)}
                 data={totalsOf(incomeStats)}
-                stats={incomeStats}
                 selectedCategory={params.category}
                 colors={incomeColors}
                 title="הכנסות לפי קטגוריה"
@@ -236,7 +235,6 @@ export default async function BankAccountPage({
               <CategoryDonut
                 pagePath={accountPath('BANK', account.id)}
                 data={totalsOf(expenseStats)}
-                stats={expenseStats}
                 selectedCategory={params.category}
                 colors={expenseColors}
                 emptyText="אין הוצאות לתקופה זו"

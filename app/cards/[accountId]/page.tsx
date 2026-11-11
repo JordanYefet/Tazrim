@@ -9,7 +9,7 @@ import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
 import { DataSwap } from '@/components/ui/data-swap'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
-import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlyCounts, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
+import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
 import { seriesColor } from '@/lib/accounts/colors'
 import { getCategories } from '@/lib/db/categories'
@@ -44,7 +44,7 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
   const filtered = !!(params.merchant || params.search)
 
   // Same query as /api/cards/[accountId]/transactions (first page of 50 unless a month is selected)
-  const [txs, monthly, categoryRows, insights, stats, allCategoryMonthly, categoryMonthly, monthlyCounts] = await Promise.all([
+  const [txs, monthly, categoryRows, insights, stats, allCategoryMonthly, categoryMonthly] = await Promise.all([
     getCCTransactions({
       accountId,
       year: Number(year),
@@ -68,8 +68,6 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     // Unfiltered, for the colors: a category keeps its color under a merchant filter
     getCCCategoryMonthly(accountId, Number(year)),
     filtered ? getCCCategoryMonthly(accountId, Number(year), chartFilter) : null,
-    // The count tile's monthly bars (following the category filter, like its figure)
-    getCCMonthlyCounts(accountId, Number(year), { ...chartFilter, category: params.category }),
   ])
 
   const categoryTotals: Record<string, number> = Object.fromEntries(
@@ -84,7 +82,6 @@ async function getCardData(accountId: string, params: SearchParams & { year: str
     categories: asJson(categoryRows),
     categoryMonthly: categoryMonthly ?? allCategoryMonthly,
     allCategoryMonthly,
-    monthlyCounts,
     unusual: insights.flags.card,
     recurring: insights.recurring,
   }
@@ -104,15 +101,12 @@ export default async function CardAccountPage({
   const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
-  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, allCategoryMonthly, monthlyCounts, unusual, recurring } =
+  const { transactions, monthly, categoryTotals, categoryStats, categories, categoryMonthly, allCategoryMonthly, unusual, recurring } =
     await getCardData(account.id, params)
 
   const total = params.category
     ? (categoryStats[params.category]?.total ?? 0)
     : Object.values(categoryStats).reduce((s, v) => s + v.total, 0)
-  const count = params.category
-    ? (categoryStats[params.category]?.count ?? 0)
-    : Object.values(categoryStats).reduce((s, v) => s + v.count, 0)
 
   // The selected category's months, or the whole card's
   const shownMonthly = params.category ? (categoryMonthly[params.category] ?? {}) : monthly
@@ -172,9 +166,8 @@ export default async function CardAccountPage({
               value={total}
               label={params.category ? `חיובים · ${params.category}` : 'סה״כ חיובים'}
             />
-            <CardStatTiles total={total} count={count} average={averageMonthly} monthLabel={month ? monthName(month) : undefined}
+            <CardStatTiles total={total} average={averageMonthly} monthLabel={month ? monthName(month) : undefined}
               monthHasData={!!month && monthHasData(monthly, month)}
-              monthlyCounts={monthlyCounts}
               monthlyTotals={shownMonthly}
               selectedMonth={month}
             />
@@ -202,7 +195,6 @@ export default async function CardAccountPage({
             <CategoryDonut
               pagePath={accountPath('CREDIT_CARD', account.id)}
               data={categoryTotals}
-              stats={categoryStats}
               selectedCategory={params.category}
               colors={categoryColors}
               analysisHref={categoryAnalysisHref(account.id, period)}

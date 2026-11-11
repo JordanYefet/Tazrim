@@ -55,9 +55,11 @@ export function TodayButton({ show, onClick }: { show: boolean; onClick: () => v
             aria-label="חזרה לחודש הנוכחי"
             title="חזרה לחודש הנוכחי"
             className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-border bg-muted/70 text-sm font-semibold text-muted-foreground transition-colors',
+              'relative flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-border bg-muted/70 text-sm font-semibold text-muted-foreground transition-colors',
               'hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              'sm:w-auto sm:px-3'
+              'sm:w-auto sm:px-3',
+              // the 44px hit area around the 36px button
+              'before:absolute before:-inset-1 before:content-[""]'
             )}
           >
             <CalendarCheck className="h-4 w-4" aria-hidden />

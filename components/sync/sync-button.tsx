@@ -123,8 +123,10 @@ export function SyncButton() {
         ref={trigger}
         aria-label={`${title}, ${sub}`}
         className={cn(
-          'flex h-9 shrink-0 items-center gap-2.5 rounded-xl border text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'relative flex h-9 shrink-0 items-center gap-2.5 rounded-xl border text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           'w-9 justify-center md:w-[10.5rem] md:justify-start md:px-3.5',
+          // the 44px hit area around the 36px button
+          'before:absolute before:-inset-1 before:content-[""]',
           'hover:bg-muted data-[state=open]:bg-card data-[state=open]:ring-2 data-[state=open]:ring-ring/30',
           TONE_BOX[tone]
         )}

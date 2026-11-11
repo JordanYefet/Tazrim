@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft, ArrowUp, Repeat, Sparkles } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import type { RecurringSeries } from '@/lib/insights/recurring'
 
@@ -45,7 +45,7 @@ export function RecurringCard({ series, total, limit = 4 }: Props) {
               <span className="min-w-0 flex-1 truncate">{s.name}</span>
               {s.isNew && <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="חדש" />}
               {s.priceIncrease && <ArrowUp className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--expense))]" aria-label="התייקר" />}
-              <span className="shrink-0 font-medium tabular-nums">{formatCurrency(s.latestAmount)}</span>
+              <span className="shrink-0 font-medium tabular-nums">{formatCurrencyWhole(s.latestAmount)}</span>
             </li>
           ))}
         </ul>

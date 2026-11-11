@@ -16,16 +16,16 @@ interface Props {
 /** The four tiles: totals in the first row, monthly averages under them (income column, expense column). */
 export function bankStats({ income, expense, averageExpense, averageIncome, monthLabel, monthHasData = true }: Props): StatDef[] {
   return [
-    { label: 'סה״כ הכנסות', value: income, tone: 'income', format: 'currencyExact' },
-    { label: 'סה״כ הוצאות', value: expense, tone: 'expense', format: 'currencyExact', hint: 'כולל חיובי כרטיס' },
+    { label: 'סה״כ הכנסות', value: income, tone: 'income', format: 'currency' },
+    { label: 'סה״כ הוצאות', value: expense, tone: 'expense', format: 'currency', hint: 'כולל חיובי כרטיס' },
     averageStat(
-      { label: 'ממוצע הכנסות חודשי', tone: 'neutral', format: 'currencyExact' },
+      { label: 'ממוצע הכנסות חודשי', tone: 'neutral', format: 'currency' },
       averageIncome,
       monthLabel ? { label: monthLabel, value: income, hasData: monthHasData } : undefined,
       { upIsGood: true }
     ),
     averageStat(
-      { label: 'ממוצע הוצאות חודשי', tone: 'neutral', format: 'currencyExact' },
+      { label: 'ממוצע הוצאות חודשי', tone: 'neutral', format: 'currency' },
       averageExpense,
       monthLabel ? { label: monthLabel, value: expense, hasData: monthHasData } : undefined
     ),

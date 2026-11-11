@@ -40,7 +40,7 @@ type View = { kind: 'loading' } | { kind: 'error' } | { kind: 'choose'; info: In
 const CADENCE_WORD: Record<Cadence, string> = { weekly: 'שבועי', monthly: 'חודשי', bimonthly: 'דו-חודשי', yearly: 'שנתי' }
 
 const iconButton =
-  'inline-flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'relative inline-flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-2 before:content-[""]'
 
 /**
  * "סמן כחיוב קבוע" on a transaction row (ENG-71). Opens a sheet that, depending on the

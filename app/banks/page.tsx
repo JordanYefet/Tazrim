@@ -36,7 +36,6 @@ import {
   bankPeriodTotals,
   lastMonthWithData,
   monthHasData,
-  shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
 import { monthName } from '@/lib/utils/date'
@@ -204,7 +203,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               colorChoice={account.color}
               expense={t.expense}
               balance={latest?.balance}
-              expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
             />
           ))}
         </ScrollHintList>

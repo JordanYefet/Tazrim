@@ -3,7 +3,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
 import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { UnusualBadge } from '@/components/insights/unusual-badge'
@@ -360,7 +360,7 @@ export function BankTransactionsTable({
         <div className="flex items-center gap-3">
           {/* Columns only exist from md up; phones show rows */}
           <ColumnPicker kind="bank" shown={columns} onChange={next => setColumns(next as BankColumn[])} />
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          <label className="-my-3 flex items-center gap-2 py-3 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={!!showIgnored}
@@ -414,7 +414,7 @@ export function BankTransactionsTable({
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="w-0 py-2.5 ps-4 pe-0">
-                  <label className="-m-3 inline-flex p-3 align-middle">
+                  <label className="-m-3.5 inline-flex p-3.5 align-middle">
                     <input
                       type="checkbox"
                       aria-label="בחירת כל התנועות שנטענו"
@@ -458,7 +458,7 @@ export function BankTransactionsTable({
                 >
                   <td className="w-0 py-2.5 ps-4 pe-0">
                     {/* The padding widens the tap target past the small box, for phones */}
-                    <label className="-m-3 inline-flex p-3 align-middle">
+                    <label className="-m-3.5 inline-flex p-3.5 align-middle">
                       <input
                         type="checkbox"
                         aria-label={`בחירת ${tx.description}`}
@@ -561,7 +561,7 @@ export function BankTransactionsTable({
                     <button
                       onClick={() => toggleIgnored(tx)}
                       aria-label={tx.ignored ? 'בטל התעלמות' : 'התעלם מעסקה'}
-                      className="p-1 rounded-md hover:bg-muted transition-colors align-middle"
+                      className="relative p-1 rounded-md hover:bg-muted transition-colors align-middle before:absolute before:-inset-y-[11px] before:start-0 before:-end-[22px] before:content-['']"
                     >
                       {tx.ignored
                         ? <Eye className="h-3.5 w-3.5 text-primary" />
@@ -723,7 +723,7 @@ function BankBulkBar({ rows, expenseCategories, incomeCategories, colors, onAppl
       count={rows.length}
       kind={directions.size > 1 ? 'mixed' : income ? 'income' : 'expense'}
       context={income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'}
-      amount={formatCurrency(rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0))}
+      amount={formatCurrencyWhole(rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0))}
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
       allowNone
       onApply={onApply}

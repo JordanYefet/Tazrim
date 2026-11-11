@@ -60,7 +60,7 @@ export function PhoneTransactionRows({
         amountNote={amountNote}
         rowClassName={r => (selected.has(r.id) ? 'bg-primary/5' : undefined)}
         leading={r => (
-          <label className="-my-1 ms-2 flex h-11 w-9 cursor-pointer items-center justify-center">
+          <label className="-my-1 flex h-11 w-11 cursor-pointer items-center justify-center">
             <input
               type="checkbox"
               aria-label={`בחירת ${r.description}`}

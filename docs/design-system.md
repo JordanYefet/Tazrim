@@ -8,6 +8,8 @@ Everything here is taken from the code as it is today. Where the code disagrees 
 ## Principles
 
 - **Hebrew-first, RTL.** Use logical properties (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`), never physical left/right, so the layout mirrors on its own. Charts are the exception: they are laid out LTR inside (January on the left) because SVG `text-anchor` flips under `dir="rtl"` and pushes Recharts axis labels into the plot (see the comment above `.recharts-wrapper svg` in `app/globals.css`). Numbers and money use `tabular-nums`; Hebrew text that embeds a Latin or numeric name goes in `<bdi>`.
+- **Whole shekels everywhere except the transaction detail.** Headline figures, stat tiles, chart tooltips, summaries, bulk-bar totals, recurring totals and the projection show whole shekels (`RollingNumber` `currency`, `formatCurrencyWhole`). Agorot (`formatCurrency`, `currencyExact`) stay only where one transaction is the subject: the transaction tables' and phone rows' own amounts, and the category window.
+- **Tap targets are 44px.** Every control that can be tapped has a 44px hit area (`min-h-11`/`min-w-11`, or padding, or an invisible `::before` such as `before:absolute before:-inset-2`), also when it is drawn smaller (a 16px checkbox, a 22px icon button, a 32px header button). The hit area grows around the control and never moves the layout; where two small controls sit side by side the later one wins the overlap.
 - **Calm.** Data first. One hero figure per page (`.surface-hero`, for example the net balance on the overview). No decoration for its own sake.
 - **One hero, one list.** One hero + one list per page; the rest is one tap deeper. The overview's hero carries the net figure and the rows that make it; charts and breakdowns sit below or behind a tap.
 - **A month in progress is not a verdict.** A month in progress gets no verdict colour and no comparisons. Its figures are partial, so green, red and "above the average" would mislead.
@@ -207,6 +209,8 @@ Run through this before opening a UI PR.
 - Do keep an account's colour on its face. Don't add a coloured side stripe, accent bar or gradient wash to a card, row or header.
 - Do use the baked lens for glass. Don't add `backdrop-filter` to content.
 - Do give a surface its place on the scale (`.surface`, `.surface-raised`, `.surface-overlay`; one `.surface-hero` per page). Don't hand-write a box-shadow.
+- Do show whole shekels (`currency`, `formatCurrencyWhole`) everywhere but the transaction detail. Don't show agorot in a headline, tile, tooltip or summary; keep them in a transaction's own amount.
+- Do give every tappable control a 44px hit area, drawn smaller if need be (`before:-inset-*`, padding, `min-h-11`). Don't ship a 16-32px control with only its drawn size, and don't grow it in a way that moves its neighbours.
 - Do put money and counts in `tabular-nums`, and headline figures in `RollingNumber`. Don't format currency by hand.
 - Do let the list be the chart where it can (rows with an amount and a bar), and keep a category's colour and position all year. Don't draw a donut for the overview's categories, and don't re-rank or repaint rows when the month changes.
 - Do plot January to December on monthly charts with `EmptyMonthSlots`. Don't draw a missing month as a zero bar, and don't drop future months.

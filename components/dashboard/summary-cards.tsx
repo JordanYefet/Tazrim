@@ -145,9 +145,9 @@ export function StatTile({
 }) {
   if (dense) {
     return (
-      <div className="flex h-full min-w-0 items-center gap-2 px-3 py-2 text-xs sm:px-4">
+      <div className="flex h-full min-h-11 min-w-0 items-center gap-2 px-3 py-2 text-xs sm:px-4">
         <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT[tone])} aria-hidden />
-        <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground" title={hint ? `${label} · ${hint}` : label}>
+        <span className="min-w-0 flex-1 text-pretty font-medium leading-tight text-muted-foreground line-clamp-2" title={hint ? `${label} · ${hint}` : label}>
           {label}
         </span>
         {/* The chip before the figure, so every figure ends at the cell's edge and the columns line up */}

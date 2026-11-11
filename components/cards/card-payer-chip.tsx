@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { monthName } from '@/lib/utils/date'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { AccountMini } from '@/components/accounts/account-element'
 import { accountHref } from '@/lib/accounts/routes'
 import { periodQuery, type Period } from '@/lib/period'
@@ -29,7 +29,7 @@ export function CardPayerChip({
 }) {
   const { bank } = payment
   const date = dayMonth(payment.date)
-  const amount = formatCurrency(payment.debit)
+  const amount = formatCurrencyWhole(payment.debit)
   const href = accountHref('BANK', bank.id, { ...periodQuery(period), tx: payment.txId })
   return (
     <Link

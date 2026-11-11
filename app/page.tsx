@@ -13,10 +13,7 @@ import { countUncategorized } from '@/lib/db/uncategorized'
 import { CategoryBars } from '@/components/dashboard/category-bars'
 import { UncategorizedCard } from '@/components/dashboard/uncategorized-card'
 import {
-  insightsScopeOptions,
-  resolveInsightsScope,
   scopeAccounts,
-  scopeParam,
   type InsightsScope,
 } from '@/lib/insights/insights-scope'
 import {
@@ -57,9 +54,9 @@ export default async function DashboardPage({
   const activeCards = summary.accounts.cards
   const activeBanks = summary.accounts.bank
   const activeIds = [...activeBanks, ...activeCards]
-  // Category insights: bank and cards together, or ?card=bank|cards|<card id> (lib/insights/insights-scope)
+  // Category insights cover bank and cards together (the scope pills are gone, ENG-117)
   const sources = { bankIds: activeBanks, cardIds: activeCards }
-  const scope = resolveInsightsScope(params.card, sources)
+  const scope: InsightsScope = { kind: 'all' }
 
   const [allCategoryMonthly, recurring, latest, cardStats, bankStats, uncategorized] = await Promise.all([
     // Every source, as one year: the colors follow its ranking, so they don't shift when filtering
@@ -85,8 +82,7 @@ export default async function DashboardPage({
         : combinedCategoryTransactionsHref({ accountIds: activeIds, category: c, year, month })
     if (href) categoryHrefs[c] = href
   }
-  const categoryMonthly =
-    scope.kind === 'all' ? allCategoryMonthly : await scopedCategoryMonthly(scope, sources, Number(year))
+  const categoryMonthly = allCategoryMonthly
 
   // Unusual transactions: the selected month, a past year, or the 90 days up to
   // the latest upload. Bank and card rows from every active account; the bank's card
@@ -133,10 +129,6 @@ export default async function DashboardPage({
   const bankHint = banks.length === 1 ? accountName(banks[0]) : banks.length > 1 ? `${banks.length} חשבונות` : 'בנק'
   const cardHint = multiCard ? `${activeCards.length} כרטיסים` : cardsName
   const cardSplit = multiCard ? cardBreakdown(summary, month).map(c => ({ label: cardLabel(c), value: c.total })) : undefined
-  const scopeOptions = insightsScopeOptions({
-    hasBank: activeBanks.length > 0,
-    cards: activeCards.map(id => ({ id, label: cardLabel(summary.byAccount[id]) })),
-  })
 
   // Bank expenses already include the monthly card payment, so card charges
   // are a breakdown of that money — never add them on top.
@@ -196,9 +188,6 @@ export default async function DashboardPage({
               insights={insights}
               month={insightMonth}
               colors={categoryColors}
-              options={scopeOptions}
-              selected={scopeParam(scope)}
-              query={query}
               hrefs={insightHrefs}
             />
           </div>

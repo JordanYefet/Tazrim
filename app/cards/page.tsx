@@ -110,7 +110,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
   const { average } = cardPeriodTotals(combined, month)
   const total = perCard.reduce((s, c) => s + c.total, 0)
-  const count = perCard.reduce((s, c) => s + c.count, 0)
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
 
@@ -165,7 +164,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       <CardStackTotal value={total} />
 
       {/* Beside the stack, exactly as tall as it (never taller, so the page below keeps
-          its place when a card opens): each card's figures, then the count and the monthly
+          its place when a card opens): each card's figures, then the monthly
           average filling the rest. No monthly bars in them here: under the card list there
           is no room for them (a card's page, with the whole half, has them) */}
       <div className={cn('wallet-shell__beside flex flex-col gap-4', hasData && 'wallet-shell__beside--fit')}>
@@ -192,7 +191,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         <CardStatTiles
           className="shrink-0 grow"
           total={total}
-          count={count}
           average={average}
           monthLabel={month ? monthName(month) : undefined}
           monthHasData={!!month && monthHasData(combined, month)}
@@ -214,7 +212,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               <CategoryDonut
                 pagePath="/cards"
                 data={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
-                stats={categoryStats}
                 selectedCategory={params.category}
                 colors={categoryColors}
                 analysisHref={categoryAnalysisHref(undefined, period)}

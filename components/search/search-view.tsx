@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn'
 import { SegmentedTrack } from '@/components/ui/segmented'
 import { Reveal } from '@/components/ui/reveal'
 import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult, type TextMode } from '@/lib/search/query'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
 import { isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -519,7 +519,7 @@ function Results({ initial, queryString, terms, picker, cards, uncategorizedOnly
             count={selectedCount}
             kind={bulkKind}
             context={bulkContext(mix, bulkKind === 'income')}
-            amount={all ? undefined : formatCurrency(chosen.reduce((sum, r) => sum + Math.abs(r.amount), 0))}
+            amount={all ? undefined : formatCurrencyWhole(chosen.reduce((sum, r) => sum + Math.abs(r.amount), 0))}
             categories={(bulkKind === 'income' ? picker.income : picker.expense).map(name => ({ name, color: picker.colors[name] }))}
             allowNone={!mix.card}
             onApply={saveBulk}

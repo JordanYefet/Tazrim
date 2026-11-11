@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { ArrowUp, BadgeCheck, CreditCard, Landmark, Repeat, Sparkles } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { formatDate } from '@/lib/utils/date'
+import { dayMonth } from '@/lib/accounts/card-payment-row'
 import { cn } from '@/lib/utils/cn'
 import type { Cadence, RecurringSeries } from '@/lib/insights/recurring'
 import type { ManualInfo } from '@/lib/insights/manual-recurring'
@@ -30,11 +31,11 @@ interface Props {
   className?: string
 }
 
-const CADENCE_LABEL: Record<Cadence, string> = {
-  weekly: 'שבועי',
-  monthly: 'חודשי',
-  bimonthly: 'דו-חודשי',
-  yearly: 'שנתי',
+const CADENCE_EVERY: Record<Cadence, string> = {
+  weekly: 'כל שבוע',
+  monthly: 'כל חודש',
+  bimonthly: 'כל חודשיים',
+  yearly: 'כל שנה',
 }
 
 const badge = 'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium'
@@ -71,7 +72,7 @@ function Row({ s, actions, wrapRow, accountNames }: {
           {s.priceIncrease && (
             <span
               className={cn(badge, 'bg-[hsl(var(--expense)/0.12)] text-[hsl(var(--expense))] tabular-nums')}
-              title={`עלה מ-${formatCurrency(s.priceIncrease.from)} ל-${formatCurrency(s.priceIncrease.to)} החל מ-${formatDate(s.priceIncrease.since)}`}
+              title={`עלה מ-${formatCurrencyWhole(s.priceIncrease.from)} ל-${formatCurrencyWhole(s.priceIncrease.to)} החל מ-${formatDate(s.priceIncrease.since)}`}
             >
               <ArrowUp className="h-3 w-3" aria-hidden />
               התייקר
@@ -85,22 +86,25 @@ function Row({ s, actions, wrapRow, accountNames }: {
           {s.isInstallment && <span className={cn(badge, 'bg-muted text-muted-foreground')}>תשלומים</span>}
           {!s.active && s.occurrences > 0 && <span className={cn(badge, 'bg-muted text-muted-foreground')}>הופסק?</span>}
         </div>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {s.occurrences > 0 ? (
-            <>
-              {CADENCE_LABEL[s.cadence]} · {s.occurrences} חיובים · אחרון {formatDate(s.lastDate)}
-              {s.active && <> · הבא בערך {formatDate(s.nextDate)}</>}
-            </>
-          ) : (
-            <>{CADENCE_LABEL[s.cadence]} · אין תנועות תואמות</>
-          )}
-          {account && <> · {account}</>}
+        {/* One line: how often, where, and when next (or when it was last) */}
+        <p className="truncate text-xs text-muted-foreground tabular-nums">
+          {[
+            CADENCE_EVERY[s.cadence],
+            account,
+            s.occurrences === 0
+              ? 'אין תנועות תואמות'
+              : s.active
+                ? `הבא ${dayMonth(s.nextDate)}`
+                : `אחרון ${dayMonth(s.lastDate)}`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </div>
       <div className="shrink-0 text-end tabular-nums">
-        <div className="font-semibold">{formatCurrency(s.latestAmount)}</div>
+        <div className="font-semibold">{formatCurrencyWhole(s.latestAmount)}</div>
         {s.priceIncrease && (
-          <div className="text-xs text-muted-foreground line-through">{formatCurrency(s.priceIncrease.from)}</div>
+          <div className="text-xs text-muted-foreground line-through">{formatCurrencyWhole(s.priceIncrease.from)}</div>
         )}
       </div>
     </>

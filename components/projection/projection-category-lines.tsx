@@ -6,7 +6,7 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import { useTheme } from 'next-themes'
 import { SECTION } from '@/components/accounts/page-parts'
 import { useChartAxes } from '@/hooks/use-chart-axes'
-import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { categorySeries, type CategoryRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth, ProjectionCategory } from '@/lib/insights/projection'
@@ -35,7 +35,7 @@ function LinesTooltip({ active, payload, label, colors }: any) {
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[p.name] }} aria-hidden />
             {p.name}
           </span>
-          <span className="tabular-nums">{formatCurrency(p.value)}</span>
+          <span className="tabular-nums">{formatCurrencyWhole(p.value)}</span>
         </p>
       ))}
     </div>

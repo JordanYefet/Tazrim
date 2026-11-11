@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
@@ -43,19 +43,19 @@ function CustomTooltip({ active, payload, label }: any) {
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       {payload.length === 1 ? (
-        <p className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrency(payload[0].value)}</p>
+        <p className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrencyWhole(payload[0].value)}</p>
       ) : (
         <>
           {rows.map((p: any) => (
             <div key={p.dataKey} className="flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
               <span className="text-muted-foreground">{p.name}:</span>
-              <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrency(p.value)}</span>
+              <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
             </div>
           ))}
           <div className="mt-1 flex border-t pt-1 font-semibold">
             <span>סה״כ</span>
-            <span className="ms-auto ps-3 tabular-nums">{formatCurrency(total)}</span>
+            <span className="ms-auto ps-3 tabular-nums">{formatCurrencyWhole(total)}</span>
           </div>
         </>
       )}

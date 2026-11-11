@@ -58,7 +58,9 @@ export function CategoryPill({ name, color, sourceName, onClick, className }: {
       title={!name && sourceName ? `בקובץ: ${sourceName}` : (name ?? undefined)}
       className={cn(
         // One width for every category, so a column of pills lines up: room for the longest starting category; a longer custom name truncates (full name on hover)
-        'inline-flex h-7 w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
+        'relative inline-flex h-7 w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
+        // The hit area grows to 44px tall without moving anything
+        'before:absolute before:inset-x-0 before:-inset-y-2',
         name ? 'bg-muted/60' : 'border border-dashed text-muted-foreground',
         className
       )}
