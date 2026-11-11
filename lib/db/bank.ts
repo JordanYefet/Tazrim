@@ -187,6 +187,33 @@ export async function getBankBalancePoints(accountId: string, year: number, mont
 }
 
 /**
+ * An account's last known balance before the period starts (undefined: no
+ * rows earlier). Ignored rows still carry the bank's running balance.
+ */
+export async function getBankBalanceBefore(accountId: string, year: number, month?: number) {
+  const row = await prisma.bankTransaction.findFirst({
+    where: { accountId, date: { lt: new Date(year, month ? month - 1 : 0, 1) } },
+    orderBy: { date: 'desc' },
+    select: { balance: true },
+  })
+  return row?.balance
+}
+
+/**
+ * An account's balance at the end of the period: its newest row up to then,
+ * so an account idle in the period keeps its earlier balance (undefined: no
+ * rows by then).
+ */
+export async function getBankBalanceAt(accountId: string, year: number, month?: number) {
+  const row = await prisma.bankTransaction.findFirst({
+    where: { accountId, date: { lte: month ? new Date(year, month, 0, 23, 59, 59) : new Date(year, 12, 0, 23, 59, 59) } },
+    orderBy: { date: 'desc' },
+    select: { balance: true },
+  })
+  return row?.balance
+}
+
+/**
  * Monthly income/expense; `accountId` omitted = every bank account. `filter`
  * narrows to a merchant or search, and to a category (or bucket) as the table does.
  */
