@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -18,6 +18,8 @@ import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/c
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
+import { PhoneTransactionRows, PhoneRowActions, dayKey } from '@/components/transactions/phone-rows'
+import type { SearchResult } from '@/lib/search/query'
 
 interface CCTx {
   id: string
@@ -41,7 +43,7 @@ interface CCTx {
 
 const LABEL = Object.fromEntries(CARD_COLUMNS.map(c => [c.key, c.label])) as Record<CardColumn, string>
 const CARD_KEYS = CARD_COLUMNS.map(c => c.key)
-const TH = 'text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide'
+const TH = 'text-start py-2.5 px-4 font-medium text-xs text-muted-foreground'
 
 /** An optional column's cell (lib/tables/columns.ts) */
 function optionalCell(tx: CCTx, key: CardColumn) {
@@ -283,6 +285,24 @@ export function CardTransactionsTable({
 
   const hasFilter = activeMerchant || activeCategory
 
+  // The phone rows (components/transactions/phone-rows.tsx): the same charges as search results.
+  // The date is the purchase date, as the table's main date reads it
+  const phoneRows: SearchResult[] = transactions.map(tx => ({
+    id: tx.id,
+    source: 'card',
+    accountId: cardOf(tx),
+    accountName: scope.byId.get(cardOf(tx))?.name ?? '',
+    date: dayKey(tx.transactionDate),
+    dateMs: 0,
+    description: tx.merchantName,
+    amount: tx.chargedAmount,
+    category: known(tx) ?? undefined,
+    note: tx.notes || undefined,
+    ignored: tx.ignored,
+    recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
+  }))
+  const txById = new Map(transactions.map(t => [t.id, t]))
+
   return (
     <div className="space-y-3">
       {/* Toolbar */}
@@ -309,6 +329,7 @@ export function CardTransactionsTable({
           </div>
         ) : <div />}
         <div className="flex items-center gap-3">
+          {/* Columns only exist from md up; phones show rows */}
           <ColumnPicker kind="card" shown={columns} onChange={next => setColumns(next as CardColumn[])} />
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
@@ -338,7 +359,22 @@ export function CardTransactionsTable({
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
       <div data-swap className="rounded-xl surface overflow-hidden">
-        <div className="overflow-x-auto">
+        <PhoneTransactionRows
+          rows={phoneRows}
+          selected={selected}
+          canSelect={r => !txById.get(r.id)!.ignored}
+          onToggle={toggleSelected}
+          onOpen={r => setPicking(r.id)}
+          showAccount={scope.several}
+          amountNote={r => {
+            const tx = txById.get(r.id)!
+            return !tx.ignored && tx.originalCurrency !== '₪' ? `${tx.originalAmount} ${tx.originalCurrency}` : undefined
+          }}
+        />
+        {transactions.length === 0 && (
+          <p className="text-center py-10 text-muted-foreground text-sm md:hidden">אין עסקאות לתקופה זו</p>
+        )}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -518,18 +554,30 @@ export function CardTransactionsTable({
           setPicking(null)
           await saveCategory(tx, category, scope, pattern)
         }}
+        footer={tx => (
+          <PhoneRowActions
+            source="card"
+            id={tx.id}
+            seriesName={recurring[tx.id]?.name}
+            canMark={!tx.ignored && tx.chargedAmount > 0}
+            ignored={tx.ignored}
+            onToggleIgnored={async () => { setPicking(null); await toggleIgnored(tx) }}
+          />
+        )}
       />
     </div>
   )
 }
 
 /** The category window of one card charge (components/categories/category-picker.tsx) */
-function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
+function CardCategoryWindow({ tx, categories, colors, onClose, onSave, footer }: {
   tx: CCTx | undefined
   categories: Category[]
   colors: Record<string, string>
   onClose: () => void
   onSave: (tx: CCTx, category: string, scope: CardScope, pattern?: string) => Promise<void>
+  /** Phone-only row actions (components/transactions/phone-rows.tsx) */
+  footer?: (tx: CCTx) => ReactNode
 }) {
   // The last charge stays while the window animates out
   const [last, setLast] = useState<CCTx | undefined>(tx)
@@ -545,6 +593,8 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
       amountTone="expense"
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
       createKind="EXPENSE"
+      bodyDisabled={!!shown?.ignored}
+      footer={shown && footer?.(shown)}
       current={shown && categories.some(c => c.name === (shown.categoryOverride ?? shown.category)) ? shown.categoryOverride ?? shown.category : null}
       scopes={
         shown

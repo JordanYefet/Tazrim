@@ -22,10 +22,12 @@ import { AccountTag, tableScope, type TableAccount } from '@/components/accounts
 import { CardPaymentBadges } from '@/components/bank/card-payment-badge'
 import type { BadgeCard } from '@/lib/accounts/payment-badge'
 import { useTargetRow } from '@/hooks/use-target-row'
+import { PhoneTransactionRows, PhoneRowActions, dayKey } from '@/components/transactions/phone-rows'
+import type { SearchResult } from '@/lib/search/query'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 const BANK_KEYS = BANK_COLUMNS.map(c => c.key)
-const TH = 'text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide'
+const TH = 'text-start py-2.5 px-4 font-medium text-xs text-muted-foreground'
 
 interface BankTx {
   id: string
@@ -310,6 +312,23 @@ export function BankTransactionsTable({
     router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
+  // The phone rows (components/transactions/phone-rows.tsx): the same transactions as search results
+  const phoneRows: SearchResult[] = transactions.map(tx => ({
+    id: tx.id,
+    source: 'bank',
+    accountId: tx.accountId ?? accountId ?? '',
+    accountName: (tx.accountId ? scope.byId.get(tx.accountId)?.name : undefined) ?? '',
+    date: dayKey(tx.date),
+    dateMs: 0,
+    description: tx.description,
+    amount: tx.debit > 0 ? tx.debit : -tx.credit,
+    category: isCardPaymentRow(tx) ? CARD_PAYMENT_CATEGORY : (tx.category ?? undefined),
+    note: tx.note || undefined,
+    ignored: tx.ignored,
+    recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
+  }))
+  const txById = new Map(transactions.map(t => [t.id, t]))
+
   return (
     <div className="space-y-3">
       {/* Toolbar */}
@@ -339,6 +358,7 @@ export function BankTransactionsTable({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {/* Columns only exist from md up; phones show rows */}
           <ColumnPicker kind="bank" shown={columns} onChange={next => setColumns(next as BankColumn[])} />
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
@@ -367,7 +387,29 @@ export function BankTransactionsTable({
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
       <div ref={tableRef} data-swap className="rounded-xl surface overflow-hidden">
-        <div className="overflow-x-auto">
+        <PhoneTransactionRows
+          rows={phoneRows}
+          selected={selected}
+          canSelect={r => selectable(txById.get(r.id)!)}
+          onToggle={toggleSelected}
+          onOpen={r => setPicking(r.id)}
+          showAccount={scope.several}
+          meta={r => {
+            const tx = txById.get(r.id)!
+            return !tx.ignored && isCardPaymentRow(tx) ? (
+              <CardPaymentBadges
+                descriptions={[tx.originalDescription, tx.description]}
+                bankAccountId={tx.accountId ?? accountId}
+                date={tx.date}
+                cards={cards}
+              />
+            ) : null
+          }}
+        />
+        {transactions.length === 0 && (
+          <p className="text-center py-10 text-muted-foreground text-sm md:hidden">אין עסקאות לתקופה זו</p>
+        )}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -562,13 +604,23 @@ export function BankTransactionsTable({
           else await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
         }}
         onMarkGeneric={markGeneric}
+        footer={tx => (
+          <PhoneRowActions
+            source="bank"
+            id={tx.id}
+            seriesName={recurring[tx.id]?.name}
+            canMark={!tx.ignored && tx.debit > 0}
+            ignored={tx.ignored}
+            onToggleIgnored={async () => { setPicking(null); await toggleIgnored(tx) }}
+          />
+        )}
       />
     </div>
   )
 }
 
 /** The category window of one bank row (components/categories/category-picker.tsx) */
-function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, onMarkGeneric }: {
+function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, onMarkGeneric, footer }: {
   tx: BankTx | undefined
   generic: boolean
   categories: Category[]
@@ -576,6 +628,8 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
   onClose: () => void
   onSave: (tx: BankTx, category: string | null, scope: string | null, pattern?: string) => Promise<void>
   onMarkGeneric: (tx: BankTx, category: string | null) => void
+  /** Phone-only row actions (components/transactions/phone-rows.tsx) */
+  footer?: (tx: BankTx) => ReactNode
 }) {
   // The last row stays while the window animates out
   const [last, setLast] = useState<BankTx | undefined>(tx)
@@ -610,6 +664,8 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           ? { category: shown.suggestion.category, reason: `כמו ${formatCurrency(shown.suggestion.fromAmount)} ב־${formatDate(shown.suggestion.fromDate)}` }
           : undefined
       }
+      bodyDisabled={!!shown && !selectable(shown)}
+      footer={shown && footer?.(shown)}
       extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
       onSave={(category, scope, pattern) => (shown ? onSave(shown, category, scope, pattern) : undefined)}
     />

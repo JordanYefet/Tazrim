@@ -32,7 +32,9 @@ export function useTargetRow(container: React.RefObject<HTMLElement | null>, row
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
 
     if (!rowIds.includes(target)) return
-    const row = container.current?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(target)}"]`)
+    // A table and its phone rows both carry the id; the one on screen is the target
+    const row = [...(container.current?.querySelectorAll<HTMLElement>(`[data-row-id="${CSS.escape(target)}"]`) ?? [])]
+      .find(el => el.getClientRects().length > 0)
     if (!row) return
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches

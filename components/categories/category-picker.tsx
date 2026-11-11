@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, Plus, Search, TextSearch } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
@@ -91,6 +91,8 @@ export function CategoryPicker({
   extraAction,
   createKind,
   onSave,
+  footer,
+  bodyDisabled,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -116,6 +118,10 @@ export function CategoryPicker({
   createKind?: 'EXPENSE' | 'INCOME'
   /** `pattern`: the text of a contains-text scope, when that is the one picked */
   onSave: (category: string | null, scope: string | null, pattern?: string) => Promise<void> | void
+  /** Below the categories, e.g. row actions that only phones need */
+  footer?: ReactNode
+  /** The categories don't apply (a hidden row): shown dimmed and inert, the footer still works */
+  bodyDisabled?: boolean
 }) {
   return (
     <AppDialog
@@ -135,6 +141,7 @@ export function CategoryPicker({
     >
       {/* Remounted per opening, so it starts from the row's current category */}
       {open && (
+        <div inert={bodyDisabled} aria-disabled={bodyDisabled} className={cn(bodyDisabled && 'opacity-40 grayscale')}>
         <PickerBody
           categories={categories}
           current={current}
@@ -147,7 +154,9 @@ export function CategoryPicker({
           createKind={createKind}
           onSave={onSave}
         />
+        </div>
       )}
+      {open && footer}
     </AppDialog>
   )
 }
