@@ -10,7 +10,7 @@ import { getCCCategoryMonthly, getCCCategoryStats } from '@/lib/db/cards'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { mergeCategoryMonthly, mergeCategoryStats, UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { countUncategorized } from '@/lib/db/uncategorized'
-import { CategoryDonut } from '@/components/cards/category-donut'
+import { CategoryBars } from '@/components/dashboard/category-bars'
 import { UncategorizedCard } from '@/components/dashboard/uncategorized-card'
 import {
   insightsScopeOptions,
@@ -67,21 +67,23 @@ export default async function DashboardPage({
     // as of the latest statements, not the selected period
     getRecurringSeries({ accountId: activeIds }),
     latestTransactionDate(),
-    // The combined donut: the period's card charges and bank debits by category
+    // The categories card: the period's card charges and bank debits by category
     activeCards.length ? getCCCategoryStats(activeCards, Number(year), month) : {},
     activeBanks.length ? getBankCategoryStats(activeBanks, Number(year), month, 'OUT') : {},
     countUncategorized(activeIds),
   ])
-  // Bank and cards share the categories, so one donut holds both; the card payment is left out inside
-  const donutStats = mergeCategoryStats(cardStats, bankStats)
-  // A slice opens its transactions in search; "ללא קטגוריה" opens the uncategorized ones
-  const donutHrefs: Record<string, string> = {}
-  for (const c of Object.keys(donutStats)) {
+  // Bank and cards share the categories, so one list holds both; the card payment is left out inside
+  const categoryStats = mergeCategoryStats(cardStats, bankStats)
+  // A row opens its transactions in search; "ללא קטגוריה" opens the uncategorized ones
+  const rankedCategories = rankCategories(allCategoryMonthly)
+  const categoryHrefs: Record<string, string> = {}
+  // Every ranked category, also one with nothing this month: its row stays a link
+  for (const c of rankedCategories) {
     const href =
       c === UNCATEGORIZED
         ? uncategorizedSearchHref({ accountIds: activeIds, year, month })
         : combinedCategoryTransactionsHref({ accountIds: activeIds, category: c, year, month })
-    if (href) donutHrefs[c] = href
+    if (href) categoryHrefs[c] = href
   }
   const categoryMonthly =
     scope.kind === 'all' ? allCategoryMonthly : await scopedCategoryMonthly(scope, sources, Number(year))
@@ -106,7 +108,7 @@ export default async function DashboardPage({
   // Compare the selected month (or the latest month with card data) to earlier months
   const insightMonth = month ?? latestMonthWithData(categoryMonthly)
   const insights = insightMonth ? computeCategoryInsights(categoryMonthly, insightMonth) : null
-  const categoryColors = categoryColorMap(rankCategories(allCategoryMonthly))
+  const categoryColors = categoryColorMap(rankedCategories)
   const insightHrefs = insights
     ? Object.fromEntries(
         insights.items.map(i => [i.category, scopedCategoryHref(scope, sources, i.category, year, insights.month)])
@@ -201,15 +203,15 @@ export default async function DashboardPage({
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <CategoryDonut
-              pagePath="/"
+            <CategoryBars
               title="הוצאות לפי קטגוריה · בנק וכרטיסים"
-              data={Object.fromEntries(Object.entries(donutStats).map(([k, v]) => [k, v.total]))}
-              stats={donutStats}
+              subtitle="לחיצה על קטגוריה פותחת את העסקאות שלה"
+              ranked={rankedCategories}
+              amounts={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
               colors={categoryColors}
-              categoryHrefs={donutHrefs}
+              hrefs={categoryHrefs}
             />
-            {/* What deserves a look sits beside the donut, at full height */}
+            {/* What deserves a look sits beside the categories, at full height */}
             {/* The card remounts per range (its dismissals reset); the wrapper stays and eases the
                 new rows in. grid: the card still fills the row's height */}
             <DataSwap className="grid" swapKey={`${range.since}|${range.until}`}>
