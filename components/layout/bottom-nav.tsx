@@ -140,6 +140,9 @@ export function BottomNav() {
           <Link
             key={href}
             href={periodHref(tabHref(href))}
+            // The whole page, fetched ahead and kept (next.config.ts staleTimes): a tap lands on a page
+            // that is already here. Writes drop the kept pages (fresh-data.tsx)
+            prefetch
             aria-label={title ?? label}
             aria-current={tabActive(pathname, href) ? 'page' : undefined}
             data-slot

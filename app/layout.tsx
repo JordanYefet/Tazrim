@@ -8,6 +8,7 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { Header } from '@/components/layout/header'
 import { ReadOnlyGuard } from '@/components/layout/read-only-guard'
+import { FreshData } from '@/components/layout/fresh-data'
 import { isReadOnly } from '@/lib/read-only'
 import { BARE_HEADER } from '@/lib/auth/config'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
@@ -111,6 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
               </div>
               <BottomNav />
+              <FreshData />
               {readOnly && <ReadOnlyGuard />}
             </NavSectionsProvider>
             </MeProvider>
