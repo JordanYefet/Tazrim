@@ -50,7 +50,8 @@ export default async function DashboardPage({
   const month = params.month ? Number(params.month) : undefined
 
   // Every total covers the active (non-archived) accounts; archived ones keep their data
-  const summary = await getYearSummary(Number(year))
+  // latestTransactionDate doesn't depend on the summary, so it runs alongside it
+  const [summary, latest] = await Promise.all([getYearSummary(Number(year)), latestTransactionDate()])
   const activeCards = summary.accounts.cards
   const activeBanks = summary.accounts.bank
   const activeIds = [...activeBanks, ...activeCards]
@@ -58,17 +59,30 @@ export default async function DashboardPage({
   const sources = { bankIds: activeBanks, cardIds: activeCards }
   const scope: InsightsScope = { kind: 'all' }
 
-  const [allCategoryMonthly, recurring, latest, cardStats, bankStats, uncategorized] = await Promise.all([
+  // Unusual transactions: the selected month, a past year, or the 90 days up to
+  // the latest upload. Bank and card rows from every active account; the bank's card
+  // payment is excluded inside (card rows are its breakdown, not extra spend).
+  const today = new Date()
+  const unusualAnchor = latest && latest < today ? latest : today
+  const range = unusualRange({ year: Number(year), month, now: unusualAnchor })
+  // as of the latest statements, not the selected period
+  const recurringPromise = getRecurringSeries({ accountId: activeIds })
+
+  const [allCategoryMonthly, recurring, unusualRows, cardStats, bankStats, uncategorized] = await Promise.all([
     // Every source, as one year: the colors follow its ranking, so they don't shift when filtering
     scopedCategoryMonthly({ kind: 'all' }, sources, Number(year)),
-    // as of the latest statements, not the selected period
-    getRecurringSeries({ accountId: activeIds }),
-    latestTransactionDate(),
+    recurringPromise,
+    // A recurring charge's normal amount is never unusual (duplicates still are); it
+    // only waits for the recurring series, not for the category queries
+    recurringPromise.then(r =>
+      getUnusualTransactions({ ...range, accountId: activeIds, recurring: { ids: r.transactionIds } })
+    ),
     // The categories card: the period's card charges and bank debits by category
     activeCards.length ? getCCCategoryStats(activeCards, Number(year), month) : {},
     activeBanks.length ? getBankCategoryStats(activeBanks, Number(year), month, 'OUT') : {},
     countUncategorized(activeIds),
   ])
+  const unusual = asJson(unusualRows)
   // Bank and cards share the categories, so one list holds both; the card payment is left out inside
   const categoryStats = mergeCategoryStats(cardStats, bankStats)
   // A row opens its transactions in search; "ללא קטגוריה" opens the uncategorized ones
@@ -84,16 +98,6 @@ export default async function DashboardPage({
   }
   const categoryMonthly = allCategoryMonthly
 
-  // Unusual transactions: the selected month, a past year, or the 90 days up to
-  // the latest upload. Bank and card rows from every active account; the bank's card
-  // payment is excluded inside (card rows are its breakdown, not extra spend).
-  const today = new Date()
-  const unusualAnchor = latest && latest < today ? latest : today
-  const range = unusualRange({ year: Number(year), month, now: unusualAnchor })
-  // A recurring charge's normal amount is never unusual (duplicates still are)
-  const unusual = asJson(
-    await getUnusualTransactions({ ...range, accountId: activeIds, recurring: { ids: recurring.transactionIds } })
-  )
   const unusualSubtitle = month
     ? `תנועות חריגות ב${monthName(month)} ${year}`
     : Number(year) !== unusualAnchor.getFullYear()

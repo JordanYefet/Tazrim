@@ -45,6 +45,9 @@ interface SearchParams {
   showIgnored?: string
 }
 
+type CategoryStats = Awaited<ReturnType<typeof getCCCategoryStats>>
+type CategoryMonthly = Awaited<ReturnType<typeof getCCCategoryMonthly>>
+
 /** Every listed card's charges for the table: the same query and flags as a card's page (app/cards/[accountId]/page.tsx) */
 async function getTableData(ids: string[], params: SearchParams & { year: string }) {
   const year = Number(params.year)
@@ -89,23 +92,27 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
   const accounts = await listAccounts({ kind: 'CREDIT_CARD' })
-  const perCard = await Promise.all(
-    accounts.map(async (account, i) => {
-      const [monthly, stats] = await Promise.all([
-        getCCMonthlySummary(account.id, Number(year)),
-        getCCCategoryStats(account.id, Number(year), month),
-      ])
-      const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
-      const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
-      return { account, monthly, total, count, color: seriesColor(account.color, CARD_COLORS[i % CARD_COLORS.length]) }
-    })
-  )
-
-  // Every card's categories together, for the donut (colours ranked by the year, as on the analysis page)
   const ids = accounts.map(a => a.id)
-  const [categoryStats, categoryMonthly] = ids.length
-    ? await Promise.all([getCCCategoryStats(ids, Number(year), month), getCCCategoryMonthly(ids, Number(year))])
-    : [{}, {}]
+  // The per-card figures, the combined categories (for the donut: colours ranked by the
+  // year, as on the analysis page) and the table below all read independently, so they run together
+  const [perCard, [categoryStats, categoryMonthly], table] = await Promise.all([
+    Promise.all(
+      accounts.map(async (account, i) => {
+        const [monthly, stats] = await Promise.all([
+          getCCMonthlySummary(account.id, Number(year)),
+          getCCCategoryStats(account.id, Number(year), month),
+        ])
+        const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
+        const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
+        return { account, monthly, total, count, color: seriesColor(account.color, CARD_COLORS[i % CARD_COLORS.length]) }
+      })
+    ),
+    ids.length
+      ? Promise.all([getCCCategoryStats(ids, Number(year), month), getCCCategoryMonthly(ids, Number(year))])
+      : Promise.resolve<[CategoryStats, CategoryMonthly]>([{}, {}]),
+    // The table below the charts: every card's charges (skipped with no cards)
+    ids.length ? getTableData(ids, params) : null,
+  ])
 
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
   const { average } = cardPeriodTotals(combined, month)
@@ -119,7 +126,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     </PageHeading>
   )
 
-  if (accounts.length === 0) {
+  if (accounts.length === 0 || !table) {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         {heading}
@@ -139,8 +146,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     )
   }
 
-  // The table below the charts: every card's charges
-  const table = await getTableData(ids, params)
   const tableAccounts: TableAccount[] = perCard.map(c => ({
     id: c.account.id,
     name: c.account.displayName,

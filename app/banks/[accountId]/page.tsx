@@ -124,10 +124,13 @@ export default async function BankAccountPage({
   searchParams: Promise<SearchParams>
 }) {
   const { accountId } = await routeParams
-  const account = await getAccount(decodeURIComponent(accountId))
+  // The account and the resolved period don't depend on each other
+  const [account, params] = await Promise.all([
+    getAccount(decodeURIComponent(accountId)),
+    searchParams.then(withResolvedPeriod),
+  ])
   if (!account || account.kind !== 'BANK') notFound()
 
-  const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const {

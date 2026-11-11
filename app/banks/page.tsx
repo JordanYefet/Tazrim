@@ -107,21 +107,29 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const month = params.month ? Number(params.month) : undefined
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
+  // The cards a card-payment row links to (archived too: an old row keeps its card)
+  const cardAccountsPromise = listAccounts({ kind: 'CREDIT_CARD', includeArchived: true })
   const accounts = await listAccounts({ kind: 'BANK' })
-  const perAccount = await Promise.all(
-    accounts.map(async (account, i) => {
-      const [monthly, [latest], balancePoints, balanceBefore, balanceAt] = await Promise.all([
-        getBankMonthlySummary(Number(year), account.id),
-        // newest row in the period: its balance is the account's balance then
-        getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
-        getBankBalancePoints(account.id, Number(year), month),
-        getBankBalanceBefore(account.id, Number(year), month),
-        getBankBalanceAt(account.id, Number(year), month),
-      ])
-      const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
-      return { account, monthly, latest, balancePoints, balanceBefore, balanceAt, color, totals: bankPeriodTotals(monthly, month) }
-    })
-  )
+  // The per-account figures and the table below (every account's rows) read independently, so they run together
+  const [perAccount, table, cardAccounts] = await Promise.all([
+    Promise.all(
+      accounts.map(async (account, i) => {
+        const [monthly, [latest], balancePoints, balanceBefore, balanceAt] = await Promise.all([
+          getBankMonthlySummary(Number(year), account.id),
+          // newest row in the period: its balance is the account's balance then
+          getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
+          getBankBalancePoints(account.id, Number(year), month),
+          getBankBalanceBefore(account.id, Number(year), month),
+          getBankBalanceAt(account.id, Number(year), month),
+        ])
+        const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
+        return { account, monthly, latest, balancePoints, balanceBefore, balanceAt, color, totals: bankPeriodTotals(monthly, month) }
+      })
+    ),
+    // Skipped with no accounts (the empty state below)
+    accounts.length ? getTableData(accounts.map(a => a.id), params) : null,
+    cardAccountsPromise,
+  ])
 
   // Bank accounts only: card charges are already inside these expenses
   const combined = sumBankMonthly(perAccount.map(a => a.monthly))
@@ -139,7 +147,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
     </PageHeading>
   )
 
-  if (accounts.length === 0) {
+  if (accounts.length === 0 || !table) {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         {heading}
@@ -159,12 +167,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
     )
   }
 
-  // The table below the charts: every account's rows
-  // Archived cards too: an old card-payment row still links to the card it paid
-  const [table, cardAccounts] = await Promise.all([
-    getTableData(accounts.map(a => a.id), params),
-    listAccounts({ kind: 'CREDIT_CARD', includeArchived: true }),
-  ])
   const tableAccounts: TableAccount[] = perAccount.map(({ account, color }) => ({
     id: account.id,
     name: account.displayName,
