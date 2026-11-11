@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Building2, ChartPie, ChevronLeft, CreditCard, Ellipsis, House, Info, LayoutDashboard, Repeat, Settings, Tag, TrendingUp, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -11,6 +11,7 @@ import { isMoreActive } from '@/lib/nav/state'
 import { usePeriodHref } from './period-context'
 import { useOpenOrigin } from '@/components/ui/open-origin'
 import { SheetProfile, useMe } from './profile-menu'
+import { useTabBubble } from './tab-bubble'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -48,30 +49,72 @@ function TabIcon({ active, icon: Icon }: { active: boolean; icon: typeof LayoutD
 
 /**
  * Phone tab bar: a floating, translucent pill of icons (four sections plus
- * "עוד", a sheet with the rest). Labels live in aria-label only.
+ * "עוד", a sheet with the rest). Labels live in aria-label only. The selected
+ * tab's capsule can be held and dragged to another tab (tab-bubble.ts); a tap
+ * moves it on touch-down, before the page answers.
  */
 export function BottomNav() {
   const me = useMe()
   const pathname = usePathname()
   const periodHref = usePeriodHref()
   const [moreOpen, setMoreOpen] = useState(false)
+  // A link in the sheet was tapped and its page is on its way: every page the sheet
+  // opens lights "עוד", so the capsule stays there instead of falling back to the
+  // page being left while the server answers
+  const [leaving, setLeaving] = useState(false)
+  const leaveThroughSheet = () => {
+    setLeaving(true)
+    setMoreOpen(false)
+  }
   // The sheet rises out of the "עוד" tab: its x from the tap (or the focused tab)
   const sheetOrigin = useOpenOrigin()
 
   // A link in the sheet navigates; close it once the page changes
-  useEffect(() => setMoreOpen(false), [pathname])
+  useEffect(() => {
+    setMoreOpen(false)
+    setLeaving(false)
+  }, [pathname])
 
-  const moreActive = moreOpen || isMoreActive(pathname)
-  const tabIndex = moreOpen ? -1 : TABS.findIndex(t => isNavActive(pathname, t.href))
+  const sheetSide = moreOpen || leaving
+  const moreActive = sheetSide || isMoreActive(pathname)
+  const tabIndex = sheetSide ? -1 : TABS.findIndex(t => isNavActive(pathname, t.href))
   const activeSlot = moreActive ? TABS.length : tabIndex
+  // Where the capsule belongs once the sheet is closed: the page's own slot
+  const pageSlot = isMoreActive(pathname) ? TABS.length : TABS.findIndex(t => isNavActive(pathname, t.href))
+
+  const router = useRouter()
+  const navRef = useRef<HTMLElement>(null)
+  const capRef = useRef<HTMLSpanElement>(null)
+  const bubble = useTabBubble({
+    navRef,
+    capRef,
+    activeSlot,
+    routeKey: pathname,
+    onCommit: (slot, { dragged }) => {
+      if (slot === TABS.length) {
+        // Dropped on "עוד" opens the sheet; a tap on it toggles, as before
+        const open = dragged || !moreOpen
+        setMoreOpen(open)
+        return open ? TABS.length : pageSlot
+      }
+      setMoreOpen(false)
+      setLeaving(false)
+      if (!isNavActive(pathname, TABS[slot].href)) router.push(periodHref(TABS[slot].href))
+      return slot
+    },
+  })
 
   return (
     <nav
+      ref={navRef}
       aria-label="ניווט ראשי"
-      className="glass-pill fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[45] mx-auto flex h-16 w-[min(22rem,calc(100%-2rem))] rounded-full p-1.5 md:hidden"
+      {...bubble}
+      // Over an open sheet too (Radix turns the page's pointer events off): the capsule can be dragged out of "עוד"
+      className="tab-bar glass-pill pointer-events-auto fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[45] mx-auto flex h-16 w-[min(22rem,calc(100%-2rem))] rounded-full p-1.5 md:hidden"
     >
       {/* Active highlight: one capsule that glides to the selected slot */}
       <span
+        ref={capRef}
         aria-hidden
         style={{ '--slot': Math.max(activeSlot, 0) } as React.CSSProperties}
         className={cn(
@@ -81,13 +124,15 @@ export function BottomNav() {
       />
 
       {TABS.map(({ href, label, title, icon }) => {
-        const active = !moreOpen && isNavActive(pathname, href)
+        const active = !sheetSide && isNavActive(pathname, href)
         return (
           <Link
             key={href}
             href={periodHref(href)}
             aria-label={title ?? label}
             aria-current={isNavActive(pathname, href) ? 'page' : undefined}
+            data-slot
+            draggable={false}
             className={cn(TAB, active ? 'text-primary' : 'text-foreground/60')}
           >
             <TabIcon active={active} icon={icon} />
@@ -97,6 +142,7 @@ export function BottomNav() {
 
       <Dialog.Root open={moreOpen} onOpenChange={setMoreOpen}>
         <Dialog.Trigger
+          data-slot
           className={cn(TAB, moreActive ? 'text-primary' : 'text-foreground/60')}
           aria-label="עוד: תחזית, העלאת קבצים, ניתוח לפי קטגוריה, קטגוריות, הגדרות, אודות"
         >
@@ -107,6 +153,10 @@ export function BottomNav() {
           <Dialog.Overlay className="sheet-scrim fixed inset-0 z-40 bg-black/45 md:hidden" />
           <Dialog.Content
             ref={sheetOrigin}
+            // A touch on the tab bar is the capsule's (it may be dragging out of "עוד"), not a tap outside
+            onInteractOutside={e => {
+              if (navRef.current?.contains(e.target as Node)) e.preventDefault()
+            }}
             dir="rtl"
             aria-describedby={undefined}
             className="sheet fixed inset-x-3 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.75rem)] z-50 overflow-hidden rounded-3xl surface-overlay text-card-foreground focus:outline-none md:hidden"
@@ -115,7 +165,7 @@ export function BottomNav() {
             <div aria-hidden className="flex justify-center pt-2">
               <span className="h-1 w-9 rounded-full bg-border" />
             </div>
-            <SheetProfile onNavigate={() => setMoreOpen(false)} />
+            <SheetProfile onNavigate={leaveThroughSheet} />
             <ul className="pb-1">
               {(me ? MORE_LINKS.filter(l => !SIGNED_IN_ELSEWHERE.includes(l.href)) : MORE_LINKS).map(({ href, label, hint, icon: Icon }, i) => {
                 const active = isNavActive(pathname, href)
@@ -125,7 +175,7 @@ export function BottomNav() {
                     <Link
                       href={periodHref(href)}
                       aria-current={active ? 'page' : undefined}
-                      onClick={() => setMoreOpen(false)}
+                      onClick={leaveThroughSheet}
                       className={cn(
                         'flex min-h-12 items-center gap-3.5 px-4 py-3.5 text-[15px] transition-colors active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                         active && 'text-primary'
