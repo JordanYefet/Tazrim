@@ -67,10 +67,10 @@ Chart colours are complete colour values (hex), not triplets, so JavaScript and 
 | `--chart-3` | #b8732a | #d4955a | Series 3 |
 | `--chart-4` | #d94040 | #e05c52 | Series 4 |
 | `--chart-5` | #8b62c9 | #9b72cf | Series 5 |
-| `--chart-6` | #2eb8a0 | #3bb8a8 | Series 6 |
+| `--chart-6` | #28a08b | #3bb8a8 | Series 6 |
 | `--chart-7` | #d96840 | #e07a5f | Series 7 |
 | `--chart-8` | #c45c9a | #d67ab1 | Series 8 |
-| `--chart-9` | #7aab38 | #8bc34a | Series 9 |
+| `--chart-9` | #6e9b32 | #8bc34a | Series 9 |
 | `--chart-10` | #3090c0 | #40b4c4 | Series 10 |
 
 `lib/nav/state.ts` also hands accounts a positional colour from this palette (`CARD_COLORS`, `BANK_COLORS`) when their brand has no face of its own.
@@ -266,7 +266,6 @@ Found while reading the code. Nothing here is fixed in this change.
 - **Edit window is not built on AppDialog.** `components/accounts/edit-account-dialog.tsx` has its own `Dialog.Root` with a copy of AppDialog's classes (and a different width and bottom padding), although `AppDialog` says every window builds on it. Follow-up: render it through `AppDialog` with a `className`.
 - **Unused create mode of the account form.** Since the add-account sheet, `AccountForm`'s create mode (`components/accounts/add-account-form.tsx`) has no caller; only the edit window uses the form. Follow-up: remove the create branches, keeping the edit form.
 - **Defined but unused tokens.** `--income-foreground`, `--expense-foreground` and `--cc-foreground` are defined in light and dark but nothing reads them. Follow-up: remove, or use them for text on those fills.
-- **Light category colours under 3:1.** In light mode `--chart-6` (#2eb8a0, 2.5:1) and `--chart-9` (#7aab38, 2.7:1), and with them `--category-6` and `--category-9`, fall short of the 3:1 a dot or a bar needs against the white card; the dark set clears it everywhere. Follow-up: darken the two light values (the hues can stay), then recheck the adjacent pairs with the dataviz validator.
 - **Tokens outside the registry.** The registry (and so `/design`) covers 49 of the custom properties; others such as `--acct-glass`, `--acct-ink-dark`, the account face stops (face-a, b, c, set inline) and the page-background tile properties (set from a cookie) are documented only in prose. `--acct-ink-dark` has no dark value (intentional: it is the ink for light faces). Follow-up: decide whether account tokens join the registry.
 - **Brand colours duplicated in TypeScript.** `lib/brand/colors.ts` mirrors `--primary`, `--background` and `--card` as hex for the app icon and manifest; the ink `#16181d` in `components/accounts/color-picker.tsx` repeats `--acct-ink-dark` (22 24 29). Both must be kept in step by hand. Follow-up: a test that compares them with `app/globals.css`.
 - **One transition without a motion token.** `.acct-material--light` in `app/globals.css` uses `var(--motion-fast) ease` instead of `var(--ease-ui)`, and `CHART_ANIMATION` uses `ease-out` (the Recharts name) rather than `EASE.ui`. Follow-up: align, or note why.
