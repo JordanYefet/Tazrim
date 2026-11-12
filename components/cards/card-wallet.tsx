@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type Dispatch,
   type MouseEvent,
   type ReactNode,
@@ -29,8 +30,8 @@ import { overlaps, type UnderFace } from '@/lib/glass/under'
 import { formatNet } from '@/lib/utils/currency'
 import {
   MORE_ID,
+  OPEN_AT_TOP_QUERY,
   POCKET_HEIGHT_CQW,
-  boxHeight,
   placements,
   pocketTop,
   predictCardPlacement,
@@ -39,6 +40,7 @@ import {
   stackLayout,
   translateYOf,
   walletModeFor,
+  walletVars,
   type CardPlacement,
   type WalletMode,
 } from '@/lib/cards/wallet-motion'
@@ -249,6 +251,27 @@ function swapCard(el: HTMLElement, to: CardPlacement, role: 'in' | 'out'): Anima
 }
 
 const SHIFT_ID = 'wallet-shift'
+
+const SLIDE_ID = 'wallet-slide'
+/**
+ * Phones: the box changed height with the mode (an open card's box is the card's
+ * height, the stack's is taller; lib/cards/wallet-motion.ts, OPEN_Y). The page
+ * under the wallet is already in its new place: it starts `by` px from there and
+ * slides in on the cards' spring, so it moves with the card rather than jumping.
+ * `translate` only (no layout per frame; the page's own entrance uses `transform`).
+ */
+function slideBelow(box: HTMLElement, by: number) {
+  if (prefersReducedMotion()) return
+  const shell = box.closest('.wallet-shell')
+  if (!shell) return
+  for (const el of shell.querySelectorAll<HTMLElement>('.wallet-shell__switch, .wallet-shell__beside, .wallet-shell__rest')) {
+    // From where it is on screen now (a slide still running carries on from there)
+    const from = translateYOf(getComputedStyle(el).translate) + by
+    el.getAnimations().find(a => a.id === SLIDE_ID)?.cancel()
+    if (Math.abs(from) < 0.5) continue
+    el.animate(carryFrames(from, 0), { id: SLIDE_ID, duration: SPRING.duration, fill: 'backwards' })
+  }
+}
 /** Each running carry's offsets (px), so a foreseen box move can carry it on */
 const shifts = new WeakMap<Animation, { from: number; to: number }>()
 
@@ -428,8 +451,9 @@ export function CardWallet({
     <div className="wallet-shell mx-auto max-w-7xl" data-pending={pending || undefined} aria-busy={pending || undefined}>
       {children}
       <div className="wallet-shell__wallet">
-        {/* The box keeps the route's height until the route arrives, so the page
-            under it does not jump while the cards are already moving */}
+        {/* The box's height is CSS (lib/cards/wallet-motion.ts, OPEN_Y): the stack's on
+            a desktop in both modes; on a phone it follows the cards on tap and the page
+            under it slides with them (slideBelow) */}
         <Wallet
           kind={kind}
           cards={cards}
@@ -511,6 +535,8 @@ function Wallet({
   const [initialPocket] = useState(() => pocketPlace(mode))
   const lastMode = useRef(mode)
   const lastTop = useRef<number | null>(null)
+  // The box's height at the last render (phones: it follows the mode, see slideBelow)
+  const lastBoxHeight = useRef<number | null>(null)
   // The open card shows its total as it lands (from LAND_AT of its motion), and hides it as soon as it moves
   const [settledId, setSettledId] = useState<string | null>(mode.kind === 'open' ? mode.id : null)
 
@@ -523,15 +549,17 @@ function Wallet({
     const r = b.getBoundingClientRect()
     return { x: r.left + window.scrollX, y: learnedBoxTop.get(boxKey(m.kind, r.width)) ?? r.top + window.scrollY, width: r.width }
   }
+  // Phones put the open card at the top of the box (OPEN_Y)
+  const openAtTop = () => window.matchMedia(OPEN_AT_TOP_QUERY).matches
   // Where a card's glass will be in a mode, with the cards behind it there (ENG-81): in the
   // stack, the cards before it in stackOrder that reach under it; open, none (they are hidden)
   const glassPlacement = (m: WalletMode, id: string, box: { x: number; y: number; width: number }): Placement | null => {
-    const p = predictCardPlacement(m, id, stackOrder, box)
+    const p = predictCardPlacement(m, id, stackOrder, box, openAtTop())
     if (!p || m.kind !== 'stack') return p
     const near = { x: p.rect.x - UNDER_REACH, y: p.rect.y - UNDER_REACH, width: p.rect.width + 2 * UNDER_REACH, height: p.rect.height + 2 * UNDER_REACH }
     const under: UnderFace[] = []
     for (const other of stackOrder.slice(0, stackOrder.indexOf(id))) {
-      const op = predictCardPlacement(m, other, stackOrder, box)
+      const op = predictCardPlacement(m, other, stackOrder, box, openAtTop())
       const face = elements.current.get(other)?.querySelector<HTMLElement>('.acct-face')
       const look = face && faceLook(face)
       if (op && look && overlaps(op.rect, near)) under.push({ rect: op.rect, radius: look.radius * op.scaleX, colors: look.colors })
@@ -551,6 +579,12 @@ function Wallet({
     // The pocket's total belongs to the stack on screen: drop it when the stack closes
     if (mode.kind !== 'stack') setStackTotal(null)
     setSettledId(null)
+    // Phones: the box took the new mode's height; the page under it slides with the cards
+    const shrinking = boxRef.current
+    if (shrinking && lastBoxHeight.current !== null) {
+      const by = lastBoxHeight.current - shrinking.offsetHeight
+      if (Math.abs(by) >= 0.5) slideBelow(shrinking, by)
+    }
     // The pocket drops away with the other cards (or rises back with them)
     if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), {})
     // Glass cards show the glass baked for where they are going, from the start of the motion
@@ -604,6 +638,7 @@ function Wallet({
   useLayoutEffect(() => {
     const box = boxRef.current
     if (!box) return
+    lastBoxHeight.current = box.offsetHeight
     const top = box.getBoundingClientRect().top + window.scrollY
     const prevTop = lastTop.current
     lastTop.current = top
@@ -638,8 +673,8 @@ function Wallet({
     mode.kind === 'open' && heroTotal?.accountId === mode.id && settledId === mode.id ? heroTotal : null
 
   return (
-    <div className="wallet" data-mode={mode.kind} data-kind={kind}>
-      <div ref={boxRef} className="wallet__box" style={{ height: boxHeight(heightMode, stackOrder.length) }}>
+    <div className="wallet" data-mode={mode.kind} data-kind={kind} style={walletVars(stackOrder.length) as CSSProperties}>
+      <div ref={boxRef} className="wallet__box">
         {cards.map(c => {
           const p = place.get(c.id)!
           const first = initial.get(c.id) ?? p

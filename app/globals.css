@@ -1064,8 +1064,19 @@ html {
    mode. Positions are CSS (container units) so the server render is already
    right; card-wallet.tsx animates between them with WAAPI. Card height is
    63.08% of the width (85.6 × 54); a stack strip is max(52px, 17cqw). */
-.wallet { container-type: inline-size; }
-.wallet__box { position: relative; }
+.wallet { container-type: inline-size; --wallet-open-y: 0px; }
+/* The box is the stack's height (--wallet-box-h, set by the wallet). On a phone an
+   open card goes to the top and the box is that card's height, so there is no empty
+   band above and below it; the page under the wallet slides up with the card
+   (card-wallet.tsx). A desktop keeps the stack's height and centres the open card,
+   so the figures beside the wallet never move (lib/cards/wallet-motion.ts, OPEN_Y). */
+.wallet__box { position: relative; height: var(--wallet-box-h); }
+@media (max-width: 1023.98px) {
+  .wallet[data-mode='open'] .wallet__box { height: 63.0841cqw; }
+}
+@media (min-width: 1024px) {
+  .wallet { --wallet-open-y: var(--wallet-open-y-lg); }
+}
 .wallet-card {
   position: absolute;
   inset: 0 0 auto;
