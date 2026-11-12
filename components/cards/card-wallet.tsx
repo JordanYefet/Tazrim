@@ -413,13 +413,19 @@ export function CardWallet({
     for (const c of cards) router.prefetch(withQuery(c.path, period))
   }, [router, cards, period, base])
 
+  // Between a tap and the page it opens, the page on screen is the old one: its
+  // figures and rows dim a little (app/globals.css), as on a period change; the
+  // wallet itself is already moving and stays as it is. A tap on the page already
+  // shown sets an intent but goes nowhere, so it does not dim.
+  const pending = intent !== null && new URL(intent, 'http://x').pathname !== pathname
+
   if (routeMode.kind === 'none') return <>{children}</>
 
   return (
     <HeroTotalContext.Provider value={setHeroTotal}>
     <StackTotalContext.Provider value={setStackTotal}>
     <StackNetContext.Provider value={setStackNet}>
-    <div className="wallet-shell mx-auto max-w-7xl">
+    <div className="wallet-shell mx-auto max-w-7xl" data-pending={pending || undefined} aria-busy={pending || undefined}>
       {children}
       <div className="wallet-shell__wallet">
         {/* The box keeps the route's height until the route arrives, so the page

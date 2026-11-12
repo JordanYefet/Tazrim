@@ -1050,6 +1050,15 @@ html {
    the same entrance as every other page (.page-in) */
 .wallet-shell__beside,
 .wallet-shell__rest { animation: page-in var(--motion-page) var(--ease-ui) backwards; }
+/* Between a tap on an account (or the stack) and its page, the page on screen dims
+   as on a period change (components/layout/page-main.tsx): after a beat, so a page
+   the browser already holds swaps without a blink; the wallet is not dimmed */
+.wallet-shell__beside,
+.wallet-shell__rest { transition: opacity var(--motion-fast) var(--ease-ui) 0ms; }
+.wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest) {
+  opacity: 0.6;
+  transition-delay: var(--motion-quick);
+}
 
 /* The wallet: cards are absolutely placed in a box whose height follows the
    mode. Positions are CSS (container units) so the server render is already
@@ -1108,7 +1117,7 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .wallet-card__link { transition: none; }
   .wallet-shell__beside,
-  .wallet-shell__rest { animation: none; }
+  .wallet-shell__rest { animation: none; transition: none; }
 }
 
 /* ── The leather card holder on /cards (round 7) ──
