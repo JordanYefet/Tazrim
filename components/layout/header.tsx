@@ -1,12 +1,13 @@
 'use client'
 
+import { useOptimistic } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { SearchButton } from '@/components/search/search-button'
 import { CommandSearch } from '@/components/search/command-search'
 import { useHeaderHidden } from '@/hooks/use-header-hidden'
 import { cn } from '@/lib/utils/cn'
 import { isPeriodPath, periodQuery, samePeriod, type Period } from '@/lib/period'
-import { useCurrentPeriod, useRememberPeriod, useToday } from './period-context'
+import { useCurrentPeriod, usePeriodTransition, useRememberPeriod, useToday } from './period-context'
 import { PeriodPicker } from './period-picker'
 import { TodayButton } from './today-button'
 import { ReadOnlyBadge } from './read-only-guard'
@@ -27,6 +28,9 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
   const remember = useRememberPeriod()
   // The URL's period on a period page, else the remembered one
   const current = useCurrentPeriod()
+  // The picker shows the period chosen at once; the URL (and the page) follow when it has loaded
+  const [shown, show] = useOptimistic(current)
+  const startPeriod = usePeriodTransition()
   const today = useToday()
 
   function update(next: Period) {
@@ -37,8 +41,12 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
     // Year always written, so "all months" is explicit in the URL
     const sp = new URLSearchParams(periodQuery(next))
     for (const [k, v] of params) if (k !== 'year' && k !== 'month') sp.append(k, v)
-    // Same page, new period: keep the reader where they were
-    router.push(`${pathname}?${sp.toString()}`, { scroll: false })
+    // Same page, new period: keep the reader where they were. The page on screen stays,
+    // dimmed, until the new one arrives (period-context.tsx, PageMain)
+    startPeriod(() => {
+      show(next)
+      router.push(`${pathname}?${sp.toString()}`, { scroll: false })
+    })
   }
 
   return (
@@ -59,8 +67,8 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
         <div className="flex min-w-0 items-center">{readOnly ? <ReadOnlyBadge /> : <SyncButton />}</div>
         {/* The picker and, away from this month, the way back to it; the pair stays centred */}
         <div data-period-controls className="flex items-center">
-          <PeriodPicker period={{ year: current.year, month: current.month }} onChange={update} />
-          <TodayButton show={!samePeriod(current, today)} onClick={() => update(today)} />
+          <PeriodPicker period={{ year: shown.year, month: shown.month }} onChange={update} />
+          <TodayButton show={!samePeriod(shown, today)} onClick={() => update(today)} />
         </div>
 
         <div className="flex items-center justify-end gap-2">

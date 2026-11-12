@@ -10,21 +10,13 @@ import { getCCCategoryMonthly, getCCCategoryStats } from '@/lib/db/cards'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { mergeCategoryMonthly, mergeCategoryStats, UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { countUncategorized } from '@/lib/db/uncategorized'
-import { CategoryDonut } from '@/components/cards/category-donut'
+import { CategoryBars } from '@/components/dashboard/category-bars'
 import { UncategorizedCard } from '@/components/dashboard/uncategorized-card'
 import {
-  insightsScopeOptions,
-  resolveInsightsScope,
   scopeAccounts,
-  scopeParam,
   type InsightsScope,
 } from '@/lib/insights/insights-scope'
-import {
-  bankCategoryTransactionsHref,
-  categoryTransactionsHref,
-  combinedCategoryTransactionsHref,
-  uncategorizedSearchHref,
-} from '@/lib/accounts/category-links'
+import { categoryYearHref, uncategorizedSearchHref } from '@/lib/accounts/category-links'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { bankMonthTotal, cardBreakdown, cardLabel, monthTotal } from '@/lib/utils/year-summary'
 import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
@@ -34,6 +26,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { UnusualCard } from '@/components/dashboard/unusual-card'
 import { getUnusualTransactions, latestTransactionDate, unusualRange } from '@/lib/db/unusual'
 import { MissingStatementsNotice } from '@/components/dashboard/missing-statements-notice'
+import { finishedMonths, monthProgress } from '@/lib/insights/month-progress'
 import { monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { DataDeletedNotice } from '@/components/dashboard/data-deleted-notice'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -52,38 +45,13 @@ export default async function DashboardPage({
   const month = params.month ? Number(params.month) : undefined
 
   // Every total covers the active (non-archived) accounts; archived ones keep their data
-  const summary = await getYearSummary(Number(year))
+  // latestTransactionDate doesn't depend on the summary, so it runs alongside it
+  const [summary, latest] = await Promise.all([getYearSummary(Number(year)), latestTransactionDate()])
   const activeCards = summary.accounts.cards
   const activeBanks = summary.accounts.bank
   const activeIds = [...activeBanks, ...activeCards]
-  // Category insights: bank and cards together, or ?card=bank|cards|<card id> (lib/insights/insights-scope)
+  // Category insights cover bank and cards together (the scope pills are gone, ENG-117)
   const sources = { bankIds: activeBanks, cardIds: activeCards }
-  const scope = resolveInsightsScope(params.card, sources)
-
-  const [allCategoryMonthly, recurring, latest, cardStats, bankStats, uncategorized] = await Promise.all([
-    // Every source, as one year: the colors follow its ranking, so they don't shift when filtering
-    scopedCategoryMonthly({ kind: 'all' }, sources, Number(year)),
-    // as of the latest statements, not the selected period
-    getRecurringSeries({ accountId: activeIds }),
-    latestTransactionDate(),
-    // The combined donut: the period's card charges and bank debits by category
-    activeCards.length ? getCCCategoryStats(activeCards, Number(year), month) : {},
-    activeBanks.length ? getBankCategoryStats(activeBanks, Number(year), month, 'OUT') : {},
-    countUncategorized(activeIds),
-  ])
-  // Bank and cards share the categories, so one donut holds both; the card payment is left out inside
-  const donutStats = mergeCategoryStats(cardStats, bankStats)
-  // A slice opens its transactions in search; "ללא קטגוריה" opens the uncategorized ones
-  const donutHrefs: Record<string, string> = {}
-  for (const c of Object.keys(donutStats)) {
-    const href =
-      c === UNCATEGORIZED
-        ? uncategorizedSearchHref({ accountIds: activeIds, year, month })
-        : combinedCategoryTransactionsHref({ accountIds: activeIds, category: c, year, month })
-    if (href) donutHrefs[c] = href
-  }
-  const categoryMonthly =
-    scope.kind === 'all' ? allCategoryMonthly : await scopedCategoryMonthly(scope, sources, Number(year))
 
   // Unusual transactions: the selected month, a past year, or the 90 days up to
   // the latest upload. Bank and card rows from every active account; the bank's card
@@ -91,10 +59,37 @@ export default async function DashboardPage({
   const today = new Date()
   const unusualAnchor = latest && latest < today ? latest : today
   const range = unusualRange({ year: Number(year), month, now: unusualAnchor })
-  // A recurring charge's normal amount is never unusual (duplicates still are)
-  const unusual = asJson(
-    await getUnusualTransactions({ ...range, accountId: activeIds, recurring: { ids: recurring.transactionIds } })
-  )
+  // as of the latest statements, not the selected period
+  const recurringPromise = getRecurringSeries({ accountId: activeIds })
+
+  const [allCategoryMonthly, recurring, unusualRows, cardStats, bankStats, uncategorized] = await Promise.all([
+    // Every source, as one year: the colors follow its ranking, so they don't shift when filtering
+    scopedCategoryMonthly({ kind: 'all' }, sources, Number(year)),
+    recurringPromise,
+    // A recurring charge's normal amount is never unusual (duplicates still are); it
+    // only waits for the recurring series, not for the category queries
+    recurringPromise.then(r =>
+      getUnusualTransactions({ ...range, accountId: activeIds, recurring: { ids: r.transactionIds } })
+    ),
+    // The categories card: the period's card charges and bank debits by category
+    activeCards.length ? getCCCategoryStats(activeCards, Number(year), month) : {},
+    activeBanks.length ? getBankCategoryStats(activeBanks, Number(year), month, 'OUT') : {},
+    countUncategorized(activeIds),
+  ])
+  const unusual = asJson(unusualRows)
+  // Bank and cards share the categories, so one list holds both; the card payment is left out inside
+  const categoryStats = mergeCategoryStats(cardStats, bankStats)
+  // A row opens the category's year (/analysis/category/<name>); "ללא קטגוריה" is not a
+  // category, so it opens the uncategorized rows in search, as before
+  const rankedCategories = rankCategories(allCategoryMonthly)
+  const categoryHrefs: Record<string, string> = {}
+  // Every ranked category, also one with nothing this month: its row stays a link
+  for (const c of rankedCategories) {
+    categoryHrefs[c] =
+      c === UNCATEGORIZED ? uncategorizedSearchHref({ accountIds: activeIds, year, month }) : categoryYearHref(c, { year, month })
+  }
+  const categoryMonthly = allCategoryMonthly
+
   const unusualSubtitle = month
     ? `תנועות חריגות ב${monthName(month)} ${year}`
     : Number(year) !== unusualAnchor.getFullYear()
@@ -105,10 +100,10 @@ export default async function DashboardPage({
   // Compare the selected month (or the latest month with card data) to earlier months
   const insightMonth = month ?? latestMonthWithData(categoryMonthly)
   const insights = insightMonth ? computeCategoryInsights(categoryMonthly, insightMonth) : null
-  const categoryColors = categoryColorMap(rankCategories(allCategoryMonthly))
+  const categoryColors = categoryColorMap(rankedCategories)
   const insightHrefs = insights
     ? Object.fromEntries(
-        insights.items.map(i => [i.category, scopedCategoryHref(scope, sources, i.category, year, insights.month)])
+        insights.items.map(i => [i.category, categoryYearHref(i.category, { year, month: insights.month })])
       )
     : {}
 
@@ -130,15 +125,14 @@ export default async function DashboardPage({
   const bankHint = banks.length === 1 ? accountName(banks[0]) : banks.length > 1 ? `${banks.length} חשבונות` : 'בנק'
   const cardHint = multiCard ? `${activeCards.length} כרטיסים` : cardsName
   const cardSplit = multiCard ? cardBreakdown(summary, month).map(c => ({ label: cardLabel(c), value: c.total })) : undefined
-  const scopeOptions = insightsScopeOptions({
-    hasBank: activeBanks.length > 0,
-    cards: activeCards.map(id => ({ id, label: cardLabel(summary.byAccount[id]) })),
-  })
 
   // Bank expenses already include the monthly card payment, so card charges
   // are a breakdown of that money — never add them on top.
-  // Always the yearly average, so a selected month can be compared with it
-  const averageExpense = monthlyAverage(Object.fromEntries(Object.entries(bank).map(([m, v]) => [m, v.expense])))
+  // Always the yearly average, so a selected month can be compared with it; the month
+  // in progress is left out, its partial total would drag the average down (ENG-107)
+  const averageExpense = monthlyAverage(
+    Object.fromEntries(Object.entries(finishedMonths(Number(year), bank)).map(([m, v]) => [m, v.expense]))
+  )
 
   const hasData =
     Object.values(bank).some(m => m.income > 0 || m.expense > 0) ||
@@ -171,6 +165,7 @@ export default async function DashboardPage({
             averageExpense={averageExpense}
             monthLabel={month ? monthName(month) : undefined}
             monthHasData={!!month && (monthHasData(bank, month) || monthHasData(cards, month))}
+            progress={month ? monthProgress(Number(year), month) : undefined}
             query={query}
             bankHint={bankHint}
             cardHint={cardHint}
@@ -189,22 +184,19 @@ export default async function DashboardPage({
               insights={insights}
               month={insightMonth}
               colors={categoryColors}
-              options={scopeOptions}
-              selected={scopeParam(scope)}
-              query={query}
               hrefs={insightHrefs}
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <CategoryDonut
-              pagePath="/"
+            <CategoryBars
               title="הוצאות לפי קטגוריה · בנק וכרטיסים"
-              data={Object.fromEntries(Object.entries(donutStats).map(([k, v]) => [k, v.total]))}
-              stats={donutStats}
+              subtitle="לחיצה על קטגוריה פותחת את השנה שלה"
+              ranked={rankedCategories}
+              amounts={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
               colors={categoryColors}
-              categoryHrefs={donutHrefs}
+              hrefs={categoryHrefs}
             />
-            {/* What deserves a look sits beside the donut, at full height */}
+            {/* What deserves a look sits beside the categories, at full height */}
             {/* The card remounts per range (its dismissals reset); the wrapper stays and eases the
                 new rows in. grid: the card still fills the row's height */}
             <DataSwap className="grid" swapKey={`${range.since}|${range.until}`}>
@@ -259,13 +251,4 @@ async function scopedCategoryMonthly(scope: InsightsScope, sources: Sources, yea
     bankIds.length ? getBankCategoryMonthly(bankIds, year, 'OUT', { cardPayments: 'exclude' }) : {},
   ])
   return mergeCategoryMonthly(cards, bank)
-}
-
-/** Where an insight's category opens its transactions in that month */
-function scopedCategoryHref(scope: InsightsScope, sources: Sources, category: string, year: string, month: number) {
-  const { bankIds, cardIds } = scopeAccounts(scope, sources)
-  const period = { category, year, month }
-  if (!bankIds.length) return categoryTransactionsHref({ cardIds, ...period })
-  if (!cardIds.length) return bankCategoryTransactionsHref({ accountIds: bankIds, ...period })
-  return combinedCategoryTransactionsHref({ accountIds: [...bankIds, ...cardIds], ...period })
 }

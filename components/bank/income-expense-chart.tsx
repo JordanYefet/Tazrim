@@ -2,11 +2,12 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { usePeriodNavigation } from '@/components/layout/period-context'
 import { Suspense } from 'react'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
@@ -42,7 +43,7 @@ function CustomTooltip({ active, payload, label, hidden }: any) {
         <div key={p.name} className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.fill }} />
           <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-medium text-foreground tabular-nums">{formatCurrency(p.value)}</span>
+          <span className="font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
         </div>
       ))}
     </div>
@@ -52,7 +53,8 @@ function CustomTooltip({ active, payload, label, hidden }: any) {
 function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flow }: Props) {
   const showIncome = flow !== 'OUT'
   const showExpense = flow !== 'IN'
-  const router = useRouter()
+  // A month click changes the period in place: the page stays, dimmed, until the next one arrives
+  const navigate = usePeriodNavigation()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -76,9 +78,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flo
 
   function handleClick(month: number | undefined) {
     if (!month) return
-    router.push(withQueryString(accountPath('BANK', accountId), toggleMonthQuery(params.toString(), month)), {
-      scroll: false,
-    })
+    navigate(withQueryString(accountPath('BANK', accountId), toggleMonthQuery(params.toString(), month)))
   }
 
   const chartData = useStableData(rows)

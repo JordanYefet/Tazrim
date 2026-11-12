@@ -119,14 +119,16 @@ export function samePeriod(a: Period | null | undefined, b: Period | null | unde
   return !!a && !!b && a.year === b.year && (a.month ?? 0) === (b.month ?? 0)
 }
 
-/** Pages that show a period: the overview, /banks* and /cards*. */
+/** Pages that show a period: the overview, /banks*, /cards* and the category analysis (/analysis*, a category's year included). */
 export function isPeriodPath(pathname: string): boolean {
   return (
     pathname === '/' ||
     pathname === '/banks' ||
     pathname.startsWith('/banks/') ||
     pathname === '/cards' ||
-    pathname.startsWith('/cards/')
+    pathname.startsWith('/cards/') ||
+    pathname === '/analysis' ||
+    pathname.startsWith('/analysis/')
   )
 }
 

@@ -17,7 +17,8 @@ import {
 } from '../insights/projection'
 
 export type ProjectionPage = Projection & {
-  banks: { id: string; displayName: string }[]
+  /** provider and colour draw the bank's face on its filter pill */
+  banks: { id: string; displayName: string; provider: string; color: string | null }[]
   /** the bank shown alone; null = every bank combined */
   accountId: string | null
 }
@@ -39,7 +40,7 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     listAccounts({ kind: 'CREDIT_CARD' }),
     getCushion(),
   ])
-  const banks = bankAccounts.map(a => ({ id: a.id, displayName: a.displayName }))
+  const banks = bankAccounts.map(a => ({ id: a.id, displayName: a.displayName, provider: a.provider, color: a.color }))
   const accountId = params.accountId && banks.some(b => b.id === params.accountId) ? params.accountId : null
   const scope = accountId ? [accountId] : banks.map(b => b.id)
   const cardIds = cardAccounts.filter(c => (accountId ? c.payerAccountId === accountId : true)).map(c => c.id)
@@ -57,6 +58,15 @@ export async function getProjection(params: { accountId?: string; today?: Date }
   const lastDate = latest.reduce((a, r) => (r.date > a ? r.date : a), latest[0].date)
   const start = { balance: Math.round(latest.reduce((a, r) => a + r.balance, 0) * 100) / 100, date: day(lastDate) }
   const windowStart = firstOf(addMonths(monthKey(start.date), -WINDOW_MONTHS))
+
+  // Each bank's last balance before the window: one idle through it still counts
+  const beforeWindow = new Map<string, number>()
+  await Promise.all(
+    scope.map(async id => {
+      const r = await prisma.bankTransaction.findFirst({ where: { accountId: id, date: { lt: windowStart } }, orderBy: { date: 'desc' }, select: { balance: true } })
+      if (r) beforeWindow.set(id, r.balance)
+    })
+  )
 
   const [bankRows, cardRows, balanceRows, overview] = await Promise.all([
     prisma.bankTransaction.findMany({
@@ -115,20 +125,20 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     cards: cardRows.map(r => ({ id: r.id, billingDate: day(r.billingDate), amount: r.chargedAmount, category: r.categoryOverride ?? r.category })),
     series,
     // The chart draws the last months only, though the rows reach back the whole window
-    past: monthEnds(balanceRows).slice(-(PAST_MONTHS + 1)),
+    past: monthEnds(balanceRows, scope, beforeWindow).slice(-(PAST_MONTHS + 1)),
   })
   return { ...projection, ...page }
 }
 
 /** Combined month-end balances, oldest first, from rows newest first */
-function monthEnds(rows: { accountId: string; date: Date; balance: number }[]): { month: string; balance: number }[] {
-  const perAccount = new Map<string, BalancePoint[]>()
+function monthEnds(rows: { accountId: string; date: Date; balance: number }[], scope: string[], before: Map<string, number>): { month: string; balance: number }[] {
+  const perAccount = new Map<string, BalancePoint[]>(scope.map(id => [id, []]))
   for (const r of rows) {
     const points = perAccount.get(r.accountId) ?? []
     points.push({ date: day(r.date), balance: r.balance })
     perAccount.set(r.accountId, points)
   }
-  const combined = combinedBalance([...perAccount.values()])
+  const combined = combinedBalance(scope.map(id => perAccount.get(id) ?? []), scope.map(id => before.get(id)))
   const out = new Map<string, number>()
   for (const p of combined) if (!out.has(monthKey(p.date))) out.set(monthKey(p.date), p.balance)
   return [...out.entries()].map(([month, balance]) => ({ month, balance })).sort((a, b) => a.month.localeCompare(b.month))

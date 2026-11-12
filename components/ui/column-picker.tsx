@@ -29,7 +29,8 @@ export function ColumnPicker({
   return (
     <DropdownMenu.Root dir="rtl">
       <DropdownMenu.Trigger
-        className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted"
+        // Drawn 30px tall; the hit area is 44px (7px above and below, not sideways: "הצג מוסתרים" sits right beside it)
+        className="relative inline-flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1 text-sm text-muted-foreground transition-colors before:absolute before:inset-x-0 before:-inset-y-[7px] before:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted"
       >
         <Columns3 className="h-3.5 w-3.5" aria-hidden />
         עמודות

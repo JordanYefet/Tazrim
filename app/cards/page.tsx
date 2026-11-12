@@ -7,6 +7,7 @@ import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { CardStackTotal } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
@@ -22,7 +23,7 @@ import type { TableAccount } from '@/components/accounts/account-tag'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref, categoryYearHref } from '@/lib/accounts/category-links'
 import {
   cardPeriodTotals,
   lastMonthWithData,
@@ -30,6 +31,7 @@ import {
   shareOf,
   sumCardMonthly,
 } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { monthName } from '@/lib/utils/date'
 import { CARD_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
@@ -44,6 +46,9 @@ interface SearchParams {
   category?: string
   showIgnored?: string
 }
+
+type CategoryStats = Awaited<ReturnType<typeof getCCCategoryStats>>
+type CategoryMonthly = Awaited<ReturnType<typeof getCCCategoryMonthly>>
 
 /** Every listed card's charges for the table: the same query and flags as a card's page (app/cards/[accountId]/page.tsx) */
 async function getTableData(ids: string[], params: SearchParams & { year: string }) {
@@ -89,28 +94,33 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
   const accounts = await listAccounts({ kind: 'CREDIT_CARD' })
-  const perCard = await Promise.all(
-    accounts.map(async (account, i) => {
-      const [monthly, stats] = await Promise.all([
-        getCCMonthlySummary(account.id, Number(year)),
-        getCCCategoryStats(account.id, Number(year), month),
-      ])
-      const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
-      const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
-      return { account, monthly, total, count, color: seriesColor(account.color, CARD_COLORS[i % CARD_COLORS.length]) }
-    })
-  )
-
-  // Every card's categories together, for the donut (colours ranked by the year, as on the analysis page)
   const ids = accounts.map(a => a.id)
-  const [categoryStats, categoryMonthly] = ids.length
-    ? await Promise.all([getCCCategoryStats(ids, Number(year), month), getCCCategoryMonthly(ids, Number(year))])
-    : [{}, {}]
+  // The per-card figures, the combined categories (for the donut: colours ranked by the
+  // year, as on the analysis page) and the table below all read independently, so they run together
+  const [perCard, [categoryStats, categoryMonthly], table] = await Promise.all([
+    Promise.all(
+      accounts.map(async (account, i) => {
+        const [monthly, stats] = await Promise.all([
+          getCCMonthlySummary(account.id, Number(year)),
+          getCCCategoryStats(account.id, Number(year), month),
+        ])
+        const total = Object.values(stats).reduce((s, v) => s + v.total, 0)
+        const count = Object.values(stats).reduce((s, v) => s + v.count, 0)
+        return { account, monthly, total, count, color: seriesColor(account.color, CARD_COLORS[i % CARD_COLORS.length]) }
+      })
+    ),
+    ids.length
+      ? Promise.all([getCCCategoryStats(ids, Number(year), month), getCCCategoryMonthly(ids, Number(year))])
+      : Promise.resolve<[CategoryStats, CategoryMonthly]>([{}, {}]),
+    // The table below the charts: every card's charges (skipped with no cards)
+    ids.length ? getTableData(ids, params) : null,
+  ])
 
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
-  const { average } = cardPeriodTotals(combined, month)
+  // The average counts finished months only: the month in progress would drag it down (ENG-107)
+  const { average } = cardPeriodTotals(combined, month, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
   const total = perCard.reduce((s, c) => s + c.total, 0)
-  const count = perCard.reduce((s, c) => s + c.count, 0)
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
 
@@ -120,7 +130,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     </PageHeading>
   )
 
-  if (accounts.length === 0) {
+  if (accounts.length === 0 || !table) {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         {heading}
@@ -140,8 +150,6 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
     )
   }
 
-  // The table below the charts: every card's charges
-  const table = await getTableData(ids, params)
   const tableAccounts: TableAccount[] = perCard.map(c => ({
     id: c.account.id,
     name: c.account.displayName,
@@ -165,9 +173,11 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
       <CardStackTotal value={total} />
 
       {/* Beside the stack, exactly as tall as it (never taller, so the page below keeps
-          its place when a card opens): each card's figures, then the count and the monthly
+          its place when a card opens): each card's figures, then the monthly
           average filling the rest. No monthly bars in them here: under the card list there
           is no room for them (a card's page, with the whole half, has them) */}
+      {/* Phones: the transactions, or (מגמות) these figures and the charts */}
+      <WalletViews enabled={hasData}>
       <div className={cn('wallet-shell__beside flex flex-col gap-4', hasData && 'wallet-shell__beside--fit')}>
       {/* Beside a wallet of fixed height: past a few accounts the list scrolls in its own card,
           and the figures under it keep their size (they never shrink under the list) */}
@@ -192,10 +202,10 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         <CardStatTiles
           className="shrink-0 grow"
           total={total}
-          count={count}
           average={average}
           monthLabel={month ? monthName(month) : undefined}
           monthHasData={!!month && monthHasData(combined, month)}
+          monthInProgress={inProgress}
         />
       )}
       </div>
@@ -205,7 +215,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           <>
             {/* The same pair as on a card's page: the months, and the categories (every card's
                 together) with the category analysis link; a category filters the table below */}
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
               <MonthlySpendingChart
                 series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
                 selectedMonth={month}
@@ -214,10 +224,11 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               <CategoryDonut
                 pagePath="/cards"
                 data={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
-                stats={categoryStats}
                 selectedCategory={params.category}
                 colors={categoryColors}
                 analysisHref={categoryAnalysisHref(undefined, period)}
+                // A category opens its year across the cards (/analysis/category/<name>)
+                categoryHrefs={Object.fromEntries(Object.keys(categoryStats).map(c => [c, categoryYearHref(c, { year, month, scope: 'cards' })]))}
               />
             </div>
           </>
@@ -233,6 +244,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         {/* Every card's charges together, as on a card's page */}
         {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
           // Stays mounted while the keyed table remounts, so the new rows ease in
+          <div data-view="list">
           <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')} height>
             <CardTransactionsTable
               key={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')}
@@ -249,8 +261,10 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
             />
           </DataSwap>
+          </div>
         )}
       </div>
+      </WalletViews>
     </div>
   )
 }

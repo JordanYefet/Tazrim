@@ -17,10 +17,10 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
 
   return (
     <div className="page-in mx-auto min-w-0 max-w-7xl space-y-6">
-      <div className="flex min-h-[2.375rem] flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="flex min-h-[2.375rem] items-end">
         <h1 className="text-2xl font-semibold tracking-tight">תחזית</h1>
-        {p.banks.length > 1 && <BankPicker banks={p.banks} active={p.accountId} />}
       </div>
+      {p.banks.length > 1 && <BankPicker banks={p.banks} active={p.accountId} />}
 
       {p.insufficient ? (
         <EmptyState

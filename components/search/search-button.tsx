@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn'
 import { OPEN_SEARCH_EVENT } from './command-search'
 
 const box =
-  'flex h-8 shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'relative flex h-8 shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[""]'
 
 /**
  * Header search: on phones a link to /search, on md+ a button that opens the
@@ -21,7 +21,7 @@ export function SearchButton() {
 
   return (
     <>
-      <Link href="/search" aria-label="חיפוש" title="חיפוש" className={cn(box, 'w-8 md:hidden')}>
+      <Link href="/search" aria-label="חיפוש" title="חיפוש" className={cn(box, 'w-8 before:-inset-x-1.5 md:hidden')}>
         <Search className="h-4 w-4" aria-hidden />
       </Link>
       <button

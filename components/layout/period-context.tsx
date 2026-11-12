@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useTransition } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cookieAssignment } from '@/lib/nav/state'
 import {
   PERIOD_COOKIE,
@@ -20,6 +20,12 @@ import {
  * every period page reports the period it rendered (<PeriodSync>), and the
  * header's pickers set it directly. Navigation links add it to their hrefs,
  * so moving around the app never drops the selected month.
+ *
+ * Changing the period (or the scope) of the page on screen runs as one transition
+ * (`start`): the page that is shown stays, dimmed by <PageMain> while `pending`,
+ * until the next one has arrived, and then the numbers roll to their new values.
+ * No skeleton, no blank. The header's pickers, the charts' month clicks and
+ * <PeriodLink> all navigate through it.
  */
 
 interface PeriodContextValue {
@@ -27,12 +33,18 @@ interface PeriodContextValue {
   remember: (p: Period) => void
   /** This calendar month: the header's "back to this month" button */
   today: Period
+  /** A period or scope navigation is in flight: the page on screen is the one before it */
+  pending: boolean
+  /** Runs `navigate` (a router.push) as the period transition, so `pending` covers it */
+  start: (navigate: () => void) => void
 }
 
 const PeriodContext = createContext<PeriodContextValue>({
   period: { year: new Date().getFullYear() },
   remember: () => {},
   today: currentMonth(),
+  pending: false,
+  start: navigate => navigate(),
 })
 
 function writePeriodCookie(p: Period) {
@@ -51,6 +63,7 @@ export function PeriodProvider({
 }) {
   const [period, setPeriod] = useState<Period>(initial)
   const [today, setToday] = useState<Period>(serverToday)
+  const [pending, start] = useTransition()
 
   // Then the browser's clock wins (they differ only around midnight on the 1st, or a
   // browser in another zone), checked again when the app comes back to the front
@@ -70,7 +83,7 @@ export function PeriodProvider({
     writePeriodCookie(next)
   }, [])
 
-  const value = useMemo(() => ({ period, remember, today }), [period, remember, today])
+  const value = useMemo(() => ({ period, remember, today, pending, start }), [period, remember, today, pending, start])
   return <PeriodContext.Provider value={value}>{children}</PeriodContext.Provider>
 }
 
@@ -86,6 +99,31 @@ export function useToday(): Period {
 
 export function useRememberPeriod(): (p: Period) => void {
   return useContext(PeriodContext).remember
+}
+
+/** Whether a period or scope navigation is in flight (the page on screen is the old one, dimmed). */
+export function usePeriodPending(): boolean {
+  return useContext(PeriodContext).pending
+}
+
+/** The period transition: run a navigation (and any optimistic update beside it) inside it. */
+export function usePeriodTransition(): (navigate: () => void) => void {
+  return useContext(PeriodContext).start
+}
+
+/**
+ * Navigates to `href` as the period transition: for the charts' month clicks and
+ * other same-page moves that only change the period or the scope. The page stays
+ * (dimmed) until the next one arrives; `scroll` is false by default, as those
+ * clicks keep the reader where they were.
+ */
+export function usePeriodNavigation(): (href: string, options?: { scroll?: boolean }) => void {
+  const router = useRouter()
+  const start = usePeriodTransition()
+  return useCallback(
+    (href, options) => start(() => router.push(href, { scroll: options?.scroll ?? false })),
+    [router, start]
+  )
 }
 
 /**

@@ -9,6 +9,7 @@ import { DigitStrip, RollingNumber } from '@/components/ui/rolling-number'
 import { MOTION } from '@/lib/motion'
 import { formatDate } from '@/lib/utils/date'
 import { GlassSurface } from '@/components/glass/glass-surface'
+import { formatNet } from '@/lib/utils/currency'
 
 /*
  * The account elements (ENG-56 / ENG-57): a payment card in ISO proportions
@@ -162,6 +163,8 @@ export interface PaymentCardProps {
   amountVisible?: boolean
   /** Glass faces (ENG-72): the baked liquid-glass lens, for large cards only (others get the static look) */
   glassBaked?: boolean
+  /** The day of the month the card is charged: "חיוב ב־2 לחודש" above the digits (the wallet's cards) */
+  billingDay?: number | null
   /** Names the glass (the account), so its bakes are cached across pages */
   glassId?: string
   className?: string
@@ -183,6 +186,7 @@ export function PaymentCard({
   amountVisible = false,
   glassBaked = false,
   glassId,
+  billingDay,
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
@@ -250,7 +254,15 @@ export function PaymentCard({
           </div>
         )}
         <div className="acct-card__row acct-card__row--bottom">
-          <CardDigits lastFour={lastFour} live={live} />
+          {billingDay ? (
+            // The billing day right above the digits
+            <div className="acct-card__digitcol">
+              <p className="acct-card__due" dir="rtl">חיוב ב־{billingDay} לחודש</p>
+              <CardDigits lastFour={lastFour} live={live} />
+            </div>
+          ) : (
+            <CardDigits lastFour={lastFour} live={live} />
+          )}
           <span key={network ?? 'none'} data-network={network ?? undefined} className={cn('acct-card__network', live && 'acct-swap')}>
             <NetworkMark network={network} />
           </span>
@@ -366,6 +378,8 @@ export interface BankElementProps {
   totals?: { income: number; expense: number }
   /** Month-end balances, oldest first */
   trend?: number[]
+  /** The period's net, at the foot (the open bank in the wallet; /banks has it on the pocket) */
+  net?: { value: number; label: string }
   hero?: boolean
   tilt?: boolean
   /** Glass faces (ENG-72): the baked liquid-glass lens; on by default for the hero */
@@ -409,6 +423,7 @@ export function BankElement({
   emptyText = 'אין תנועות בתקופה',
   totals,
   trend = [],
+  net,
   hero = false,
   tilt = false,
   glassBaked = hero,
@@ -463,10 +478,16 @@ export function BankElement({
             )}
             {showTrend && (
               <div className={cn(totals ? 'w-[38%] shrink-0' : 'w-full')}>
-                <Sparkline points={trend} className={hero ? 'h-14' : undefined} />
+                {/* With the net at the foot the line gives up its height, so the face keeps its card shape */}
+                <Sparkline points={trend} className={hero ? (net ? 'h-10' : 'h-14') : undefined} />
               </div>
             )}
           </div>
+        )}
+        {net && (
+          <p className="acct-bank__net">
+            {net.label} <bdi dir="ltr" className="acct-bank__netvalue">{formatNet(net.value)}</bdi>
+          </p>
         )}
         {children}
       </div>

@@ -1,15 +1,21 @@
 'use client'
 
+import { useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { useOpenOrigin } from './open-origin'
+import { useDragToDismiss } from '@/hooks/use-drag-to-dismiss'
+
+/** Below Tailwind's sm the window is a bottom sheet, which can be dragged down to close */
+const isSheet = () => window.matchMedia('(max-width: 639.98px)').matches
 
 /**
  * The app's window (the account editor's, components/accounts/edit-account-dialog.tsx):
  * a sheet from the bottom on phones (rising from under the tap), a centred window
  * on wider screens (growing out of the tap, components/ui/open-origin.ts).
- * Every other window builds on this one, so they stay the same.
+ * Every other window builds on this one, so they stay the same. As a sheet it
+ * can be dragged down to close (hooks/use-drag-to-dismiss.ts); the grabber says so.
  */
 export function AppDialog({
   open,
@@ -25,12 +31,17 @@ export function AppDialog({
   children: React.ReactNode
 }) {
   const originRef = useOpenOrigin()
+  const scrimRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useDragToDismiss({ scrimRef, onDismiss: () => onOpenChange(false), enabled: isSheet })
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
+        <Dialog.Overlay ref={scrimRef} className="dialog-scrim fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
-          ref={originRef}
+          ref={el => {
+            originRef(el)
+            dragRef(el)
+          }}
           dir="rtl"
           aria-describedby={undefined}
           className={cn(
@@ -40,6 +51,8 @@ export function AppDialog({
             className
           )}
         >
+          {/* The sheet's grabber (phones): it can be dragged down to close */}
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-2 mx-auto h-1 w-9 rounded-full bg-border sm:hidden" />
           <Dialog.Close
             aria-label="סגור"
             className="absolute end-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

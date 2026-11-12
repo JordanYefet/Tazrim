@@ -3,7 +3,7 @@
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { formatDate } from '@/lib/utils/date'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
@@ -16,7 +16,7 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="text-muted-foreground text-xs mb-0.5">{label}</p>
-      <p className="font-semibold tabular-nums text-foreground">{formatCurrency(payload[0].value)}</p>
+      <p className="font-semibold tabular-nums text-foreground">{formatCurrencyWhole(payload[0].value)}</p>
     </div>
   )
 }

@@ -55,11 +55,25 @@
     --chart-3: #b8732a;
     --chart-4: #d94040;
     --chart-5: #8b62c9;
-    --chart-6: #2eb8a0;
+    --chart-6: #28a08b;
     --chart-7: #d96840;
     --chart-8: #c45c9a;
-    --chart-9: #7aab38;
+    --chart-9: #6e9b32;
     --chart-10: #3090c0;
+
+    /* Category colours (categoryColorMap): the chart palette in light mode; dark mode
+       has its own set at one lightness (same hues, same order), so a category keeps
+       its identity while no colour shouts or sinks against the dark card */
+    --category-1: var(--chart-1);
+    --category-2: var(--chart-2);
+    --category-3: var(--chart-3);
+    --category-4: var(--chart-4);
+    --category-5: var(--chart-5);
+    --category-6: var(--chart-6);
+    --category-7: var(--chart-7);
+    --category-8: var(--chart-8);
+    --category-9: var(--chart-9);
+    --category-10: var(--chart-10);
   }
 
   .dark {
@@ -101,6 +115,20 @@
     --chart-8: #d67ab1;
     --chart-9: #8bc34a;
     --chart-10: #40b4c4;
+
+    /* The category palette for dark cards: every colour at OKLCH lightness 0.70,
+       chroma at most 0.135, hues as in --chart-N. 5.8:1 to 6.6:1 against --card
+       (the chart set runs 4.5:1 to 7.9:1: the purple and red sink, the lime shouts) */
+    --category-1: #39acda;
+    --category-2: #46b77f;
+    --category-3: #ce8f54;
+    --category-4: #e67b70;
+    --category-5: #af88e3;
+    --category-6: #36b5a5;
+    --category-7: #e47e63;
+    --category-8: #d77bb2;
+    --category-9: #81af50;
+    --category-10: #3bb0c0;
   }
 }
 
@@ -347,6 +375,12 @@ html {
 /* Scrims: one fade for every popup */
 .sheet-scrim[data-state='open'], .dialog-scrim[data-state='open'] { animation: fade-in var(--motion-base) var(--ease-ui); }
 .sheet-scrim[data-state='closed'], .dialog-scrim[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
+/* A sheet dragged down (hooks/use-drag-to-dismiss.ts) is already off screen
+   when it closes: no exit animation from its resting place. While dragged it
+   follows the finger with no transition. */
+.sheet[data-dragged-away][data-state='closed'],
+.app-window[data-dragged-away][data-state='closed'] { animation: none; opacity: 0; }
+.sheet[data-dragging], .app-window[data-dragging] { transition: none; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
@@ -427,6 +461,21 @@ html {
   transition: transform var(--motion-base) var(--ease-spring), opacity var(--motion-fast) var(--ease-ui);
 }
 [dir='rtl'] .tab-highlight { transform: translateX(calc(var(--slot) * -100%)); }
+/* The capsule can be held and dragged (components/layout/tab-bubble.ts). Once
+   hydrated the script owns its transform (a spring, not this transition); the
+   CSS above is the server render's resting place. The bar takes every touch,
+   so a drag never scrolls the page or starts a text selection or link drag. */
+.tab-bar {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.tab-highlight { transform-origin: center; will-change: transform; }
+/* While steering, the icon under the capsule is the lit one, not the page's */
+.tab-bar[data-steering] > [data-slot] { color: hsl(var(--foreground) / 0.6); }
+.tab-bar[data-steering] > [data-slot][data-hot] { color: hsl(var(--primary)); }
+.tab-bar[data-steering] > .tab-highlight { opacity: 1; }
 .dark .tab-highlight {
   background: hsl(var(--primary) / 0.2);
   box-shadow:
@@ -711,6 +760,9 @@ html {
   white-space: nowrap;
 }
 .acct-card__name.is-placeholder { color: rgb(255 255 255 / 0.55); }
+/* The billing day, right above the digits: quieter than they are */
+.acct-card__digitcol { display: flex; flex-direction: column; align-items: flex-start; gap: 1.2cqw; min-width: 0; }
+.acct-card__due { font-size: max(10px, 4.2cqw); font-weight: 500; line-height: 1.2; opacity: 0.8; white-space: nowrap; }
 .acct-card__wordmark {
   flex-shrink: 0;
   max-width: 48%;
@@ -861,6 +913,16 @@ html {
   gap: clamp(10px, 3.6cqw, 16px);
   padding: clamp(12px, 4.4cqw, 22px) clamp(14px, 5.4cqw, 26px) clamp(14px, 5cqw, 24px);
 }
+/* The period's net at the foot, at the end: where the bank pocket has it on /banks */
+.acct-bank__net {
+  margin-top: auto;
+  text-align: end;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+.acct-bank__netvalue { font-weight: 800; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }
 .acct-bank__balance {
   font-size: clamp(1.625rem, 8.6cqw, 2.75rem);
   font-weight: 600;
@@ -967,8 +1029,16 @@ html {
 }
 .wallet-shell__head { grid-row: 1; min-width: 0; }
 .wallet-shell__wallet { grid-row: 2; min-width: 0; width: 100%; max-width: 23rem; justify-self: center; }
-.wallet-shell__beside { grid-row: 3; min-width: 0; }
-.wallet-shell__rest { grid-row: 4; min-width: 0; }
+/* Under the wallet the blocks follow in page order (switch, beside, rest): a view
+   hidden by the switch takes no row and leaves no gap (components/cards/wallet-views.tsx) */
+.wallet-shell__switch,
+.wallet-shell__beside,
+.wallet-shell__rest { min-width: 0; }
+@media (max-width: 1023.98px) {
+  [data-wallet-view='list'] > .wallet-shell__beside,
+  [data-wallet-view='list'] [data-view='trends'],
+  [data-wallet-view='trends'] [data-view='list'] { display: none; }
+}
 @media (min-width: 1024px) {
   .wallet-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wallet-shell__head { grid-column: 1 / -1; }
@@ -983,13 +1053,33 @@ html {
    the same entrance as every other page (.page-in) */
 .wallet-shell__beside,
 .wallet-shell__rest { animation: page-in var(--motion-page) var(--ease-ui) backwards; }
+/* Between a tap on an account (or the stack) and its page, the page on screen dims
+   as on a period change (components/layout/page-main.tsx): after a beat, so a page
+   the browser already holds swaps without a blink; the wallet is not dimmed */
+.wallet-shell__beside,
+.wallet-shell__rest { transition: opacity var(--motion-fast) var(--ease-ui) 0ms; }
+.wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest) {
+  opacity: 0.6;
+  transition-delay: var(--motion-quick);
+}
 
 /* The wallet: cards are absolutely placed in a box whose height follows the
    mode. Positions are CSS (container units) so the server render is already
    right; card-wallet.tsx animates between them with WAAPI. Card height is
    63.08% of the width (85.6 × 54); a stack strip is max(52px, 17cqw). */
-.wallet { container-type: inline-size; }
-.wallet__box { position: relative; }
+.wallet { container-type: inline-size; --wallet-open-y: 0px; }
+/* The box is the stack's height (--wallet-box-h, set by the wallet). On a phone an
+   open card goes to the top and the box is that card's height, so there is no empty
+   band above and below it; the page under the wallet slides up with the card
+   (card-wallet.tsx). A desktop keeps the stack's height and centres the open card,
+   so the figures beside the wallet never move (lib/cards/wallet-motion.ts, OPEN_Y). */
+.wallet__box { position: relative; height: var(--wallet-box-h); }
+@media (max-width: 1023.98px) {
+  .wallet[data-mode='open'] .wallet__box { height: 63.0841cqw; }
+}
+@media (min-width: 1024px) {
+  .wallet { --wallet-open-y: var(--wallet-open-y-lg); }
+}
 .wallet-card {
   position: absolute;
   inset: 0 0 auto;
@@ -1041,7 +1131,7 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .wallet-card__link { transition: none; }
   .wallet-shell__beside,
-  .wallet-shell__rest { animation: none; }
+  .wallet-shell__rest { animation: none; transition: none; }
 }
 
 /* ── The leather card holder on /cards (round 7) ──
@@ -1151,6 +1241,9 @@ html {
   color: rgb(79 40 13 / 0.4);
   text-shadow: 0 1px 0 rgb(255 238 214 / 0.5);
 }
+/* The bank pocket's net, where the mark is on the card pocket: legible, still debossed */
+.wallet-pocket__net { font-size: 13px; font-weight: 600; color: rgb(227 236 248 / 0.72); white-space: nowrap; }
+.wallet-pocket__netvalue { font-weight: 800; color: #e3ecf8; font-variant-numeric: tabular-nums; }
 .wallet-pocket__totalwrap {
   transition: opacity var(--motion-fast) var(--ease-ui);
 }

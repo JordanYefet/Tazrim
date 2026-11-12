@@ -2,11 +2,12 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartEntrance } from '@/hooks/use-chart-entrance'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { usePeriodNavigation } from '@/components/layout/period-context'
 import { Suspense } from 'react'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
@@ -43,19 +44,19 @@ function CustomTooltip({ active, payload, label }: any) {
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       {payload.length === 1 ? (
-        <p className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrency(payload[0].value)}</p>
+        <p className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrencyWhole(payload[0].value)}</p>
       ) : (
         <>
           {rows.map((p: any) => (
             <div key={p.dataKey} className="flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
               <span className="text-muted-foreground">{p.name}:</span>
-              <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrency(p.value)}</span>
+              <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
             </div>
           ))}
           <div className="mt-1 flex border-t pt-1 font-semibold">
             <span>סה״כ</span>
-            <span className="ms-auto ps-3 tabular-nums">{formatCurrency(total)}</span>
+            <span className="ms-auto ps-3 tabular-nums">{formatCurrencyWhole(total)}</span>
           </div>
         </>
       )}
@@ -70,7 +71,8 @@ function MonthlySpendingChartInner({
   title = 'חיובים חודשיים',
   subtitle = 'לחיצה על חודש מסננת',
 }: Props) {
-  const router = useRouter()
+  // A month click changes the period in place: the page stays, dimmed, until the next one arrives
+  const navigate = usePeriodNavigation()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -86,10 +88,7 @@ function MonthlySpendingChartInner({
 
   function handleClick(month: number | undefined) {
     if (!month) return
-    router.push(
-      withQueryString(accountPath('CREDIT_CARD', accountId), toggleMonthQuery(params.toString(), month)),
-      { scroll: false }
-    )
+    navigate(withQueryString(accountPath('CREDIT_CARD', accountId), toggleMonthQuery(params.toString(), month)))
   }
 
   const chartData = useStableData(rows)

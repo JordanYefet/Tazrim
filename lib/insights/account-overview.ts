@@ -3,9 +3,25 @@
  * bank accounts and cards to cards: bank expenses already include the card
  * payment, so card charges are a breakdown of them, never extra spending.
  */
+import { finishedMonths } from './month-progress'
 
 export type BankMonthly = Record<number, { income: number; expense: number }>
 export type CardMonthly = Record<number, number>
+
+/**
+ * The year an average belongs to: only its finished months count (the month in
+ * progress is left out, a past year's twelve all count), the same rule as the
+ * overview's hero and the category year. `now` is for tests.
+ */
+export interface AveragePeriod {
+  year: number
+  now?: Date
+}
+
+/** The months an average may count: every month without a period, only the finished ones with */
+function forAverage<T>(monthly: Record<number, T>, period?: AveragePeriod): Record<number, T> {
+  return period ? finishedMonths(period.year, monthly, period.now) : monthly
+}
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
 
@@ -48,11 +64,15 @@ export function sumCardMonthly(list: CardMonthly[]): CardMonthly {
  * The yearly monthly average: the year's total over the months that have any
  * value, so a missing upload doesn't drag it down. `activeIn` counts the
  * months from another series instead (a category's average over the months
- * with any card charges, as in the category × month table).
+ * with any card charges, as in the category × month table). With a `period`
+ * only the finished months count, so the month in progress (a partial total)
+ * never drags the average down.
  */
-export function monthlyAverage(monthly: CardMonthly, activeIn: CardMonthly = monthly): number {
-  const total = MONTHS.reduce((s, m) => s + (at(monthly, m) ?? 0), 0)
-  const active = MONTHS.filter(m => (at(activeIn, m) ?? 0) > 0).length
+export function monthlyAverage(monthly: CardMonthly, activeIn: CardMonthly = monthly, period?: AveragePeriod): number {
+  const counted = forAverage(monthly, period)
+  const activeCounted = activeIn === monthly ? counted : forAverage(activeIn, period)
+  const total = MONTHS.reduce((s, m) => s + (at(counted, m) ?? 0), 0)
+  const active = MONTHS.filter(m => (at(activeCounted, m) ?? 0) > 0).length
   return total / Math.max(active, 1)
 }
 
@@ -72,23 +92,29 @@ export function monthAverageDelta(value: number, average: number, monthHasData: 
 /**
  * Income, expense and net for the selected month (or the whole year), and the
  * yearly average expense (always the whole year, so a month can be compared
- * with it). Bank-only: card charges are already inside these expenses.
+ * with it; with a `period`, its finished months only). Bank-only: card charges
+ * are already inside these expenses.
  */
-export function bankPeriodTotals(monthly: BankMonthly, month?: number) {
+export function bankPeriodTotals(monthly: BankMonthly, month?: number, period?: AveragePeriod) {
   const values = MONTHS.map(m => at(monthly, m) ?? { income: 0, expense: 0 })
   const picked = month ? [values[month - 1] ?? { income: 0, expense: 0 }] : values
   const income = picked.reduce((s, v) => s + v.income, 0)
   const expense = picked.reduce((s, v) => s + v.expense, 0)
-  const averageExpense = monthlyAverage(Object.fromEntries(MONTHS.map(m => [m, values[m - 1].expense])))
-  const averageIncome = monthlyAverage(Object.fromEntries(MONTHS.map(m => [m, values[m - 1].income])))
+  const expenses = Object.fromEntries(MONTHS.map(m => [m, values[m - 1].expense]))
+  const incomes = Object.fromEntries(MONTHS.map(m => [m, values[m - 1].income]))
+  const averageExpense = monthlyAverage(expenses, expenses, period)
+  const averageIncome = monthlyAverage(incomes, incomes, period)
   return { income, expense, net: income - expense, averageExpense, averageIncome }
 }
 
-/** Card charges for the selected month (or the year), and the yearly average over months with charges. */
-export function cardPeriodTotals(monthly: CardMonthly, month?: number) {
+/**
+ * Card charges for the selected month (or the year), and the yearly average over
+ * months with charges (with a `period`, its finished months only).
+ */
+export function cardPeriodTotals(monthly: CardMonthly, month?: number, period?: AveragePeriod) {
   const values = MONTHS.map(m => at(monthly, m) ?? 0)
   const total = month ? (values[month - 1] ?? 0) : values.reduce((s, v) => s + v, 0)
-  return { total, average: monthlyAverage(monthly) }
+  return { total, average: monthlyAverage(monthly, monthly, period) }
 }
 
 /** part / whole as a 0-1 fraction; 0 when the whole is 0. */

@@ -85,7 +85,7 @@ describe('isMoreActive', () => {
   })
 
   it('is not active on the main tabs', () => {
-    for (const p of ['/', '/banks', '/cards/acct_test_card', '/recurring', '/search', '/uploads']) {
+    for (const p of ['/', '/banks', '/cards/acct_test_card', '/recurring', '/search', '/uploads', '/projections', '/projection', '/analysis', '/analysis/bank']) {
       expect(isMoreActive(p)).toBe(false)
     }
   })

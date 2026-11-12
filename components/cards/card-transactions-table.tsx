@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { startTransition, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
 import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { UnusualBadge } from '@/components/insights/unusual-badge'
@@ -13,11 +13,15 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
-import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
+import { CARD_COLUMNS, columnsLine, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { AccountTag, tableScope, type TableAccount } from '@/components/accounts/account-tag'
+import { PhoneTransactionRows, PhoneRowActions, dayKey } from '@/components/transactions/phone-rows'
+import { useOptimisticRows } from '@/hooks/use-optimistic-rows'
+import { cardChangeHits, idsChange, type CardScope } from '@/lib/tables/category-change'
+import type { SearchResult } from '@/lib/search/query'
 
 interface CCTx {
   id: string
@@ -41,7 +45,7 @@ interface CCTx {
 
 const LABEL = Object.fromEntries(CARD_COLUMNS.map(c => [c.key, c.label])) as Record<CardColumn, string>
 const CARD_KEYS = CARD_COLUMNS.map(c => c.key)
-const TH = 'text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide'
+const TH = 'text-start py-2.5 px-4 font-medium text-xs text-muted-foreground'
 
 /** An optional column's cell (lib/tables/columns.ts) */
 function optionalCell(tx: CCTx, key: CardColumn) {
@@ -66,8 +70,6 @@ function optionalCell(tx: CCTx, key: CardColumn) {
 }
 
 interface Category { id: string; name: string }
-
-type CardScope = 'row' | 'merchant' | 'contains'
 
 export function CardTransactionsTable({
   accountId,
@@ -121,7 +123,9 @@ export function CardTransactionsTable({
   }
   const router = useRouter()
   const params = useSearchParams()
-  const [transactions, setTransactions] = useState(initial)
+  // The charges as saved; `transactions` shows the saves still in flight on top (hooks/use-optimistic-rows.ts)
+  const [saved, setTransactions] = useState(initial)
+  const [transactions, show] = useOptimisticRows(saved)
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
   // Charges ticked for one category at once; the page remounts the table on a new data set, which clears it
@@ -150,42 +154,50 @@ export function CardTransactionsTable({
     setLoadingMore(false)
   }
 
+  /** The error a failed write carries, or the plain one */
+  const failure = async (res: Response | null) => (res && (await res.json().catch(() => null))?.error) || 'שמירת הקטגוריה נכשלה'
+
   /**
    * 'row' sets this charge only; 'merchant' every charge of the merchant, and later files too;
-   * 'contains' every transaction whose text contains `pattern` (a contains-text rule)
+   * 'contains' every transaction whose text contains `pattern` (a contains-text rule).
+   * The rows this reaches (lib/tables/category-change.ts) show the category at once; the
+   * save runs behind. When it lands the server's answer counts (a rule's real reach); when
+   * it fails the rows go back and the error shows.
    */
-  async function saveCategory(tx: CCTx, categoryOverride: string, scope: CardScope, pattern?: string) {
-    if (scope === 'contains') {
-      const res = await fetch('/api/category-keyword-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pattern, category: categoryOverride, fromRow: { source: 'card', id: tx.id } }),
-      })
-      if (!res.ok) {
-        setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
+  function saveCategory(tx: CCTx, categoryOverride: string, scope: CardScope, pattern?: string) {
+    const patch = (t: CCTx): CCTx => ({ ...t, categoryOverride })
+    const guess = { hits: cardChangeHits(tx, scope, companyOf), patch }
+    startTransition(async () => {
+      show(guess)
+      let res: Response | null = null
+      try {
+        res =
+          scope === 'contains'
+            ? await fetch('/api/category-keyword-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pattern, category: categoryOverride, fromRow: { source: 'card', id: tx.id } }),
+              })
+            : await fetch(`${api(cardOf(tx))}/${tx.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ categoryOverride, categoryScope: scope }),
+              })
+      } catch {}
+      if (!res?.ok) {
+        const error = await failure(res)
+        startTransition(() => setCategoryError(error))
         return
       }
-      setCategoryError(null)
-      // The rule reaches other cards and the bank too; these are the loaded rows it changed
-      const changed = new Set((await res.json() as { cardIds: string[] }).cardIds)
-      setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride } : t)))
+      // A text rule reaches other cards and the bank too; these are the loaded rows it changed
+      const change = scope === 'contains' ? idsChange((await res.json() as { cardIds: string[] }).cardIds, patch) : guess
+      startTransition(() => {
+        setCategoryError(null)
+        setTransactions(prev => prev.map(t => (change.hits(t) ? change.patch(t) : t)))
+      })
+      // The page's totals and donuts count categories too
       router.refresh()
-      return
-    }
-    await fetch(`${api(cardOf(tx))}/${tx.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categoryOverride, categoryScope: scope }),
     })
-    setTransactions(prev =>
-      prev.map(t =>
-        (scope === 'row' ? t.id === tx.id : t.originalMerchantName === tx.originalMerchantName && companyOf(t) === companyOf(tx))
-          ? { ...t, categoryOverride }
-          : t
-      )
-    )
-    // The page's totals and donuts count categories too
-    router.refresh()
   }
 
   const selectableRows = transactions.filter(t => !t.ignored)
@@ -204,8 +216,10 @@ export function CardTransactionsTable({
   }
 
   /**
-   * Every ticked charge gets the category as its own choice (no merchant rule).
-   * Each card's charges go through that card, so on /cards one save per card ticked.
+   * Every ticked charge gets the category as its own choice (no merchant rule), shown at
+   * once; the selection clears. Each card's charges go through that card, so on /cards one
+   * save per card ticked. A card that fails puts its charges back and ticks them again,
+   * with the error; cards saved before it keep the category.
    */
   async function saveBulkCategory(category: string | null) {
     if (category === null) return
@@ -213,28 +227,40 @@ export function CardTransactionsTable({
     for (const t of transactions) {
       if (selected.has(t.id)) byCard.set(cardOf(t), [...(byCard.get(cardOf(t)) ?? []), t.id])
     }
-    const changed = new Set<string>()
-    for (const [cardId, ids] of byCard) {
-      const res = await fetch(`${api(cardId)}/bulk-category`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, category }),
-      })
-      if (!res.ok) {
-        setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-        // Cards saved before this one keep the category
-        if (changed.size) {
-          setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride: category } : t)))
-          router.refresh()
-        }
-        return
-      }
-      for (const id of (await res.json() as { updatedIds: string[] }).updatedIds) changed.add(id)
-    }
-    setCategoryError(null)
-    setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, categoryOverride: category } : t)))
+    const patch = (t: CCTx): CCTx => ({ ...t, categoryOverride: category })
     setSelected(new Set())
-    router.refresh()
+    startTransition(async () => {
+      show(idsChange([...byCard.values()].flat(), patch))
+      const changed = new Set<string>()
+      const unsaved = new Set<string>()
+      let error: string | null = null
+      for (const [cardId, ids] of byCard) {
+        if (error) {
+          for (const id of ids) unsaved.add(id)
+          continue
+        }
+        let res: Response | null = null
+        try {
+          res = await fetch(`${api(cardId)}/bulk-category`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, category }),
+          })
+        } catch {}
+        if (!res?.ok) {
+          error = await failure(res)
+          for (const id of ids) unsaved.add(id)
+          continue
+        }
+        for (const id of (await res.json() as { updatedIds: string[] }).updatedIds) changed.add(id)
+      }
+      startTransition(() => {
+        setCategoryError(error)
+        if (changed.size) setTransactions(prev => prev.map(t => (changed.has(t.id) ? patch(t) : t)))
+        if (unsaved.size) setSelected(unsaved)
+      })
+      if (changed.size) router.refresh()
+    })
   }
 
   async function toggleIgnored(tx: CCTx) {
@@ -283,9 +309,28 @@ export function CardTransactionsTable({
 
   const hasFilter = activeMerchant || activeCategory
 
+  // The phone rows (components/transactions/phone-rows.tsx): the same charges as search results.
+  // The date is the purchase date, as the table's main date reads it
+  const phoneRows: SearchResult[] = transactions.map(tx => ({
+    id: tx.id,
+    source: 'card',
+    accountId: cardOf(tx),
+    accountName: scope.byId.get(cardOf(tx))?.name ?? '',
+    date: dayKey(tx.transactionDate),
+    dateMs: 0,
+    description: tx.merchantName,
+    amount: tx.chargedAmount,
+    category: known(tx) ?? undefined,
+    // On the second line, unless "הערות" is among the picked columns (then it is on the columns line)
+    note: columns.includes('notes') ? undefined : tx.notes || undefined,
+    ignored: tx.ignored,
+    recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
+  }))
+  const txById = new Map(transactions.map(t => [t.id, t]))
+
   return (
     <div className="space-y-3">
-      {/* Toolbar */}
+      {/* Toolbar: the active filters at the start, "עמודות" and "הצג מוסתרים" always at the end */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         {hasFilter ? (
           <div className="flex items-center gap-2 text-sm flex-wrap">
@@ -308,9 +353,11 @@ export function CardTransactionsTable({
             )}
           </div>
         ) : <div />}
-        <div className="flex items-center gap-3">
+        <div className="ms-auto flex items-center gap-3">
+          {/* Desktop: columns of the table; phones: a line under every row */}
           <ColumnPicker kind="card" shown={columns} onChange={next => setColumns(next as CardColumn[])} />
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          {/* 44px tall (the padding, taken back by the margin so the toolbar keeps its height), not wider than its text */}
+          <label className="-my-3 flex min-h-11 items-center gap-2 py-3 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={!!showIgnored}
@@ -329,7 +376,7 @@ export function CardTransactionsTable({
           count={selected.size}
           kind="expense"
           context="חיובים בכרטיס"
-          amount={formatCurrency(transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0))}
+          amount={formatCurrencyWhole(transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0))}
           categories={categories.map(c => ({ name: c.name, color: categoryColors[c.name] }))}
           onApply={saveBulkCategory}
           onClear={() => setSelected(new Set())}
@@ -338,12 +385,46 @@ export function CardTransactionsTable({
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
       <div data-swap className="rounded-xl surface overflow-hidden">
-        <div className="overflow-x-auto">
+        <PhoneTransactionRows
+          rows={phoneRows}
+          selected={selected}
+          canSelect={r => !txById.get(r.id)!.ignored}
+          onToggle={toggleSelected}
+          onOpen={r => setPicking(r.id)}
+          showAccount={scope.several}
+          categoryColor={r => (r.category ? categoryColors[r.category] : undefined)}
+          amountNote={r => {
+            const tx = txById.get(r.id)!
+            return !tx.ignored && tx.originalCurrency !== '₪' && !columns.includes('originalAmount')
+              ? `${tx.originalAmount} ${tx.originalCurrency}`
+              : undefined
+          }}
+          // "עמודות" on phones: the picked ones as a line under every row
+          extra={
+            columns.length
+              ? r => {
+                  const tx = txById.get(r.id)!
+                  return columnsLine('card', columns, {
+                    chargedCurrency: tx.chargedCurrency || '₪',
+                    originalAmount: `${tx.originalAmount} ${tx.originalCurrency}`,
+                    reference: tx.reference,
+                    cardLastFour: tx.cardLastFour,
+                    transactionType: tx.transactionType,
+                    notes: tx.notes,
+                  })
+                }
+              : undefined
+          }
+        />
+        {transactions.length === 0 && (
+          <p className="text-center py-10 text-muted-foreground text-sm md:hidden">אין עסקאות לתקופה זו</p>
+        )}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="w-0 py-2.5 ps-4 pe-0">
-                  <label className="-m-3 inline-flex p-3 align-middle">
+                  <label className="-m-3.5 inline-flex p-3.5 align-middle">
                     <input
                       type="checkbox"
                       aria-label="בחירת כל העסקאות שנטענו"
@@ -385,7 +466,7 @@ export function CardTransactionsTable({
                 >
                   <td className="w-0 py-2.5 ps-4 pe-0">
                     {/* The padding widens the tap target past the small box, for phones */}
-                    <label className="-m-3 inline-flex p-3 align-middle">
+                    <label className="-m-3.5 inline-flex p-3.5 align-middle">
                       <input
                         type="checkbox"
                         aria-label={`בחירת ${tx.merchantName}`}
@@ -478,7 +559,9 @@ export function CardTransactionsTable({
                     <button
                       onClick={() => toggleIgnored(tx)}
                       aria-label={tx.ignored ? 'בטל התעלמות' : 'התעלם מעסקה'}
-                      className="p-1 rounded-md hover:bg-muted transition-colors align-middle"
+                      // The 22px button's hit area: 44px tall, and sideways only into its own cell's end padding
+                      // (never into the recurring button before it)
+                      className="relative p-1 rounded-md hover:bg-muted transition-colors align-middle before:absolute before:-inset-y-[11px] before:start-0 before:-end-4 before:content-['']"
                     >
                       {tx.ignored
                         ? <Eye className="h-3.5 w-3.5 text-primary" />
@@ -514,22 +597,40 @@ export function CardTransactionsTable({
         categories={categories}
         colors={categoryColors}
         onClose={() => setPicking(null)}
-        onSave={async (tx, category, scope, pattern) => {
+        onSave={(tx, category, scope, pattern) => {
           setPicking(null)
-          await saveCategory(tx, category, scope, pattern)
+          saveCategory(tx, category, scope, pattern)
         }}
+        onFilterMerchant={tx => {
+          setPicking(null)
+          filterMerchant(tx.merchantName)
+        }}
+        footer={tx => (
+          <PhoneRowActions
+            source="card"
+            id={tx.id}
+            seriesName={recurring[tx.id]?.name}
+            canMark={!tx.ignored && tx.chargedAmount > 0}
+            ignored={tx.ignored}
+            onToggleIgnored={async () => { setPicking(null); await toggleIgnored(tx) }}
+          />
+        )}
       />
     </div>
   )
 }
 
 /** The category window of one card charge (components/categories/category-picker.tsx) */
-function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
+function CardCategoryWindow({ tx, categories, colors, onClose, onSave, onFilterMerchant, footer }: {
   tx: CCTx | undefined
   categories: Category[]
   colors: Record<string, string>
   onClose: () => void
-  onSave: (tx: CCTx, category: string, scope: CardScope, pattern?: string) => Promise<void>
+  onSave: (tx: CCTx, category: string, scope: CardScope, pattern?: string) => void
+  /** "כל העסקאות מהעסק הזה": filter the table to the charge's merchant */
+  onFilterMerchant: (tx: CCTx) => void
+  /** Phone-only row actions (components/transactions/phone-rows.tsx) */
+  footer?: (tx: CCTx) => ReactNode
 }) {
   // The last charge stays while the window animates out
   const [last, setLast] = useState<CCTx | undefined>(tx)
@@ -541,10 +642,15 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave }: {
       onOpenChange={o => !o && onClose()}
       context={`חיוב בכרטיס · ${shown ? formatDate(shown.transactionDate) : ''}`}
       title={shown?.merchantName ?? ''}
+      detail={shown?.notes || undefined}
       amount={shown ? formatCurrency(shown.chargedAmount) : ''}
       amountTone="expense"
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
       createKind="EXPENSE"
+      bodyDisabled={!!shown?.ignored}
+      merchantYear={shown ? { source: 'card', id: shown.id, year: new Date(shown.billingDate).getFullYear() } : undefined}
+      merchantAll={shown && !shown.ignored ? { onClick: () => onFilterMerchant(shown) } : undefined}
+      footer={shown && footer?.(shown)}
       current={shown && categories.some(c => c.name === (shown.categoryOverride ?? shown.category)) ? shown.categoryOverride ?? shown.category : null}
       scopes={
         shown
