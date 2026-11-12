@@ -112,14 +112,14 @@ describe('periodFromParams', () => {
 })
 
 describe('isPeriodPath', () => {
-  it('the overview, banks and cards pages', () => {
-    for (const p of ['/', '/banks', '/banks/a1', '/cards', '/cards/c1', '/cards/categories', '/cards/c1/categories']) {
+  it('the overview, banks, cards and analysis pages', () => {
+    for (const p of ['/', '/banks', '/banks/a1', '/cards', '/cards/c1', '/cards/categories', '/cards/c1/categories', '/analysis', '/analysis/bank', '/analysis/category/Test%20food']) {
       expect(isPeriodPath(p)).toBe(true)
     }
   })
 
   it('not the pages without a period', () => {
-    for (const p of ['/settings', '/about', '/upload', '/recurring', '/categories', '/search', '/cardsx']) {
+    for (const p of ['/settings', '/about', '/upload', '/recurring', '/categories', '/search', '/cardsx', '/analysisx']) {
       expect(isPeriodPath(p)).toBe(false)
     }
   })

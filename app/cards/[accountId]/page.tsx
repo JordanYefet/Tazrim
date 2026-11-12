@@ -21,7 +21,7 @@ import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { lastMonthWithData, monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
 import { accountPath } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref, categoryYearHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { monthName } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -205,6 +205,8 @@ export default async function CardAccountPage({
               selectedCategory={params.category}
               colors={categoryColors}
               analysisHref={categoryAnalysisHref(account.id, period)}
+              // A category opens its year in this card's scope (/analysis/category/<name>)
+              categoryHrefs={Object.fromEntries(Object.keys(categoryTotals).map(c => [c, categoryYearHref(c, { year, month, scope: account.id })]))}
             />
           </div>
         )}

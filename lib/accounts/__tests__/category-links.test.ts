@@ -5,6 +5,7 @@ import {
   bankCategoryTransactionsHref,
   categoryAnalysisHref,
   categoryTransactionsHref,
+  categoryYearHref,
   combinedCategoryTransactionsHref,
 } from '../category-links'
 import { CARD_PAYMENT_CATEGORY, UNCATEGORIZED } from '@/lib/insights/bank-categories'
@@ -18,6 +19,17 @@ describe('analysis links', () => {
   it("opens one card's analysis, or every card's", () => {
     expect(categoryAnalysisHref('acct_test_card', { year: '2025', month: '3' })).toBe('/analysis/acct_test_card?year=2025&month=3')
     expect(categoryAnalysisHref(undefined, { year: '2025' })).toBe('/analysis/cards?year=2025')
+  })
+})
+
+describe('categoryYearHref', () => {
+  it("opens the category's year, keeping the period and the analysis scope", () => {
+    expect(categoryYearHref('Test food', { year: '2025' })).toBe('/analysis/category/Test%20food?year=2025')
+    expect(categoryYearHref('Test food', { year: 2025, month: 3, scope: 'cards' })).toBe(
+      '/analysis/category/Test%20food?year=2025&month=3&scope=cards'
+    )
+    // A Hebrew name is encoded in the path (the page decodes it)
+    expect(categoryYearHref('מזון', { year: '2025' })).toBe(`/analysis/category/${encodeURIComponent('מזון')}?year=2025`)
   })
 })
 

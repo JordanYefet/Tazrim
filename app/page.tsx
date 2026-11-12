@@ -16,12 +16,7 @@ import {
   scopeAccounts,
   type InsightsScope,
 } from '@/lib/insights/insights-scope'
-import {
-  bankCategoryTransactionsHref,
-  categoryTransactionsHref,
-  combinedCategoryTransactionsHref,
-  uncategorizedSearchHref,
-} from '@/lib/accounts/category-links'
+import { categoryYearHref, uncategorizedSearchHref } from '@/lib/accounts/category-links'
 import { asJson, getYearSummary } from '@/lib/db/summary'
 import { bankMonthTotal, cardBreakdown, cardLabel, monthTotal } from '@/lib/utils/year-summary'
 import { computeCategoryInsights, latestMonthWithData, rankCategories } from '@/lib/insights/category-insights'
@@ -57,7 +52,6 @@ export default async function DashboardPage({
   const activeIds = [...activeBanks, ...activeCards]
   // Category insights cover bank and cards together (the scope pills are gone, ENG-117)
   const sources = { bankIds: activeBanks, cardIds: activeCards }
-  const scope: InsightsScope = { kind: 'all' }
 
   // Unusual transactions: the selected month, a past year, or the 90 days up to
   // the latest upload. Bank and card rows from every active account; the bank's card
@@ -85,16 +79,14 @@ export default async function DashboardPage({
   const unusual = asJson(unusualRows)
   // Bank and cards share the categories, so one list holds both; the card payment is left out inside
   const categoryStats = mergeCategoryStats(cardStats, bankStats)
-  // A row opens its transactions in search; "ללא קטגוריה" opens the uncategorized ones
+  // A row opens the category's year (/analysis/category/<name>); "ללא קטגוריה" is not a
+  // category, so it opens the uncategorized rows in search, as before
   const rankedCategories = rankCategories(allCategoryMonthly)
   const categoryHrefs: Record<string, string> = {}
   // Every ranked category, also one with nothing this month: its row stays a link
   for (const c of rankedCategories) {
-    const href =
-      c === UNCATEGORIZED
-        ? uncategorizedSearchHref({ accountIds: activeIds, year, month })
-        : combinedCategoryTransactionsHref({ accountIds: activeIds, category: c, year, month })
-    if (href) categoryHrefs[c] = href
+    categoryHrefs[c] =
+      c === UNCATEGORIZED ? uncategorizedSearchHref({ accountIds: activeIds, year, month }) : categoryYearHref(c, { year, month })
   }
   const categoryMonthly = allCategoryMonthly
 
@@ -111,7 +103,7 @@ export default async function DashboardPage({
   const categoryColors = categoryColorMap(rankedCategories)
   const insightHrefs = insights
     ? Object.fromEntries(
-        insights.items.map(i => [i.category, scopedCategoryHref(scope, sources, i.category, year, insights.month)])
+        insights.items.map(i => [i.category, categoryYearHref(i.category, { year, month: insights.month })])
       )
     : {}
 
@@ -198,7 +190,7 @@ export default async function DashboardPage({
           <div className="grid gap-4 lg:grid-cols-2">
             <CategoryBars
               title="הוצאות לפי קטגוריה · בנק וכרטיסים"
-              subtitle="לחיצה על קטגוריה פותחת את העסקאות שלה"
+              subtitle="לחיצה על קטגוריה פותחת את השנה שלה"
               ranked={rankedCategories}
               amounts={Object.fromEntries(Object.entries(categoryStats).map(([k, v]) => [k, v.total]))}
               colors={categoryColors}
@@ -259,13 +251,4 @@ async function scopedCategoryMonthly(scope: InsightsScope, sources: Sources, yea
     bankIds.length ? getBankCategoryMonthly(bankIds, year, 'OUT', { cardPayments: 'exclude' }) : {},
   ])
   return mergeCategoryMonthly(cards, bank)
-}
-
-/** Where an insight's category opens its transactions in that month */
-function scopedCategoryHref(scope: InsightsScope, sources: Sources, category: string, year: string, month: number) {
-  const { bankIds, cardIds } = scopeAccounts(scope, sources)
-  const period = { category, year, month }
-  if (!bankIds.length) return categoryTransactionsHref({ cardIds, ...period })
-  if (!cardIds.length) return bankCategoryTransactionsHref({ accountIds: bankIds, ...period })
-  return combinedCategoryTransactionsHref({ accountIds: [...bankIds, ...cardIds], ...period })
 }

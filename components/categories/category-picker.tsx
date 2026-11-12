@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { normalizeKeyword, validKeyword, MIN_KEYWORD_LENGTH } from '@/lib/insights/keyword-rules'
+import { MerchantYearToggle, type MerchantYearRef } from '@/components/transactions/merchant-year'
 
 export interface PickerCategory {
   name: string
@@ -95,6 +96,7 @@ export function CategoryPicker({
   onSave,
   footer,
   bodyDisabled,
+  merchantYear,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -124,6 +126,8 @@ export function CategoryPicker({
   footer?: ReactNode
   /** The categories don't apply (a hidden row): shown dimmed and inert, the footer still works */
   bodyDisabled?: boolean
+  /** The row's merchant over the year, opened in place under the title ("העסק הזה לאורך השנה") */
+  merchantYear?: MerchantYearRef
 }) {
   return (
     <AppDialog
@@ -141,6 +145,8 @@ export function CategoryPicker({
         </span>
       }
     >
+      {/* Remounted per opening (keyed by the row), so it is read for this row */}
+      {open && merchantYear && <MerchantYearToggle key={`${merchantYear.source}:${merchantYear.id}`} {...merchantYear} />}
       {/* Remounted per opening, so it starts from the row's current category */}
       {open && (
         <div inert={bodyDisabled} aria-disabled={bodyDisabled} className={cn(bodyDisabled && 'opacity-40 grayscale')}>

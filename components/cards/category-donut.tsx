@@ -76,7 +76,7 @@ function CategoryDonutInner({
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <ChartHeader
           title={title}
-          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת'}
+          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את השנה שלה' : 'לחיצה על קטגוריה מסננת'}
           className="mb-0"
         />
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}

@@ -10,7 +10,7 @@ import {
   analysisHref,
   bankCategoryTransactionsHref,
   categoryTransactionsHref,
-  combinedCategoryTransactionsHref,
+  categoryYearHref,
   uncategorizedSearchHref,
 } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -18,16 +18,18 @@ import { AccountPills } from '@/components/accounts/account-pills'
 
 interface SearchParams { year?: string; month?: string }
 
-/** Where a category of the analysis opens its transactions: the account's page when it is one account, else search */
+/**
+ * Where a category of the analysis opens: its year (/analysis/category/<name>) in the
+ * same scope. "ללא קטגוריה" is not a category: it opens the rows without one, on the
+ * account's page when it is one account, else in search. The card payment opens nothing.
+ */
 function transactionsHref(scope: AnalysisScope, category: string, year: string, month?: number): string | undefined {
   const { bankIds, cardIds } = scope
   if (category === CARD_PAYMENT_CATEGORY) return undefined
+  if (category !== UNCATEGORIZED) return categoryYearHref(category, { year, month, scope: scope.value || undefined })
   if (!bankIds.length) return categoryTransactionsHref({ cardIds, category, year, month })
   if (!cardIds.length) return bankCategoryTransactionsHref({ accountIds: bankIds, category, year, month })
-  const accountIds = [...bankIds, ...cardIds]
-  return category === UNCATEGORIZED
-    ? uncategorizedSearchHref({ accountIds, year, month })
-    : combinedCategoryTransactionsHref({ accountIds, category, year, month })
+  return uncategorizedSearchHref({ accountIds: [...bankIds, ...cardIds], year, month })
 }
 
 /**

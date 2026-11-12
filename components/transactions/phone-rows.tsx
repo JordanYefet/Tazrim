@@ -40,12 +40,15 @@ export function PhoneTransactionRows({
   meta,
   amountNote,
   extra,
+  selectable = true,
   className,
 }: {
   rows: SearchResult[]
   selected: ReadonlySet<string>
   canSelect: (row: SearchResult) => boolean
   onToggle: (id: string) => void
+  /** `false`: the list has no bulk actions, so no tick box column (a category's year) */
+  selectable?: boolean
   /** Open the row's window (every row, hidden ones too, so they can be unhidden) */
   onOpen: (row: SearchResult) => void
   /** Name the account in each row (a combined table) */
@@ -76,18 +79,20 @@ export function PhoneTransactionRows({
               data-row-id={r.id}
               className={cn('relative flex items-start gap-1', selected.has(r.id) && 'bg-primary/5')}
             >
-              <div className="relative z-10 shrink-0 pt-2">
-                <label className="-my-1 flex h-11 w-11 cursor-pointer items-center justify-center">
-                  <input
-                    type="checkbox"
-                    aria-label={`בחירת ${r.description}`}
-                    checked={selected.has(r.id)}
-                    disabled={!canSelect(r)}
-                    onChange={() => onToggle(r.id)}
-                    className="h-4 w-4 cursor-pointer accent-primary disabled:cursor-default disabled:opacity-30"
-                  />
-                </label>
-              </div>
+              {selectable && (
+                <div className="relative z-10 shrink-0 pt-2">
+                  <label className="-my-1 flex h-11 w-11 cursor-pointer items-center justify-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`בחירת ${r.description}`}
+                      checked={selected.has(r.id)}
+                      disabled={!canSelect(r)}
+                      onChange={() => onToggle(r.id)}
+                      className="h-4 w-4 cursor-pointer accent-primary disabled:cursor-default disabled:opacity-30"
+                    />
+                  </label>
+                </div>
+              )}
               {/* The row opens in place: a button stretched over it, so links in the badges stay clickable */}
               <button
                 type="button"
@@ -95,7 +100,7 @@ export function PhoneTransactionRows({
                 aria-label={r.description}
                 className="absolute inset-0 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               />
-              <div className={cn('pointer-events-none relative min-w-0 flex-1 py-2.5 pe-4', r.ignored && 'opacity-60')}>
+              <div className={cn('pointer-events-none relative min-w-0 flex-1 py-2.5 pe-4', !selectable && 'ps-4', r.ignored && 'opacity-60')}>
                 <div className="flex h-5 min-w-0 items-center gap-3">
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{r.description}</span>
                   <span className={cn('shrink-0 text-sm font-semibold tabular-nums', income && 'text-[hsl(var(--income))]')}>

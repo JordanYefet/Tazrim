@@ -670,6 +670,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           : undefined
       }
       bodyDisabled={!!shown && !selectable(shown)}
+      merchantYear={shown ? { source: 'bank', id: shown.id, year: new Date(shown.date).getFullYear() } : undefined}
       footer={shown && footer?.(shown)}
       extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
       onSave={(category, scope, pattern) => (shown ? onSave(shown, category, scope, pattern) : undefined)}

@@ -613,6 +613,7 @@ function CardCategoryWindow({ tx, categories, colors, onClose, onSave, footer }:
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
       createKind="EXPENSE"
       bodyDisabled={!!shown?.ignored}
+      merchantYear={shown ? { source: 'card', id: shown.id, year: new Date(shown.billingDate).getFullYear() } : undefined}
       footer={shown && footer?.(shown)}
       current={shown && categories.some(c => c.name === (shown.categoryOverride ?? shown.category)) ? shown.categoryOverride ?? shown.category : null}
       scopes={

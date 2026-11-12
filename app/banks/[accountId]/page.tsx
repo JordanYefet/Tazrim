@@ -19,13 +19,13 @@ import { getCategories } from '@/lib/db/categories'
 import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { DimmablePair } from '@/components/ui/dimmable-pair'
-import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
+import { bankCategoryAnalysisHref, categoryYearHref, uncategorizedSearchHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { getAccount, listAccounts } from '@/lib/db/accounts'
 import { badgeCards } from '@/lib/accounts/payment-badge'
 import { FlowFilter } from '@/components/bank/flow-filter'
-import { parseBankFlow } from '@/lib/insights/bank-categories'
+import { CARD_PAYMENT_CATEGORY, parseBankFlow, UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
@@ -171,6 +171,19 @@ export default async function BankAccountPage({
 
   const hasData = lastMonthWithData(bankSummary) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
+  // A donut's category opens its year in this account's scope (/analysis/category/<name>);
+  // "ללא קטגוריה" opens the rows without one, the card payment opens nothing
+  const donutHrefs = (stats: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.keys(stats)
+        .filter(c => c !== CARD_PAYMENT_CATEGORY)
+        .map(c => [
+          c,
+          c === UNCATEGORIZED
+            ? uncategorizedSearchHref({ accountIds: [account.id], year, month })
+            : categoryYearHref(c, { year, month, scope: account.id }),
+        ])
+    )
   const flow = parseBankFlow(params.flow)
 
   // The account itself is the open bank element in the wallet (app/banks/layout.tsx);
@@ -243,6 +256,7 @@ export default async function BankAccountPage({
                 data={totalsOf(incomeStats)}
                 selectedCategory={params.category}
                 colors={incomeColors}
+                categoryHrefs={donutHrefs(incomeStats)}
                 title="הכנסות לפי קטגוריה"
                 tone="income"
                 emptyText="אין הכנסות לתקופה זו"
@@ -254,6 +268,7 @@ export default async function BankAccountPage({
                 data={totalsOf(expenseStats)}
                 selectedCategory={params.category}
                 colors={expenseColors}
+                categoryHrefs={donutHrefs(expenseStats)}
                 emptyText="אין הוצאות לתקופה זו"
               />
             }

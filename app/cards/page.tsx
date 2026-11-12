@@ -23,7 +23,7 @@ import type { TableAccount } from '@/components/accounts/account-tag'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { accountHref } from '@/lib/accounts/routes'
-import { categoryAnalysisHref } from '@/lib/accounts/category-links'
+import { categoryAnalysisHref, categoryYearHref } from '@/lib/accounts/category-links'
 import {
   cardPeriodTotals,
   lastMonthWithData,
@@ -223,6 +223,8 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
                 selectedCategory={params.category}
                 colors={categoryColors}
                 analysisHref={categoryAnalysisHref(undefined, period)}
+                // A category opens its year across the cards (/analysis/category/<name>)
+                categoryHrefs={Object.fromEntries(Object.keys(categoryStats).map(c => [c, categoryYearHref(c, { year, month, scope: 'cards' })]))}
               />
             </div>
           </>
