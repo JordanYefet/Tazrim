@@ -193,7 +193,7 @@ export default async function CategoryYearPage({
         </section>
 
         {/* Two equal halves: who the money went to, and the month's rows */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <TopMerchants
             merchants={summary.merchants}
             year={year}
