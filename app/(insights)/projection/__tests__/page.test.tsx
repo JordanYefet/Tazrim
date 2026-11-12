@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ProjectionPage } from '@/lib/db/projection'
 
-const banks = [{ id: 'b1', displayName: 'בנק לדוגמה' }]
+const banks = [{ id: 'b1', displayName: 'בנק לדוגמה', provider: 'leumi', color: null }]
 const month = (month: string, expected: number, tight = false) => ({
   month, income: 10000, expense: 6000, net: 4000, expected, low: expected - 500, high: expected + 500, stale: false, tight,
 })
@@ -61,7 +61,7 @@ describe('/projection', () => {
   it('shows the picker only with more than one bank', async () => {
     page = { insufficient: true, completeMonths: 0, banks, accountId: null }
     expect(await render()).not.toContain('data-bank-picker')
-    page = { insufficient: true, completeMonths: 0, banks: [...banks, { id: 'b2', displayName: 'עוד בנק' }], accountId: null }
+    page = { insufficient: true, completeMonths: 0, banks: [...banks, { id: 'b2', displayName: 'עוד בנק', provider: 'hapoalim', color: null }], accountId: null }
     expect(await render()).toContain('data-bank-picker')
   })
 })

@@ -3,6 +3,7 @@ import {
   CARD_HEIGHT_CQW,
   MORE_ID,
   STACK_SCALE,
+  OPEN_Y,
   boxHeight,
   openOffset,
   openOffsetPx,
@@ -16,6 +17,7 @@ import {
   stripPx,
   translateYOf,
   walletModeFor,
+  walletVars,
 } from '../wallet-motion'
 import { MOTION } from '@/lib/motion'
 
@@ -62,12 +64,20 @@ describe('placements', () => {
     expect(p.get('card_old')).toMatchObject({ hidden: true, opacity: 0 })
   })
 
-  it('puts the open card on top, centred in the box, and the others out of sight below it', () => {
+  it('puts the open card on top, at OPEN_Y (set per screen), and the others out of sight below it', () => {
     const p = placements({ kind: 'open', id: 'card_b' }, cards, stackOrder)
     expect(p.get('card_b')).toMatchObject({ opacity: 1, zIndex: 5, front: true })
-    expect(p.get('card_b')!.transform).toBe(`translate3d(0, ${openOffset(stackOrder.length)}, 0)`)
+    expect(p.get('card_b')!.transform).toBe('translate3d(0, var(--wallet-open-y), 0)')
+    expect(OPEN_Y).toBe('var(--wallet-open-y)')
     expect(p.get('card_a')).toMatchObject({ hidden: true, opacity: 0 })
     expect(p.get('card_old')).toMatchObject({ hidden: true })
+  })
+})
+
+describe('walletVars', () => {
+  it('gives the stack-tall box and the desktop (centred) open offset', () => {
+    expect(walletVars(3)).toEqual({ '--wallet-box-h': boxHeight({ kind: 'stack' }, 3), '--wallet-open-y-lg': openOffset(3) })
+    expect(walletVars(0)).toEqual({ '--wallet-box-h': '63.0841cqw', '--wallet-open-y-lg': '0px' })
   })
 })
 
@@ -124,6 +134,12 @@ describe('predictCardPlacement (ENG-72: baking glass ahead)', () => {
     const p = predictCardPlacement({ kind: 'open', id: 'front' }, 'front', order, box)!
     expect(p.rect).toEqual({ x: 16, y: 400 + openOffsetPx(358, 3), width: 358, height: (358 * CARD_HEIGHT_CQW) / 100 })
     expect(p.scaleX).toBe(1)
+  })
+
+  it('on a phone the open card is at the top of the box', () => {
+    const p = predictCardPlacement({ kind: 'open', id: 'front' }, 'front', order, box, true)!
+    expect(p.rect.y).toBe(400)
+    expect(openOffsetPx(358, 3, true)).toBe(0)
   })
 
   it('centres the open card: equal space above and below it in the stack-tall box', () => {

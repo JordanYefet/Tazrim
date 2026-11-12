@@ -4,15 +4,14 @@ import { formatCurrencyWhole } from '@/lib/utils/currency'
 
 interface Props {
   total: number
-  count: number
   /** Yearly monthly average (of the filtered category, when there is one) */
   average: number
   /** The selected month's name: its total is compared with the average */
   monthLabel?: string
   /** Whether the selected month has any charges; without, the average gets no comparison chip */
   monthHasData?: boolean
-  /** Billing month (1-12) -> number of charges (getCCMonthlyCounts): a mini chart in the count tile */
-  monthlyCounts?: Record<number, number>
+  /** The selected month is this month: its charges are partial, so no comparison chip */
+  monthInProgress?: boolean
   /** Billing month (1-12) -> total charged (getCCMonthlySummary): a mini chart with the average line in the average tile */
   monthlyTotals?: Record<number, number>
   /** The selected month (?month=), highlighted on the charts; without one the latest month with data is */
@@ -21,29 +20,19 @@ interface Props {
 
 function cardStats({
   total,
-  count,
   average,
   monthLabel,
   monthHasData = true,
-  monthlyCounts,
+  monthInProgress = false,
   monthlyTotals,
   selectedMonth,
 }: Props): StatDef[] {
   return [
     {
-      label: 'מספר עסקאות',
-      value: count,
-      tone: 'neutral',
-      format: 'integer',
-      footer: monthlyCounts && (
-        <MonthBarsChart values={monthlyCounts} selectedMonth={selectedMonth} tone="neutral" caption="עסקאות בכל חודש" />
-      ),
-    },
-    {
       ...averageStat(
-        { label: 'ממוצע חודשי', tone: 'cc', format: 'currencyExact' },
+        { label: 'ממוצע חודשי', tone: 'cc', format: 'currency' },
         average,
-        monthLabel ? { label: monthLabel, value: total, hasData: monthHasData } : undefined
+        monthLabel ? { label: monthLabel, value: total, hasData: monthHasData, inProgress: monthInProgress } : undefined
       ),
       footer: monthlyTotals && (
         <MonthBarsChart
@@ -60,7 +49,7 @@ function cardStats({
 }
 
 /**
- * The count and the monthly average, beside the wallet: on a card's page (the
+ * The monthly average (one full-width tile), beside the wallet: on a card's page (the
  * total sits on the card) and on /cards under the card list (the total is on
  * the pocket). `className` sizes the pair (flex-1 fills the wallet's height);
  * with monthly data, each tile fills that height with a small chart by month.

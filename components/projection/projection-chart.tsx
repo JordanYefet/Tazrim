@@ -4,7 +4,7 @@ import { Area, CartesianGrid, ComposedChart, Line, ReferenceDot, ReferenceLine, 
 import { useMemo } from 'react'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { buildChartRows, chartDomain, type ChartRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth } from '@/lib/insights/projection'
 import { useSelectedMonth } from './selected-month'
@@ -21,11 +21,11 @@ export function ChartTooltip({ active, payload, label }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="mb-0.5 text-xs text-muted-foreground">{label}</p>
-      {row.actual !== undefined && <p className="font-semibold tabular-nums">{formatCurrency(row.actual)}</p>}
+      {row.actual !== undefined && <p className="font-semibold tabular-nums">{formatCurrencyWhole(row.actual)}</p>}
       {expected !== undefined && band && (
         <>
-          <p className="font-semibold tabular-nums">{formatCurrency(expected)}</p>
-          <p className="text-xs tabular-nums text-muted-foreground">{formatCurrency(band[0])} – {formatCurrency(band[1])}</p>
+          <p className="font-semibold tabular-nums">{formatCurrencyWhole(expected)}</p>
+          <p className="text-xs tabular-nums text-muted-foreground">{formatCurrencyWhole(band[0])} – {formatCurrencyWhole(band[1])}</p>
         </>
       )}
     </div>

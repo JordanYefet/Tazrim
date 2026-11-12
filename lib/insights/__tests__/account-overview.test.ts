@@ -103,6 +103,50 @@ describe('monthlyAverage', () => {
   })
 })
 
+describe('averages over finished months only (a month in progress drags nothing down)', () => {
+  // The clock: 11 November 2026, so January to October are finished, November is in progress
+  const now = new Date('2026-11-11T09:00:00Z')
+  const period = { year: 2026, now }
+
+  it('bankPeriodTotals leaves the month in progress out of both averages, but not out of the totals', () => {
+    const m = bank({ 9: [1000, 600], 10: [1000, 800], 11: [200, 100] })
+    const totals = bankPeriodTotals(m, undefined, period)
+    expect(totals).toMatchObject({ income: 2200, expense: 1500, averageExpense: 700, averageIncome: 1000 })
+    // The selected month in progress still shows its own figures
+    expect(bankPeriodTotals(m, 11, period)).toMatchObject({ income: 200, expense: 100, averageExpense: 700, averageIncome: 1000 })
+  })
+
+  it('cardPeriodTotals leaves the month in progress out of the average', () => {
+    const m = card({ 9: 300, 10: 100, 11: 40 })
+    expect(cardPeriodTotals(m, undefined, period)).toEqual({ total: 440, average: 200 })
+    expect(cardPeriodTotals(m, 11, period)).toEqual({ total: 40, average: 200 })
+  })
+
+  it('counts every month of a past year', () => {
+    const m = card({ 11: 300, 12: 100 })
+    expect(cardPeriodTotals(m, undefined, { year: 2025, now })).toEqual({ total: 400, average: 200 })
+    expect(bankPeriodTotals(bank({ 11: [10, 30], 12: [20, 10] }), undefined, { year: 2025, now })).toMatchObject({
+      averageExpense: 20,
+      averageIncome: 15,
+    })
+  })
+
+  it('monthlyAverage with another series counts only its finished months too', () => {
+    const all = card({ 9: 300, 10: 50, 11: 100 })
+    const category = card({ 9: 60, 11: 90 })
+    // 60 over the two finished months with any charges; November's 90 is not in
+    expect(monthlyAverage(category, all, period)).toBe(30)
+  })
+
+  it('is 0 before any month has finished', () => {
+    expect(cardPeriodTotals(card({ 1: 500 }), undefined, { year: 2026, now: new Date('2026-01-20T09:00:00Z') })).toEqual({ total: 500, average: 0 })
+  })
+
+  it('without a period every month counts, as before', () => {
+    expect(cardPeriodTotals(card({ 10: 100, 11: 300 }))).toEqual({ total: 400, average: 200 })
+  })
+})
+
 describe('averageDelta', () => {
   it('is the month above or below the average as a fraction', () => {
     expect(averageDelta(120, 100)).toBeCloseTo(0.2)

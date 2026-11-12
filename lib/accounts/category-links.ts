@@ -9,6 +9,22 @@ export function analysisHref(scope: string | undefined, params?: QueryInput): st
   return withQuery(scope ? `/analysis/${encodeURIComponent(scope)}` : '/analysis', params)
 }
 
+/**
+ * A category's year (/analysis/category/<name>): one total, twelve months, the
+ * merchants and a month's rows, bank and cards together. `scope` narrows it as the
+ * analysis page does (`bank`, `cards` or one account's id; none = everything).
+ */
+export function categoryYearHref(
+  category: string,
+  { year, month, scope }: { year: string | number; month?: number | string; scope?: string }
+): string {
+  return withQuery(`/analysis/category/${encodeURIComponent(category)}`, {
+    year: String(year),
+    ...(month ? { month: String(month) } : {}),
+    ...(scope ? { scope } : {}),
+  })
+}
+
 /** The analysis of one card, or of every card */
 export function categoryAnalysisHref(cardId: string | undefined, params?: QueryInput): string {
   return analysisHref(cardId ?? 'cards', params)

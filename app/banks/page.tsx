@@ -9,7 +9,7 @@ import { IncomeExpenseChart } from '@/components/bank/income-expense-chart'
 import { BankSummaryRow } from '@/components/accounts/account-cards'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
-import { getBankBalancePoints, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
+import { getBankBalanceAt, getBankBalanceBefore, getBankBalancePoints, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { BalanceChart } from '@/components/bank/balance-chart'
 import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { DataSwap } from '@/components/ui/data-swap'
@@ -32,13 +32,14 @@ import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref, accountPath } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { CardStackTotal } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import {
   bankPeriodTotals,
   lastMonthWithData,
   monthHasData,
-  shareOf,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { monthName } from '@/lib/utils/date'
 import { badgeCards } from '@/lib/accounts/payment-badge'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -108,29 +109,41 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   const month = params.month ? Number(params.month) : undefined
   const period = { year, ...(month ? { month: String(month) } : {}) }
 
+  // The cards a card-payment row links to (archived too: an old row keeps its card)
+  const cardAccountsPromise = listAccounts({ kind: 'CREDIT_CARD', includeArchived: true })
   const accounts = await listAccounts({ kind: 'BANK' })
-  const perAccount = await Promise.all(
-    accounts.map(async (account, i) => {
-      const [monthly, [latest], balancePoints] = await Promise.all([
-        getBankMonthlySummary(Number(year), account.id),
-        // newest row in the period: its balance is the account's balance then
-        getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
-        getBankBalancePoints(account.id, Number(year), month),
-      ])
-      const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
-      return { account, monthly, latest, balancePoints, color, totals: bankPeriodTotals(monthly, month) }
-    })
-  )
+  // The per-account figures and the table below (every account's rows) read independently, so they run together
+  const [perAccount, table, cardAccounts] = await Promise.all([
+    Promise.all(
+      accounts.map(async (account, i) => {
+        const [monthly, [latest], balancePoints, balanceBefore, balanceAt] = await Promise.all([
+          getBankMonthlySummary(Number(year), account.id),
+          // newest row in the period: its balance is the account's balance then
+          getBankTransactions({ accountId: account.id, year: Number(year), month, take: 1 }),
+          getBankBalancePoints(account.id, Number(year), month),
+          getBankBalanceBefore(account.id, Number(year), month),
+          getBankBalanceAt(account.id, Number(year), month),
+        ])
+        const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
+        return { account, monthly, latest, balancePoints, balanceBefore, balanceAt, color, totals: bankPeriodTotals(monthly, month, { year: Number(year) }) }
+      })
+    ),
+    // Skipped with no accounts (the empty state below)
+    accounts.length ? getTableData(accounts.map(a => a.id), params) : null,
+    cardAccountsPromise,
+  ])
 
   // Bank accounts only: card charges are already inside these expenses
   const combined = sumBankMonthly(perAccount.map(a => a.monthly))
-  const totals = bankPeriodTotals(combined, month)
+  // The averages count finished months only: the month in progress would drag them down (ENG-107)
+  const totals = bankPeriodTotals(combined, month, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
   const chartData = Object.entries(combined).map(([m, d]) => ({ month: Number(m), ...d }))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
 
-  // On the navy pocket: the balance across the accounts (each one's latest row in the period)
-  const stackBalance = perAccount.reduce((sum, a) => sum + (a.latest?.balance ?? 0), 0)
+  // On the navy pocket: the balance across the accounts (each one's latest balance by the period's end, idle accounts included)
+  const stackBalance = perAccount.reduce((sum, a) => sum + (a.balanceAt ?? 0), 0)
 
   const heading = (
     <PageHeading period={{ year: Number(year), month }} title="בנקים">
@@ -138,7 +151,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
     </PageHeading>
   )
 
-  if (accounts.length === 0) {
+  if (accounts.length === 0 || !table) {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         {heading}
@@ -158,12 +171,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
     )
   }
 
-  // The table below the charts: every account's rows
-  // Archived cards too: an old card-payment row still links to the card it paid
-  const [table, cardAccounts] = await Promise.all([
-    getTableData(accounts.map(a => a.id), params),
-    listAccounts({ kind: 'CREDIT_CARD', includeArchived: true }),
-  ])
   const tableAccounts: TableAccount[] = perAccount.map(({ account, color }) => ({
     id: account.id,
     name: account.displayName,
@@ -184,10 +191,13 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   return (
     <div className="contents">
       <div className="wallet-shell__head">{heading}</div>
-      <CardStackTotal value={stackBalance} />
+      {/* The balance on the navy pocket, and at its foot the period's net */}
+      <CardStackTotal value={stackBalance} net={{ value: totals.net, label: month ? `נטו ב${monthName(month)}` : `נטו ב־${year}` }} />
 
       {/* Beside the wallet, as tall as it: each account's figures (as the card list on /cards),
           then the four period figures in a compact card filling the rest */}
+      {/* Phones: the transactions, or (מגמות) these figures and the charts */}
+      <WalletViews enabled={hasData}>
       <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
         {/* Beside a wallet of fixed height: past a few accounts the list scrolls in its own card,
           and the figures under it keep their size (they never shrink under the list) */}
@@ -202,7 +212,6 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               colorChoice={account.color}
               expense={t.expense}
               balance={latest?.balance}
-              expenseShare={several ? shareOf(t.expense, totals.expense) : undefined}
             />
           ))}
         </ScrollHintList>
@@ -217,6 +226,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               averageIncome: totals.averageIncome,
               monthLabel: month ? monthName(month) : undefined,
               monthHasData: !!month && monthHasData(combined, month),
+              monthInProgress: inProgress,
             })}
           />
         ) : (
@@ -233,7 +243,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         {/* The same pair as on an account's page: income vs. expenses, and the balance
             (every account's together) with the category analysis link */}
         {hasData && (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart
               data={chartData}
               selectedMonth={month}
@@ -241,7 +251,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               subtitle={several ? 'כל חשבונות הבנק יחד · לחיצה על חודש מסננת' : undefined}
             />
             <BalanceChart
-              data={combinedBalance(perAccount.map(a => a.balancePoints))}
+              data={combinedBalance(perAccount.map(a => a.balancePoints), perAccount.map(a => a.balanceBefore))}
               subtitle={several ? 'כל החשבונות יחד · כל התנועות בתקופה' : undefined}
               analysisHref={bankCategoryAnalysisHref(undefined, period)}
             />
@@ -252,6 +262,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             as bank money going out */}
         {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
           // Stays mounted while the keyed table remounts, so the new rows ease in
+          <div data-view="list">
           <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')} height>
             <BankTransactionsTable
               key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
@@ -272,8 +283,10 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK')} params={params} current={flow} />}
             />
           </DataSwap>
+          </div>
         )}
       </div>
+      </WalletViews>
     </div>
   )
 }

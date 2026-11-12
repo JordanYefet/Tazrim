@@ -1,16 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { startTransition, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListChecks, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { SegmentedTrack } from '@/components/ui/segmented'
 import { Reveal } from '@/components/ui/reveal'
 import { hasCriteria, splitTerms, toSearchParams, type SearchFilters, type SearchPage, type SearchResult, type TextMode } from '@/lib/search/query'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { isCardPaymentRow } from '@/lib/insights/bank-categories'
-import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
-import { suggestKeyword } from '@/lib/insights/keyword-rules'
+import { CategoryPill } from '@/components/categories/category-picker'
+import { ResultCategoryWindow, type PickerData } from '@/components/transactions/result-category-window'
+import { saveResultCategory, type ResultScope } from '@/components/transactions/save-result-category'
+import { useOptimisticRows } from '@/hooks/use-optimistic-rows'
+import { keysChange, resultChangeHits, resultKey as keyOf, type RowChange } from '@/lib/tables/category-change'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
 import { SearchResultList } from './search-result-list'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
@@ -36,16 +39,6 @@ interface Props {
   cards?: BadgeCard[]
   /** What a result's category window needs */
   picker: PickerData
-}
-
-interface PickerData {
-  /** Category names by kind: card charges and bank debits take expense ones, bank credits income ones */
-  expense: string[]
-  income: string[]
-  /** Each category's chart colour */
-  colors: Record<string, string>
-  /** Bank descriptions categorised row by row, never by a rule */
-  generic: string[]
 }
 
 interface FormState {
@@ -326,30 +319,48 @@ function Results({ initial, queryString, terms, picker, cards, uncategorizedOnly
   /** The list is "ללא קטגוריה": a result that gets a category leaves it */
   uncategorizedOnly: boolean
 }) {
-  const [results, setResults] = useState(initial.results)
+  // The rows as saved; `results` shows the saves still in flight on top (use-optimistic-rows.ts)
+  const [saved, setResults] = useState(initial.results)
+  const [results, show] = useOptimisticRows(saved)
   const [removed, setRemoved] = useState(0)
   const [picking, setPicking] = useState<SearchResult | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   // A card row's category may be the issuer's own (unmapped): that is no category of yours
   const yours = new Set([...picker.expense, ...picker.income])
   const known = (category?: string) => (category && yours.has(category) ? category : null)
 
-  /**
-   * After a save: this row (and with a wider scope, the matching loaded rows) get the
-   * category. `changed`: the rows a contains-text rule changed, as `source:id` keys.
-   */
-  function applied(target: SearchResult, category: string | null, wide: boolean, changed?: Set<string>) {
-    const hit = (r: SearchResult) =>
-      changed
-        ? changed.has(keyOf(r))
-        : r.id === target.id ||
-          (wide && r.source === target.source && r.accountId === target.accountId && (r.originalDescription ?? r.description) === (target.originalDescription ?? target.description))
+  /** A saved change lands in the rows; rows that got a category leave a "ללא קטגוריה" list */
+  function landed(change: RowChange<SearchResult>, category: string | null) {
     if (uncategorizedOnly && category !== null) {
-      const gone = results.filter(hit).length
-      setResults(prev => prev.filter(r => !hit(r)))
+      const gone = saved.filter(change.hits).length
+      setResults(prev => prev.filter(r => !change.hits(r)))
       setRemoved(n => n + gone)
     } else {
-      setResults(prev => prev.map(r => (hit(r) ? { ...r, category: category ?? undefined } : r)))
+      setResults(prev => prev.map(r => (change.hits(r) ? change.patch(r) : r)))
     }
+  }
+
+  /**
+   * The window's choice: the row (and with a wider scope, the merchant's loaded rows)
+   * shows the category at once; the save runs behind it. When it lands, a contains-text
+   * rule's real reach (`changed`, as `source:id` keys) replaces the guess; when it fails
+   * the rows go back and the error shows.
+   */
+  function save(target: SearchResult, category: string | null, scope: ResultScope, pattern?: string) {
+    const patch = (r: SearchResult): SearchResult => ({ ...r, category: category ?? undefined })
+    const guess: RowChange<SearchResult> = { hits: resultChangeHits(target, scope === 'wide'), patch }
+    startTransition(async () => {
+      show(guess)
+      const out = await saveResultCategory(target, category, scope, pattern)
+      startTransition(() => {
+        if (!out.ok) {
+          setSaveError(out.error)
+          return
+        }
+        setSaveError(null)
+        landed(out.changed ? keysChange(out.changed, patch) : guess, category)
+      })
+    })
   }
   const [cursor, setCursor] = useState(initial.nextCursor)
   const [loading, setLoading] = useState(false)
@@ -421,34 +432,54 @@ function Results({ initial, queryString, terms, picker, cards, uncategorizedOnly
       }
   const bulkKind = mix.in && (mix.out || mix.card) ? 'mixed' : mix.in ? 'income' : 'expense'
 
+  /**
+   * The ticked rows show the category at once and the selection clears; the save runs
+   * behind. When it lands, the rows the server changed (loaded or not) are the ones
+   * that count; when it fails the rows go back, the selection returns with the error.
+   */
   async function saveBulk(category: string | null) {
-    const res = await fetch('/api/search/bulk-category', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        all
-          ? { category, query: queryString, exclude: [...excluded].map(fromKey) }
-          : { category, items: [...picked.keys()].map(fromKey) }
-      ),
-    })
-    const body = await res.json().catch(() => null)
-    if (!res.ok) {
-      setBulkError(body?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
-    }
-    const changed = new Set([
-      ...(body.bankIds as string[]).map(id => `bank:${id}`),
-      ...(body.cardIds as string[]).map(id => `card:${id}`),
-    ])
-    // Rows that got a category leave a "ללא קטגוריה" list, loaded or not
-    if (uncategorizedOnly && category !== null) {
-      setResults(prev => prev.filter(r => !changed.has(keyOf(r))))
-      setRemoved(n => n + changed.size)
-    } else {
-      setResults(prev => prev.map(r => (changed.has(keyOf(r)) ? { ...r, category: category ?? undefined } : r)))
-    }
+    const patch = (r: SearchResult): SearchResult => ({ ...r, category: category ?? undefined })
+    const body = all
+      ? { category, query: queryString, exclude: [...excluded].map(fromKey) }
+      : { category, items: [...picked.keys()].map(fromKey) }
+    const selection = { all, excluded, picked }
+    const guessKeys = all ? results.filter(r => selectable(r) && !excluded.has(keyOf(r))).map(keyOf) : [...picked.keys()]
     clearSelection()
     setSelecting(false)
+    startTransition(async () => {
+      show(keysChange(guessKeys, patch))
+      let res: Response | null = null
+      let answer: { error?: string; bankIds?: string[]; cardIds?: string[] } | null = null
+      try {
+        res = await fetch('/api/search/bulk-category', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        answer = await res.json().catch(() => null)
+      } catch {}
+      startTransition(() => {
+        if (!res?.ok) {
+          setBulkError(answer?.error ?? 'שמירת הקטגוריה נכשלה')
+          setSelecting(true)
+          setAll(selection.all)
+          setExcluded(selection.excluded)
+          setPicked(selection.picked)
+          return
+        }
+        const changed = new Set([
+          ...(answer?.bankIds ?? []).map(id => `bank:${id}`),
+          ...(answer?.cardIds ?? []).map(id => `card:${id}`),
+        ])
+        // Rows that got a category leave a "ללא קטגוריה" list, loaded or not
+        if (uncategorizedOnly && category !== null) {
+          setResults(prev => prev.filter(r => !changed.has(keyOf(r))))
+          setRemoved(n => n + changed.size)
+        } else {
+          setResults(prev => prev.map(r => (changed.has(keyOf(r)) ? patch(r) : r)))
+        }
+      })
+    })
   }
 
   async function loadMore() {
@@ -513,13 +544,14 @@ function Results({ initial, queryString, terms, picker, cards, uncategorizedOnly
         </button>
       </div>
       {bulkError && <p role="alert" className="px-2 pb-2 text-sm text-destructive">{bulkError}</p>}
+      {saveError && <p role="alert" className="px-2 pb-2 text-sm text-destructive">{saveError}</p>}
       {selectedCount > 0 && (
         <div className="px-1 pb-2">
           <BulkCategoryBar
             count={selectedCount}
             kind={bulkKind}
             context={bulkContext(mix, bulkKind === 'income')}
-            amount={all ? undefined : formatCurrency(chosen.reduce((sum, r) => sum + Math.abs(r.amount), 0))}
+            amount={all ? undefined : formatCurrencyWhole(chosen.reduce((sum, r) => sum + Math.abs(r.amount), 0))}
             categories={(bulkKind === 'income' ? picker.income : picker.expense).map(name => ({ name, color: picker.colors[name] }))}
             allowNone={!mix.card}
             onApply={saveBulk}
@@ -578,7 +610,7 @@ function Results({ initial, queryString, terms, picker, cards, uncategorizedOnly
           </span>
         )}
       />
-      <ResultCategoryWindow result={picking} picker={picker} onClose={() => setPicking(null)} onApplied={applied} />
+      <ResultCategoryWindow result={picking} picker={picker} onClose={() => setPicking(null)} onSave={save} />
       {cursor && (
         <div className="px-2 pt-2">
           <button
@@ -603,7 +635,6 @@ interface AllMatches {
   card: number
 }
 
-const keyOf = (r: Pick<SearchResult, 'source' | 'id'>) => `${r.source}:${r.id}`
 const fromKey = (key: string) => {
   const i = key.indexOf(':')
   return { source: key.slice(0, i), id: key.slice(i + 1) }
@@ -622,100 +653,3 @@ function bulkContext(mix: { bank: boolean; card: boolean }, income: boolean) {
 /** A bank row's payment to a card company never takes a category */
 const isCardPayment = (r: SearchResult) =>
   r.source === 'bank' && r.amount > 0 && isCardPaymentRow({ description: r.description, originalDescription: r.originalDescription ?? r.description, debit: r.amount })
-
-/** A search result's category window: the same one the bank and card tables open */
-function ResultCategoryWindow({ result, picker, onClose, onApplied }: {
-  result: SearchResult | null
-  picker: PickerData
-  onClose: () => void
-  onApplied: (result: SearchResult, category: string | null, wide: boolean, changed?: Set<string>) => void
-}) {
-  // The last result stays while the window animates out
-  const [last, setLast] = useState<SearchResult | null>(result)
-  if (result && result !== last) setLast(result)
-  const r = result ?? last
-  const [error, setError] = useState<string | null>(null)
-  if (!r) return null
-  const bank = r.source === 'bank'
-  const income = r.amount < 0
-  const original = r.originalDescription ?? r.description
-  const generic = bank && picker.generic.includes(original)
-  const names = income ? picker.income : picker.expense
-
-  async function save(category: string | null, scope: string | null, pattern?: string) {
-    if (!r) return
-    if (scope === CONTAINS_SCOPE) {
-      const res = await fetch('/api/category-keyword-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pattern, category, fromRow: { source: r.source, id: r.id } }),
-      })
-      if (!res.ok) {
-        setError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-        return
-      }
-      setError(null)
-      onClose()
-      const { cardIds, bankIds } = (await res.json()) as { cardIds: string[]; bankIds: string[] }
-      onApplied(r, category, true, new Set([...cardIds.map(id => `card:${id}`), ...bankIds.map(id => `bank:${id}`)]))
-      return
-    }
-    const wide = scope === 'rule' || scope === 'merchant'
-    const res = bank
-      ? await fetch(`/api/bank/transactions/${r.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category, categoryScope: wide ? 'rule' : 'row' }),
-        })
-      : await fetch(`/api/cards/${encodeURIComponent(r.accountId)}/transactions/${r.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ categoryOverride: category, categoryScope: wide ? 'merchant' : 'row' }),
-        })
-    if (!res.ok) {
-      setError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
-    }
-    setError(null)
-    onClose()
-    onApplied(r, category, wide)
-  }
-
-  return (
-    <>
-      <CategoryPicker
-        open={!!result}
-        onOpenChange={o => !o && onClose()}
-        context={`${bank ? (income ? 'תנועה נכנסת' : 'תנועה יוצאת') : 'חיוב'} · ${r.accountName} · ${displayDay(r.date)}`}
-        title={r.description}
-        amount={formatCurrency(Math.abs(r.amount))}
-        amountTone={income ? 'income' : 'expense'}
-        categories={names.map(name => ({ name, color: picker.colors[name] }))}
-        createKind={income ? 'INCOME' : 'EXPENSE'}
-        current={r.category && (picker.expense.includes(r.category) || picker.income.includes(r.category)) ? r.category : null}
-        allowNone={bank}
-        scopes={
-          generic
-            ? undefined
-            : bank
-              ? [
-                  { id: 'row', title: 'רק התנועה הזאת', sub: 'שאר התנועות עם התיאור הזה לא משתנות' },
-                  { id: 'rule', title: `כל התנועות ${income ? 'הנכנסות' : 'היוצאות'} "${original}"`, sub: 'כולל תנועות שיועלו בהמשך; תנועה שבחרת לה ידנית לא משתנה' },
-                  containsScope(original, income ? 'INCOME' : 'EXPENSE', suggestKeyword(original)),
-                ]
-              : [
-                  { id: 'row', title: 'רק החיוב הזה', sub: `שאר החיובים מ${r.description} לא משתנים` },
-                  { id: 'merchant', title: `כל החיובים מ${r.description}`, sub: 'בכל הכרטיסים של החברה, וגם בקבצים הבאים' },
-                  containsScope(original, 'EXPENSE', suggestKeyword(original)),
-                ]
-        }
-        note={generic ? `"${original}" הוא תיאור כללי: הקטגוריה נשמרת לתנועה הזאת בלבד.` : undefined}
-        onSave={save}
-      />
-      {error && <p role="alert" className="px-2 pt-2 text-sm text-destructive">{error}</p>}
-    </>
-  )
-}
-
-/** DD.MM.YYYY from the result's YYYY-MM-DD key */
-const displayDay = (key: string) => key.split('-').reverse().join('.')

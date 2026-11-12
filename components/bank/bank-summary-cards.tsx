@@ -11,23 +11,17 @@ interface Props {
   monthLabel?: string
   /** Whether the selected month has any data; without, the average gets no comparison chip */
   monthHasData?: boolean
+  /** The selected month is this month: its figures are partial, so no comparison chip */
+  monthInProgress?: boolean
 }
 
 /** The four tiles: totals in the first row, monthly averages under them (income column, expense column). */
-export function bankStats({ income, expense, averageExpense, averageIncome, monthLabel, monthHasData = true }: Props): StatDef[] {
+export function bankStats({ income, expense, averageExpense, averageIncome, monthLabel, monthHasData = true, monthInProgress = false }: Props): StatDef[] {
+  const compared = (value: number) => (monthLabel ? { label: monthLabel, value, hasData: monthHasData, inProgress: monthInProgress } : undefined)
   return [
-    { label: 'סה״כ הכנסות', value: income, tone: 'income', format: 'currencyExact' },
-    { label: 'סה״כ הוצאות', value: expense, tone: 'expense', format: 'currencyExact', hint: 'כולל חיובי כרטיס' },
-    averageStat(
-      { label: 'ממוצע הכנסות חודשי', tone: 'neutral', format: 'currencyExact' },
-      averageIncome,
-      monthLabel ? { label: monthLabel, value: income, hasData: monthHasData } : undefined,
-      { upIsGood: true }
-    ),
-    averageStat(
-      { label: 'ממוצע הוצאות חודשי', tone: 'neutral', format: 'currencyExact' },
-      averageExpense,
-      monthLabel ? { label: monthLabel, value: expense, hasData: monthHasData } : undefined
-    ),
+    { label: 'סה״כ הכנסות', value: income, tone: 'income', format: 'currency' },
+    { label: 'סה״כ הוצאות', value: expense, tone: 'expense', format: 'currency', hint: 'כולל חיובי כרטיס' },
+    averageStat({ label: 'ממוצע הכנסות חודשי', tone: 'neutral', format: 'currency' }, averageIncome, compared(income), { upIsGood: true }),
+    averageStat({ label: 'ממוצע הוצאות חודשי', tone: 'neutral', format: 'currency' }, averageExpense, compared(expense)),
   ]
 }

@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, Plus, Search, TextSearch } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { normalizeKeyword, validKeyword, MIN_KEYWORD_LENGTH } from '@/lib/insights/keyword-rules'
+import { MerchantYearToggle, type MerchantAll, type MerchantYearRef } from '@/components/transactions/merchant-year'
 
 export interface PickerCategory {
   name: string
@@ -58,7 +59,9 @@ export function CategoryPill({ name, color, sourceName, onClick, className }: {
       title={!name && sourceName ? `בקובץ: ${sourceName}` : (name ?? undefined)}
       className={cn(
         // One width for every category, so a column of pills lines up: room for the longest starting category; a longer custom name truncates (full name on hover)
-        'inline-flex h-7 w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
+        'relative inline-flex h-7 w-40 items-center gap-1.5 rounded-full px-2.5 text-xs transition-[background-color,transform] duration-fast hover:bg-muted active:scale-[0.97]',
+        // The hit area grows to 44px tall without moving anything
+        'before:absolute before:inset-x-0 before:-inset-y-2',
         name ? 'bg-muted/60' : 'border border-dashed text-muted-foreground',
         className
       )}
@@ -91,6 +94,11 @@ export function CategoryPicker({
   extraAction,
   createKind,
   onSave,
+  footer,
+  bodyDisabled,
+  merchantYear,
+  merchantAll,
+  detail,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -116,6 +124,16 @@ export function CategoryPicker({
   createKind?: 'EXPENSE' | 'INCOME'
   /** `pattern`: the text of a contains-text scope, when that is the one picked */
   onSave: (category: string | null, scope: string | null, pattern?: string) => Promise<void> | void
+  /** Below the categories, e.g. row actions that only phones need */
+  footer?: ReactNode
+  /** The categories don't apply (a hidden row): shown dimmed and inert, the footer still works */
+  bodyDisabled?: boolean
+  /** The row's merchant over the year, opened in place under the title ("העסק הזה לאורך השנה") */
+  merchantYear?: MerchantYearRef
+  /** "כל העסקאות מהעסק הזה" under the year: filter the table, or a link to search */
+  merchantAll?: MerchantAll
+  /** The row's note, under the title in full (the phone rows cut it) */
+  detail?: string
 }) {
   return (
     <AppDialog
@@ -130,11 +148,19 @@ export function CategoryPicker({
               {amount}
             </span>
           </span>
+          {detail && (
+            <span className="text-sm font-normal text-muted-foreground">
+              <bdi>{detail}</bdi>
+            </span>
+          )}
         </span>
       }
     >
+      {/* Remounted per opening (keyed by the row), so it is read for this row */}
+      {open && merchantYear && <MerchantYearToggle key={`${merchantYear.source}:${merchantYear.id}`} {...merchantYear} all={merchantAll} />}
       {/* Remounted per opening, so it starts from the row's current category */}
       {open && (
+        <div inert={bodyDisabled} aria-disabled={bodyDisabled} className={cn(bodyDisabled && 'opacity-40 grayscale')}>
         <PickerBody
           categories={categories}
           current={current}
@@ -147,7 +173,9 @@ export function CategoryPicker({
           createKind={createKind}
           onSave={onSave}
         />
+        </div>
       )}
+      {open && footer}
     </AppDialog>
   )
 }

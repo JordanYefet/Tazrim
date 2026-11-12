@@ -99,9 +99,9 @@ export function placements(mode: WalletMode, cards: WalletCardInfo[], stackOrder
       out.set(id, hidden(k++, stackOrder.indexOf(id) + 1))
     }
     // Above the pocket (which sits at cards.length + 1) while it rises out of it;
-    // centred top to bottom in the box, which keeps the stack's height
+    // at OPEN_Y: the top of the box on a phone, centred in it on a desktop
     out.set(mode.id, {
-      transform: `translate3d(0, ${openOffset(stackOrder.length)}, 0)`,
+      transform: `translate3d(0, ${OPEN_Y}, 0)`,
       opacity: 1,
       hidden: false,
       zIndex: cards.length + 2,
@@ -129,18 +129,37 @@ function pocketTopExpr(stackCount: number): string {
 }
 
 /**
- * How far down the open card sits (CSS): centred in the box, which stays the
- * stack's height (boxHeight), so the space it leaves is split above and below
- * it. Without a stack the box is one card tall: no offset.
+ * Where the open card sits, as a CSS length set per screen (app/globals.css):
+ * - phones (below lg, OPEN_AT_TOP_QUERY): at the top of the box, which shrinks
+ *   to the card (`.wallet[data-mode='open'] .wallet__box`), and the page under
+ *   the wallet slides up with it (components/cards/card-wallet.tsx), so an open
+ *   card has no empty band above and below it;
+ * - desktop: openOffset, centred in a box that keeps the stack's height, so the
+ *   figures beside the wallet never move.
+ * The wallet sets `--wallet-open-y-lg` and `--wallet-box-h` (walletVars).
+ */
+export const OPEN_Y = 'var(--wallet-open-y)'
+/** Screens where the open card goes to the top and the box shrinks to it (below Tailwind's lg) */
+export const OPEN_AT_TOP_QUERY = '(max-width: 1023.98px)'
+
+/** The wallet's CSS variables for this many cards in the stack (see OPEN_Y). */
+export function walletVars(stackCount: number): Record<'--wallet-box-h' | '--wallet-open-y-lg', string> {
+  return { '--wallet-box-h': boxHeight({ kind: 'stack' }, stackCount), '--wallet-open-y-lg': openOffset(stackCount) }
+}
+
+/**
+ * How far down the open card sits on a desktop (CSS): centred in the box, which
+ * stays the stack's height (boxHeight), so the space it leaves is split above
+ * and below it. Without a stack the box is one card tall: no offset.
  */
 export function openOffset(stackCount: number): string {
   if (stackCount < 1) return '0px'
   return `calc((${pocketTopExpr(stackCount)} + ${POCKET_HEIGHT_CQW}cqw - ${CARD_HEIGHT_CQW}cqw) / 2)`
 }
 
-/** openOffset in px for a wallet this wide (FRONT_PEEK: max(44px, 12cqw)). */
-export function openOffsetPx(walletWidth: number, stackCount: number): number {
-  if (stackCount < 1) return 0
+/** Where the open card sits in px for a wallet this wide (FRONT_PEEK: max(44px, 12cqw)); 0 at the top (phones). */
+export function openOffsetPx(walletWidth: number, stackCount: number, atTop = false): number {
+  if (stackCount < 1 || atTop) return 0
   const w = walletWidth
   const pocketTop = (stackCount - 1) * stripPx(w) + Math.max(44, w * 0.12)
   return (pocketTop + (w * POCKET_HEIGHT_CQW) / 100 - (w * CARD_HEIGHT_CQW) / 100) / 2
@@ -152,11 +171,11 @@ export function pocketTop(stackCount: number): string {
 }
 
 /**
- * Height of the wallet box (CSS): the cards down to the pocket's bottom, in
- * BOTH modes. An open card rises to the top of the same box, so nothing
- * around the wallet (the figures beside it, the charts below) moves when a
- * card opens or closes. The stack is always the taller (its front peek plus
- * the pocket exceed one card). Without a stack (only archived cards): one card.
+ * Height of the wallet box (CSS): the cards down to the pocket's bottom. On a
+ * desktop in BOTH modes, so the figures beside the wallet never move when a
+ * card opens or closes; on a phone an open card's box is the card's height
+ * (CSS, see OPEN_Y). The stack is always the taller (its front peek plus the
+ * pocket exceed one card). Without a stack (only archived cards): one card.
  */
 export function boxHeight(_mode: WalletMode, stackCount: number): string {
   if (stackCount < 1) return `${CARD_HEIGHT_CQW}cqw`
@@ -235,13 +254,15 @@ export function predictCardPlacement(
   mode: WalletMode,
   cardId: string,
   stackOrder: string[],
-  box: { x: number; y: number; width: number }
+  box: { x: number; y: number; width: number },
+  /** The open card at the top of the box (phones, OPEN_AT_TOP_QUERY) */
+  openAtTop = false
 ): { rect: { x: number; y: number; width: number; height: number }; scaleX: number; scaleY: number } | null {
   const w = box.width
   const h = (w * CARD_HEIGHT_CQW) / 100
   if (mode.kind === 'open') {
     if (mode.id !== cardId) return null
-    return { rect: { x: box.x, y: box.y + openOffsetPx(w, stackOrder.length), width: w, height: h }, scaleX: 1, scaleY: 1 }
+    return { rect: { x: box.x, y: box.y + openOffsetPx(w, stackOrder.length, openAtTop), width: w, height: h }, scaleX: 1, scaleY: 1 }
   }
   if (mode.kind !== 'stack') return null
   const i = stackOrder.indexOf(cardId)

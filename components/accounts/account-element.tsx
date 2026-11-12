@@ -9,6 +9,7 @@ import { DigitStrip, RollingNumber } from '@/components/ui/rolling-number'
 import { MOTION } from '@/lib/motion'
 import { formatDate } from '@/lib/utils/date'
 import { GlassSurface } from '@/components/glass/glass-surface'
+import { formatNet } from '@/lib/utils/currency'
 
 /*
  * The account elements (ENG-56 / ENG-57): a payment card in ISO proportions
@@ -366,6 +367,8 @@ export interface BankElementProps {
   totals?: { income: number; expense: number }
   /** Month-end balances, oldest first */
   trend?: number[]
+  /** The period's net, at the foot (the open bank in the wallet; /banks has it on the pocket) */
+  net?: { value: number; label: string }
   hero?: boolean
   tilt?: boolean
   /** Glass faces (ENG-72): the baked liquid-glass lens; on by default for the hero */
@@ -409,6 +412,7 @@ export function BankElement({
   emptyText = 'אין תנועות בתקופה',
   totals,
   trend = [],
+  net,
   hero = false,
   tilt = false,
   glassBaked = hero,
@@ -463,10 +467,16 @@ export function BankElement({
             )}
             {showTrend && (
               <div className={cn(totals ? 'w-[38%] shrink-0' : 'w-full')}>
-                <Sparkline points={trend} className={hero ? 'h-14' : undefined} />
+                {/* With the net at the foot the line gives up its height, so the face keeps its card shape */}
+                <Sparkline points={trend} className={hero ? (net ? 'h-10' : 'h-14') : undefined} />
               </div>
             )}
           </div>
+        )}
+        {net && (
+          <p className="acct-bank__net">
+            {net.label} <bdi dir="ltr" className="acct-bank__netvalue">{formatNet(net.value)}</bdi>
+          </p>
         )}
         {children}
       </div>

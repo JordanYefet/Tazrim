@@ -11,6 +11,7 @@ import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { DataSwap } from '@/components/ui/data-swap'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankHeroBalance } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { withCategorySuggestions } from '@/lib/db/category-suggestions'
@@ -18,19 +19,20 @@ import { getCategories } from '@/lib/db/categories'
 import { listGenericDescriptions } from '@/lib/db/generic-descriptions'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { DimmablePair } from '@/components/ui/dimmable-pair'
-import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
+import { bankCategoryAnalysisHref, categoryYearHref, uncategorizedSearchHref } from '@/lib/accounts/category-links'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { getAccount, listAccounts } from '@/lib/db/accounts'
 import { badgeCards } from '@/lib/accounts/payment-badge'
 import { FlowFilter } from '@/components/bank/flow-filter'
-import { parseBankFlow } from '@/lib/insights/bank-categories'
+import { CARD_PAYMENT_CATEGORY, parseBankFlow, UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { asJson } from '@/lib/db/summary'
 import { getUnusualFlagMap } from '@/lib/db/unusual'
 import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { accountPath } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, monthHasData, type BankMonthly } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
 
@@ -124,10 +126,13 @@ export default async function BankAccountPage({
   searchParams: Promise<SearchParams>
 }) {
   const { accountId } = await routeParams
-  const account = await getAccount(decodeURIComponent(accountId))
+  // The account and the resolved period don't depend on each other
+  const [account, params] = await Promise.all([
+    getAccount(decodeURIComponent(accountId)),
+    searchParams.then(withResolvedPeriod),
+  ])
   if (!account || account.kind !== 'BANK') notFound()
 
-  const params = await withResolvedPeriod(await searchParams)
   const year = params.year
   const month = params.month ? Number(params.month) : undefined
   const {
@@ -148,7 +153,9 @@ export default async function BankAccountPage({
     cards,
   } = await getBankData(account.id, params)
 
-  const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month)
+  // The averages count finished months only: the month in progress would drag them down (ENG-107)
+  const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
 
   const chartData = Object.entries(bankSummary).map(([m, d]) => ({
     month: Number(m),
@@ -167,13 +174,32 @@ export default async function BankAccountPage({
 
   const hasData = lastMonthWithData(bankSummary) > 0 || transactions.length > 0
   const period = { year, ...(month ? { month: String(month) } : {}) }
+  // A donut's category opens its year in this account's scope (/analysis/category/<name>);
+  // "ללא קטגוריה" opens the rows without one, the card payment opens nothing
+  const donutHrefs = (stats: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.keys(stats)
+        .filter(c => c !== CARD_PAYMENT_CATEGORY)
+        .map(c => [
+          c,
+          c === UNCATEGORIZED
+            ? uncategorizedSearchHref({ accountIds: [account.id], year, month })
+            : categoryYearHref(c, { year, month, scope: account.id }),
+        ])
+    )
   const flow = parseBankFlow(params.flow)
 
   // The account itself is the open bank element in the wallet (app/banks/layout.tsx);
   // this page fills the grid around it, as a card's page does
   return (
     <div className="contents">
-      <BankHeroBalance accountId={account.id} latest={latest} trend={trend} />
+      {/* On the open bank: its balance, trend and, at its foot, the period's net (where /banks has it on the pocket) */}
+      <BankHeroBalance
+        accountId={account.id}
+        latest={latest}
+        trend={trend}
+        net={hasData ? { value: income - expense, label: month ? `נטו ב${monthName(month)}` : `נטו ב־${year}` } : undefined}
+      />
       <div className="wallet-shell__head">
       <PageHeading
         period={{ year: Number(year), month }}
@@ -184,8 +210,15 @@ export default async function BankAccountPage({
       </div>
 
       {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
+      {/* Phones: the transactions, or (מגמות) these figures and the charts */}
+      <WalletViews enabled={hasData}>
       <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
-        {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currencyExact" />}
+        {/* Phones have the net on the open bank's face, so the card is desktop's */}
+        {hasData && (
+          <div className="hidden lg:contents">
+            <NetBalance compact bankIncome={income} bankExpense={expense} format="currency" />
+          </div>
+        )}
         {hasData ? (
           <StatPanel
             className="min-h-0 flex-1"
@@ -196,6 +229,7 @@ export default async function BankAccountPage({
               averageIncome,
               monthLabel: month ? monthName(month) : undefined,
               monthHasData: !!month && monthHasData(bankSummary, month),
+              monthInProgress: inProgress,
             })}
           />
         ) : (
@@ -210,7 +244,7 @@ export default async function BankAccountPage({
 
       <div className="wallet-shell__rest space-y-6">
       {hasData && (
-        <>
+        <div data-view="trends" className="space-y-6">
           {/* Two equal halves, like the rows above and below */}
           <div className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
@@ -224,9 +258,9 @@ export default async function BankAccountPage({
               <CategoryDonut
                 pagePath={accountPath('BANK', account.id)}
                 data={totalsOf(incomeStats)}
-                stats={incomeStats}
                 selectedCategory={params.category}
                 colors={incomeColors}
+                categoryHrefs={donutHrefs(incomeStats)}
                 title="הכנסות לפי קטגוריה"
                 tone="income"
                 emptyText="אין הכנסות לתקופה זו"
@@ -236,18 +270,19 @@ export default async function BankAccountPage({
               <CategoryDonut
                 pagePath={accountPath('BANK', account.id)}
                 data={totalsOf(expenseStats)}
-                stats={expenseStats}
                 selectedCategory={params.category}
                 colors={expenseColors}
+                categoryHrefs={donutHrefs(expenseStats)}
                 emptyText="אין הוצאות לתקופה זו"
               />
             }
           />
-        </>
+        </div>
       )}
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
         // Stays mounted while the keyed table remounts, so the new rows ease in
+        <div data-view="list">
         <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')} height>
         <BankTransactionsTable
           key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
@@ -268,8 +303,10 @@ export default async function BankAccountPage({
           flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />
         </DataSwap>
+        </div>
       )}
       </div>
+      </WalletViews>
     </div>
   )
 }

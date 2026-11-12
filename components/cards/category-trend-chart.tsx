@@ -3,12 +3,13 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Customized } from 'recharts'
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { usePeriodNavigation } from '@/components/layout/period-context'
 import { Suspense } from 'react'
 import { useTheme } from 'next-themes'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
 import { OTHER_COLOR } from '@/lib/utils/category-colors'
@@ -44,12 +45,12 @@ function CustomTooltip({ active, payload, label }: any) {
         <div key={p.name} className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
           <span className="text-muted-foreground">{p.name}:</span>
-          <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrency(p.value)}</span>
+          <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
         </div>
       ))}
       <div className="mt-1 flex border-t pt-1 font-semibold">
         <span>סה״כ</span>
-        <span className="ms-auto ps-3 tabular-nums">{formatCurrency(total)}</span>
+        <span className="ms-auto ps-3 tabular-nums">{formatCurrencyWhole(total)}</span>
       </div>
     </div>
   )
@@ -64,7 +65,8 @@ function CategoryTrendChartInner({
   selectedMonth,
   title = 'הוצאות לפי קטגוריה לאורך השנה',
 }: Props) {
-  const router = useRouter()
+  // A month click changes the period in place: the page stays, dimmed, until the next one arrives
+  const navigate = usePeriodNavigation()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -91,7 +93,7 @@ function CategoryTrendChartInner({
     if (selectedMonth === m) sp.delete('month')
     else sp.set('month', String(m))
     const qs = sp.toString()
-    router.push(qs ? `${basePath}?${qs}` : basePath, { scroll: false })
+    navigate(qs ? `${basePath}?${qs}` : basePath)
   }
 
   const dimmed = (m: number) => selectedMonth !== undefined && m !== selectedMonth

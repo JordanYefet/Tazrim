@@ -5,7 +5,7 @@ import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { monthName } from '@/lib/utils/date'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 
@@ -30,14 +30,14 @@ function CustomTooltip({ active, payload, label, series }: any) {
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       <p className="text-[hsl(var(--cc))] font-medium tabular-nums">
-        {payload[0].value == null ? 'אין נתונים' : formatCurrency(payload[0].value)}
+        {payload[0].value == null ? 'אין נתונים' : formatCurrencyWhole(payload[0].value)}
       </p>
       {payload[0].value != null && split && split.length > 0 && (
         <ul className="mt-1 space-y-0.5 border-t pt-1 text-xs">
           {split.map(s => (
             <li key={s.label} className="flex justify-between gap-3">
               <span className="text-muted-foreground">{s.label}</span>
-              <span className="font-medium tabular-nums text-foreground">{formatCurrency(s.monthly[month])}</span>
+              <span className="font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.monthly[month])}</span>
             </li>
           ))}
         </ul>

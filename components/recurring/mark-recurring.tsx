@@ -40,7 +40,7 @@ type View = { kind: 'loading' } | { kind: 'error' } | { kind: 'choose'; info: In
 const CADENCE_WORD: Record<Cadence, string> = { weekly: 'שבועי', monthly: 'חודשי', bimonthly: 'דו-חודשי', yearly: 'שנתי' }
 
 const iconButton =
-  'inline-flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'relative inline-flex h-7 w-7 items-center justify-center rounded-md transition-[background-color,color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-2 before:content-[""]'
 
 /**
  * "סמן כחיוב קבוע" on a transaction row (ENG-71). Opens a sheet that, depending on the
@@ -59,7 +59,7 @@ export function MarkRecurringButton({
   /** name of the recurring series the row is in, when known: the icon shows it */
   seriesName?: string
   /** `label`: the series name as a small chip (a manual series' fixed row label) */
-  variant?: 'icon' | 'label'
+  variant?: 'icon' | 'label' | 'button'
   className?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -94,6 +94,19 @@ export function MarkRecurringButton({
         >
           <Repeat className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate">{seriesName}</span>
+        </button>
+      ) : variant === 'button' ? (
+        <button
+          type="button"
+          onClick={start}
+          className={cn(
+            'inline-flex h-11 items-center justify-center gap-2 rounded-xl border text-sm transition-[background-color,transform] duration-quick ease-ui hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            seriesName ? 'text-primary' : 'text-foreground',
+            className
+          )}
+        >
+          <Repeat className="h-4 w-4" aria-hidden />
+          <span className="truncate">חיוב קבוע</span>
         </button>
       ) : (
         <button

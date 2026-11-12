@@ -29,7 +29,7 @@ function SummaryRow({
   detail: React.ReactNode
   /** Share of the combined figure, with a thin meter (only with several accounts) */
   share?: number
-  shareLabel: string
+  shareLabel?: string
 }) {
   return (
     // On wide screens the list matches the stack's height: rows share it evenly
@@ -83,15 +83,13 @@ export interface BankAccountSummary {
   expense: number
   /** Balance after the latest transaction in the period */
   balance?: number
-  /** Share of the combined bank expense (only with several accounts) */
-  expenseShare?: number
 }
 
 /**
  * /banks: one account's period figures, as a row of the list next to the
  * wallet, like a card's on /cards (ENG-84). The row opens the account.
  */
-export function BankSummaryRow({ href, name, provider, color, colorChoice, expense, balance, expenseShare }: BankAccountSummary) {
+export function BankSummaryRow({ href, name, provider, color, colorChoice, expense, balance }: BankAccountSummary) {
   return (
     <SummaryRow
       href={href}
@@ -99,14 +97,12 @@ export function BankSummaryRow({ href, name, provider, color, colorChoice, expen
       face={<AccountMini kind="BANK" provider={provider} color={color} colorChoice={colorChoice} className="w-12" />}
       name={name}
       color={color}
-      figure={balance !== undefined ? <RollingNumber value={balance} format="currencyExact" /> : <span className="text-muted-foreground">—</span>}
+      figure={balance !== undefined ? <RollingNumber value={balance} format="currency" /> : <span className="text-muted-foreground">—</span>}
       detail={
         <>
-          הוצאות <RollingNumber value={expense} format="currencyExact" />
+          הוצאות <RollingNumber value={expense} format="currency" />
         </>
       }
-      share={expenseShare}
-      shareLabel="מההוצאות בכל החשבונות"
     />
   )
 }
@@ -158,7 +154,7 @@ export function CardSummaryRow({
       }
       name={name}
       color={color}
-      figure={<RollingNumber value={total} format="currencyExact" />}
+      figure={<RollingNumber value={total} format="currency" />}
       detail={
         <>
           <RollingNumber value={count} format="integer" /> עסקאות

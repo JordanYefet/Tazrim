@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type Dispatch,
   type MouseEvent,
   type ReactNode,
@@ -26,10 +27,11 @@ import { EASE, LAND_AT, MOTION } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
 import { UNDER_REACH, faceLook, prebakeGlass, requestGlassBake, showGlassAt, type Placement } from '@/components/glass/glass-bakery'
 import { overlaps, type UnderFace } from '@/lib/glass/under'
+import { formatNet } from '@/lib/utils/currency'
 import {
   MORE_ID,
+  OPEN_AT_TOP_QUERY,
   POCKET_HEIGHT_CQW,
-  boxHeight,
   placements,
   pocketTop,
   predictCardPlacement,
@@ -38,6 +40,7 @@ import {
   stackLayout,
   translateYOf,
   walletModeFor,
+  walletVars,
   type CardPlacement,
   type WalletMode,
 } from '@/lib/cards/wallet-motion'
@@ -248,6 +251,27 @@ function swapCard(el: HTMLElement, to: CardPlacement, role: 'in' | 'out'): Anima
 }
 
 const SHIFT_ID = 'wallet-shift'
+
+const SLIDE_ID = 'wallet-slide'
+/**
+ * Phones: the box changed height with the mode (an open card's box is the card's
+ * height, the stack's is taller; lib/cards/wallet-motion.ts, OPEN_Y). The page
+ * under the wallet is already in its new place: it starts `by` px from there and
+ * slides in on the cards' spring, so it moves with the card rather than jumping.
+ * `translate` only (no layout per frame; the page's own entrance uses `transform`).
+ */
+function slideBelow(box: HTMLElement, by: number) {
+  if (prefersReducedMotion()) return
+  const shell = box.closest('.wallet-shell')
+  if (!shell) return
+  for (const el of shell.querySelectorAll<HTMLElement>('.wallet-shell__switch, .wallet-shell__beside, .wallet-shell__rest')) {
+    // From where it is on screen now (a slide still running carries on from there)
+    const from = translateYOf(getComputedStyle(el).translate) + by
+    el.getAnimations().find(a => a.id === SLIDE_ID)?.cancel()
+    if (Math.abs(from) < 0.5) continue
+    el.animate(carryFrames(from, 0), { id: SLIDE_ID, duration: SPRING.duration, fill: 'backwards' })
+  }
+}
 /** Each running carry's offsets (px), so a foreseen box move can carry it on */
 const shifts = new WeakMap<Animation, { from: number; to: number }>()
 
@@ -290,8 +314,14 @@ export interface HeroTotal {
   accountId: string
   value: number
   label: string
-  /** A bank account's balance (after the period's latest row) and month-end trend */
-  bank?: { latest?: { balance: number; date: string }; trend: number[] }
+  /** A bank account's balance (after the period's latest row), month-end trend and the period's net */
+  bank?: { latest?: { balance: number; date: string }; trend: number[]; net?: PeriodNet }
+}
+
+/** The period's net (income minus expenses) and what it covers ("נטו בנובמבר") */
+export interface PeriodNet {
+  value: number
+  label: string
 }
 
 const HeroTotalContext = createContext<Dispatch<SetStateAction<HeroTotal | null>>>(() => {})
@@ -317,33 +347,43 @@ export function BankHeroBalance({
   accountId,
   latest,
   trend,
+  net,
 }: {
   accountId: string
   latest?: { balance: number; date: string }
   trend: number[]
+  /** At the foot of the face, where /banks has it on the pocket */
+  net?: PeriodNet
 }) {
   const set = useContext(HeroTotalContext)
-  const key = JSON.stringify([latest, trend])
+  const key = JSON.stringify([latest, trend, net])
   useLayoutEffect(() => {
-    set({ accountId, value: latest?.balance ?? 0, label: '', bank: { latest, trend } })
-    // `key` stands for latest and trend (new arrays on every render)
+    set({ accountId, value: latest?.balance ?? 0, label: '', bank: { latest, trend, net } })
+    // `key` stands for latest, trend and net (new objects on every render)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set, accountId, key])
   return null
 }
 
 const StackTotalContext = createContext<Dispatch<SetStateAction<number | null>>>(() => {})
+const StackNetContext = createContext<Dispatch<SetStateAction<PeriodNet | null>>>(() => {})
 
 /**
  * Rendered by /cards: puts the period's total across all cards on the leather
  * pocket (round 7). A new period updates it in place (the digits roll); the
  * wallet drops it when the stack closes, so a stale total never shows.
  */
-export function CardStackTotal({ value }: { value: number }) {
+export function CardStackTotal({ value, net }: { value: number; /** /banks: the period's net, at the pocket's foot */ net?: PeriodNet }) {
   const set = useContext(StackTotalContext)
+  const setNet = useContext(StackNetContext)
   useLayoutEffect(() => {
     set(value)
   }, [set, value])
+  const netValue = net?.value
+  const netLabel = net?.label
+  useLayoutEffect(() => {
+    setNet(netValue === undefined || netLabel === undefined ? null : { value: netValue, label: netLabel })
+  }, [setNet, netValue, netLabel])
   return null
 }
 
@@ -362,6 +402,7 @@ export function CardWallet({
   const [intent, setIntent] = useState<string | null>(null)
   const [heroTotal, setHeroTotal] = useState<HeroTotal | null>(null)
   const [stackTotal, setStackTotal] = useState<number | null>(null)
+  const [stackNet, setStackNet] = useState<PeriodNet | null>(null)
 
   const info = useMemo(() => cards.map(c => ({ id: c.id, archived: c.archived })), [cards])
   const routeMode = walletModeFor(pathname, info, base)
@@ -395,16 +436,24 @@ export function CardWallet({
     for (const c of cards) router.prefetch(withQuery(c.path, period))
   }, [router, cards, period, base])
 
+  // Between a tap and the page it opens, the page on screen is the old one: its
+  // figures and rows dim a little (app/globals.css), as on a period change; the
+  // wallet itself is already moving and stays as it is. A tap on the page already
+  // shown sets an intent but goes nowhere, so it does not dim.
+  const pending = intent !== null && new URL(intent, 'http://x').pathname !== pathname
+
   if (routeMode.kind === 'none') return <>{children}</>
 
   return (
     <HeroTotalContext.Provider value={setHeroTotal}>
     <StackTotalContext.Provider value={setStackTotal}>
-    <div className="wallet-shell mx-auto max-w-7xl">
+    <StackNetContext.Provider value={setStackNet}>
+    <div className="wallet-shell mx-auto max-w-7xl" data-pending={pending || undefined} aria-busy={pending || undefined}>
       {children}
       <div className="wallet-shell__wallet">
-        {/* The box keeps the route's height until the route arrives, so the page
-            under it does not jump while the cards are already moving */}
+        {/* The box's height is CSS (lib/cards/wallet-motion.ts, OPEN_Y): the stack's on
+            a desktop in both modes; on a phone it follows the cards on tap and the page
+            under it slides with them (slideBelow) */}
         <Wallet
           kind={kind}
           cards={cards}
@@ -415,9 +464,11 @@ export function CardWallet({
           setHeroTotal={setHeroTotal}
           stackTotal={stackTotal}
           setStackTotal={setStackTotal}
+          stackNet={stackNet}
         />
       </div>
     </div>
+    </StackNetContext.Provider>
     </StackTotalContext.Provider>
     </HeroTotalContext.Provider>
   )
@@ -442,6 +493,7 @@ function Wallet({
   setHeroTotal,
   stackTotal,
   setStackTotal,
+  stackNet,
 }: {
   kind: WalletKind
   cards: WalletCard[]
@@ -452,6 +504,7 @@ function Wallet({
   setHeroTotal: Dispatch<SetStateAction<HeroTotal | null>>
   stackTotal: number | null
   setStackTotal: Dispatch<SetStateAction<number | null>>
+  stackNet: PeriodNet | null
 }) {
   // Back to front: the first (oldest) card is in front, so it comes last. Past three, the
   // front three stand in the pocket and a "+N" tab at the back holds the rest (stackLayout)
@@ -482,6 +535,8 @@ function Wallet({
   const [initialPocket] = useState(() => pocketPlace(mode))
   const lastMode = useRef(mode)
   const lastTop = useRef<number | null>(null)
+  // The box's height at the last render (phones: it follows the mode, see slideBelow)
+  const lastBoxHeight = useRef<number | null>(null)
   // The open card shows its total as it lands (from LAND_AT of its motion), and hides it as soon as it moves
   const [settledId, setSettledId] = useState<string | null>(mode.kind === 'open' ? mode.id : null)
 
@@ -494,15 +549,17 @@ function Wallet({
     const r = b.getBoundingClientRect()
     return { x: r.left + window.scrollX, y: learnedBoxTop.get(boxKey(m.kind, r.width)) ?? r.top + window.scrollY, width: r.width }
   }
+  // Phones put the open card at the top of the box (OPEN_Y)
+  const openAtTop = () => window.matchMedia(OPEN_AT_TOP_QUERY).matches
   // Where a card's glass will be in a mode, with the cards behind it there (ENG-81): in the
   // stack, the cards before it in stackOrder that reach under it; open, none (they are hidden)
   const glassPlacement = (m: WalletMode, id: string, box: { x: number; y: number; width: number }): Placement | null => {
-    const p = predictCardPlacement(m, id, stackOrder, box)
+    const p = predictCardPlacement(m, id, stackOrder, box, openAtTop())
     if (!p || m.kind !== 'stack') return p
     const near = { x: p.rect.x - UNDER_REACH, y: p.rect.y - UNDER_REACH, width: p.rect.width + 2 * UNDER_REACH, height: p.rect.height + 2 * UNDER_REACH }
     const under: UnderFace[] = []
     for (const other of stackOrder.slice(0, stackOrder.indexOf(id))) {
-      const op = predictCardPlacement(m, other, stackOrder, box)
+      const op = predictCardPlacement(m, other, stackOrder, box, openAtTop())
       const face = elements.current.get(other)?.querySelector<HTMLElement>('.acct-face')
       const look = face && faceLook(face)
       if (op && look && overlaps(op.rect, near)) under.push({ rect: op.rect, radius: look.radius * op.scaleX, colors: look.colors })
@@ -522,6 +579,12 @@ function Wallet({
     // The pocket's total belongs to the stack on screen: drop it when the stack closes
     if (mode.kind !== 'stack') setStackTotal(null)
     setSettledId(null)
+    // Phones: the box took the new mode's height; the page under it slides with the cards
+    const shrinking = boxRef.current
+    if (shrinking && lastBoxHeight.current !== null) {
+      const by = lastBoxHeight.current - shrinking.offsetHeight
+      if (Math.abs(by) >= 0.5) slideBelow(shrinking, by)
+    }
     // The pocket drops away with the other cards (or rises back with them)
     if (pocketRef.current) moveCard(pocketRef.current, pocketPlace(mode), {})
     // Glass cards show the glass baked for where they are going, from the start of the motion
@@ -575,6 +638,7 @@ function Wallet({
   useLayoutEffect(() => {
     const box = boxRef.current
     if (!box) return
+    lastBoxHeight.current = box.offsetHeight
     const top = box.getBoundingClientRect().top + window.scrollY
     const prevTop = lastTop.current
     lastTop.current = top
@@ -609,8 +673,8 @@ function Wallet({
     mode.kind === 'open' && heroTotal?.accountId === mode.id && settledId === mode.id ? heroTotal : null
 
   return (
-    <div className="wallet" data-mode={mode.kind} data-kind={kind}>
-      <div ref={boxRef} className="wallet__box" style={{ height: boxHeight(heightMode, stackOrder.length) }}>
+    <div className="wallet" data-mode={mode.kind} data-kind={kind} style={walletVars(stackOrder.length) as CSSProperties}>
+      <div ref={boxRef} className="wallet__box">
         {cards.map(c => {
           const p = place.get(c.id)!
           const first = initial.get(c.id) ?? p
@@ -657,6 +721,7 @@ function Wallet({
                     colorChoice={c.colorChoice}
                     latest={isOpen ? total?.bank?.latest : undefined}
                     trend={isOpen ? (total?.bank?.trend ?? []) : []}
+                    net={isOpen ? total?.bank?.net : undefined}
                     emptyText={isOpen && total ? 'אין תנועות בתקופה' : ''}
                   />
                 ) : (
@@ -738,9 +803,16 @@ function Wallet({
                     ? active.length === 1 ? 'חשבון אחד' : `${active.length} חשבונות`
                     : active.length === 1 ? 'כרטיס אחד' : `${active.length} כרטיסים`}
                 </span>
-                <span className="wallet-pocket__mark" aria-hidden>
-                  תזרים
-                </span>
+                {/* The bank pocket: the period's net in the mark's place (a bank account's face has it at its foot too) */}
+                {kind === 'banks' && stackNet ? (
+                  <span className="wallet-pocket__net">
+                    {stackNet.label} <bdi dir="ltr" className="wallet-pocket__netvalue">{formatNet(stackNet.value)}</bdi>
+                  </span>
+                ) : (
+                  <span className="wallet-pocket__mark" aria-hidden>
+                    תזרים
+                  </span>
+                )}
               </div>
             </div>
           </div>

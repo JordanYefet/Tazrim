@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BANK_COLUMNS, CARD_COLUMNS, columnsCookie, formatColumns, parseColumns } from '../columns'
+import { BANK_COLUMNS, CARD_COLUMNS, columnsCookie, columnsLine, formatColumns, parseColumns } from '../columns'
 
 describe('optional table columns', () => {
   it('reads the chosen columns from the cookie, in the table’s order, unknown ones dropped', () => {
@@ -20,5 +20,17 @@ describe('optional table columns', () => {
 
   it('every column has a label', () => {
     for (const c of [...CARD_COLUMNS, ...BANK_COLUMNS]) expect(c.label.length).toBeGreaterThan(0)
+  })
+})
+
+describe('columnsLine', () => {
+  it('names each picked column this row has, in the table order', () => {
+    expect(columnsLine('card', ['notes', 'reference'], { reference: '123456', notes: 'מתנה', cardLastFour: '1234' })).toBe(
+      'אסמכתא 123456 · הערות מתנה'
+    )
+  })
+
+  it('is empty when the row has none of the picked columns', () => {
+    expect(columnsLine('bank', ['reference'], { reference: undefined })).toBe('')
   })
 })

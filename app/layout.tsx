@@ -8,6 +8,8 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { Header } from '@/components/layout/header'
 import { ReadOnlyGuard } from '@/components/layout/read-only-guard'
+import { FreshData } from '@/components/layout/fresh-data'
+import { PageMain } from '@/components/layout/page-main'
 import { isReadOnly } from '@/lib/read-only'
 import { BARE_HEADER } from '@/lib/auth/config'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
@@ -105,12 +107,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 />
                 <div className="flex flex-col flex-1 min-w-0">
                   <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header readOnly={readOnly} /></Suspense>
-                  <main className="flex-1 p-4 md:p-6 pb-[calc(5.75rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-6">
+                  {/* Dims in place while the period changes (components/layout/period-context.tsx) */}
+                  <PageMain className="flex-1 p-4 md:p-6 pb-[calc(5.75rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-6">
                     {children}
-                  </main>
+                  </PageMain>
                 </div>
               </div>
               <BottomNav />
+              <FreshData />
               {readOnly && <ReadOnlyGuard />}
             </NavSectionsProvider>
             </MeProvider>

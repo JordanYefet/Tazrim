@@ -37,3 +37,14 @@ export function parseColumns(value: string | undefined, kind: TableKind): string
 export function formatColumns(keys: readonly string[]): string {
   return keys.join(',')
 }
+
+/**
+ * The phone rows' line for the picked columns: "label value" for each one this row has,
+ * in the table's order, joined with " · " ('' when the row has none of them).
+ */
+export function columnsLine(kind: TableKind, shown: readonly string[], values: Record<string, string | undefined | null>): string {
+  return COLUMNS[kind]
+    .filter(c => shown.includes(c.key) && values[c.key])
+    .map(c => `${c.label} ${values[c.key]}`)
+    .join(' · ')
+}

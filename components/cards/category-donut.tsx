@@ -6,13 +6,14 @@ import { useDataSwap } from '@/hooks/use-data-swap'
 import type { Props as LegendProps } from 'recharts/types/component/DefaultLegendContent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useRef } from 'react'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
+import { categoryColor } from '@/lib/utils/category-colors'
 
 // CSS vars (defined per theme in globals.css) so SSR and client markup match
-const COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
+const COLORS = Array.from({ length: 10 }, (_, i) => categoryColor(i + 1))
 
 type Tone = 'expense' | 'income'
 const TONE_TEXT: Record<Tone, string> = {
@@ -25,7 +26,7 @@ function CustomTooltip({ active, payload, tone = 'expense' }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{payload[0].name}</p>
-      <p className={`${TONE_TEXT[tone as Tone]} font-medium`}>{formatCurrency(payload[0].value)}</p>
+      <p className={`${TONE_TEXT[tone as Tone]} font-medium`}>{formatCurrencyWhole(payload[0].value)}</p>
     </div>
   )
 }
@@ -33,7 +34,6 @@ function CustomTooltip({ active, payload, tone = 'expense' }: any) {
 function CategoryDonutInner({
   pagePath,
   data,
-  stats,
   selectedCategory,
   colors,
   title = 'הוצאות לפי קטגוריה',
@@ -77,7 +77,7 @@ function CategoryDonutInner({
       <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <ChartHeader
           title={title}
-          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את העסקאות שלה' : 'לחיצה על קטגוריה מסננת'}
+          subtitle={categoryHrefs ? 'לחיצה על קטגוריה פותחת את השנה שלה' : 'לחיצה על קטגוריה מסננת'}
           className="mb-0"
         />
         {analysisHref && <CategoryAnalysisLink href={analysisHref} />}
@@ -116,15 +116,15 @@ function CategoryDonutInner({
           </ResponsiveContainer>
         </div>
 
-        {/* Legend as a table: category | count | amount, on one grid so the columns line up */}
+        {/* Legend as a table: category | amount, on one grid so the columns line up */}
         <div ref={legendRef} className="flex w-full min-w-0 flex-1 flex-col gap-0.5">
           {chartData.map((entry, i) => {
-            const count = stats?.[entry.name]?.count
             return (
               <button
                 key={entry.name}
                 onClick={() => handleClick(entry)}
-                className="grid w-full grid-cols-[minmax(0,1fr)_4.5rem_5.5rem] items-center gap-x-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_6.5rem] rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted"
+                // A 44px row on phones (the legend is under the ring there, so the rows are the tap targets); compact beside a pointer
+                className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-x-2 rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted sm:grid-cols-[minmax(0,1fr)_6.5rem] md:min-h-0"
                 style={{ opacity: selectedCategory && selectedCategory !== entry.name ? 0.4 : 1 }}
               >
                 <span className="flex min-w-0 items-center gap-2">
@@ -135,15 +135,9 @@ function CategoryDonutInner({
                   />
                   <span className="truncate text-foreground">{entry.name}</span>
                 </span>
-                <span
-                  className="whitespace-nowrap text-center text-xs tabular-nums text-muted-foreground"
-                  title={count !== undefined ? 'מספר עסקאות' : undefined}
-                >
-                  {count !== undefined && <RollingNumber value={count} format="integer" />}
-                </span>
                 <RollingNumber
                   value={entry.value}
-                  format="currencyExact"
+                  format="currency"
                   className={`whitespace-nowrap text-end text-xs font-medium tabular-nums ${TONE_TEXT[tone]}`}
                 />
               </button>
@@ -160,7 +154,6 @@ interface Props {
   /** The page the donut sits on: a category click filters it with `?category=` */
   pagePath: string
   data: Record<string, number>
-  stats?: Record<string, { total: number; count: number }>
   selectedCategory?: string
   colors?: Record<string, string>
   title?: string

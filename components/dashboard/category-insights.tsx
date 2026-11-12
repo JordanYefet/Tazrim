@@ -5,19 +5,12 @@ import { monthName } from '@/lib/utils/date'
 import { cn } from '@/lib/utils/cn'
 import { DataSwap } from '@/components/ui/data-swap'
 import type { CategoryInsight, CategoryInsights as Insights } from '@/lib/insights/category-insights'
-import type { ScopeOption } from '@/lib/insights/insights-scope'
 
 interface Props {
   insights: Insights | null
   /** The month being compared (selected, or latest with data) */
   month: number | null
   colors: Record<string, string>
-  /** Filter chips (bank, cards…); none when there is one source (lib/insights/insights-scope) */
-  options?: ScopeOption[]
-  /** The `?card=` value in effect (undefined = all) */
-  selected?: string
-  /** Current year/month query string, for the filter links */
-  query?: string
   /** Where each category opens its transactions; none = not a link (e.g. uncategorized bank rows) */
   hrefs?: Record<string, string | undefined>
 }
@@ -64,42 +57,10 @@ function Badge({ item }: { item: CategoryInsight }) {
   )
 }
 
-function ScopeFilter({ options, selected, query }: { options: ScopeOption[]; selected?: string; query: string }) {
-  return (
-    <nav aria-label="סינון לפי חשבון" className="mb-4 flex flex-wrap gap-1.5">
-      {options.map(o => {
-        const sp = new URLSearchParams(query)
-        if (o.value) sp.set('card', o.value)
-        const active = o.value === selected
-        return (
-          <Link
-            key={o.value ?? 'all'}
-            href={`/?${sp}`}
-            scroll={false}
-            aria-current={active ? 'true' : undefined}
-            className={cn(
-              'max-w-full truncate rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              active
-                ? 'border-primary/40 bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            )}
-          >
-            {o.label}
-          </Link>
-        )
-      })}
-    </nav>
-  )
-}
-
 export function CategoryInsights({
   insights,
   month,
   colors,
-  options = [],
-  selected,
-  query = '',
   hrefs = {},
 }: Props) {
   return (
@@ -110,7 +71,6 @@ export function CategoryInsights({
           ? `${monthName(insights.month)} מול הממוצע של ${baselineLabel(insights.baselineMonths)}`
           : 'השוואה של החודש לחודשים הקודמים'}
       </p>
-      {options.length > 1 && <ScopeFilter options={options} selected={selected} query={query} />}
 
       {/* Another month or source eases the rows in when they are other categories or in
           another order; rows that stay only roll their numbers. flex-1: the empty notes centre in it */}

@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useState, type ReactNode } from 'react'
+import { startTransition, useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
 import { X, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { UnusualBadge } from '@/components/insights/unusual-badge'
@@ -14,7 +14,7 @@ import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
-import { BANK_COLUMNS, type BankColumn } from '@/lib/tables/columns'
+import { BANK_COLUMNS, columnsLine, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
@@ -22,10 +22,14 @@ import { AccountTag, tableScope, type TableAccount } from '@/components/accounts
 import { CardPaymentBadges } from '@/components/bank/card-payment-badge'
 import type { BadgeCard } from '@/lib/accounts/payment-badge'
 import { useTargetRow } from '@/hooks/use-target-row'
+import { PhoneTransactionRows, PhoneRowActions, dayKey } from '@/components/transactions/phone-rows'
+import { useOptimisticRows } from '@/hooks/use-optimistic-rows'
+import { bankChangeHits, idsChange, type BankScope } from '@/lib/tables/category-change'
+import type { SearchResult } from '@/lib/search/query'
 
 const LABEL = Object.fromEntries(BANK_COLUMNS.map(c => [c.key, c.label])) as Record<BankColumn, string>
 const BANK_KEYS = BANK_COLUMNS.map(c => c.key)
-const TH = 'text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide'
+const TH = 'text-start py-2.5 px-4 font-medium text-xs text-muted-foreground'
 
 interface BankTx {
   id: string
@@ -111,7 +115,9 @@ export function BankTransactionsTable({
   const { shown: shownColumns, cellClass: columnClass } = useColumnMotion(BANK_KEYS, columns)
   const router = useRouter()
   const params = useSearchParams()
-  const [transactions, setTransactions] = useState(initial)
+  // The rows as saved; `transactions` shows the saves still in flight on top (hooks/use-optimistic-rows.ts)
+  const [saved, setTransactions] = useState(initial)
+  const [transactions, show] = useOptimisticRows(saved)
   const [hasMore, setHasMore] = useState(initialHasMore ?? false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editing, setEditing] = useState<{ id: string; field: 'note'; value: string } | null>(null)
@@ -151,48 +157,50 @@ export function BankTransactionsTable({
     setEditing(null)
   }
 
-  async function saveCategory(scope: 'row' | 'rule', target: { id: string; category: string | null }) {
-    const { id, category } = target
-    const res = await fetch(`/api/bank/transactions/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, categoryScope: scope }),
-    })
-    if (!res.ok) {
-      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
-    }
-    setCategoryError(null)
-    // The rule also covers rows of this description on other pages and accounts; these are the loaded ones
-    const { updatedIds } = (await res.json()) as { updatedIds: string[] }
-    const changed = new Set(updatedIds)
-    setTransactions(prev =>
-      prev.map(t =>
-        changed.has(t.id) ? { ...t, category, categoryManual: scope === 'row' && t.id === id } : t
-      )
-    )
-    // The page's totals and donuts count categories too
-    router.refresh()
-  }
+  /** The error a failed write carries, or the plain one */
+  const failure = async (res: Response | null) => (res && (await res.json().catch(() => null))?.error) || 'שמירת הקטגוריה נכשלה'
 
-  /** "כל התנועות שמכילות…": saves a contains-text rule, which this row follows from now on */
-  async function saveContainsRule(tx: BankTx, category: string, pattern: string) {
-    const res = await fetch('/api/category-keyword-rules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pattern, category, fromRow: { source: 'bank', id: tx.id } }),
+  /**
+   * 'row' sets this row only; 'rule' every row with its description (later files too);
+   * 'contains' a contains-text rule (`pattern`), which this row follows from now on.
+   * The rows this reaches (lib/tables/category-change.ts) show the category at once; the
+   * save runs behind. When it lands the server's answer counts (the rule's real reach,
+   * on this page); when it fails the rows go back and the error shows.
+   */
+  function saveCategory(scope: BankScope, tx: BankTx, category: string | null, pattern?: string) {
+    const patch = (t: BankTx): BankTx => ({ ...t, category, categoryManual: scope === 'row' && t.id === tx.id })
+    startTransition(async () => {
+      show({ hits: bankChangeHits(tx, scope), patch })
+      let res: Response | null = null
+      try {
+        res =
+          scope === 'contains'
+            ? await fetch('/api/category-keyword-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pattern, category, fromRow: { source: 'bank', id: tx.id } }),
+              })
+            : await fetch(`/api/bank/transactions/${tx.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category, categoryScope: scope }),
+              })
+      } catch {}
+      if (!res?.ok) {
+        const error = await failure(res)
+        startTransition(() => setCategoryError(error))
+        return
+      }
+      // A rule also reaches rows on other pages and accounts (a text rule the cards too); these are the loaded ones
+      const answer = (await res.json()) as { updatedIds?: string[]; bankIds?: string[] }
+      const change = idsChange(answer.updatedIds ?? answer.bankIds ?? [], patch)
+      startTransition(() => {
+        setCategoryError(null)
+        setTransactions(prev => prev.map(t => (change.hits(t) ? change.patch(t) : scope === 'contains' && t.id === tx.id ? { ...t, categoryManual: false } : t)))
+      })
+      // The page's totals and donuts count categories too
+      router.refresh()
     })
-    if (!res.ok) {
-      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
-    }
-    setCategoryError(null)
-    // The rule reaches other accounts and the cards too; these are the loaded rows it changed
-    const changed = new Set((await res.json() as { bankIds: string[] }).bankIds)
-    setTransactions(prev =>
-      prev.map(t => (changed.has(t.id) ? { ...t, category } : t.id === tx.id ? { ...t, categoryManual: false } : t))
-    )
-    router.refresh()
   }
 
   /** Marks a row's description generic (its rules go), then saves the category picked in the window for that row */
@@ -211,7 +219,7 @@ export function BankTransactionsTable({
     setGeneric(prev => new Set(prev).add(tx.originalDescription))
     setTransactions(prev => prev.map(t => (cleared.has(t.id) ? { ...t, category: null } : t)))
     // Saving refreshes the page's totals and donuts, which counted the cleared rule categories too
-    if (category !== null) await saveCategory('row', { id: tx.id, category })
+    if (category !== null) saveCategory('row', tx, category)
     else router.refresh()
   }
 
@@ -232,38 +240,44 @@ export function BankTransactionsTable({
     setSelected(allSelected ? new Set() : new Set(selectableRows.map(t => t.id)))
   }
 
+  /**
+   * The ticked rows show the category at once and the selection clears; the save runs
+   * behind. When it fails the rows go back and the selection returns with the error.
+   */
   async function saveBulkCategory(category: string | null) {
     const ids = [...selected]
-    const res = await fetch('/api/bank/transactions/bulk-category', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, category }),
-    })
-    if (!res.ok) {
-      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
-    }
-    setCategoryError(null)
-    const changed = new Set((await res.json() as { updatedIds: string[] }).updatedIds)
-    setTransactions(prev => prev.map(t => (changed.has(t.id) ? { ...t, category, categoryManual: true } : t)))
+    const patch = (t: BankTx): BankTx => ({ ...t, category, categoryManual: true })
     setSelected(new Set())
-    router.refresh()
+    startTransition(async () => {
+      show(idsChange(ids, patch))
+      let res: Response | null = null
+      try {
+        res = await fetch('/api/bank/transactions/bulk-category', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, category }),
+        })
+      } catch {}
+      if (!res?.ok) {
+        const error = await failure(res)
+        startTransition(() => {
+          setCategoryError(error)
+          setSelected(new Set(ids))
+        })
+        return
+      }
+      const change = idsChange((await res.json() as { updatedIds: string[] }).updatedIds, patch)
+      startTransition(() => {
+        setCategoryError(null)
+        setTransactions(prev => prev.map(t => (change.hits(t) ? change.patch(t) : t)))
+      })
+      router.refresh()
+    })
   }
 
   /** A suggestion's click: this row only, as "רק תנועה זו" would save it */
-  async function acceptSuggestion(id: string, category: string) {
-    const res = await fetch(`/api/bank/transactions/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, categoryScope: 'row' }),
-    })
-    if (!res.ok) {
-      setCategoryError((await res.json().catch(() => null))?.error ?? 'שמירת הקטגוריה נכשלה')
-      return
-    }
-    setCategoryError(null)
-    setTransactions(prev => prev.map(t => (t.id === id ? { ...t, category, categoryManual: true } : t)))
-    router.refresh()
+  function acceptSuggestion(tx: BankTx, category: string) {
+    saveCategory('row', tx, category)
   }
 
   async function toggleIgnored(tx: BankTx) {
@@ -310,12 +324,31 @@ export function BankTransactionsTable({
     router.push(`${pagePath}?${sp.toString()}`, { scroll: false })
   }
 
+  // The phone rows (components/transactions/phone-rows.tsx): the same transactions as search results
+  const phoneRows: SearchResult[] = transactions.map(tx => ({
+    id: tx.id,
+    source: 'bank',
+    accountId: tx.accountId ?? accountId ?? '',
+    accountName: (tx.accountId ? scope.byId.get(tx.accountId)?.name : undefined) ?? '',
+    date: dayKey(tx.date),
+    dateMs: 0,
+    description: tx.description,
+    amount: tx.debit > 0 ? tx.debit : -tx.credit,
+    category: isCardPaymentRow(tx) ? CARD_PAYMENT_CATEGORY : (tx.category ?? undefined),
+    note: tx.note || undefined,
+    ignored: tx.ignored,
+    recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
+  }))
+  const txById = new Map(transactions.map(t => [t.id, t]))
+
   return (
     <div className="space-y-3">
-      {/* Toolbar */}
+      {/* All / income / expenses: pills on their own row, so the toolbar below is the
+          same on every table (the card tables have no such filter) */}
+      {flowFilter}
+      {/* Toolbar: the active filters at the start, "עמודות" and "הצג מוסתרים" always at the end */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3 flex-wrap">
-          {flowFilter}
           {(activeMerchant || activeCategory) && (
             <div className="flex items-center gap-2 text-sm flex-wrap">
               <span className="text-muted-foreground text-xs">מסנן:</span>
@@ -338,9 +371,11 @@ export function BankTransactionsTable({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="ms-auto flex items-center gap-3">
+          {/* Desktop: columns of the table; phones: a line under every row */}
           <ColumnPicker kind="bank" shown={columns} onChange={next => setColumns(next as BankColumn[])} />
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          {/* 44px tall (the padding, taken back by the margin so the toolbar keeps its height), not wider than its text */}
+          <label className="-my-3 flex min-h-11 items-center gap-2 py-3 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={!!showIgnored}
@@ -367,12 +402,37 @@ export function BankTransactionsTable({
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
       <div ref={tableRef} data-swap className="rounded-xl surface overflow-hidden">
-        <div className="overflow-x-auto">
+        <PhoneTransactionRows
+          rows={phoneRows}
+          selected={selected}
+          canSelect={r => selectable(txById.get(r.id)!)}
+          onToggle={toggleSelected}
+          onOpen={r => setPicking(r.id)}
+          showAccount={scope.several}
+          categoryColor={r => (r.category ? categoryColors[r.category] : undefined)}
+          // "עמודות" on phones: the picked ones as a line under every row
+          extra={columns.length ? r => columnsLine('bank', columns, { reference: txById.get(r.id)!.reference }) : undefined}
+          meta={r => {
+            const tx = txById.get(r.id)!
+            return !tx.ignored && isCardPaymentRow(tx) ? (
+              <CardPaymentBadges
+                descriptions={[tx.originalDescription, tx.description]}
+                bankAccountId={tx.accountId ?? accountId}
+                date={tx.date}
+                cards={cards}
+              />
+            ) : null
+          }}
+        />
+        {transactions.length === 0 && (
+          <p className="text-center py-10 text-muted-foreground text-sm md:hidden">אין עסקאות לתקופה זו</p>
+        )}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="w-0 py-2.5 ps-4 pe-0">
-                  <label className="-m-3 inline-flex p-3 align-middle">
+                  <label className="-m-3.5 inline-flex p-3.5 align-middle">
                     <input
                       type="checkbox"
                       aria-label="בחירת כל התנועות שנטענו"
@@ -416,7 +476,7 @@ export function BankTransactionsTable({
                 >
                   <td className="w-0 py-2.5 ps-4 pe-0">
                     {/* The padding widens the tap target past the small box, for phones */}
-                    <label className="-m-3 inline-flex p-3 align-middle">
+                    <label className="-m-3.5 inline-flex p-3.5 align-middle">
                       <input
                         type="checkbox"
                         aria-label={`בחירת ${tx.description}`}
@@ -472,7 +532,7 @@ export function BankTransactionsTable({
                       tx={tx}
                       color={tx.category ? categoryColors[tx.category] : undefined}
                       onOpen={() => setPicking(tx.id)}
-                      onSuggest={category => acceptSuggestion(tx.id, category)}
+                      onSuggest={category => acceptSuggestion(tx, category)}
                     />
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
@@ -519,7 +579,9 @@ export function BankTransactionsTable({
                     <button
                       onClick={() => toggleIgnored(tx)}
                       aria-label={tx.ignored ? 'בטל התעלמות' : 'התעלם מעסקה'}
-                      className="p-1 rounded-md hover:bg-muted transition-colors align-middle"
+                      // The 22px button's hit area: 44px tall, and sideways only into its own cell's end padding
+                      // (never into the recurring button before it)
+                      className="relative p-1 rounded-md hover:bg-muted transition-colors align-middle before:absolute before:-inset-y-[11px] before:start-0 before:-end-4 before:content-['']"
                     >
                       {tx.ignored
                         ? <Eye className="h-3.5 w-3.5 text-primary" />
@@ -556,26 +618,44 @@ export function BankTransactionsTable({
         categories={pickingTx && directionOf(pickingTx) === 'IN' ? incomeCategories : expenseCategories}
         colors={categoryColors}
         onClose={() => setPicking(null)}
-        onSave={async (tx, category, scope, pattern) => {
+        onSave={(tx, category, scope, pattern) => {
           setPicking(null)
-          if (scope === CONTAINS_SCOPE && category && pattern) await saveContainsRule(tx, category, pattern)
-          else await saveCategory(scope === 'rule' ? 'rule' : 'row', { id: tx.id, category })
+          if (scope === CONTAINS_SCOPE && category && pattern) saveCategory('contains', tx, category, pattern)
+          else saveCategory(scope === 'rule' ? 'rule' : 'row', tx, category)
+        }}
+        onFilterMerchant={tx => {
+          setPicking(null)
+          filterMerchant(tx.description)
         }}
         onMarkGeneric={markGeneric}
+        footer={tx => (
+          <PhoneRowActions
+            source="bank"
+            id={tx.id}
+            seriesName={recurring[tx.id]?.name}
+            canMark={!tx.ignored && tx.debit > 0}
+            ignored={tx.ignored}
+            onToggleIgnored={async () => { setPicking(null); await toggleIgnored(tx) }}
+          />
+        )}
       />
     </div>
   )
 }
 
 /** The category window of one bank row (components/categories/category-picker.tsx) */
-function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, onMarkGeneric }: {
+function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, onFilterMerchant, onMarkGeneric, footer }: {
   tx: BankTx | undefined
   generic: boolean
   categories: Category[]
   colors: Record<string, string>
   onClose: () => void
-  onSave: (tx: BankTx, category: string | null, scope: string | null, pattern?: string) => Promise<void>
+  onSave: (tx: BankTx, category: string | null, scope: string | null, pattern?: string) => void
+  /** "כל העסקאות מהעסק הזה": filter the table to the row's description */
+  onFilterMerchant: (tx: BankTx) => void
   onMarkGeneric: (tx: BankTx, category: string | null) => void
+  /** Phone-only row actions (components/transactions/phone-rows.tsx) */
+  footer?: (tx: BankTx) => ReactNode
 }) {
   // The last row stays while the window animates out
   const [last, setLast] = useState<BankTx | undefined>(tx)
@@ -589,6 +669,7 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
       onOpenChange={o => !o && onClose()}
       context={`${out ? 'תנועה יוצאת' : 'תנועה נכנסת'} בבנק · ${shown ? formatDate(shown.date) : ''}`}
       title={shown?.description ?? ''}
+      detail={shown?.note || undefined}
       amount={shown ? formatCurrency(out ? shown.debit : shown.credit) : ''}
       amountTone={out ? 'expense' : 'income'}
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
@@ -610,6 +691,10 @@ function BankCategoryWindow({ tx, generic, categories, colors, onClose, onSave, 
           ? { category: shown.suggestion.category, reason: `כמו ${formatCurrency(shown.suggestion.fromAmount)} ב־${formatDate(shown.suggestion.fromDate)}` }
           : undefined
       }
+      bodyDisabled={!!shown && !selectable(shown)}
+      merchantYear={shown ? { source: 'bank', id: shown.id, year: new Date(shown.date).getFullYear() } : undefined}
+      merchantAll={shown && !shown.ignored ? { onClick: () => onFilterMerchant(shown) } : undefined}
+      footer={shown && footer?.(shown)}
       extraAction={!generic && shown ? { label: 'זה תיאור כללי', onClick: category => onMarkGeneric(shown, category) } : undefined}
       onSave={(category, scope, pattern) => (shown ? onSave(shown, category, scope, pattern) : undefined)}
     />
@@ -667,7 +752,7 @@ function BankBulkBar({ rows, expenseCategories, incomeCategories, colors, onAppl
       count={rows.length}
       kind={directions.size > 1 ? 'mixed' : income ? 'income' : 'expense'}
       context={income ? 'תנועות נכנסות בבנק' : 'תנועות יוצאות בבנק'}
-      amount={formatCurrency(rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0))}
+      amount={formatCurrencyWhole(rows.reduce((s, r) => s + (income ? r.credit : r.debit), 0))}
       categories={categories.map(c => ({ name: c.name, color: colors[c.name] }))}
       allowNone
       onApply={onApply}
