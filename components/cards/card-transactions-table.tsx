@@ -13,7 +13,7 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
-import { CARD_COLUMNS, type CardColumn } from '@/lib/tables/columns'
+import { CARD_COLUMNS, columnsLine, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
 import { BulkCategoryBar } from '@/components/categories/bulk-category-bar'
@@ -305,7 +305,7 @@ export function CardTransactionsTable({
 
   return (
     <div className="space-y-3">
-      {/* Toolbar */}
+      {/* Toolbar: the active filters at the start, "עמודות" and "הצג מוסתרים" always at the end */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         {hasFilter ? (
           <div className="flex items-center gap-2 text-sm flex-wrap">
@@ -328,8 +328,8 @@ export function CardTransactionsTable({
             )}
           </div>
         ) : <div />}
-        <div className="flex items-center gap-3">
-          {/* Columns only exist from md up; phones show rows */}
+        <div className="ms-auto flex items-center gap-3">
+          {/* Desktop: columns of the table; phones: a line under every row */}
           <ColumnPicker kind="card" shown={columns} onChange={next => setColumns(next as CardColumn[])} />
           <label className="-my-3 flex items-center gap-2 py-3 text-sm text-muted-foreground cursor-pointer select-none">
             <input
@@ -366,10 +366,29 @@ export function CardTransactionsTable({
           onToggle={toggleSelected}
           onOpen={r => setPicking(r.id)}
           showAccount={scope.several}
+          categoryColor={r => (r.category ? categoryColors[r.category] : undefined)}
           amountNote={r => {
             const tx = txById.get(r.id)!
-            return !tx.ignored && tx.originalCurrency !== '₪' ? `${tx.originalAmount} ${tx.originalCurrency}` : undefined
+            return !tx.ignored && tx.originalCurrency !== '₪' && !columns.includes('originalAmount')
+              ? `${tx.originalAmount} ${tx.originalCurrency}`
+              : undefined
           }}
+          // "עמודות" on phones: the picked ones as a line under every row
+          extra={
+            columns.length
+              ? r => {
+                  const tx = txById.get(r.id)!
+                  return columnsLine('card', columns, {
+                    chargedCurrency: tx.chargedCurrency || '₪',
+                    originalAmount: `${tx.originalAmount} ${tx.originalCurrency}`,
+                    reference: tx.reference,
+                    cardLastFour: tx.cardLastFour,
+                    transactionType: tx.transactionType,
+                    notes: tx.notes,
+                  })
+                }
+              : undefined
+          }
         />
         {transactions.length === 0 && (
           <p className="text-center py-10 text-muted-foreground text-sm md:hidden">אין עסקאות לתקופה זו</p>

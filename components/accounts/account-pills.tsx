@@ -2,6 +2,18 @@ import Link from 'next/link'
 import { AccountMini } from '@/components/accounts/account-element'
 import { cn } from '@/lib/utils/cn'
 
+/** A filter pill (the account pills, the bank pages' all / income / expenses): opaque, rounded, the picked one tinted */
+export function pillClass(on: boolean) {
+  return cn(
+    'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    'surface',
+    on
+      ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
+      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+  )
+}
+
 export interface AccountPill {
   key: string
   label: string
@@ -36,14 +48,7 @@ export function AccountPills({
                 href={o.href}
                 scroll={false}
                 aria-current={on ? 'page' : undefined}
-                className={cn(
-                  'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  'surface',
-                  on
-                    ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
+                className={pillClass(on)}
               >
                 {o.account && (
                   <AccountMini
