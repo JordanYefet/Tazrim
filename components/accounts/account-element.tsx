@@ -163,6 +163,8 @@ export interface PaymentCardProps {
   amountVisible?: boolean
   /** Glass faces (ENG-72): the baked liquid-glass lens, for large cards only (others get the static look) */
   glassBaked?: boolean
+  /** The day of the month the card is charged: "חיוב ב־2 לחודש" above the digits (the wallet's cards) */
+  billingDay?: number | null
   /** Names the glass (the account), so its bakes are cached across pages */
   glassId?: string
   className?: string
@@ -184,6 +186,7 @@ export function PaymentCard({
   amountVisible = false,
   glassBaked = false,
   glassId,
+  billingDay,
   className,
 }: PaymentCardProps) {
   const ref = useTilt<HTMLDivElement>(tilt, 5)
@@ -251,7 +254,15 @@ export function PaymentCard({
           </div>
         )}
         <div className="acct-card__row acct-card__row--bottom">
-          <CardDigits lastFour={lastFour} live={live} />
+          {billingDay ? (
+            // The billing day right above the digits
+            <div className="acct-card__digitcol">
+              <p className="acct-card__due" dir="rtl">חיוב ב־{billingDay} לחודש</p>
+              <CardDigits lastFour={lastFour} live={live} />
+            </div>
+          ) : (
+            <CardDigits lastFour={lastFour} live={live} />
+          )}
           <span key={network ?? 'none'} data-network={network ?? undefined} className={cn('acct-card__network', live && 'acct-swap')}>
             <NetworkMark network={network} />
           </span>

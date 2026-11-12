@@ -1,5 +1,6 @@
 import { CardWallet, type WalletCard } from '@/components/cards/card-wallet'
 import { listAccounts } from '@/lib/db/accounts'
+import { getCardBillingDays } from '@/lib/db/cards'
 import { accountPath } from '@/lib/accounts/routes'
 import { CARD_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
@@ -11,6 +12,7 @@ import { seriesColor } from '@/lib/accounts/colors'
  */
 export default async function CardsLayout({ children }: { children: React.ReactNode }) {
   const accounts = await listAccounts({ kind: 'CREDIT_CARD', includeArchived: true })
+  const billingDays = await getCardBillingDays(accounts.filter(a => !a.archived).map(a => a.id))
   let active = 0
   const cards: WalletCard[] = accounts.map(a => ({
     id: a.id,
@@ -23,6 +25,7 @@ export default async function CardsLayout({ children }: { children: React.ReactN
     color: seriesColor(a.color, a.archived ? 'var(--chart-cc)' : CARD_COLORS[active++ % CARD_COLORS.length]),
     colorChoice: a.color,
     archived: a.archived,
+    billingDay: billingDays[a.id] ?? null,
   }))
   return <CardWallet cards={cards}>{children}</CardWallet>
 }

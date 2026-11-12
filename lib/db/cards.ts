@@ -8,6 +8,7 @@ import { getCategoryMap, mappedCategory } from './category-mappings'
 import { cardDedupeKey, localDay, planCardImport } from '../upload/card-dedupe'
 import { loadKeywordRules } from './keyword-rules'
 import { resolveRuleCategory } from '../insights/keyword-rules'
+import { billingDay } from '../accounts/billing-day'
 
 // Every function that takes an AccountFilter reads one card (an id), several
 // cards (a list of ids) or every card (undefined).
@@ -318,4 +319,33 @@ export async function getCCCategoryMonthly(accountId: AccountFilter, year: numbe
     result[cat][m] = (result[cat][m] ?? 0) + tx.chargedAmount
   }
   return result
+}
+
+/**
+ * Each card's billing day ("חיוב ב־2 לחודש", lib/accounts/billing-day.ts): from
+ * its statements of the last year up to the next one (later months hold only
+ * future installments).
+ */
+export async function getCardBillingDays(accountIds: string[]): Promise<Record<string, number>> {
+  if (!accountIds.length) return {}
+  const now = new Date()
+  const from = new Date(now.getFullYear() - 1, now.getMonth(), 1)
+  const to = new Date(now.getFullYear(), now.getMonth() + 2, 1)
+  const groups = await prisma.creditCardTransaction.groupBy({
+    by: ['accountId', 'billingDate'],
+    where: { accountId: { in: accountIds }, billingDate: { gte: from, lt: to } },
+    _count: { _all: true },
+  })
+  const rows = new Map<string, { date: Date; count: number }[]>()
+  for (const g of groups) {
+    const list = rows.get(g.accountId) ?? []
+    list.push({ date: g.billingDate, count: g._count._all })
+    rows.set(g.accountId, list)
+  }
+  const out: Record<string, number> = {}
+  for (const [id, list] of rows) {
+    const day = billingDay(list)
+    if (day !== null) out[id] = day
+  }
+  return out
 }

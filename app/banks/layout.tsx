@@ -23,6 +23,7 @@ export default async function BanksLayout({ children }: { children: React.ReactN
     color: seriesColor(a.color, a.archived ? BANK_COLORS[0] : BANK_COLORS[active++ % BANK_COLORS.length]),
     colorChoice: a.color,
     archived: a.archived,
+    billingDay: null,
   }))
   return (
     <CardWallet kind="banks" cards={banks}>

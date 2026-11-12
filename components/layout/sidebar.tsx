@@ -243,7 +243,7 @@ export function Sidebar({
       <aside
         data-collapsed={collapsed || undefined}
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 self-start flex-col overflow-hidden bar-glass border-e md:flex [@media(prefers-reduced-transparency:reduce)]:bg-card',
+          'sticky top-0 hidden h-screen supports-[height:100dvh]:h-dvh shrink-0 self-start flex-col overflow-hidden bar-glass border-e md:flex [@media(prefers-reduced-transparency:reduce)]:bg-card',
           WIDTH_MOTION,
           collapsed ? 'w-16' : 'w-56'
         )}
@@ -269,7 +269,10 @@ export function Sidebar({
           </Link>
         </div>
 
-        <nav aria-label="ניווט ראשי" className={cn('flex flex-1 flex-col gap-0.5 p-3', collapsed ? 'overflow-visible' : 'overflow-y-auto')}>
+        {/* The links scroll (min-h-0 lets the list shrink below its content) and the
+            bottom row stays in view at any height, such as an iPad in landscape with the
+            sections open; dvh is the height Safari shows, toolbars included */}
+        <nav aria-label="ניווט ראשי" className={cn('flex min-h-0 flex-1 flex-col gap-0.5 p-3', collapsed ? 'overflow-visible' : 'overflow-y-auto')}>
           {MAIN_NAV.map(item =>
             item.type === 'section' ? (
               <SectionItem
