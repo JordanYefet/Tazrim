@@ -32,6 +32,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { accountPath } from '@/lib/accounts/routes'
 import { bankPeriodTotals, lastMonthWithData, monthHasData, type BankMonthly } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { monthName, periodLabel } from '@/lib/utils/date'
 import { withResolvedPeriod } from '@/lib/period-server'
 
@@ -152,7 +153,9 @@ export default async function BankAccountPage({
     cards,
   } = await getBankData(account.id, params)
 
-  const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month)
+  // The averages count finished months only: the month in progress would drag them down (ENG-107)
+  const { income, expense, averageExpense, averageIncome } = bankPeriodTotals(bankSummary, month, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
 
   const chartData = Object.entries(bankSummary).map(([m, d]) => ({
     month: Number(m),
@@ -226,6 +229,7 @@ export default async function BankAccountPage({
               averageIncome,
               monthLabel: month ? monthName(month) : undefined,
               monthHasData: !!month && monthHasData(bankSummary, month),
+              monthInProgress: inProgress,
             })}
           />
         ) : (

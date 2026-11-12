@@ -10,6 +10,8 @@ interface Props {
   monthLabel?: string
   /** Whether the selected month has any charges; without, the average gets no comparison chip */
   monthHasData?: boolean
+  /** The selected month is this month: its charges are partial, so no comparison chip */
+  monthInProgress?: boolean
   /** Billing month (1-12) -> total charged (getCCMonthlySummary): a mini chart with the average line in the average tile */
   monthlyTotals?: Record<number, number>
   /** The selected month (?month=), highlighted on the charts; without one the latest month with data is */
@@ -21,6 +23,7 @@ function cardStats({
   average,
   monthLabel,
   monthHasData = true,
+  monthInProgress = false,
   monthlyTotals,
   selectedMonth,
 }: Props): StatDef[] {
@@ -29,7 +32,7 @@ function cardStats({
       ...averageStat(
         { label: 'ממוצע חודשי', tone: 'cc', format: 'currency' },
         average,
-        monthLabel ? { label: monthLabel, value: total, hasData: monthHasData } : undefined
+        monthLabel ? { label: monthLabel, value: total, hasData: monthHasData, inProgress: monthInProgress } : undefined
       ),
       footer: monthlyTotals && (
         <MonthBarsChart

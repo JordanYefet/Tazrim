@@ -57,7 +57,8 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       color('--chart-income', 'סדרת הכנסות'),
       color('--chart-expense', 'סדרת הוצאות'),
       color('--chart-cc', 'סדרת כרטיסים'),
-      ...Array.from({ length: 10 }, (_, i) => color(`--chart-${i + 1}`, `קטגוריה ${i + 1}`)),
+      ...Array.from({ length: 10 }, (_, i) => color(`--chart-${i + 1}`, `סדרה ${i + 1}; צבע חשבון ללא מותג`)),
+      ...Array.from({ length: 10 }, (_, i) => color(`--category-${i + 1}`, `קטגוריה ${i + 1} (בכהה: פלטה משלה)`)),
     ],
   },
   {

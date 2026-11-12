@@ -31,6 +31,7 @@ import {
   shareOf,
   sumCardMonthly,
 } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { monthName } from '@/lib/utils/date'
 import { CARD_COLORS } from '@/lib/nav/state'
 import { seriesColor } from '@/lib/accounts/colors'
@@ -116,7 +117,9 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
   ])
 
   const combined = sumCardMonthly(perCard.map(c => c.monthly))
-  const { average } = cardPeriodTotals(combined, month)
+  // The average counts finished months only: the month in progress would drag it down (ENG-107)
+  const { average } = cardPeriodTotals(combined, month, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
   const total = perCard.reduce((s, c) => s + c.total, 0)
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
@@ -202,6 +205,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           average={average}
           monthLabel={month ? monthName(month) : undefined}
           monthHasData={!!month && monthHasData(combined, month)}
+          monthInProgress={inProgress}
         />
       )}
       </div>

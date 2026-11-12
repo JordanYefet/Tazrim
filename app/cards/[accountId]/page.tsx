@@ -20,6 +20,7 @@ import { getRecurringSeries } from '@/lib/db/recurring'
 import { recurringNameMap } from '@/lib/insights/recurring-overrides'
 import { rankCategories } from '@/lib/insights/category-insights'
 import { lastMonthWithData, monthHasData, monthlyAverage } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { accountPath } from '@/lib/accounts/routes'
 import { categoryAnalysisHref, categoryYearHref } from '@/lib/accounts/category-links'
 import { categoryColorMap } from '@/lib/utils/category-colors'
@@ -118,7 +119,9 @@ export default async function CardAccountPage({
   // Yearly average over months with charges (not all 12 the chart shows); with a
   // category filter, that category's yearly total over the same months (as the
   // category page's table averages it). Always shown, so a month can be compared.
-  const averageMonthly = monthlyAverage(shownMonthly, monthly)
+  // Finished months only: the month in progress would drag it down (ENG-107)
+  const averageMonthly = monthlyAverage(shownMonthly, monthly, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
 
   // Same category colors on every chart, ranked by yearly spend
   const categoryColors = categoryColorMap(rankCategories(allCategoryMonthly))
@@ -175,6 +178,7 @@ export default async function CardAccountPage({
             />
             <CardStatTiles total={total} average={averageMonthly} monthLabel={month ? monthName(month) : undefined}
               monthHasData={!!month && monthHasData(monthly, month)}
+              monthInProgress={inProgress}
               monthlyTotals={shownMonthly}
               selectedMonth={month}
             />

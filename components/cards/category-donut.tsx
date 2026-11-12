@@ -10,9 +10,10 @@ import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
+import { categoryColor } from '@/lib/utils/category-colors'
 
 // CSS vars (defined per theme in globals.css) so SSR and client markup match
-const COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
+const COLORS = Array.from({ length: 10 }, (_, i) => categoryColor(i + 1))
 
 type Tone = 'expense' | 'income'
 const TONE_TEXT: Record<Tone, string> = {
@@ -122,7 +123,8 @@ function CategoryDonutInner({
               <button
                 key={entry.name}
                 onClick={() => handleClick(entry)}
-                className="grid w-full grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-x-2 sm:grid-cols-[minmax(0,1fr)_6.5rem] rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted"
+                // A 44px row on phones (the legend is under the ring there, so the rows are the tap targets); compact beside a pointer
+                className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-x-2 rounded-md px-1.5 py-1 text-start text-sm transition-colors hover:bg-muted sm:grid-cols-[minmax(0,1fr)_6.5rem] md:min-h-0"
                 style={{ opacity: selectedCategory && selectedCategory !== entry.name ? 0.4 : 1 }}
               >
                 <span className="flex min-w-0 items-center gap-2">

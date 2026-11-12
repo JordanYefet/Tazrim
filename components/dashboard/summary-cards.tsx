@@ -40,12 +40,16 @@ export interface MonthCompare {
   upIsGood?: boolean
 }
 
-/** The yearly average tile; with a month selected a chip shows that month against the average. */
+/**
+ * The yearly average tile; with a month selected a chip shows that month against the
+ * average. A month in progress gets no chip: its figure is partial, so "below the
+ * average" would mislead (the same rule as the overview's hero).
+ */
 export function averageStat(
   def: Omit<StatDef, 'value' | 'compare' | 'hasCompareSlot'>,
   average: number,
-  /** `hasData: false`: the month has no data yet, so no chip (not "-100%") */
-  month?: { label: string; value: number; hasData?: boolean },
+  /** `hasData: false`: the month has no data yet, so no chip (not "-100%"); `inProgress`: this month, no verdict */
+  month?: { label: string; value: number; hasData?: boolean; inProgress?: boolean },
   opts: { upIsGood?: boolean } = {}
 ): StatDef {
   return {
@@ -54,7 +58,7 @@ export function averageStat(
     compare: month && {
       label: month.label,
       value: month.value,
-      delta: monthAverageDelta(month.value, average, month.hasData ?? true),
+      delta: monthAverageDelta(month.value, average, (month.hasData ?? true) && !month.inProgress),
       upIsGood: opts.upIsGood,
     },
     hasCompareSlot: true,

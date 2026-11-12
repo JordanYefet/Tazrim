@@ -60,6 +60,20 @@
     --chart-8: #c45c9a;
     --chart-9: #7aab38;
     --chart-10: #3090c0;
+
+    /* Category colours (categoryColorMap): the chart palette in light mode; dark mode
+       has its own set at one lightness (same hues, same order), so a category keeps
+       its identity while no colour shouts or sinks against the dark card */
+    --category-1: var(--chart-1);
+    --category-2: var(--chart-2);
+    --category-3: var(--chart-3);
+    --category-4: var(--chart-4);
+    --category-5: var(--chart-5);
+    --category-6: var(--chart-6);
+    --category-7: var(--chart-7);
+    --category-8: var(--chart-8);
+    --category-9: var(--chart-9);
+    --category-10: var(--chart-10);
   }
 
   .dark {
@@ -101,6 +115,20 @@
     --chart-8: #d67ab1;
     --chart-9: #8bc34a;
     --chart-10: #40b4c4;
+
+    /* The category palette for dark cards: every colour at OKLCH lightness 0.70,
+       chroma at most 0.135, hues as in --chart-N. 5.8:1 to 6.6:1 against --card
+       (the chart set runs 4.5:1 to 7.9:1: the purple and red sink, the lime shouts) */
+    --category-1: #39acda;
+    --category-2: #46b77f;
+    --category-3: #ce8f54;
+    --category-4: #e67b70;
+    --category-5: #af88e3;
+    --category-6: #36b5a5;
+    --category-7: #e47e63;
+    --category-8: #d77bb2;
+    --category-9: #81af50;
+    --category-10: #3bb0c0;
   }
 }
 

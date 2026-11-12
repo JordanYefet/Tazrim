@@ -39,6 +39,7 @@ import {
   monthHasData,
   sumBankMonthly,
 } from '@/lib/insights/account-overview'
+import { monthProgress } from '@/lib/insights/month-progress'
 import { monthName } from '@/lib/utils/date'
 import { badgeCards } from '@/lib/accounts/payment-badge'
 import { withResolvedPeriod } from '@/lib/period-server'
@@ -124,7 +125,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
           getBankBalanceAt(account.id, Number(year), month),
         ])
         const color = seriesColor(account.color, BANK_COLORS[i % BANK_COLORS.length])
-        return { account, monthly, latest, balancePoints, balanceBefore, balanceAt, color, totals: bankPeriodTotals(monthly, month) }
+        return { account, monthly, latest, balancePoints, balanceBefore, balanceAt, color, totals: bankPeriodTotals(monthly, month, { year: Number(year) }) }
       })
     ),
     // Skipped with no accounts (the empty state below)
@@ -134,7 +135,9 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
 
   // Bank accounts only: card charges are already inside these expenses
   const combined = sumBankMonthly(perAccount.map(a => a.monthly))
-  const totals = bankPeriodTotals(combined, month)
+  // The averages count finished months only: the month in progress would drag them down (ENG-107)
+  const totals = bankPeriodTotals(combined, month, { year: Number(year) })
+  const inProgress = !!month && monthProgress(Number(year), month).inProgress
   const chartData = Object.entries(combined).map(([m, d]) => ({ month: Number(m), ...d }))
   const hasData = lastMonthWithData(combined) > 0
   const several = accounts.length > 1
@@ -223,6 +226,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               averageIncome: totals.averageIncome,
               monthLabel: month ? monthName(month) : undefined,
               monthHasData: !!month && monthHasData(combined, month),
+              monthInProgress: inProgress,
             })}
           />
         ) : (

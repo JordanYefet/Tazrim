@@ -59,7 +59,8 @@ export function ManageAccountsLink() {
     <Link
       href={settingsAccountsHref({})}
       aria-label="ניהול חשבונות"
-      className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
+      // Drawn 34px; the hit area is 46px tall and 4px wider each side (the heading's actions are 8px apart, so no overlap)
+      className="relative inline-flex items-center gap-1.5 rounded-lg border bg-card px-2 py-1.5 text-sm text-muted-foreground transition-colors before:absolute before:-inset-x-1 before:-inset-y-1.5 before:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
     >
       <Settings2 className="h-4 w-4" aria-hidden />
       <span className="max-sm:sr-only">ניהול חשבונות</span>
