@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { normalizeKeyword, validKeyword, MIN_KEYWORD_LENGTH } from '@/lib/insights/keyword-rules'
-import { MerchantYearToggle, type MerchantYearRef } from '@/components/transactions/merchant-year'
+import { MerchantYearToggle, type MerchantAll, type MerchantYearRef } from '@/components/transactions/merchant-year'
 
 export interface PickerCategory {
   name: string
@@ -97,6 +97,8 @@ export function CategoryPicker({
   footer,
   bodyDisabled,
   merchantYear,
+  merchantAll,
+  detail,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -128,6 +130,10 @@ export function CategoryPicker({
   bodyDisabled?: boolean
   /** The row's merchant over the year, opened in place under the title ("העסק הזה לאורך השנה") */
   merchantYear?: MerchantYearRef
+  /** "כל העסקאות מהעסק הזה" under the year: filter the table, or a link to search */
+  merchantAll?: MerchantAll
+  /** The row's note, under the title in full (the phone rows cut it) */
+  detail?: string
 }) {
   return (
     <AppDialog
@@ -142,11 +148,16 @@ export function CategoryPicker({
               {amount}
             </span>
           </span>
+          {detail && (
+            <span className="text-sm font-normal text-muted-foreground">
+              <bdi>{detail}</bdi>
+            </span>
+          )}
         </span>
       }
     >
       {/* Remounted per opening (keyed by the row), so it is read for this row */}
-      {open && merchantYear && <MerchantYearToggle key={`${merchantYear.source}:${merchantYear.id}`} {...merchantYear} />}
+      {open && merchantYear && <MerchantYearToggle key={`${merchantYear.source}:${merchantYear.id}`} {...merchantYear} all={merchantAll} />}
       {/* Remounted per opening, so it starts from the row's current category */}
       {open && (
         <div inert={bodyDisabled} aria-disabled={bodyDisabled} className={cn(bodyDisabled && 'opacity-40 grayscale')}>

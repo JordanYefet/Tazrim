@@ -10,8 +10,9 @@ import { stepPeriod, type Period } from '@/lib/period'
 const MONTHS = monthsArray()
 
 const ARROW =
-  // before: the 44px hit area around the 32px button
-  'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-1.5 before:content-[""]'
+  // before: the 32px button's hit area grows to 44px up and down only; sideways it keeps to
+  // its own width, so it never overlaps the month label beside it or the "החודש" button
+  'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[""]'
 const CELL =
   'h-10 rounded-[10px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const PICKED = 'bg-primary font-semibold text-primary-foreground'

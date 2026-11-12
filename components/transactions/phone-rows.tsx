@@ -21,13 +21,17 @@ const displayDate = (key: string) => key.split('-').reverse().join('.')
  * card, every row the same height and every part in the same place on every row and page:
  *
  *   description ……………………… amount
- *   [● category]  date · account · badges ……… note under the amount (foreign currency)
+ *   [● category]  date · account · note · badges …… foreign amount
  *   the columns picked in "עמודות" (only when some are; then on every row)
  *
  * The category is always the first thing on the second line, in its own colour ("ללא
- * קטגוריה" holds its place when there is none). Nothing wraps: what doesn't fit is cut.
- * Tapping a row opens its window, which carries the row's actions on phones
- * (`PhoneRowActions`). Shown below `md` only (the table is `hidden md:block`).
+ * קטגוריה" holds its place when there is none). A row's note (bank and card) joins
+ * that line after the date and the account, in the same muted text, and is cut with
+ * them: it never adds a line, so a row with a note is as tall as one without; the
+ * whole note is read in the row's window, under its title. Nothing wraps: what
+ * doesn't fit is cut. Tapping a row opens its window, which carries the row's
+ * actions on phones (`PhoneRowActions`). Shown below `md` only (the table is
+ * `hidden md:block`).
  */
 export function PhoneTransactionRows({
   rows,
@@ -122,10 +126,13 @@ export function PhoneTransactionRows({
                   <span className="min-w-0 flex-1 truncate">
                     <span className="tabular-nums">{displayDate(r.date)}</span>
                     {showAccount && r.accountName && <> · {r.accountName}</>}
+                    {r.note && <> · <bdi>{r.note}</bdi></>}
                   </span>
                   {r.recurringLabel && <Repeat className="h-3.5 w-3.5 shrink-0 text-primary" aria-label={`חיוב קבוע: ${r.recurringLabel}`} />}
                   {r.ignored && <EyeOff className="h-3.5 w-3.5 shrink-0" aria-label="מוסתרת" />}
-                  {/* Links inside a row that is a button sit above its stretched hit area */}
+                  {/* Links inside a row that is a button sit above its stretched hit area. They are
+                      confined to their 22px line (the line clips overflow): a tap above or below them
+                      is the row's and opens its window, never a neighbour */}
                   {badges && <span className="pointer-events-auto relative shrink-0">{badges}</span>}
                   {note && (
                     <span className="shrink-0 text-[11px] tabular-nums" dir="ltr">

@@ -1,11 +1,16 @@
-import Link from 'next/link'
+import { PeriodLink } from '@/components/layout/period-link'
 import { AccountMini } from '@/components/accounts/account-element'
 import { cn } from '@/lib/utils/cn'
 
-/** A filter pill (the account pills, the bank pages' all / income / expenses): opaque, rounded, the picked one tinted */
+/**
+ * A filter pill (the account pills, the bank pages' all / income / expenses): opaque,
+ * rounded, the picked one tinted. Drawn 36px tall; the hit area is 44px (4px above and
+ * below, never sideways: the pills sit 8px apart in a row, so no two overlap).
+ */
 export function pillClass(on: boolean) {
   return cn(
-    'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+    'relative flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+    'before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""]',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     'surface',
     on
@@ -44,7 +49,7 @@ export function AccountPills({
           const on = o.key === active
           return (
             <li key={o.key} className="shrink-0">
-              <Link
+              <PeriodLink
                 href={o.href}
                 scroll={false}
                 aria-current={on ? 'page' : undefined}
@@ -60,7 +65,7 @@ export function AccountPills({
                   />
                 )}
                 {o.label}
-              </Link>
+              </PeriodLink>
             </li>
           )
         })}

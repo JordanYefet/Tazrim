@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronDown, ChevronLeft, ListFilter, Search } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { MonthBarsChart } from '@/components/cards/month-bars'
@@ -67,10 +68,23 @@ export function MerchantYear({ source, id, year, active = true, className }: Mer
 }
 
 /**
- * The transaction window's "העסק הזה לאורך השנה": a 44px row that opens the merchant's
- * year in place (Reveal); the year is read on the first opening.
+ * "כל העסקאות מהעסק הזה" under the merchant's year: on a transaction table it filters
+ * the table to the merchant (`?merchant=`, the same filter a click on the name sets on
+ * desktop; phones have no other way to it); elsewhere (search, a category's year) it
+ * is a link to a search for the merchant.
  */
-export function MerchantYearToggle(ref: MerchantYearRef) {
+export type MerchantAll = { onClick: () => void } | { href: string }
+
+const ROW =
+  'flex min-h-11 w-full items-center gap-3 px-3.5 text-start text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+/**
+ * The transaction window's "העסק הזה" block: a 44px row, "העסק הזה לאורך השנה", that
+ * opens the merchant's year in place (Reveal; the year is read on the first opening),
+ * and under it, when the window has somewhere to send it, the 44px row "כל העסקאות
+ * מהעסק הזה" (`all`).
+ */
+export function MerchantYearToggle({ all, ...ref }: MerchantYearRef & { all?: MerchantAll }) {
   const [open, setOpen] = useState(false)
   const id = `merchant-year-${ref.source}-${ref.id}`
   return (
@@ -80,7 +94,7 @@ export function MerchantYearToggle(ref: MerchantYearRef) {
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         aria-controls={id}
-        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 text-start text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(ROW, all ? 'rounded-t-xl' : 'rounded-xl')}
       >
         <span className="min-w-0 flex-1 font-medium">העסק הזה לאורך השנה</span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-base ease-ui', open && 'rotate-180')} aria-hidden />
@@ -88,6 +102,20 @@ export function MerchantYearToggle(ref: MerchantYearRef) {
       <Reveal open={open} id={id} className="px-3.5 pb-3.5">
         <MerchantYear {...ref} active={open} />
       </Reveal>
+      {all && 'href' in all && (
+        <Link href={all.href} className={cn(ROW, 'rounded-b-xl border-t border-border')}>
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1 font-medium">כל העסקאות מהעסק הזה</span>
+          <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+      )}
+      {all && 'onClick' in all && (
+        <button type="button" onClick={all.onClick} className={cn(ROW, 'rounded-b-xl border-t border-border')}>
+          <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1 font-medium">כל העסקאות מהעסק הזה</span>
+          <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        </button>
+      )}
     </div>
   )
 }

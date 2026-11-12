@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PeriodLink } from '@/components/layout/period-link'
 import { cn } from '@/lib/utils/cn'
 import { monthName } from '@/lib/utils/date'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
@@ -32,7 +32,10 @@ export function CategoryYearBars({
 }) {
   const { bars } = monthBars(values, { selectedMonth })
   return (
-    <div dir="ltr" className={cn('flex h-36 items-stretch gap-1 sm:gap-1.5', className)}>
+    // The space between the bars is inside the links (padding, not a gap), so a touch
+    // between two months lands on one of them; the negative margin keeps the bars where
+    // a gap would have put them
+    <div dir="ltr" className={cn('-mx-0.5 flex h-36 items-stretch sm:-mx-[3px]', className)}>
       {bars.map(b => {
         const selected = b.month === selectedMonth
         // The whole year: every bar the same, so it can't be mistaken for a picked month
@@ -40,13 +43,13 @@ export function CategoryYearBars({
         const inProgress = !!selectedMonth && b.month === inProgressMonth
         const label = `${monthName(b.month)}: ${b.future ? 'אין נתונים' : formatCurrencyWhole(b.value)}`
         return (
-          <Link
+          <PeriodLink
             key={b.month}
             href={href(selected ? undefined : b.month)}
             scroll={false}
             aria-label={selected ? `${label} (נבחר; לחיצה מציגה את כל השנה)` : label}
             aria-current={selected ? 'true' : undefined}
-            className="group flex min-w-0 flex-1 flex-col justify-end gap-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group flex min-w-0 flex-1 flex-col justify-end gap-1.5 rounded-md px-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-[3px]"
           >
             <span className="flex min-h-0 flex-1 flex-col justify-end">
               <span
@@ -74,7 +77,7 @@ export function CategoryYearBars({
             >
               {monthName(b.month)}
             </span>
-          </Link>
+          </PeriodLink>
         )
       })}
     </div>

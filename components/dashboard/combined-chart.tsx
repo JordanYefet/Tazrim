@@ -8,7 +8,8 @@ import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { usePeriodNavigation } from '@/components/layout/period-context'
 import { Suspense } from 'react'
 import { toggleMonthQuery, withQueryString } from '@/lib/utils/month-param'
 
@@ -59,7 +60,8 @@ function CustomTooltip({ active, payload, label }: any) {
 function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', selectedMonth }: Props) {
   const SERIES = seriesFor(cardsName)
   const ccKey = SERIES[2].key
-  const router = useRouter()
+  // Through the period transition: the page stays (dimmed) until the month arrives
+  const navigate = usePeriodNavigation()
   const params = useSearchParams()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -77,7 +79,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', sel
 
   function handleClick(month: number | undefined) {
     if (!month) return
-    router.push(withQueryString('/', toggleMonthQuery(params.toString(), month)), { scroll: false })
+    navigate(withQueryString('/', toggleMonthQuery(params.toString(), month)))
   }
 
   const chartData = useStableData(rows)
