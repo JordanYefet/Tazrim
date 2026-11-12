@@ -32,6 +32,7 @@ import { seriesColor } from '@/lib/accounts/colors'
 import { accountHref, accountPath } from '@/lib/accounts/routes'
 import { bankCategoryAnalysisHref } from '@/lib/accounts/category-links'
 import { CardStackTotal } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import {
   bankPeriodTotals,
   lastMonthWithData,
@@ -187,10 +188,13 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
   return (
     <div className="contents">
       <div className="wallet-shell__head">{heading}</div>
-      <CardStackTotal value={stackBalance} />
+      {/* The balance on the navy pocket, and at its foot the period's net */}
+      <CardStackTotal value={stackBalance} net={{ value: totals.net, label: month ? `נטו ב${monthName(month)}` : `נטו ב־${year}` }} />
 
       {/* Beside the wallet, as tall as it: each account's figures (as the card list on /cards),
           then the four period figures in a compact card filling the rest */}
+      {/* Phones: the transactions, or (מגמות) these figures and the charts */}
+      <WalletViews enabled={hasData}>
       <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
         {/* Beside a wallet of fixed height: past a few accounts the list scrolls in its own card,
           and the figures under it keep their size (they never shrink under the list) */}
@@ -235,7 +239,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         {/* The same pair as on an account's page: income vs. expenses, and the balance
             (every account's together) with the category analysis link */}
         {hasData && (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart
               data={chartData}
               selectedMonth={month}
@@ -254,6 +258,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
             as bank money going out */}
         {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
           // Stays mounted while the keyed table remounts, so the new rows ease in
+          <div data-view="list">
           <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')} height>
             <BankTransactionsTable
               key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
@@ -274,8 +279,10 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
               flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK')} params={params} current={flow} />}
             />
           </DataSwap>
+          </div>
         )}
       </div>
+      </WalletViews>
     </div>
   )
 }

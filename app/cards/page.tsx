@@ -7,6 +7,7 @@ import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardSummaryRow } from '@/components/accounts/account-cards'
 import { CardStackTotal } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import { EmptyState, ManageAccountsLink, PageHeading } from '@/components/accounts/page-parts'
 import { listAccounts } from '@/lib/db/accounts'
 import { getCCCategoryMonthly, getCCCategoryStats, getCCMonthlySummary, getCCTransactions } from '@/lib/db/cards'
@@ -172,6 +173,8 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           its place when a card opens): each card's figures, then the monthly
           average filling the rest. No monthly bars in them here: under the card list there
           is no room for them (a card's page, with the whole half, has them) */}
+      {/* Phones: the transactions, or (מגמות) these figures and the charts */}
+      <WalletViews enabled={hasData}>
       <div className={cn('wallet-shell__beside flex flex-col gap-4', hasData && 'wallet-shell__beside--fit')}>
       {/* Beside a wallet of fixed height: past a few accounts the list scrolls in its own card,
           and the figures under it keep their size (they never shrink under the list) */}
@@ -208,7 +211,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           <>
             {/* The same pair as on a card's page: the months, and the categories (every card's
                 together) with the category analysis link; a category filters the table below */}
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
               <MonthlySpendingChart
                 series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
                 selectedMonth={month}
@@ -235,6 +238,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
         {/* Every card's charges together, as on a card's page */}
         {(hasData || table.transactions.length > 0 || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
           // Stays mounted while the keyed table remounts, so the new rows ease in
+          <div data-view="list">
           <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')} height>
             <CardTransactionsTable
               key={[params.merchant, params.search, params.month, params.year, params.category, params.showIgnored].join('|')}
@@ -251,8 +255,10 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
               initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
             />
           </DataSwap>
+          </div>
         )}
       </div>
+      </WalletViews>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { BankTransactionsTable } from '@/components/bank/transactions-table'
 import { DataSwap } from '@/components/ui/data-swap'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
 import { BankHeroBalance } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import { getBankBalancePoints, getBankBalanceTrend, getBankMonthlySummary, getBankTransactions } from '@/lib/db/bank'
 import { getBankCategoryMonthly, getBankCategoryStats } from '@/lib/db/bank-categories'
 import { withCategorySuggestions } from '@/lib/db/category-suggestions'
@@ -176,7 +177,13 @@ export default async function BankAccountPage({
   // this page fills the grid around it, as a card's page does
   return (
     <div className="contents">
-      <BankHeroBalance accountId={account.id} latest={latest} trend={trend} />
+      {/* On the open bank: its balance, trend and, at its foot, the period's net (where /banks has it on the pocket) */}
+      <BankHeroBalance
+        accountId={account.id}
+        latest={latest}
+        trend={trend}
+        net={hasData ? { value: income - expense, label: month ? `נטו ב${monthName(month)}` : `נטו ב־${year}` } : undefined}
+      />
       <div className="wallet-shell__head">
       <PageHeading
         period={{ year: Number(year), month }}
@@ -187,8 +194,15 @@ export default async function BankAccountPage({
       </div>
 
       {/* Beside the open account, as tall as it: the net balance over the four period figures in one card */}
+      {/* Phones: the transactions, or (מגמות) these figures and the charts */}
+      <WalletViews enabled={hasData}>
       <div className={cn('wallet-shell__beside flex flex-col gap-3', hasData && 'wallet-shell__beside--fit')}>
-        {hasData && <NetBalance compact bankIncome={income} bankExpense={expense} format="currency" />}
+        {/* Phones have the net on the open bank's face, so the card is desktop's */}
+        {hasData && (
+          <div className="hidden lg:contents">
+            <NetBalance compact bankIncome={income} bankExpense={expense} format="currency" />
+          </div>
+        )}
         {hasData ? (
           <StatPanel
             className="min-h-0 flex-1"
@@ -213,7 +227,7 @@ export default async function BankAccountPage({
 
       <div className="wallet-shell__rest space-y-6">
       {hasData && (
-        <>
+        <div data-view="trends" className="space-y-6">
           {/* Two equal halves, like the rows above and below */}
           <div className="grid gap-4 lg:grid-cols-2">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
@@ -244,11 +258,12 @@ export default async function BankAccountPage({
               />
             }
           />
-        </>
+        </div>
       )}
 
       {(hasData || params.showIgnored === 'true' || params.merchant || params.search || params.category) && (
         // Stays mounted while the keyed table remounts, so the new rows ease in
+        <div data-view="list">
         <DataSwap swapKey={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')} height>
         <BankTransactionsTable
           key={[params.merchant, params.search, params.month, params.year, params.category, params.flow, params.showIgnored].join('|')}
@@ -269,8 +284,10 @@ export default async function BankAccountPage({
           flowFilter={<FlowFilter key="flow" basePath={accountPath('BANK', account.id)} params={params} current={flow} />}
         />
         </DataSwap>
+        </div>
       )}
       </div>
+      </WalletViews>
     </div>
   )
 }

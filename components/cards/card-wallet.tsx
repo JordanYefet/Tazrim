@@ -26,6 +26,7 @@ import { EASE, LAND_AT, MOTION } from '@/lib/motion'
 import { useCurrentPeriod } from '@/components/layout/period-context'
 import { UNDER_REACH, faceLook, prebakeGlass, requestGlassBake, showGlassAt, type Placement } from '@/components/glass/glass-bakery'
 import { overlaps, type UnderFace } from '@/lib/glass/under'
+import { formatNet } from '@/lib/utils/currency'
 import {
   MORE_ID,
   POCKET_HEIGHT_CQW,
@@ -290,8 +291,14 @@ export interface HeroTotal {
   accountId: string
   value: number
   label: string
-  /** A bank account's balance (after the period's latest row) and month-end trend */
-  bank?: { latest?: { balance: number; date: string }; trend: number[] }
+  /** A bank account's balance (after the period's latest row), month-end trend and the period's net */
+  bank?: { latest?: { balance: number; date: string }; trend: number[]; net?: PeriodNet }
+}
+
+/** The period's net (income minus expenses) and what it covers ("נטו בנובמבר") */
+export interface PeriodNet {
+  value: number
+  label: string
 }
 
 const HeroTotalContext = createContext<Dispatch<SetStateAction<HeroTotal | null>>>(() => {})
@@ -317,33 +324,43 @@ export function BankHeroBalance({
   accountId,
   latest,
   trend,
+  net,
 }: {
   accountId: string
   latest?: { balance: number; date: string }
   trend: number[]
+  /** At the foot of the face, where /banks has it on the pocket */
+  net?: PeriodNet
 }) {
   const set = useContext(HeroTotalContext)
-  const key = JSON.stringify([latest, trend])
+  const key = JSON.stringify([latest, trend, net])
   useLayoutEffect(() => {
-    set({ accountId, value: latest?.balance ?? 0, label: '', bank: { latest, trend } })
-    // `key` stands for latest and trend (new arrays on every render)
+    set({ accountId, value: latest?.balance ?? 0, label: '', bank: { latest, trend, net } })
+    // `key` stands for latest, trend and net (new objects on every render)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set, accountId, key])
   return null
 }
 
 const StackTotalContext = createContext<Dispatch<SetStateAction<number | null>>>(() => {})
+const StackNetContext = createContext<Dispatch<SetStateAction<PeriodNet | null>>>(() => {})
 
 /**
  * Rendered by /cards: puts the period's total across all cards on the leather
  * pocket (round 7). A new period updates it in place (the digits roll); the
  * wallet drops it when the stack closes, so a stale total never shows.
  */
-export function CardStackTotal({ value }: { value: number }) {
+export function CardStackTotal({ value, net }: { value: number; /** /banks: the period's net, at the pocket's foot */ net?: PeriodNet }) {
   const set = useContext(StackTotalContext)
+  const setNet = useContext(StackNetContext)
   useLayoutEffect(() => {
     set(value)
   }, [set, value])
+  const netValue = net?.value
+  const netLabel = net?.label
+  useLayoutEffect(() => {
+    setNet(netValue === undefined || netLabel === undefined ? null : { value: netValue, label: netLabel })
+  }, [setNet, netValue, netLabel])
   return null
 }
 
@@ -362,6 +379,7 @@ export function CardWallet({
   const [intent, setIntent] = useState<string | null>(null)
   const [heroTotal, setHeroTotal] = useState<HeroTotal | null>(null)
   const [stackTotal, setStackTotal] = useState<number | null>(null)
+  const [stackNet, setStackNet] = useState<PeriodNet | null>(null)
 
   const info = useMemo(() => cards.map(c => ({ id: c.id, archived: c.archived })), [cards])
   const routeMode = walletModeFor(pathname, info, base)
@@ -400,6 +418,7 @@ export function CardWallet({
   return (
     <HeroTotalContext.Provider value={setHeroTotal}>
     <StackTotalContext.Provider value={setStackTotal}>
+    <StackNetContext.Provider value={setStackNet}>
     <div className="wallet-shell mx-auto max-w-7xl">
       {children}
       <div className="wallet-shell__wallet">
@@ -415,9 +434,11 @@ export function CardWallet({
           setHeroTotal={setHeroTotal}
           stackTotal={stackTotal}
           setStackTotal={setStackTotal}
+          stackNet={stackNet}
         />
       </div>
     </div>
+    </StackNetContext.Provider>
     </StackTotalContext.Provider>
     </HeroTotalContext.Provider>
   )
@@ -442,6 +463,7 @@ function Wallet({
   setHeroTotal,
   stackTotal,
   setStackTotal,
+  stackNet,
 }: {
   kind: WalletKind
   cards: WalletCard[]
@@ -452,6 +474,7 @@ function Wallet({
   setHeroTotal: Dispatch<SetStateAction<HeroTotal | null>>
   stackTotal: number | null
   setStackTotal: Dispatch<SetStateAction<number | null>>
+  stackNet: PeriodNet | null
 }) {
   // Back to front: the first (oldest) card is in front, so it comes last. Past three, the
   // front three stand in the pocket and a "+N" tab at the back holds the rest (stackLayout)
@@ -657,6 +680,7 @@ function Wallet({
                     colorChoice={c.colorChoice}
                     latest={isOpen ? total?.bank?.latest : undefined}
                     trend={isOpen ? (total?.bank?.trend ?? []) : []}
+                    net={isOpen ? total?.bank?.net : undefined}
                     emptyText={isOpen && total ? 'אין תנועות בתקופה' : ''}
                   />
                 ) : (
@@ -738,9 +762,16 @@ function Wallet({
                     ? active.length === 1 ? 'חשבון אחד' : `${active.length} חשבונות`
                     : active.length === 1 ? 'כרטיס אחד' : `${active.length} כרטיסים`}
                 </span>
-                <span className="wallet-pocket__mark" aria-hidden>
-                  תזרים
-                </span>
+                {/* The bank pocket: the period's net in the mark's place (a bank account's face has it at its foot too) */}
+                {kind === 'banks' && stackNet ? (
+                  <span className="wallet-pocket__net">
+                    {stackNet.label} <bdi dir="ltr" className="wallet-pocket__netvalue">{formatNet(stackNet.value)}</bdi>
+                  </span>
+                ) : (
+                  <span className="wallet-pocket__mark" aria-hidden>
+                    תזרים
+                  </span>
+                )}
               </div>
             </div>
           </div>

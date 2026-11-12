@@ -4,6 +4,7 @@ import { columnsCookie, parseColumns } from '@/lib/tables/columns'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { CardStatTiles } from '@/components/cards/card-summary-cards'
 import { CardHeroTotal } from '@/components/cards/card-wallet'
+import { WalletViews } from '@/components/cards/wallet-views'
 import { CategoryDonut } from '@/components/cards/category-donut'
 import { MonthlySpendingChart } from '@/components/cards/monthly-spending-chart'
 import { CardTransactionsTable } from '@/components/cards/card-transactions-table'
@@ -160,6 +161,9 @@ export default async function CardAccountPage({
         </PageHeading>
       </div>
 
+      {/* Phones: the transactions, or (מגמות) these figures and the charts. The hero total
+          is on the open card either way (CardHeroTotal renders nothing here) */}
+      <WalletViews enabled={hasData}>
       <div className="wallet-shell__beside flex flex-col [&>*]:flex-1">
         {hasData ? (
           <>
@@ -188,7 +192,7 @@ export default async function CardAccountPage({
       <div className="wallet-shell__rest space-y-6">
         {hasData && (
           /* Monthly bar chart + category donut side by side on large screens */
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
             <MonthlySpendingChart
               accountId={account.id}
               // A category filter narrows the bars too, like the tiles and the table
@@ -207,6 +211,7 @@ export default async function CardAccountPage({
 
         {(hasData || params.showIgnored === 'true' || params.merchant || params.search) && (
           // Stays mounted while the keyed table remounts, so the new rows ease in
+          <div data-view="list">
           <DataSwap swapKey={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')} height>
             <CardTransactionsTable
               key={[params.merchant, params.month, params.year, params.category, params.showIgnored].join('|')}
@@ -223,8 +228,10 @@ export default async function CardAccountPage({
               initialColumns={parseColumns((await cookies()).get(columnsCookie('card'))?.value, 'card')}
             />
           </DataSwap>
+          </div>
         )}
       </div>
+      </WalletViews>
     </div>
   )
 }

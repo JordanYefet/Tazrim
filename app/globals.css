@@ -882,6 +882,16 @@ html {
   gap: clamp(10px, 3.6cqw, 16px);
   padding: clamp(12px, 4.4cqw, 22px) clamp(14px, 5.4cqw, 26px) clamp(14px, 5cqw, 24px);
 }
+/* The period's net at the foot, at the end: where the bank pocket has it on /banks */
+.acct-bank__net {
+  margin-top: auto;
+  text-align: end;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+.acct-bank__netvalue { font-weight: 800; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }
 .acct-bank__balance {
   font-size: clamp(1.625rem, 8.6cqw, 2.75rem);
   font-weight: 600;
@@ -988,8 +998,16 @@ html {
 }
 .wallet-shell__head { grid-row: 1; min-width: 0; }
 .wallet-shell__wallet { grid-row: 2; min-width: 0; width: 100%; max-width: 23rem; justify-self: center; }
-.wallet-shell__beside { grid-row: 3; min-width: 0; }
-.wallet-shell__rest { grid-row: 4; min-width: 0; }
+/* Under the wallet the blocks follow in page order (switch, beside, rest): a view
+   hidden by the switch takes no row and leaves no gap (components/cards/wallet-views.tsx) */
+.wallet-shell__switch,
+.wallet-shell__beside,
+.wallet-shell__rest { min-width: 0; }
+@media (max-width: 1023.98px) {
+  [data-wallet-view='list'] > .wallet-shell__beside,
+  [data-wallet-view='list'] [data-view='trends'],
+  [data-wallet-view='trends'] [data-view='list'] { display: none; }
+}
 @media (min-width: 1024px) {
   .wallet-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wallet-shell__head { grid-column: 1 / -1; }
@@ -1172,6 +1190,9 @@ html {
   color: rgb(79 40 13 / 0.4);
   text-shadow: 0 1px 0 rgb(255 238 214 / 0.5);
 }
+/* The bank pocket's net, where the mark is on the card pocket: legible, still debossed */
+.wallet-pocket__net { font-size: 13px; font-weight: 600; color: rgb(227 236 248 / 0.72); white-space: nowrap; }
+.wallet-pocket__netvalue { font-weight: 800; color: #e3ecf8; font-variant-numeric: tabular-nums; }
 .wallet-pocket__totalwrap {
   transition: opacity var(--motion-fast) var(--ease-ui);
 }
