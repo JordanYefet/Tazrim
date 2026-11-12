@@ -17,7 +17,8 @@ import {
 } from '../insights/projection'
 
 export type ProjectionPage = Projection & {
-  banks: { id: string; displayName: string }[]
+  /** provider and colour draw the bank's face on its filter pill */
+  banks: { id: string; displayName: string; provider: string; color: string | null }[]
   /** the bank shown alone; null = every bank combined */
   accountId: string | null
 }
@@ -39,7 +40,7 @@ export async function getProjection(params: { accountId?: string; today?: Date }
     listAccounts({ kind: 'CREDIT_CARD' }),
     getCushion(),
   ])
-  const banks = bankAccounts.map(a => ({ id: a.id, displayName: a.displayName }))
+  const banks = bankAccounts.map(a => ({ id: a.id, displayName: a.displayName, provider: a.provider, color: a.color }))
   const accountId = params.accountId && banks.some(b => b.id === params.accountId) ? params.accountId : null
   const scope = accountId ? [accountId] : banks.map(b => b.id)
   const cardIds = cardAccounts.filter(c => (accountId ? c.payerAccountId === accountId : true)).map(c => c.id)

@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { PieChart, Upload } from 'lucide-react'
 import { CategoryAnalysis } from '@/components/cards/category-analysis'
 import { EmptyState, PageHeading } from '@/components/accounts/page-parts'
@@ -15,8 +14,7 @@ import {
   uncategorizedSearchHref,
 } from '@/lib/accounts/category-links'
 import { withResolvedPeriod } from '@/lib/period-server'
-import { cn } from '@/lib/utils/cn'
-import { AccountMini } from '@/components/accounts/account-element'
+import { AccountPills } from '@/components/accounts/account-pills'
 
 interface SearchParams { year?: string; month?: string }
 
@@ -90,44 +88,24 @@ export default async function AnalysisPage({
         ) : (
           <>
             {options.length > 0 && (
-              // The same pills as the account switcher on /banks and /cards: opaque, the account's face,
-              // one row that scrolls sideways on phones
-              <nav aria-label="סינון לפי חשבון" className="-mx-4 md:mx-0">
-                <ul className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5 md:flex-wrap md:overflow-visible md:px-0">
-                  {options.map(o => {
-                    const active = o.value === scope.value
-                    const account = accountsById.get(o.value)
-                    return (
-                      <li key={o.value || 'all'} className="shrink-0">
-                        <Link
-                          href={analysisHref(o.value || undefined, period)}
-                          scroll={false}
-                          aria-current={active ? 'page' : undefined}
-                          className={cn(
-                            'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
-                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                            'surface',
-                            active
-                              ? 'border-primary/45 [background-image:linear-gradient(hsl(var(--primary)/0.1),hsl(var(--primary)/0.1))] font-medium text-primary'
-                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                          )}
-                        >
-                          {account && (
-                            <AccountMini
-                              kind={account.kind as 'BANK' | 'CREDIT_CARD'}
-                              provider={account.provider}
-                              network={account.cardNetwork}
-                              colorChoice={account.color}
-                              className="w-[22px]"
-                            />
-                          )}
-                          {o.label}
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </nav>
+              <AccountPills
+                label="סינון לפי חשבון"
+                active={scope.value || 'all'}
+                items={options.map(o => {
+                  const account = accountsById.get(o.value)
+                  return {
+                    key: o.value || 'all',
+                    label: o.label,
+                    href: analysisHref(o.value || undefined, period),
+                    account: account && {
+                      kind: account.kind as 'BANK' | 'CREDIT_CARD',
+                      provider: account.provider,
+                      network: account.cardNetwork,
+                      color: account.color,
+                    },
+                  }
+                })}
+              />
             )}
 
             <section aria-labelledby="analysis-expense" className="space-y-4">
