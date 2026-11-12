@@ -760,6 +760,9 @@ html {
   white-space: nowrap;
 }
 .acct-card__name.is-placeholder { color: rgb(255 255 255 / 0.55); }
+/* The billing day, right above the digits: quieter than they are */
+.acct-card__digitcol { display: flex; flex-direction: column; align-items: flex-start; gap: 1.2cqw; min-width: 0; }
+.acct-card__due { font-size: max(10px, 4.2cqw); font-weight: 500; line-height: 1.2; opacity: 0.8; white-space: nowrap; }
 .acct-card__wordmark {
   flex-shrink: 0;
   max-width: 48%;

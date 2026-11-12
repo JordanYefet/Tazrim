@@ -80,6 +80,8 @@ export interface WalletCard {
   /** Account.color (ENG-66) */
   colorChoice: string | null
   archived: boolean
+  /** A card's billing day of the month (lib/accounts/billing-day.ts), on its face; null for banks or a card with no statements */
+  billingDay: number | null
 }
 
 // Settles on the page beat (MOTION.page): the content fade, the numbers' roll
@@ -702,7 +704,9 @@ function Wallet({
                 aria-label={
                   kind === 'banks'
                     ? isOpen ? 'כל החשבונות' : `חשבון ${c.name}`
-                    : isOpen ? 'כל הכרטיסים' : cardLabel({ provider: c.provider, name: c.name, lastFour: c.lastFour, network: c.network })
+                    : isOpen
+                      ? 'כל הכרטיסים'
+                      : `${cardLabel({ provider: c.provider, name: c.name, lastFour: c.lastFour, network: c.network })}${c.billingDay ? `, חיוב ב־${c.billingDay} לחודש` : ''}`
                 }
                 onClick={e => {
                   if (isPlainClick(e)) announceWalletRoute(href)
@@ -738,6 +742,7 @@ function Wallet({
                   network={c.network}
                   color={c.color}
                   colorChoice={c.colorChoice}
+                  billingDay={c.billingDay}
                 />
                 )}
               </Link>
