@@ -39,6 +39,8 @@ export function isPublicPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
   if (isBarePath(path)) return true
   if (path === '/api/health' || path.startsWith('/api/auth/')) return true
+  // The updater helper calls this with its own token, which the route checks (ENG-98)
+  if (path === '/api/updates/backup') return true
   // What the browser and the home screen fetch before anyone signs in
   return (
     path.startsWith('/_next/') ||
