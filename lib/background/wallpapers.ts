@@ -108,8 +108,8 @@ export const SUNRISE: Record<Mode, { base: Hsl; glows: Glow[] }> = {
   dark: {
     base: [224, 32, 7.5],
     glows: [
-      { x: 1, y: -0.0645, rx: 1.4, ry: 0.6129, color: [248, 50, 34], alpha: 0.5 },
-      { x: 1.1, y: -0.0968, rx: 0.7667, ry: 0.3387, color: [300, 35, 32], alpha: 0.42 },
+      { x: 1, y: -0.0645, rx: 1.4, ry: 0.6129, color: [248, 50, 34], alpha: 0.4 },
+      { x: 1.1, y: -0.0968, rx: 0.7667, ry: 0.3387, color: [300, 35, 32], alpha: 0.32 },
       { x: -0.1333, y: 1.0323, rx: 0.8667, ry: 0.3226, color: [230, 40, 18], alpha: 0.5 },
     ],
   },
