@@ -26,3 +26,12 @@ export function isWriteBlocked(method: string, pathname: string): boolean {
   if (path !== '/api' && !path.startsWith('/api/')) return false
   return !READ_ONLY_POSTS.has(path)
 }
+
+export const UPDATING_MESSAGE = 'תזרים מתעדכן עכשיו. שינויים יישמרו אחרי העדכון.'
+
+/** While an update runs (lib/updates/paths.ts flag): every write is paused except the update routes themselves */
+export function isWriteBlockedWhileUpdating(method: string, pathname: string): boolean {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+  if (path === '/api/updates' || path.startsWith('/api/updates/')) return false
+  return isWriteBlocked(method, pathname)
+}

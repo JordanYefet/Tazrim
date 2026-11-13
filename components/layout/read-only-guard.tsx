@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Eye } from 'lucide-react'
-import { READ_ONLY_MESSAGE, isWriteBlocked } from '@/lib/read-only'
+import { READ_ONLY_MESSAGE, UPDATING_MESSAGE, isWriteBlocked } from '@/lib/read-only'
 
 /** Thrown in place of a write's response, so the save stops where it is and nothing on screen changes */
 class ReadOnlyError extends Error {
@@ -20,9 +20,14 @@ const NOTICE_MS = 3200
  * are sent: the save throws, so components never show it as done (dialogs
  * stay open with what was typed), and a short notice explains why. Rendered
  * by the root layout only when the mode is on.
+ *
+ * It also explains a write the server paused during an update (ENG-98): the
+ * response says `updating: true`, the notice shows the update message, and the
+ * response goes on to the caller as an ordinary 403.
  */
-export function ReadOnlyGuard() {
+export function ReadOnlyGuard({ readOnly = true }: { readOnly?: boolean } = {}) {
   const [notice, setNotice] = useState(0)
+  const [message, setMessage] = useState(READ_ONLY_MESSAGE)
 
   useEffect(() => {
     const original = window.fetch
@@ -30,11 +35,29 @@ export function ReadOnlyGuard() {
       const request = input instanceof Request ? input : null
       const url = new URL(request?.url ?? String(input), window.location.href)
       const method = init?.method ?? request?.method ?? 'GET'
-      if (url.origin === window.location.origin && isWriteBlocked(method, url.pathname)) {
+      const sameOrigin = url.origin === window.location.origin
+      if (readOnly && sameOrigin && isWriteBlocked(method, url.pathname)) {
+        setMessage(READ_ONLY_MESSAGE)
         setNotice(n => n + 1)
         return Promise.reject(new ReadOnlyError())
       }
-      return original(input, init)
+      const sent = original(input, init)
+      if (!sameOrigin || !isWriteBlocked(method, url.pathname)) return sent
+      return sent.then(res => {
+        if (res.status === 403) {
+          res
+            .clone()
+            .json()
+            .then((b: { updating?: boolean }) => {
+              if (b?.updating) {
+                setMessage(UPDATING_MESSAGE)
+                setNotice(n => n + 1)
+              }
+            })
+            .catch(() => {})
+        }
+        return res
+      })
     }
     // The stopped save is expected: keep it out of the console
     const quiet = (e: PromiseRejectionEvent) => {
@@ -45,7 +68,7 @@ export function ReadOnlyGuard() {
       window.fetch = original
       window.removeEventListener('unhandledrejection', quiet)
     }
-  }, [])
+  }, [readOnly])
 
   useEffect(() => {
     if (!notice) return
@@ -65,7 +88,7 @@ export function ReadOnlyGuard() {
           className="read-only-notice flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-e2 surface-overlay"
         >
           <Eye className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-          {READ_ONLY_MESSAGE}
+          {message}
         </p>
       )}
     </div>

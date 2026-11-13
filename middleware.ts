@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { READ_ONLY_MESSAGE, isReadOnly, isWriteBlocked } from '@/lib/read-only'
+import { READ_ONLY_MESSAGE, UPDATING_MESSAGE, isReadOnly, isWriteBlocked, isWriteBlockedWhileUpdating } from '@/lib/read-only'
+import { isUpdating } from '@/lib/updates/paths'
 import { BARE_HEADER, SESSION_COOKIE, isAuthRequired, isBarePath, isPublicPath } from '@/lib/auth/config'
 
 /**
  * Two gates, before any page or route runs:
- *   - read-only mode (lib/read-only.ts): every write to the API is refused;
+ *   - read-only mode (lib/read-only.ts): every write to the API is refused, and
+ *     the same while an update runs (ENG-98);
  *   - login (ENG-89, lib/auth): with no valid session, pages redirect to
  *     /login and API calls answer 401. A revoked device's session is gone
  *     from the database, so its next request lands here.
@@ -13,6 +15,10 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   if (isReadOnly() && isWriteBlocked(req.method, pathname)) {
     return NextResponse.json({ error: READ_ONLY_MESSAGE, readOnly: true }, { status: 403 })
+  }
+  // While an update runs (ENG-98) writes wait; the page itself keeps loading
+  if (isUpdating() && isWriteBlockedWhileUpdating(req.method, pathname)) {
+    return NextResponse.json({ error: UPDATING_MESSAGE, updating: true }, { status: 403 })
   }
 
   // The sign-in pages render without the app's sidebar and header (app/layout.tsx)

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isReadOnly, isWriteBlocked } from '../read-only'
+import { isReadOnly, isWriteBlocked, isWriteBlockedWhileUpdating } from '../read-only'
 
 describe('isWriteBlocked', () => {
   it('lets reads through', () => {
@@ -42,5 +42,19 @@ describe('isReadOnly', () => {
     expect(isReadOnly()).toBe(false)
     vi.stubEnv('TAZRIM_READ_ONLY', '')
     expect(isReadOnly()).toBe(false)
+  })
+})
+
+describe('isWriteBlockedWhileUpdating', () => {
+  it('blocks writes like read-only mode does', () => {
+    expect(isWriteBlockedWhileUpdating('POST', '/api/upload')).toBe(true)
+    expect(isWriteBlockedWhileUpdating('GET', '/api/summary')).toBe(false)
+    expect(isWriteBlockedWhileUpdating('POST', '/api/upload/preview')).toBe(false)
+  })
+
+  it('keeps the update routes themselves open', () => {
+    expect(isWriteBlockedWhileUpdating('POST', '/api/updates/start')).toBe(false)
+    expect(isWriteBlockedWhileUpdating('POST', '/api/updates/')).toBe(false)
+    expect(isWriteBlockedWhileUpdating('POST', '/api/updatesx')).toBe(true)
   })
 })
