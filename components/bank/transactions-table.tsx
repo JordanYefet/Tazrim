@@ -15,6 +15,7 @@ import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insi
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
 import { useExit } from '@/hooks/use-exit'
+import { useRiseIn } from '@/hooks/use-rise-in'
 import { BANK_COLUMNS, columnsLine, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -134,6 +135,8 @@ export function BankTransactionsTable({
   // A link's `?tx=` row (the card page's "paid from" chip) is brought into view and lit once
   const tableRef = useRef<HTMLDivElement>(null)
   useTargetRow(tableRef, transactions.map(t => t.id))
+  // "טען עוד": the rows that arrive rise in, the ones on screen stay
+  const riseIn = useRiseIn(tableRef)
 
   async function loadMore() {
     if (!fetchParams) return
@@ -141,6 +144,7 @@ export function BankTransactionsTable({
     const res = await fetch(`/api/bank/transactions?${fetchParams}&${scope.query}&skip=${transactions.length}`)
     const more: BankTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
+    riseIn(more.map(t => t.id))
     setHasMore(more.length === 50)
     setLoadingMore(false)
   }
