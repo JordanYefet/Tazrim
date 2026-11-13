@@ -10,7 +10,8 @@
 import { LINES_TILE } from './lines-tile.data'
 import { LINE_WIDTH, TILE_HEIGHT, TILE_WIDTH } from './lines'
 import { RIBBONS, RIBBON_BAND, RIBBON_BLUR, RIBBON_BOX, RIBBON_GRADIENTS } from './ribbons'
-import { clampStrength, paletteColors, type BackgroundKind, type BackgroundPalette, type BackgroundSetting } from './setting'
+import { clampStrength, isKind, paletteColors, type BackgroundPalette, type BackgroundSetting } from './setting'
+import { hsla, isWallpaper, wallpaperBase, wallpaperLayers, wallpaperSvg } from './wallpapers'
 
 export type TileMode = 'light' | 'dark'
 
@@ -52,16 +53,17 @@ export function ribbonsTileSvg(mode: TileMode): string {
   )
 }
 
-/** The tile for a setting, or null for the plain backdrop. */
+/** The tile (or, for the waves, the screen-sized SVG) for a setting, or null when it has none. */
 export function tileSvg(setting: BackgroundSetting, mode: TileMode): string | null {
   if (setting.kind === 'lines') return linesTileSvg(setting.palette, setting.strength, mode)
   if (setting.kind === 'ribbons') return ribbonsTileSvg(mode)
+  if (isWallpaper(setting.kind)) return wallpaperSvg(setting.kind, mode)
   return null
 }
 
 /** The tile route's URL (cacheable; used for the server's first paint). */
 export function tileUrl(setting: BackgroundSetting, mode: TileMode): string | null {
-  if (setting.kind === 'plain') return null
+  if (setting.kind === 'plain' || (isWallpaper(setting.kind) && !wallpaperSvg(setting.kind, mode))) return null
   const q = new URLSearchParams({ k: setting.kind, p: setting.palette, s: String(clampStrength(setting.strength)), m: mode })
   return `/background-tile?${q.toString()}`
 }
@@ -72,20 +74,40 @@ export function tileDataUri(setting: BackgroundSetting, mode: TileMode): string 
   return svg ? `data:image/svg+xml,${encodeURIComponent(svg)}` : null
 }
 
-/** CSS custom properties on <html> that the stylesheet paints the body with. */
+/** The properties only a wallpaper sets (beside --bg-tile-light / --bg-tile-dark) */
+export const WALLPAPER_PROPERTIES = ['--bg-page-light', '--bg-page-dark', '--bg-size', '--bg-repeat'] as const
+
+/**
+ * CSS custom properties on <html> that the stylesheet paints the page with.
+ * The lines and ribbons: the tile of each theme. A wallpaper
+ * (lib/background/wallpapers.ts): its layers and page colour per theme, and
+ * the layers' sizes and repeats.
+ */
 export function tileStyle(setting: BackgroundSetting, src: (s: BackgroundSetting, m: TileMode) => string | null): Record<string, string> {
   const light = src(setting, 'light')
   const dark = src(setting, 'dark')
+  if (isWallpaper(setting.kind)) {
+    const l = wallpaperLayers(setting.kind, 'light', light)
+    const d = wallpaperLayers(setting.kind, 'dark', dark)
+    return {
+      '--bg-tile-light': l.image,
+      '--bg-tile-dark': d.image,
+      '--bg-page-light': hsla(wallpaperBase(setting.kind, 'light')),
+      '--bg-page-dark': hsla(wallpaperBase(setting.kind, 'dark')),
+      '--bg-size': l.size,
+      '--bg-repeat': l.repeat,
+    }
+  }
   return { '--bg-tile-light': light ? `url("${light}")` : 'none', '--bg-tile-dark': dark ? `url("${dark}")` : 'none' }
 }
 
 /** Reads the tile route's query back into a setting (null when it is not one). */
 export function parseTileQuery(q: URLSearchParams): { setting: BackgroundSetting; mode: TileMode } | null {
-  const k = q.get('k') as BackgroundKind | null
+  const k = q.get('k')
   const p = q.get('p') as BackgroundPalette | null
   const s = Number(q.get('s'))
   const m = q.get('m')
-  if (k !== 'lines' && k !== 'ribbons') return null
+  if (!k || !isKind(k) || k === 'plain' || (isWallpaper(k) && !wallpaperSvg(k, 'light'))) return null
   if (m !== 'light' && m !== 'dark') return null
   if (p !== 'indigo-pink' && p !== 'ocean' && p !== 'grey') return null
   if (!Number.isFinite(s)) return null

@@ -20,8 +20,8 @@ export function crossfadeBackground(apply: () => void) {
   const root = document.documentElement
   const html = getComputedStyle(root)
   const before = getComputedStyle(document.body, '::before')
-  // Plain shows the fixed tonal backdrop (body::before); the patterns, the tile on <html>
-  const plain = before.display !== 'none'
+  // Plain and the fixed wallpapers show a layer fixed to the viewport (body::before); the tiles, the tile on <html>
+  const fixed = before.display !== 'none'
 
   const layer = document.createElement('div')
   layer.className = 'bg-crossfade'
@@ -31,9 +31,12 @@ export function crossfadeBackground(apply: () => void) {
   st.width = `${root.clientWidth}px`
   st.height = `${window.innerHeight}px`
   st.backgroundColor = html.backgroundColor
-  if (plain) {
+  if (fixed) {
     // Fixed to the viewport, and this layer is the viewport: same box, same look
     st.backgroundImage = before.backgroundImage
+    st.backgroundSize = before.backgroundSize
+    st.backgroundRepeat = before.backgroundRepeat
+    st.backgroundPosition = before.backgroundPosition
     // More contrast paints it a solid colour instead
     if (before.backgroundColor !== 'rgba(0, 0, 0, 0)') st.backgroundColor = before.backgroundColor
   } else {

@@ -10,7 +10,7 @@ import {
   type BackgroundSetting,
 } from '@/lib/background/setting'
 import { cookieAssignment } from '@/lib/nav/state'
-import { tileDataUri, tileStyle } from '@/lib/background/tile-svg'
+import { WALLPAPER_PROPERTIES, tileDataUri, tileStyle } from '@/lib/background/tile-svg'
 import { crossfadeBackground } from './crossfade'
 
 /*
@@ -39,6 +39,8 @@ function applyToDocument(s: BackgroundSetting) {
   const root = document.documentElement
   for (const [k, v] of Object.entries(backgroundHtmlAttributes(s))) root.setAttribute(k, v)
   for (const [k, v] of Object.entries(backgroundHtmlStyle(s))) root.style.setProperty(k, v)
+  // A wallpaper's extra properties go when another background comes
+  for (const k of WALLPAPER_PROPERTIES) root.style.removeProperty(k)
   for (const [k, v] of Object.entries(tileStyle(s, tileDataUri))) root.style.setProperty(k, v)
 }
 

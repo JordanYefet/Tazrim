@@ -17,9 +17,18 @@
  * What triggers a check: mount, the element or <body> changing size (the
  * element may have moved), window resize, theme or background change
  * (attributes on <html>), and requestGlassBake().
+ *
+ * A background fixed to the viewport (the plain backdrop and the fixed
+ * wallpapers, lib/background/setting.ts isFixedKind) does not scroll with
+ * the page, so what is behind an element depends on the scroll too: for
+ * those the scroll is part of the cache key, and a check runs once the page
+ * has come to rest after scrolling (nothing runs during the scroll itself
+ * but a passive listener restarting a timer).
  */
 
 import { readBackgroundSetting } from '@/lib/background/read-setting'
+import { isFixedKind } from '@/lib/background/setting'
+import type { PageGeometry } from '@/lib/background/paint'
 import { bakeGlass } from '@/lib/glass/bake'
 import { cacheKey, nearSameRect, resolveRadius, type Rect } from '@/lib/glass/geometry'
 import { overlaps, underSignature, type UnderFace } from '@/lib/glass/under'
@@ -48,12 +57,16 @@ interface Job {
   key: string
   /** Show it on this entry once baked (a check found the element needs it) */
   entry?: Entry
+  /** The page when the job was made (a fixed background is painted where the viewport was then) */
+  page: PageGeometry
 }
 
 /** Within this many px of the place it was baked for, a bake is still right. */
 export const SETTLE_TOLERANCE = 2
 const CACHE_LIMIT = 10
 const DEBOUNCE_MS = 120
+/** How long the page must rest after a scroll before a fixed background's glass is checked */
+const SCROLL_REST_MS = 150
 
 const entries = new Set<Entry>()
 const cache = new Map<string, { canvas: HTMLCanvasElement; rect: Rect }>()
@@ -63,18 +76,27 @@ let checkTimer = 0
 let ready = false
 let autoId = 0
 let firstMarked = false
+let scrollTimer = 0
 
 type DebugWindow = Window & { __tazrimGlassCopies?: number }
 
 function env() {
   const root = document.documentElement
   const s = readBackgroundSetting(root)
+  const page = pageNow()
+  // Behind a fixed background, the same place on the document shows something else at another scroll
+  const fixed = isFixedKind(s.kind) ? `.v${Math.round(page.scrollY)}x${page.viewportHeight}` : ''
   return {
     dark: root.classList.contains('dark'),
     setting: s,
-    background: `${s.kind}.${s.palette}.${s.strength}`,
+    background: `${s.kind}.${s.palette}.${s.strength}${fixed}`,
     dpr: Math.min(3, window.devicePixelRatio || 1),
+    page,
   }
+}
+
+function pageNow(): PageGeometry {
+  return { width: document.documentElement.clientWidth, scrollY: Math.round(window.scrollY), viewportHeight: window.innerHeight }
 }
 
 function keyFor(id: string, host: HTMLElement, p: Placement): string {
@@ -142,7 +164,7 @@ function bake(job: Job) {
     dpr: e.dpr,
     setting: e.setting,
     dark: e.dark,
-    page: { width: document.documentElement.clientWidth, scrollY: window.scrollY, viewportHeight: window.innerHeight },
+    page: job.page,
     under: placement.under,
   })
   remember(job.key, target, placement.rect)
@@ -260,7 +282,7 @@ function check(entry: Entry) {
   if (show(entry, key, p.rect)) return
   // Close enough to what it shows (same size, theme, background): keep it
   if (entry.shown && entry.shown.key.split('@')[0] === key.split('@')[0] && nearSameRect(entry.shown.rect, p.rect, SETTLE_TOLERANCE)) return
-  enqueue({ host, id: entry.id, placement: p, key, entry }, true)
+  enqueue({ host, id: entry.id, placement: p, key, entry, page: pageNow() }, true)
 }
 
 function flush() {
@@ -279,7 +301,7 @@ export function requestGlassBake() {
 export function prebakeGlass(host: HTMLElement, id: string, placement: Placement) {
   const key = keyFor(id, host, placement)
   if (findCached(key, placement.rect)) return
-  enqueue({ host, id, placement, key }, false)
+  enqueue({ host, id, placement, key, page: pageNow() }, false)
 }
 
 /** Show `host`'s glass for a place it is moving to, if it was baked ahead. True when shown. */
@@ -293,12 +315,20 @@ export function showGlassAt(host: HTMLElement, placement: Placement): boolean {
 
 let resize: ResizeObserver | null = null
 
+/** A fixed background: check the glass once the page rests (the tiles scroll with it: nothing to do). */
+function onScroll() {
+  if (!entries.size || !isFixedKind(readBackgroundSetting(document.documentElement).kind)) return
+  window.clearTimeout(scrollTimer)
+  scrollTimer = window.setTimeout(requestGlassBake, SCROLL_REST_MS)
+}
+
 function setup() {
   if (ready) return
   ready = true
   resize = new ResizeObserver(requestGlassBake)
   resize.observe(document.body)
   window.addEventListener('resize', requestGlassBake, { passive: true })
+  window.addEventListener('scroll', onScroll, { passive: true })
   new MutationObserver(requestGlassBake).observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['class', 'data-bg', 'data-bg-palette', 'style'],

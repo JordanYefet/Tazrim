@@ -25,7 +25,7 @@
  * up, the tint and the rim; no lens).
  */
 
-import { PAGE_COLOR, paintBackground, type PageGeometry } from '@/lib/background/paint'
+import { pageColor, paintBackground, type PageGeometry } from '@/lib/background/paint'
 import type { BackgroundSetting } from '@/lib/background/setting'
 import { paintUnderFaces, type UnderFace } from './under'
 import { BLUR_TEXELS_PER_PX, FROST_BLUR, bakeMargin, bakeRegion, bakeScale, gaussianWeights, lensParams, type Rect } from './geometry'
@@ -187,8 +187,8 @@ function hexRgb(hex: string): [number, number, number] {
 
 /** The page colour under the pattern, and how much stronger the pattern reads through glass (the lines only). */
 export function patternBase(setting: BackgroundSetting, dark: boolean): { page: [number, number, number]; contrast: number } {
-  if (setting.kind === 'lines') return { page: hexRgb(dark ? PAGE_COLOR.lines.dark : PAGE_COLOR.lines.light), contrast: 1.5 }
-  if (setting.kind === 'ribbons') return { page: hexRgb(dark ? PAGE_COLOR.ribbons.dark : PAGE_COLOR.ribbons.light), contrast: 1 }
+  const page = pageColor(setting, dark)
+  if (page) return { page: hexRgb(page), contrast: setting.kind === 'lines' ? 1.5 : 1 }
   return { page: dark ? [0.07, 0.09, 0.12] : [0.95, 0.96, 0.97], contrast: 1 }
 }
 

@@ -1608,15 +1608,60 @@ html.dark[data-bg='ribbons'] { background-image: var(--bg-tile-dark); }
 /* Ribbons: as wide as the page, repeated down it */
 html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-y; }
 
-/* Reduced transparency or more contrast: the plain backdrop */
+/* The wallpapers (lib/background/wallpapers.ts). Their layers, sizes and page
+   colours come from <html>'s style (lib/background/tile-svg.ts tileStyle), so
+   the canvas the glass bakes from (lib/background/paint.ts) paints the same.
+   Tiles on <html>, scrolling with the document: topo, grid, bubbles */
+html[data-bg='topo'],
+html[data-bg='grid'],
+html[data-bg='bubbles'] {
+  background-color: var(--bg-page-light);
+  background-image: var(--bg-tile-light);
+  background-position: 0 0;
+  background-size: var(--bg-size);
+  background-repeat: var(--bg-repeat);
+}
+html.dark[data-bg='topo'],
+html.dark[data-bg='grid'],
+html.dark[data-bg='bubbles'] { background-color: var(--bg-page-dark); background-image: var(--bg-tile-dark); }
+html[data-bg='topo'] body::before,
+html[data-bg='grid'] body::before,
+html[data-bg='bubbles'] body::before { display: none; }
+/* Fixed to the viewport, on the plain backdrop's layer: aurora, waves, dots, sunrise */
+html[data-bg='aurora'],
+html[data-bg='waves'],
+html[data-bg='dots'],
+html[data-bg='sunrise'] { background-color: var(--bg-page-light); }
+html.dark[data-bg='aurora'],
+html.dark[data-bg='waves'],
+html.dark[data-bg='dots'],
+html.dark[data-bg='sunrise'] { background-color: var(--bg-page-dark); }
+html[data-bg='aurora'] body::before,
+html[data-bg='waves'] body::before,
+html[data-bg='dots'] body::before,
+html[data-bg='sunrise'] body::before {
+  background-color: var(--bg-page-light);
+  background-image: var(--bg-tile-light);
+  background-position: 0 0;
+  background-size: var(--bg-size);
+  background-repeat: var(--bg-repeat);
+}
+html.dark[data-bg='aurora'] body::before,
+html.dark[data-bg='waves'] body::before,
+html.dark[data-bg='dots'] body::before,
+html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark); background-image: var(--bg-tile-dark); }
+
+/* Reduced transparency or more contrast: the plain backdrop (more contrast: a solid
+   page). The doubled attribute outranks every background's own rules, dark included */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  html[data-bg='lines'],
-  html[data-bg='ribbons'],
-  html.dark[data-bg='lines'],
-  html.dark[data-bg='ribbons'] { background-image: none; }
-  html[data-bg='lines'] body::before,
-  html[data-bg='ribbons'] body::before { display: block; }
-  html[data-bg] { background-color: hsl(var(--background)); }
+  html[data-bg][data-bg],
+  html.dark[data-bg][data-bg] { background-image: none; background-color: hsl(var(--background)); }
+  html[data-bg][data-bg] body::before,
+  html.dark[data-bg][data-bg] body::before { display: block; background: var(--page-backdrop); }
+}
+@media (prefers-contrast: more) {
+  html[data-bg][data-bg] body::before,
+  html.dark[data-bg][data-bg] body::before { background: hsl(var(--background)); }
 }
 
 /* Background cross-fade (components/background/crossfade.ts): a picked
@@ -1654,6 +1699,14 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
 .pattern-thumb--plain { background: #eef2f7; }
 .pattern-thumb--lines { background: #ffffff; }
 .pattern-thumb--ribbons { background: #f8fafc; }
+/* A wallpaper's thumbnail: its layers come from the element's style (background-settings.tsx) */
+.pattern-thumb--wallpaper {
+  background-color: var(--thumb-page-light);
+  background-image: var(--thumb-light);
+  background-size: var(--thumb-size);
+  background-repeat: var(--thumb-repeat);
+}
+.dark .pattern-thumb--wallpaper { background-color: var(--thumb-page-dark); background-image: var(--thumb-dark); }
 .pattern-thumb__ribbons { filter: blur(3px); }
 .pattern-thumb__ribbon-a { fill: #c4b5fd; opacity: 0.8; }
 .pattern-thumb__ribbon-b { fill: #f9a8d4; opacity: 0.7; }

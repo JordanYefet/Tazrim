@@ -11,6 +11,36 @@ import { LINES_TILE } from './lines-tile.data'
 import { LINE_WIDTH, TILE_HEIGHT, TILE_WIDTH } from './lines'
 import { RIBBONS, RIBBON_BAND, RIBBON_BLUR, RIBBON_BOX, RIBBON_GRADIENTS } from './ribbons'
 import { lineOpacity, paletteColors, type BackgroundSetting } from './setting'
+import { TOPO_PATHS, WAVE_CRESTS } from './wallpapers.data'
+import { TOPO_TILE, WAVES_BOX } from './wallpaper-gen'
+import {
+  AURORA,
+  BUBBLES,
+  BUBBLES_TILE,
+  BUBBLE_COLORS,
+  BUBBLE_STOPS,
+  DOTS,
+  DOT_FADE,
+  DOT_GRID,
+  GLOW_STOPS,
+  GRID,
+  GRID_TILE,
+  GRID_WASH,
+  SUNRISE,
+  TOPO,
+  TOPO_WIDTH,
+  WAVES,
+  WAVE_FOOT,
+  bubbleCopies,
+  hsla,
+  hslHex,
+  isWallpaper,
+  waveBandPath,
+  wallpaperBase,
+  type Glow,
+  type Hsl,
+  type WallpaperKind,
+} from './wallpapers'
 
 export interface PaintRegion {
   x: number
@@ -20,7 +50,7 @@ export interface PaintRegion {
   scale: number
 }
 
-/** Where the page is: its width (the ribbons fill it) and, for the plain backdrop (fixed to the viewport), the scroll and viewport height. */
+/** Where the page is: its width (the ribbons fill it) and, for the backgrounds fixed to the viewport, the scroll and viewport height. */
 export interface PageGeometry {
   width: number
   scrollY: number
@@ -32,6 +62,14 @@ export const PAGE_COLOR = {
   lines: { light: '#ffffff', dark: '#0b1120' },
   ribbons: { light: '#eef2f7', dark: '#05060f' },
 } as const
+
+/** The page colour under any background (the glass works out the pattern against it). */
+export function pageColor(setting: BackgroundSetting, dark: boolean): string | null {
+  if (setting.kind === 'lines') return dark ? PAGE_COLOR.lines.dark : PAGE_COLOR.lines.light
+  if (setting.kind === 'ribbons') return dark ? PAGE_COLOR.ribbons.dark : PAGE_COLOR.ribbons.light
+  if (isWallpaper(setting.kind)) return hslHex(wallpaperBase(setting.kind, dark ? 'dark' : 'light'))
+  return null
+}
 
 let paths: Path2D[] | null = null
 function tilePaths(): Path2D[] {
@@ -168,6 +206,200 @@ function paintRibbons(ctx: CanvasRenderingContext2D, region: PaintRegion, page: 
   ctx.drawImage(small, region.x, region.y, small.width * f, small.height * f)
 }
 
+// ── The wallpapers (lib/background/wallpapers.ts) ──────────────────────
+
+/** A glow (an ellipse at cx, cy with radii rx, ry, in CSS px), stops as in glowCss. */
+function paintGlow(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, color: Hsl, alpha: number) {
+  if (rx <= 0 || ry <= 0) return
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.scale(rx, ry)
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+  for (const [at, share] of GLOW_STOPS) g.addColorStop(at, hsla(color, alpha * share))
+  ctx.fillStyle = g
+  ctx.fillRect(-1, -1, 2, 2)
+  ctx.restore()
+}
+
+/** A glow whose place and size are fractions of the viewport (the fixed wallpapers). */
+function paintViewportGlow(ctx: CanvasRenderingContext2D, g: Glow, page: PageGeometry) {
+  const vh = page.viewportHeight
+  paintGlow(ctx, g.x * page.width, page.scrollY + g.y * vh, g.rx * page.width, g.ry * vh, g.color, g.alpha)
+}
+
+/** Replays SVG path data (M, C, L, Z) on the context, under its current transform. */
+function tracePath(ctx: CanvasRenderingContext2D, d: string) {
+  for (const [, cmd, args] of d.matchAll(/([MCLZ])([^MCLZ]*)/g)) {
+    const n = args.trim() ? args.trim().split(/[\s,]+/).map(Number) : []
+    if (cmd === 'M') ctx.moveTo(n[0], n[1])
+    else if (cmd === 'L') ctx.lineTo(n[0], n[1])
+    else if (cmd === 'C') for (let i = 0; i + 5 < n.length; i += 6) ctx.bezierCurveTo(n[i], n[i + 1], n[i + 2], n[i + 3], n[i + 4], n[i + 5])
+    else ctx.closePath()
+  }
+}
+
+/** The fixed wallpapers: where the viewport is now (they do not scroll with the page). */
+function paintFixedWallpaper(ctx: CanvasRenderingContext2D, kind: WallpaperKind, region: PaintRegion, page: PageGeometry, dark: boolean) {
+  const mode = dark ? 'dark' : 'light'
+  const base = wallpaperBase(kind, mode)
+  ctx.fillStyle = hsla(base)
+  ctx.fillRect(region.x, region.y, region.width, region.height)
+  const top = page.scrollY
+  const vw = page.width
+  const vh = page.viewportHeight
+  if (kind === 'aurora' || kind === 'sunrise') {
+    for (const g of (kind === 'aurora' ? AURORA : SUNRISE)[mode].glows) paintViewportGlow(ctx, g, page)
+    return
+  }
+  if (kind === 'dots') {
+    const d = DOTS[mode]
+    const { gap, ox, oy, r, soft } = DOT_GRID
+    ctx.fillStyle = hsla(d.dot, d.alpha)
+    const radius = (r + soft) / 2
+    ctx.beginPath()
+    for (let x = Math.floor((region.x - ox) / gap) * gap + ox; x < region.x + region.width + gap; x += gap) {
+      for (let y = Math.floor((region.y - top - oy) / gap) * gap + oy + top; y < region.y + region.height + gap; y += gap) {
+        ctx.moveTo(x + radius, y)
+        ctx.arc(x, y, radius, 0, Math.PI * 2)
+      }
+    }
+    ctx.fill()
+    // The fade: the page colour over the dots, clear at the ellipse's centre, opaque past its rim
+    const cx = DOT_FADE.x * vw
+    const cy = top + DOT_FADE.y * vh
+    const rx = DOT_FADE.rx * vw
+    const ry = DOT_FADE.ry * vh
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.scale(rx, ry)
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+    for (const [at, a] of DOT_FADE.stops) g.addColorStop(at, hsla(base, a))
+    ctx.fillStyle = g
+    ctx.fillRect((region.x - cx) / rx - 1, (region.y - cy) / ry - 1, region.width / rx + 2, region.height / ry + 2)
+    ctx.restore()
+    paintViewportGlow(ctx, d.tint, page)
+    return
+  }
+  // The waves: the 300 × 620 box stretched over the viewport, hairlines one px wide
+  const w = WAVES[mode]
+  const sx = vw / WAVES_BOX.width
+  const sy = vh / WAVES_BOX.height
+  w.bands.forEach(([c, a, from], i) => {
+    ctx.save()
+    ctx.translate(0, top)
+    ctx.scale(sx, sy)
+    const g = ctx.createLinearGradient(0, from, 0, WAVES_BOX.height)
+    g.addColorStop(0, hsla(c, a))
+    g.addColorStop(1, hsla(c, a * WAVE_FOOT))
+    ctx.fillStyle = g
+    ctx.beginPath()
+    tracePath(ctx, waveBandPath(i))
+    ctx.fill()
+    ctx.restore()
+  })
+  ctx.strokeStyle = hsla(w.edge, w.edgeAlpha)
+  ctx.lineWidth = 1
+  for (const d of WAVE_CRESTS) {
+    ctx.save()
+    ctx.translate(0, top)
+    ctx.scale(sx, sy)
+    ctx.beginPath()
+    tracePath(ctx, d)
+    ctx.restore()
+    ctx.stroke()
+  }
+}
+
+let topoPaths: Path2D[] | null = null
+
+/** Calls `draw` translated to every tile (w × h, anchored at the document's top left) that meets the region, clipped to it. */
+function eachTile(ctx: CanvasRenderingContext2D, region: PaintRegion, w: number, h: number, draw: () => void) {
+  for (let tx = Math.floor(region.x / w); tx * w < region.x + region.width; tx++) {
+    for (let ty = Math.floor(region.y / h); ty * h < region.y + region.height; ty++) {
+      ctx.save()
+      ctx.translate(tx * w, ty * h)
+      ctx.beginPath()
+      ctx.rect(0, 0, w, h)
+      ctx.clip()
+      draw()
+      ctx.restore()
+    }
+  }
+}
+
+/** The tiled wallpapers: they scroll with the document. */
+function paintTiledWallpaper(ctx: CanvasRenderingContext2D, kind: WallpaperKind, region: PaintRegion, page: PageGeometry, dark: boolean) {
+  const mode = dark ? 'dark' : 'light'
+  ctx.fillStyle = hsla(wallpaperBase(kind, mode))
+  ctx.fillRect(region.x, region.y, region.width, region.height)
+  if (kind === 'topo') {
+    const t = TOPO[mode]
+    if (!topoPaths) topoPaths = TOPO_PATHS.map(p => new Path2D(p.d))
+    const list = topoPaths
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    eachTile(ctx, region, TOPO_TILE.width, TOPO_TILE.height, () => {
+      for (const major of [false, true]) {
+        ctx.strokeStyle = hsla(t.line, major ? t.major : t.minor)
+        ctx.lineWidth = major ? TOPO_WIDTH.major : TOPO_WIDTH.minor
+        TOPO_PATHS.forEach((p, i) => {
+          if (p.major === major) ctx.stroke(list[i])
+        })
+      }
+    })
+    return
+  }
+  if (kind === 'grid') {
+    const g = GRID[mode]
+    const { size, step } = GRID_TILE
+    // The wash, in its layer at the top of the document (100% × GRID_WASH.ry), under the grid's
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, page.width, GRID_WASH.ry)
+    ctx.clip()
+    paintGlow(ctx, GRID_WASH.x * page.width, 0, GRID_WASH.rx, GRID_WASH.ry, g.wash, g.washAlpha)
+    ctx.restore()
+    ctx.lineWidth = 1
+    for (const major of [false, true]) {
+      ctx.strokeStyle = hsla(g.line, major ? g.major : g.minor)
+      ctx.beginPath()
+      for (let x = Math.floor(region.x / step) * step; x <= region.x + region.width; x += step) {
+        if ((x % size === 0) !== major) continue
+        ctx.moveTo(x + 0.5, region.y)
+        ctx.lineTo(x + 0.5, region.y + region.height)
+      }
+      for (let y = Math.floor(region.y / step) * step; y <= region.y + region.height; y += step) {
+        if ((y % size === 0) !== major) continue
+        ctx.moveTo(region.x, y + 0.5)
+        ctx.lineTo(region.x + region.width, y + 0.5)
+      }
+      ctx.stroke()
+    }
+    return
+  }
+  // Bubbles
+  const b = BUBBLE_COLORS[mode]
+  eachTile(ctx, region, BUBBLES_TILE.width, BUBBLES_TILE.height, () => {
+    for (const [x, y, r, ci] of BUBBLES) {
+      for (const [dx, dy] of bubbleCopies(x, y, r)) {
+        const cx = x + dx
+        const cy = y + dy
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r)
+        for (const [at, share] of BUBBLE_STOPS) g.addColorStop(at, hsla(b.colors[ci], b.alpha * share))
+        ctx.fillStyle = g
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+  })
+}
+
+function paintWallpaper(ctx: CanvasRenderingContext2D, kind: WallpaperKind, region: PaintRegion, page: PageGeometry, dark: boolean) {
+  if (kind === 'topo' || kind === 'grid' || kind === 'bubbles') paintTiledWallpaper(ctx, kind, region, page, dark)
+  else paintFixedWallpaper(ctx, kind, region, page, dark)
+}
+
 /** Paints the background behind `region` (document CSS px) into `canvas`. */
 export function paintBackground(canvas: HTMLCanvasElement, setting: BackgroundSetting, dark: boolean, region: PaintRegion, page: PageGeometry) {
   const w = Math.max(1, Math.round(region.width * region.scale))
@@ -181,6 +413,7 @@ export function paintBackground(canvas: HTMLCanvasElement, setting: BackgroundSe
   ctx.setTransform(region.scale, 0, 0, region.scale, -region.x * region.scale, -region.y * region.scale)
   if (setting.kind === 'lines') paintLines(ctx, region, setting, dark)
   else if (setting.kind === 'ribbons') paintRibbons(ctx, region, page, dark)
+  else if (isWallpaper(setting.kind)) paintWallpaper(ctx, setting.kind, region, page, dark)
   else paintPlain(ctx, page, dark)
   ctx.setTransform(1, 0, 0, 1, 0, 0)
 }
