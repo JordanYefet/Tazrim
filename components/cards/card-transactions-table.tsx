@@ -13,6 +13,7 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
+import { useExit } from '@/hooks/use-exit'
 import { CARD_COLUMNS, columnsLine, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -327,6 +328,12 @@ export function CardTransactionsTable({
     recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
   }))
   const txById = new Map(transactions.map(t => [t.id, t]))
+  // The bulk bar eases out when the last tick goes, with the figures it showed
+  const bulk = useExit(
+    selected.size > 0
+      ? { count: selected.size, total: transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0) }
+      : null
+  )
 
   return (
     <div className="space-y-3">
@@ -371,15 +378,16 @@ export function CardTransactionsTable({
 
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
 
-      {selected.size > 0 && (
+      {bulk.item && (
         <BulkCategoryBar
-          count={selected.size}
+          count={bulk.item.count}
           kind="expense"
           context="חיובים בכרטיס"
-          amount={formatCurrencyWhole(transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0))}
+          amount={formatCurrencyWhole(bulk.item.total)}
           categories={categories.map(c => ({ name: c.name, color: categoryColors[c.name] }))}
           onApply={saveBulkCategory}
           onClear={() => setSelected(new Set())}
+          leaving={bulk.leaving}
         />
       )}
 

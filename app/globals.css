@@ -404,6 +404,17 @@ html {
 .add-step--back { --add-step-from: 12px; }
 @keyframes add-step-in { from { opacity: 0; transform: translateX(var(--add-step-from, 0)); } }
 
+/* The bar over a table while rows are ticked (components/categories/bulk-category-bar.tsx):
+   it takes its place in the flow at once, as ever (the table does not move later), and only
+   its opacity and a 6px shift ease in and out. Leaving, it is inert for the exit's length. */
+.bulk-bar { animation: bulk-bar-in var(--motion-fast) var(--ease-ui) backwards; }
+.bulk-bar[data-leaving] { animation: bulk-bar-out var(--motion-fast) var(--ease-ui) forwards; }
+@keyframes bulk-bar-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes bulk-bar-out { to { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .bulk-bar, .bulk-bar[data-leaving] { animation: none; }
+}
+
 /* A row's category window: the contains-text field drops in a short way under the
    scopes when that scope is picked (components/categories/category-picker.tsx) */
 .contains-field { animation: contains-field-in var(--motion-base) var(--ease-ui) backwards; }

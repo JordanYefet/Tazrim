@@ -14,6 +14,7 @@ import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { CARD_PAYMENT_CATEGORY, directionOf, isCardPaymentRow } from '@/lib/insights/bank-categories'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
+import { useExit } from '@/hooks/use-exit'
 import { BANK_COLUMNS, columnsLine, type BankColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -340,6 +341,8 @@ export function BankTransactionsTable({
     recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
   }))
   const txById = new Map(transactions.map(t => [t.id, t]))
+  // The bulk bar eases out when the last tick goes, with the rows it showed
+  const bulk = useExit(selected.size > 0 ? transactions.filter(t => selected.has(t.id)) : null)
 
   return (
     <div className="space-y-3">
@@ -389,14 +392,15 @@ export function BankTransactionsTable({
 
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
 
-      {selected.size > 0 && (
+      {bulk.item && (
         <BankBulkBar
-          rows={transactions.filter(t => selected.has(t.id))}
+          rows={bulk.item}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
           colors={categoryColors}
           onApply={saveBulkCategory}
           onClear={() => setSelected(new Set())}
+          leaving={bulk.leaving}
         />
       )}
 
@@ -736,13 +740,14 @@ function CategoryCell({ tx, color, onOpen, onSuggest }: {
 }
 
 /** The shared bulk bar for ticked bank rows: their direction picks expense or income categories */
-function BankBulkBar({ rows, expenseCategories, incomeCategories, colors, onApply, onClear }: {
+function BankBulkBar({ rows, expenseCategories, incomeCategories, colors, onApply, onClear, leaving }: {
   rows: BankTx[]
   expenseCategories: Category[]
   incomeCategories: Category[]
   colors: Record<string, string>
   onApply: (category: string | null) => Promise<void>
   onClear: () => void
+  leaving: boolean
 }) {
   const directions = new Set(rows.map(directionOf))
   const income = directions.has('IN')
@@ -757,6 +762,7 @@ function BankBulkBar({ rows, expenseCategories, incomeCategories, colors, onAppl
       allowNone
       onApply={onApply}
       onClear={onClear}
+      leaving={leaving}
     />
   )
 }
