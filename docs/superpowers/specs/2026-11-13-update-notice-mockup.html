@@ -1,0 +1,194 @@
+<style>
+  .tz { --bg:#f5f7f9; --fg:#111a24; --card:#fff; --muted:#5d6c7e; --border:#dbe2e9; --primary:#1b7fa8; --ok:#25845a; --bad:#d63a2f; --amber:#b8732a;
+        font-family: Heebo, "Segoe UI", system-ui, sans-serif; color:var(--fg); }
+  .tz.dark { --bg:#11161f; --fg:#eceff3; --card:#1a202b; --muted:#93a0b2; --border:#2a3240; --primary:#2fa6d4; --ok:#4fbf8a; --bad:#ec6157; }
+  .tz .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:20px; margin-bottom:28px; }
+  .tz .frame { background:var(--bg); border:1px solid var(--border); border-radius:18px; padding:18px; direction:rtl; position:relative; min-height:430px; }
+  .tz .cap { direction:ltr; font-size:13px; color:#667; margin:0 0 8px; font-family:system-ui; }
+  .tz .cap b { color:#222; }
+  .tz .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .tz h4 { margin:0 0 4px; font-size:16px; font-weight:600; }
+  .tz .m { color:var(--muted); font-size:13px; line-height:1.6; }
+  .tz .ltr { direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; }
+  .tz .btn { display:inline-flex; align-items:center; gap:6px; border-radius:9px; padding:8px 14px; font-size:13px; font-weight:500; border:1px solid var(--border); background:var(--card); color:var(--fg); }
+  .tz .btn.p { background:var(--primary); color:#fff; border-color:transparent; }
+  .tz .btn.d { color:var(--bad); }
+  .tz .dot { width:8px; height:8px; border-radius:50%; background:var(--primary); display:inline-block; }
+  .tz .badge { font-size:12px; padding:2px 8px; border-radius:99px; background:color-mix(in srgb,var(--primary) 12%,transparent); color:var(--primary); font-weight:500; }
+  .tz .notes { font-size:13px; line-height:1.7; margin:8px 0; padding:10px 12px; border-radius:9px; background:color-mix(in srgb,var(--fg) 4%,transparent); }
+  .tz .notes ul { margin:4px 0 0; padding-inline-start:18px; }
+  .tz .warn { font-size:13px; color:var(--muted); display:flex; gap:8px; margin:10px 0 14px; }
+  .tz .scrim { position:absolute; inset:0; border-radius:18px; background:rgba(15,22,32,.35); display:flex; align-items:center; justify-content:center; padding:18px; }
+  .tz .steps { list-style:none; margin:14px 0 0; padding:0; display:grid; gap:10px; }
+  .tz .steps li { display:grid; grid-template-columns:22px 1fr auto; align-items:center; gap:8px; font-size:14px; min-height:24px; }
+  .tz .ic { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; border:1.5px solid var(--border); color:var(--muted); }
+  .tz .ic.done { background:var(--ok); border-color:var(--ok); color:#fff; }
+  .tz .ic.now { border-color:var(--primary); border-top-color:transparent; animation:tzspin 1s linear infinite; }
+  .tz .ic.fail { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .tz .steps li.wait { color:var(--muted); }
+  .tz .bar { height:6px; border-radius:99px; background:color-mix(in srgb,var(--fg) 8%,transparent); overflow:hidden; margin-top:14px; }
+  .tz .bar > i { display:block; height:100%; background:var(--primary); border-radius:99px; }
+  .tz .big { font-size:20px; font-weight:600; margin:0; }
+  .tz .center { max-width:330px; margin:40px auto 0; }
+  .tz .sub { font-size:12px; color:var(--muted); }
+  @keyframes tzspin { to { transform:rotate(360deg); } }
+  .tz .toggle { direction:ltr; margin-bottom:14px; font-family:system-ui; font-size:13px; }
+</style>
+
+<h2>Updating Tazrim: the whole flow</h2>
+<p class="subtitle">Fake versions. Five moments, in order. Click a progress layout below (A or B) if you prefer one, and tell me in the terminal what's wrong or missing.</p>
+
+<div class="tz" id="tz">
+<div class="toggle"><label><input type="checkbox" onchange="document.getElementById('tz').classList.toggle('dark',this.checked)"> dark mode</label></div>
+
+<!-- ROW 1 -->
+<div class="row">
+  <div>
+    <p class="cap"><b>1. Settings → About, bottom section.</b> Found by the daily check (or the button). The Settings tile for About gets a small dot.</p>
+    <div class="frame">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h4>גרסה</h4><span class="badge">גרסה חדשה</span>
+        </div>
+        <p class="m" style="margin:2px 0 10px">מותקנת: <span class="ltr">v1.0.0</span> · זמינה: <span class="ltr">v1.2.0</span></p>
+        <div class="notes"><b>מה חדש ב-<span class="ltr">v1.2.0</span></b>
+          <ul><li>תצוגת קטגוריות לכל הכרטיסים</li><li>תיקון בייבוא קבצי אקסל</li></ul>
+          <a style="color:var(--primary);font-size:13px">כל ההערות ב-GitHub ↖</a>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <span class="btn p">עדכון לגרסה <span class="ltr">v1.2.0</span></span>
+          <span class="btn">בדיקת עדכונים</span>
+        </div>
+        <p class="sub" style="margin:10px 0 0">נבדק לאחרונה היום ב-<span class="ltr">09:12</span></p>
+        <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
+        <label class="m" style="display:flex;justify-content:space-between;align-items:center">בדיקה אוטומטית פעם ביום <span style="width:34px;height:20px;border-radius:99px;background:var(--primary);display:inline-block"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="cap"><b>1b. Same spot, no updater container installed.</b> No update button: the command to copy instead.</p>
+    <div class="frame">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h4>גרסה</h4><span class="badge">גרסה חדשה</span>
+        </div>
+        <p class="m" style="margin:2px 0 10px">מותקנת: <span class="ltr">v1.0.0</span> · זמינה: <span class="ltr">v1.2.0</span></p>
+        <p class="m">כדי לעדכן, הריצו בתיקייה של תזרים:</p>
+        <div class="notes ltr" style="font-family:ui-monospace,monospace;display:flex;justify-content:space-between;text-align:left">docker compose pull && docker compose up -d <span style="color:var(--primary)">copy</span></div>
+        <p class="sub">רוצים לעדכן מכאן בלחיצה? מוסיפים את רכיב העדכון ל-docker compose. <a style="color:var(--primary)">איך</a></p>
+        <div style="margin-top:12px"><span class="btn">בדיקת עדכונים</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="cap"><b>2. After pressing Update: confirm.</b> Release notes, the restart warning, and the backup promise.</p>
+    <div class="frame">
+      <div class="card" style="opacity:.35">…About page behind…</div>
+      <div class="scrim">
+        <div class="card" style="width:100%">
+          <h4>עדכון לגרסה <span class="ltr">v1.2.0</span></h4>
+          <div class="notes"><ul style="margin:0"><li>תצוגת קטגוריות לכל הכרטיסים</li><li>תיקון בייבוא קבצי אקסל</li></ul></div>
+          <div class="warn">ⓘ<span>לפני העדכון נשמר גיבוי של כל הנתונים. במהלך העדכון האפליקציה תופעל מחדש ולא תהיה זמינה לכמה שניות.</span></div>
+          <div style="display:flex;gap:8px"><span class="btn p">עדכון עכשיו</span><span class="btn">ביטול</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROW 2: progress options -->
+<p class="cap" style="font-size:14px"><b>3. While it runs. Two layouts, pick one.</b> The step list never moves: each row's icon changes in place.</p>
+<div class="options" style="margin-bottom:28px">
+<div class="row" style="width:100%">
+  <div class="option" data-choice="progress-a" onclick="toggleSelect(this)" style="display:block">
+    <p class="cap"><b>A. Full-screen page.</b> Takes over the whole app (nav hidden), since the app is about to vanish anyway.</p>
+    <div class="frame">
+      <div class="center">
+        <p class="big">מעדכנים לגרסה <span class="ltr">v1.2.0</span></p>
+        <p class="m">אפשר להשאיר את הדף פתוח. הוא יתרענן לבד בסיום.</p>
+        <div class="bar"><i style="width:48%"></i></div>
+        <ul class="steps">
+          <li><span class="ic done">✓</span>גיבוי הנתונים<span class="sub ltr">2s</span></li>
+          <li><span class="ic now"></span>הורדת הגרסה החדשה<span class="sub ltr">38 / 92 MB</span></li>
+          <li class="wait"><span class="ic"></span>הפעלה מחדש<span></span></li>
+          <li class="wait"><span class="ic"></span>עדכון בסיס הנתונים<span></span></li>
+          <li class="wait"><span class="ic"></span>בדיקה שהכול עובד<span></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="progress-b" onclick="toggleSelect(this)" style="display:block">
+    <p class="cap"><b>B. Stays in the dialog.</b> The confirm dialog turns into the progress view; the page behind stays dimmed.</p>
+    <div class="frame">
+      <div class="card" style="opacity:.35">…About page behind…</div>
+      <div class="scrim">
+        <div class="card" style="width:100%">
+          <h4>מעדכנים לגרסה <span class="ltr">v1.2.0</span></h4>
+          <div class="bar"><i style="width:48%"></i></div>
+          <ul class="steps">
+            <li><span class="ic done">✓</span>גיבוי הנתונים<span class="sub ltr">2s</span></li>
+            <li><span class="ic now"></span>הורדת הגרסה החדשה<span class="sub ltr">38 / 92 MB</span></li>
+            <li class="wait"><span class="ic"></span>הפעלה מחדש<span></span></li>
+            <li class="wait"><span class="ic"></span>עדכון בסיס הנתונים<span></span></li>
+            <li class="wait"><span class="ic"></span>בדיקה שהכול עובד<span></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ROW 3: outcomes -->
+<div class="row">
+  <div>
+    <p class="cap"><b>4a. It worked.</b> Back on About after the reload. Rollback stays offered (quietly) until the next update.</p>
+    <div class="frame">
+      <div class="card">
+        <h4>גרסה</h4>
+        <p class="m" style="margin:2px 0 10px">עודכן ל-<span class="ltr">v1.2.0</span> היום ב-<span class="ltr">09:15</span>. זו הגרסה האחרונה.</p>
+        <div style="margin-top:6px"><span class="btn">בדיקת עדכונים</span></div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
+        <p class="m" style="margin:0 0 8px">משהו לא עובד כמו שצריך בגרסה החדשה?</p>
+        <span class="btn">חזרה לגרסה <span class="ltr">v1.0.0</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="cap"><b>4b. It failed partway.</b> The failed row turns red in place. If it failed before the restart, nothing changed.</p>
+    <div class="frame">
+      <div class="center">
+        <p class="big">העדכון לא הושלם</p>
+        <p class="m">לא הצלחנו להוריד את הגרסה החדשה. תזרים ממשיך לרוץ על <span class="ltr">v1.0.0</span>, ושום נתון לא השתנה.</p>
+        <div class="bar"><i style="width:48%;background:var(--bad)"></i></div>
+        <ul class="steps">
+          <li><span class="ic done">✓</span>גיבוי הנתונים<span></span></li>
+          <li><span class="ic fail">!</span>הורדת הגרסה החדשה<span class="sub">אין חיבור לאינטרנט</span></li>
+          <li class="wait"><span class="ic"></span>הפעלה מחדש<span></span></li>
+          <li class="wait"><span class="ic"></span>עדכון בסיס הנתונים<span></span></li>
+          <li class="wait"><span class="ic"></span>בדיקה שהכול עובד<span></span></li>
+        </ul>
+        <div style="display:flex;gap:8px;margin-top:16px"><span class="btn p">לנסות שוב</span><span class="btn">חזרה לאפליקציה</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="cap"><b>5. Rolling back: confirm.</b> Going back means restoring the pre-update backup, so anything added since is lost.</p>
+    <div class="frame">
+      <div class="card" style="opacity:.35">…About page behind…</div>
+      <div class="scrim">
+        <div class="card" style="width:100%">
+          <h4>חזרה לגרסה <span class="ltr">v1.0.0</span></h4>
+          <p class="m">תזרים יחזור לגרסה הקודמת ולגיבוי שנשמר לפני העדכון, ב-<span class="ltr">13.11 09:14</span>.</p>
+          <div class="warn" style="color:var(--bad)">⚠<span>כל מה שנוסף או שונה מאז (3 קבצים שהועלו, 41 תנועות) יימחק.</span></div>
+          <div style="display:flex;gap:8px"><span class="btn d">חזרה לגרסה הקודמת</span><span class="btn">ביטול</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>

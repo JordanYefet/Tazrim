@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tazrim: updating page</title>
+<style>
+  :root {
+    --bg: hsl(210 25% 97%); --fg: hsl(214 35% 10%); --card: hsl(0 0% 100%);
+    --muted: hsl(214 20% 45%); --border: hsl(210 18% 88%);
+    --primary: hsl(199 72% 38%); --on-primary: hsl(0 0% 100%); --ok: hsl(158 55% 32%); --bad: hsl(3 72% 50%);
+    --ease-ui: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .dark {
+    --bg: hsl(220 28% 9%); --fg: hsl(210 20% 94%); --card: hsl(220 24% 13%);
+    --muted: hsl(214 15% 65%); --border: hsl(220 18% 22%);
+    --primary: hsl(196 65% 48%); --on-primary: hsl(215 40% 8%); --ok: hsl(158 50% 48%); --bad: hsl(3 75% 60%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Heebo, system-ui, sans-serif; background: #e9edf1; color: #223; }
+  .dark body, body.dark { background: #0b0f15; }
+  .top { direction: ltr; max-width: 1180px; margin: 0 auto; padding: 20px 20px 8px; font: 14px/1.5 system-ui; color: #445; }
+  body.dark .top { color: #aab; }
+  .top h1 { font-size: 18px; margin: 0 0 4px; color: inherit; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+  .controls button { font: 13px system-ui; padding: 6px 12px; border-radius: 8px; border: 1px solid #c8d0d8; background: #fff; cursor: pointer; }
+  .controls label { font-size: 13px; display: inline-flex; gap: 6px; align-items: center; margin-inline-start: 8px; }
+  .grid { max-width: 1180px; margin: 0 auto; padding: 12px 20px 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+  .opt { cursor: pointer; border-radius: 22px; padding: 6px; border: 2px solid transparent; transition: border-color 160ms ease; }
+  .opt.selected { border-color: #1b7fa8; }
+  .cap { direction: ltr; font: 13px/1.5 system-ui; color: #556; margin: 4px 6px 10px; }
+  body.dark .cap { color: #aab; }
+  .cap b { color: inherit; filter: brightness(.7); }
+
+  /* The phone-sized screen */
+  .screen { position: relative; isolation: isolate; overflow: clip; height: 640px; border-radius: 18px; background: var(--bg); color: var(--fg); direction: rtl; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+  /* Background A: the sign-in page's drift, unchanged */
+  .bg { position: absolute; inset: -20%; z-index: -1; pointer-events: none; will-change: transform; }
+  .bg-a {
+    background:
+      radial-gradient(40% 50% at 25% 30%, hsl(256 80% 90%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 70% 75%, hsl(322 70% 90%) 0%, transparent 70%),
+      radial-gradient(40% 45% at 80% 20%, hsl(203 62% 88%) 0%, transparent 70%),
+      linear-gradient(150deg, hsl(254 60% 96%) 0%, var(--bg) 50%, hsl(203 50% 96%) 100%);
+    animation: drift 12s ease-in-out infinite alternate;
+  }
+  .dark .bg-a {
+    background:
+      radial-gradient(40% 50% at 25% 30%, hsl(256 45% 24%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 70% 75%, hsl(322 35% 20%) 0%, transparent 70%),
+      radial-gradient(40% 45% at 80% 20%, hsl(203 45% 20%) 0%, transparent 70%),
+      var(--bg);
+  }
+  @keyframes drift {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-6%, 4%) scale(1.08); }
+    100% { transform: translate(5%, -4%) scale(1.04); }
+  }
+
+  /* Background B: same drift, but its colour follows the update.
+     Three stacked layers cross-fade (opacity only, so it stays on the GPU):
+     working = lavender/pink/blue, done = the app's teal-green, failed = still and grey. */
+  .bg-b { animation: drift 12s ease-in-out infinite alternate; }
+  .bg-b > i { position: absolute; inset: 0; transition: opacity 900ms ease; }
+  .bg-b .work { background:
+      radial-gradient(40% 50% at 25% 30%, hsl(256 80% 90%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 70% 75%, hsl(322 70% 90%) 0%, transparent 70%),
+      radial-gradient(40% 45% at 80% 20%, hsl(203 62% 88%) 0%, transparent 70%),
+      linear-gradient(150deg, hsl(254 60% 96%) 0%, var(--bg) 50%, hsl(203 50% 96%) 100%); }
+  .bg-b .done { opacity: 0; background:
+      radial-gradient(45% 55% at 30% 35%, hsl(165 55% 86%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 72% 70%, hsl(199 65% 86%) 0%, transparent 70%),
+      linear-gradient(150deg, hsl(165 40% 96%) 0%, var(--bg) 55%, hsl(199 45% 96%) 100%); }
+  .bg-b .fail { opacity: 0; background:
+      radial-gradient(42% 52% at 30% 35%, hsl(3 75% 89%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 72% 72%, hsl(350 60% 90%) 0%, transparent 70%),
+      linear-gradient(150deg, hsl(3 55% 96%) 0%, var(--bg) 55%, hsl(350 40% 96%) 100%); }
+  .dark .bg-b .work { background:
+      radial-gradient(40% 50% at 25% 30%, hsl(256 45% 24%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 70% 75%, hsl(322 35% 20%) 0%, transparent 70%),
+      radial-gradient(40% 45% at 80% 20%, hsl(203 45% 20%) 0%, transparent 70%), var(--bg); }
+  .dark .bg-b .done { background:
+      radial-gradient(45% 55% at 30% 35%, hsl(165 40% 20%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 72% 70%, hsl(199 45% 20%) 0%, transparent 70%), var(--bg); }
+  .dark .bg-b .fail { background:
+      radial-gradient(42% 52% at 30% 35%, hsl(3 50% 22%) 0%, transparent 70%),
+      radial-gradient(45% 55% at 72% 72%, hsl(350 40% 18%) 0%, transparent 70%), var(--bg); }
+  .screen[data-state="done"] .bg-b .done { opacity: 1; }
+  .screen[data-state="failed"] .bg-b .fail { opacity: 1; }
+  .screen[data-state="failed"] .bg-b { animation-play-state: paused; }
+
+  /* The card: solid, like the sign-in card */
+  .card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px 22px 20px; box-shadow: 0 12px 40px hsl(214 40% 30% / .12); }
+  .dark .card { box-shadow: 0 12px 40px hsl(220 50% 2% / .5); }
+  .mark { width: 40px; height: 40px; border-radius: 12px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; margin-bottom: 14px; }
+  .title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0; min-height: 30px; }
+  .sub { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 4px 0 0; min-height: 44px; }
+  .ltr { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+
+  .track { height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--fg) 8%, transparent); overflow: hidden; margin: 18px 0 6px; }
+  .fill { height: 100%; width: 100%; background: var(--primary); border-radius: 99px; transform-origin: right; transform: scaleX(0); transition: transform 500ms var(--ease-ui), background-color 300ms ease; }
+  .screen[data-state="failed"] .fill { background: var(--bad); }
+  .screen[data-state="done"] .fill { background: var(--ok); }
+
+  .steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
+  .steps li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; font-size: 14px; min-height: 22px; transition: color 200ms ease; }
+  .steps li[data-s="waiting"] { color: var(--muted); }
+  .note { font-size: 12px; color: var(--muted); }
+  .steps li[data-s="failed"] .note { color: var(--bad); }
+
+  /* Status icon: four layers in one fixed box, cross-faded (no reflow) */
+  .ic { position: relative; width: 20px; height: 20px; }
+  .ic > span { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(.9); transition: opacity 180ms ease-out, transform 220ms var(--ease-ui); font-size: 12px; font-weight: 700; color: #fff; }
+  .ic .w { border: 1.5px solid var(--border); }
+  .ic .r { border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary); animation: spin 800ms linear infinite; }
+  .ic .d { background: var(--ok); }
+  .ic .f { background: var(--bad); }
+  li[data-s="waiting"] .w, li[data-s="running"] .r, li[data-s="done"] .d, li[data-s="failed"] .f { opacity: 1; transform: scale(1); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; min-height: 48px; opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
+  .screen[data-state="failed"] .actions { opacity: 1; pointer-events: auto; }
+  .btn { font: inherit; font-size: 16px; font-weight: 600; height: 48px; padding: 0 16px; white-space: nowrap; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; transition: transform 140ms ease-out, background-color 140ms ease; }
+  .btn:hover { background: color-mix(in srgb, var(--fg) 5%, var(--card)); }
+  .btn:active { transform: scale(.97); }
+  .btn.p { background: var(--primary); color: var(--on-primary); border-color: transparent; font-weight: 700; }
+  .btn.p:hover { background: color-mix(in srgb, var(--primary) 90%, var(--card)); }
+  .manual { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 6px; font-size: 14px; font-weight: 500; color: var(--primary); border-radius: 10px; cursor: pointer; opacity: 0; transition: opacity 200ms ease; }
+  .screen[data-state="failed"] .manual { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bg-a, .bg-b { animation: none; }
+    .ic .r { animation: none; border-color: var(--primary); }
+    .fill { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>The updating page, with a moving background behind the card</h1>
+  <div>Option B, red on failure, buttons sized like the sign-in card (48px, equal halves). Press a button to run it. Tell me in the terminal what you think.</div>
+  <div class="controls">
+    <button onclick="run('success')">Play: update works</button>
+    <button onclick="run('fail')">Play: download fails</button>
+    <label><input type="checkbox" onchange="document.body.classList.toggle('dark', this.checked)"> dark mode</label>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="opt" data-choice="bg-b" onclick="pick(this)">
+    <p class="cap"><b>B. The drift follows the update.</b> Same drift while it works; it eases to a calm teal-green when done, and turns a soft red and goes still if it fails. The background itself tells you how it went.</p>
+    <div class="screen" data-state="running"><div class="bg bg-b" aria-hidden="true"><i class="work"></i><i class="done"></i><i class="fail"></i></div>__CARD__</div>
+  </div>
+</div>
+
+<template id="card">
+  <div class="card" role="status" aria-live="polite">
+    <div class="mark">ת</div>
+    <p class="title"></p>
+    <p class="sub"></p>
+    <div class="track"><div class="fill"></div></div>
+    <ul class="steps"></ul>
+    <div class="actions"><button class="btn p">לנסות שוב</button><button class="btn">חזרה לאפליקציה</button></div>
+    <button class="manual btn-link" style="background:none;border:0;font-family:inherit;width:100%">הצגת פקודות ידניות</button>
+  </div>
+</template>
+
+<script>
+  const STEPS = ['גיבוי הנתונים', 'הורדת הגרסה החדשה', 'הפעלה מחדש', 'עדכון בסיס הנתונים', 'בדיקה שהכול עובד'];
+  const tpl = document.getElementById('card').innerHTML;
+  document.querySelectorAll('.screen').forEach(s => {
+    s.insertAdjacentHTML('beforeend', tpl);
+    s.lastElementChild.previousSibling?.remove?.();
+    s.querySelector('.steps').innerHTML = STEPS.map(t =>
+      `<li data-s="waiting"><span class="ic"><span class="w"></span><span class="r"></span><span class="d">✓</span><span class="f">!</span></span><span>${t}</span><span class="note"></span></li>`).join('');
+  });
+  // remove the __CARD__ placeholder text nodes
+  document.querySelectorAll('.screen').forEach(s => s.childNodes.forEach(n => { if (n.nodeType === 3) n.remove(); }));
+
+  function paint(state, step, frac, note, title, sub) {
+    document.querySelectorAll('.screen').forEach(s => {
+      s.dataset.state = state;
+      s.querySelector('.title').innerHTML = title;
+      s.querySelector('.sub').innerHTML = sub;
+      s.querySelector('.fill').style.transform = `scaleX(${frac})`;
+      s.querySelectorAll('.steps li').forEach((li, i) => {
+        li.dataset.s = i < step ? 'done' : i === step ? (state === 'failed' ? 'failed' : state === 'done' ? 'done' : 'running') : 'waiting';
+        li.querySelector('.note').innerHTML = i === step ? (note || '') : '';
+      });
+    });
+  }
+  const V = '<span class="ltr">v1.2.0</span>';
+  const TITLE = `מעדכנים לגרסה ${V}`;
+  const SUB = 'אפשר להשאיר את הדף פתוח. הוא יתרענן לבד בסיום.';
+  let timers = [];
+  function run(kind) {
+    timers.forEach(clearTimeout); timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    paint('running', 0, 0.04, '', TITLE, SUB);
+    at(900, () => paint('running', 1, 0.2, '<span class="ltr">0 / 92 MB</span>', TITLE, SUB));
+    const mb = [12, 31, 47, 63, 80, 92];
+    if (kind === 'fail') {
+      mb.slice(0, 3).forEach((m, i) => at(1300 + i * 450, () => paint('running', 1, 0.2 + 0.4 * m / 92, `<span class="ltr">${m} / 92 MB</span>`, TITLE, SUB)));
+      at(3000, () => paint('failed', 1, 0.4, 'אין חיבור לאינטרנט', 'העדכון לא הושלם', `תזרים ממשיך לרוץ על <span class="ltr">v1.0.0</span>, ושום נתון לא השתנה.`));
+      return;
+    }
+    mb.forEach((m, i) => at(1300 + i * 450, () => paint('running', 1, 0.2 + 0.4 * m / 92, `<span class="ltr">${m} / 92 MB</span>`, TITLE, SUB)));
+    at(4200, () => paint('running', 2, 0.65, '', TITLE, SUB));
+    at(6000, () => paint('running', 3, 0.8, '', TITLE, SUB));
+    at(7300, () => paint('running', 4, 0.92, '', TITLE, SUB));
+    at(8400, () => paint('done', 5, 1, '', `עודכן לגרסה ${V}`, 'חוזרים לאפליקציה…'));
+  }
+  function pick(el) {
+    document.querySelectorAll('.opt').forEach(o => o.classList.toggle('selected', o === el));
+    if (window.brainstorm?.send) window.brainstorm.send({ type: 'click', choice: el.dataset.choice });
+    else if (typeof toggleSelect === 'function') toggleSelect(el);
+  }
+  run('success');
+</script>
+</body>
+</html>
