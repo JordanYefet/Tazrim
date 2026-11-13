@@ -32,6 +32,12 @@ const CLICK_GUARD = 600
  * `onCommit` change the route. It stays interruptible: a new touch takes it
  * from wherever it is. Keyboard activation is left to the links.
  *
+ * The bar may be shrunk (a transform on the nav while the page scrolls down,
+ * lib/nav/tab-bar-shrink.ts): rects are then smaller than the layout the
+ * capsule's translateX lives in, so everything is measured with that scale
+ * taken out. A touch on a shrunk bar expands it under the finger; a tap goes to
+ * the icon the finger came down on, whatever the bar does after.
+ *
  * The slots are the nav's `[data-slot]` children, in DOM order. Until this
  * runs, the capsule sits where CSS puts it (`--slot`), so the server render is
  * already right.
@@ -56,6 +62,11 @@ export function useTabBubble({
     positions: [] as number[],
     origin: 0,
     slotWidth: 0,
+    /** The nav's scale on screen (1 unless shrunk): rect size / layout size */
+    scale: 1,
+    /** Still expanding from a shrunk bar: geometry is measured again on each move */
+    remeasure: false,
+    downSlot: 0,
     x: 0,
     v: 0,
     lift: 0,
@@ -85,10 +96,13 @@ export function useTabBubble({
     const els = slots()
     if (!els.length) return
     const layout = slotLayout(els.map(el => el.getBoundingClientRect()))
+    const nav = navRef.current
+    s.scale = nav && nav.offsetWidth ? nav.getBoundingClientRect().width / nav.offsetWidth : 1
+    // Positions and widths in the nav's own (unscaled) pixels, where the capsule's transform lives
     s.origin = layout.origin
-    s.slotWidth = layout.slotWidth
-    s.positions = layout.positions
-  }, [s, slots])
+    s.slotWidth = layout.slotWidth / s.scale
+    s.positions = layout.positions.map(p => p / s.scale)
+  }, [s, slots, navRef])
 
   const draw = useCallback(() => {
     const cap = capRef.current
@@ -190,7 +204,9 @@ export function useTabBubble({
 
   useEffect(() => () => cancelAnimationFrame(s.raf), [s])
 
-  const fingerTarget = (clientX: number) => follow(clientX - s.origin, s.positions, s.slotWidth)
+  /** A finger's x in the nav's own pixels, from the middle of slot 0 */
+  const local = (clientX: number) => (clientX - s.origin) / s.scale
+  const fingerTarget = (clientX: number) => follow(local(clientX), s.positions, s.slotWidth)
 
   // React bubbles events through portals: a touch in the "עוד" sheet (rendered inside the nav's
   // tree) reaches these handlers too. Only touches on the bar itself are the capsule's.
@@ -206,7 +222,9 @@ export function useTabBubble({
     s.held = true
     s.dragged = false
     s.startX = e.clientX
-    s.finger = e.clientX - s.origin
+    s.remeasure = s.scale < 0.999
+    s.downSlot = nearestSlot(local(e.clientX), s.positions)
+    s.finger = local(e.clientX)
     s.samples = [[e.clientX, e.timeStamp]]
     navRef.current?.setAttribute('data-steering', '')
     s.target = fingerTarget(e.clientX)
@@ -216,7 +234,12 @@ export function useTabBubble({
   const onPointerMove = (e: React.PointerEvent) => {
     if (!s.held) return
     if (Math.abs(e.clientX - s.startX) > SLOP) s.dragged = true
-    s.finger = e.clientX - s.origin
+    // The bar is growing back under the finger: follow it
+    if (s.remeasure) {
+      measure()
+      s.remeasure = s.scale < 0.999
+    }
+    s.finger = local(e.clientX)
     s.samples.push([e.clientX, e.timeStamp])
     s.samples = s.samples.filter(([, t]) => e.timeStamp - t <= VELOCITY_WINDOW)
     s.target = fingerTarget(e.clientX)
@@ -228,10 +251,12 @@ export function useTabBubble({
     s.held = false
     s.handledAt = performance.now()
     const recent = s.samples.filter(([, t]) => e.timeStamp - t <= VELOCITY_WINDOW)
-    // A tap lands on the slot under the finger; a drag where it was let go, carried by a flick
+    // A tap lands on the slot the finger came down on; a drag where it was let go, carried by a flick
+    // (a velocity is in screen pixels: back to the nav's own)
+    if (s.dragged && s.remeasure) measure()
     const slot = s.dragged
-      ? releaseSlot(e.clientX - s.origin, velocityOf(recent), s.positions)
-      : nearestSlot(e.clientX - s.origin, s.positions)
+      ? releaseSlot(local(e.clientX), velocityOf(recent) / s.scale, s.positions)
+      : s.downSlot
     const rest = onCommit(slot, { dragged: s.dragged })
     if (rest !== activeSlot) s.pending = rest
     else endSteering()

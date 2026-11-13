@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, type KeyboardEvent } from 'react'
+import { useRef, type CSSProperties, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils/cn'
 import {
   BACKGROUND_KINDS,
@@ -10,13 +10,16 @@ import {
   type BackgroundKind,
   type BackgroundPalette,
 } from '@/lib/background/setting'
+import { tileUrl } from '@/lib/background/tile-svg'
+import { hsla, isWallpaper, wallpaperBase, wallpaperThumbLayers, type WallpaperKind } from '@/lib/background/wallpapers'
 import { useBackground } from '@/components/background/background-provider'
 import { Reveal } from '@/components/ui/reveal'
 
 /*
  * Settings → רקע (ENG-72, the Settings mockup): the page background, applied
- * as it is picked. Three thumbnails (רגיל / קווים עדינים / סרטי צבע); for the
- * lines, their strength and colours.
+ * as it is picked. Ten thumbnails (רגיל / קווים עדינים / סרטי צבע and the seven
+ * wallpapers, each a miniature of itself in the current theme); for the lines,
+ * their strength and colours.
  */
 
 /** Arrow keys move through a radiogroup (RTL: left is next). */
@@ -31,7 +34,23 @@ const LINES_OPTIONS_ID = 'background-lines-options'
 /** The thumbnail's lines follow a palette change instead of jumping */
 const STROKE_EASE = 'transition-[stroke] duration-fast ease-ui motion-reduce:transition-none'
 
+/** A wallpaper's thumbnail: its own layers, small, for both themes (the stylesheet picks one) */
+function wallpaperThumbStyle(kind: WallpaperKind): CSSProperties {
+  const url = (mode: 'light' | 'dark') => tileUrl({ kind, strength: 10, palette: 'indigo-pink' }, mode)
+  const light = wallpaperThumbLayers(kind, 'light', url('light'))
+  const dark = wallpaperThumbLayers(kind, 'dark', url('dark'))
+  return {
+    '--thumb-light': light.image,
+    '--thumb-dark': dark.image,
+    '--thumb-page-light': hsla(wallpaperBase(kind, 'light')),
+    '--thumb-page-dark': hsla(wallpaperBase(kind, 'dark')),
+    '--thumb-size': light.size,
+    '--thumb-repeat': light.repeat,
+  } as CSSProperties
+}
+
 function Thumb({ kind, colors }: { kind: BackgroundKind; colors: readonly [string, string] }) {
+  if (isWallpaper(kind)) return <span className="pattern-thumb pattern-thumb--wallpaper" style={wallpaperThumbStyle(kind)} aria-hidden />
   return (
     <span className={cn('pattern-thumb', `pattern-thumb--${kind}`)} aria-hidden>
       {kind === 'lines' && (
@@ -85,7 +104,7 @@ export function BackgroundSettings() {
 
       {/* No gap between the tiles and the line options: their spacing is inside the Reveal, so it closes too */}
       <div>
-        <div role="radiogroup" aria-label="סוג רקע" onKeyDown={onKindKey} className="grid grid-cols-3 gap-2.5">
+        <div role="radiogroup" aria-label="סוג רקע" onKeyDown={onKindKey} className="grid grid-cols-2 gap-2.5 md:grid-cols-5">
           {BACKGROUND_KINDS.map(k => {
             const selected = setting.kind === k.value
             return (

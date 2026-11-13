@@ -19,6 +19,7 @@ export function BulkCategoryBar({
   extra,
   onApply,
   onClear,
+  leaving,
 }: {
   count: number
   /** Which categories fit: 'mixed' (money in with money out) offers none */
@@ -34,12 +35,20 @@ export function BulkCategoryBar({
   extra?: ReactNode
   onApply: (category: string | null) => Promise<void>
   onClear: () => void
+  /** The selection is gone and the bar is on its way out (hooks/use-exit.ts) */
+  leaving?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const income = kind === 'income'
 
   return (
-    <div className="sticky top-16 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl surface-overlay px-3 py-2 text-sm">
+    <div
+      data-leaving={leaving || undefined}
+      inert={leaving || undefined}
+      // In the flow and sticky, as ever: only its opacity and a small shift ease in and out (.bulk-bar),
+      // for the callers that pass `leaving` (the tables)
+      className={`${leaving === undefined ? '' : 'bulk-bar '}sticky top-16 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl surface-overlay px-3 py-2 text-sm`}
+    >
       <span className="font-medium">
         {count === 1 ? 'נבחרה תנועה אחת' : <>נבחרו <span className="tabular-nums">{count}</span> תנועות</>}
       </span>

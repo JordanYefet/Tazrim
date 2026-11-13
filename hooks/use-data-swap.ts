@@ -30,7 +30,7 @@ export interface DataSwapOptions {
 }
 
 /** The fade every swap plays: a short rise, quicker than the page's 6px arrival */
-const SWAP_KEYFRAMES: Keyframe[] = [
+export const SWAP_KEYFRAMES: Keyframe[] = [
   { opacity: 0, transform: 'translateY(4px)' },
   { opacity: 1, transform: 'none' },
 ]

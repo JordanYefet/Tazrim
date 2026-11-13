@@ -7,6 +7,7 @@ import {
   backgroundHtmlStyle,
   clampStrength,
   formatBackgroundCookie,
+  isFixedKind,
   lineOpacity,
   paletteColors,
   parseBackgroundCookie,
@@ -17,7 +18,7 @@ describe('defaults', () => {
     expect(DEFAULT_BACKGROUND).toEqual({ kind: 'lines', strength: 10, palette: 'indigo-pink' })
   })
   it('labels the kinds and palettes as in the mockup', () => {
-    expect(BACKGROUND_KINDS.map(k => k.label)).toEqual(['רגיל', 'קווים עדינים', 'סרטי צבע'])
+    expect(BACKGROUND_KINDS.map(k => k.label)).toEqual(['רגיל', 'קווים עדינים', 'סרטי צבע', 'זוהר', 'גלים', 'טופוגרפי', 'נקודות', 'זריחה', 'רשת', 'בועות'])
     expect(BACKGROUND_PALETTES.map(p => p.label)).toEqual(['סגול ורוד', 'ים', 'אפור'])
   })
 })
@@ -26,6 +27,11 @@ describe('parseBackgroundCookie', () => {
   it('reads a full value', () => {
     expect(parseBackgroundCookie('ribbons.22.ocean')).toEqual({ kind: 'ribbons', strength: 22, palette: 'ocean' })
     expect(parseBackgroundCookie('plain.4.grey')).toEqual({ kind: 'plain', strength: 4, palette: 'grey' })
+  })
+  it('reads the wallpapers, keeping the lines options they carry', () => {
+    expect(parseBackgroundCookie('aurora.10.indigo-pink')).toEqual({ kind: 'aurora', strength: 10, palette: 'indigo-pink' })
+    expect(parseBackgroundCookie('bubbles.22.ocean')).toEqual({ kind: 'bubbles', strength: 22, palette: 'ocean' })
+    expect(parseBackgroundCookie('topo')).toEqual({ kind: 'topo', strength: 10, palette: 'indigo-pink' })
   })
   it('reads an encoded value', () => {
     expect(parseBackgroundCookie(encodeURIComponent('lines.18.ocean'))).toEqual({ kind: 'lines', strength: 18, palette: 'ocean' })
@@ -54,7 +60,7 @@ describe('parseBackgroundCookie', () => {
 
 describe('formatBackgroundCookie', () => {
   it('round-trips', () => {
-    for (const kind of ['plain', 'lines', 'ribbons'] as const) {
+    for (const kind of BACKGROUND_KINDS.map(k => k.value)) {
       for (const palette of ['indigo-pink', 'ocean', 'grey'] as const) {
         const s = { kind, strength: 17, palette }
         expect(parseBackgroundCookie(formatBackgroundCookie(s))).toEqual(s)
@@ -67,6 +73,9 @@ describe('formatBackgroundCookie', () => {
 })
 
 describe('helpers', () => {
+  it('isFixedKind: the plain backdrop and the screen-anchored wallpapers', () => {
+    expect(BACKGROUND_KINDS.filter(k => isFixedKind(k.value)).map(k => k.value)).toEqual(['plain', 'aurora', 'waves', 'dots', 'sunrise'])
+  })
   it('clampStrength rounds and bounds', () => {
     expect(clampStrength(9.6)).toBe(10)
     expect(clampStrength(0)).toBe(4)

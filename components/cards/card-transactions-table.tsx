@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useState, type ReactNode } from 'react'
+import { startTransition, useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrency, formatCurrencyWhole } from '@/lib/utils/currency'
@@ -13,6 +13,8 @@ import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import type { RowSeries } from '@/lib/insights/recurring-overrides'
 import { ColumnPicker } from '@/components/ui/column-picker'
 import { useColumnMotion } from '@/hooks/use-column-motion'
+import { useExit } from '@/hooks/use-exit'
+import { useRiseIn } from '@/hooks/use-rise-in'
 import { CARD_COLUMNS, columnsLine, type CardColumn } from '@/lib/tables/columns'
 import { CategoryPicker, CategoryPill, CONTAINS_SCOPE, containsScope } from '@/components/categories/category-picker'
 import { suggestKeyword } from '@/lib/insights/keyword-rules'
@@ -140,6 +142,10 @@ export function CardTransactionsTable({
   // The merchant rule covers the cards of the charge's company (its provider), not every card listed
   const companyOf = (tx: CCTx) => scope.byId.get(cardOf(tx))?.provider ?? cardOf(tx)
 
+  // "טען עוד": the rows that arrive rise in, the ones on screen stay
+  const tableRef = useRef<HTMLDivElement>(null)
+  const riseIn = useRiseIn(tableRef)
+
   async function loadMore() {
     if (!fetchParams) return
     setLoadingMore(true)
@@ -150,6 +156,7 @@ export function CardTransactionsTable({
     )
     const more: CCTx[] = await res.json()
     setTransactions(prev => [...prev, ...more])
+    riseIn(more.map(t => t.id))
     setHasMore(more.length === 50)
     setLoadingMore(false)
   }
@@ -327,6 +334,12 @@ export function CardTransactionsTable({
     recurringLabel: recurring[tx.id]?.manual ? recurring[tx.id].name : undefined,
   }))
   const txById = new Map(transactions.map(t => [t.id, t]))
+  // The bulk bar eases out when the last tick goes, with the figures it showed
+  const bulk = useExit(
+    selected.size > 0
+      ? { count: selected.size, total: transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0) }
+      : null
+  )
 
   return (
     <div className="space-y-3">
@@ -371,20 +384,21 @@ export function CardTransactionsTable({
 
       {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
 
-      {selected.size > 0 && (
+      {bulk.item && (
         <BulkCategoryBar
-          count={selected.size}
+          count={bulk.item.count}
           kind="expense"
           context="חיובים בכרטיס"
-          amount={formatCurrencyWhole(transactions.filter(t => selected.has(t.id)).reduce((sum, t) => sum + t.chargedAmount, 0))}
+          amount={formatCurrencyWhole(bulk.item.total)}
           categories={categories.map(c => ({ name: c.name, color: categoryColors[c.name] }))}
           onApply={saveBulkCategory}
           onClear={() => setSelected(new Set())}
+          leaving={bulk.leaving}
         />
       )}
 
       {/* Table; data-swap: it eases in when the page swaps the rows (components/ui/data-swap.tsx) */}
-      <div data-swap className="rounded-xl surface overflow-hidden">
+      <div ref={tableRef} data-swap className="rounded-xl surface overflow-hidden">
         <PhoneTransactionRows
           rows={phoneRows}
           selected={selected}
@@ -458,6 +472,7 @@ export function CardTransactionsTable({
               {transactions.map(tx => (
                 <tr
                   key={tx.id}
+                  data-row-id={tx.id}
                   className={cn(
                     'border-b transition-colors hover:bg-muted/30',
                     tx.ignored && 'opacity-40',

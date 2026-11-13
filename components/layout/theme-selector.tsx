@@ -5,6 +5,7 @@ import { Monitor, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils/cn'
 import { SegmentedTrack } from '@/components/ui/segmented'
+import { withThemeFade } from '@/lib/utils/theme-fade'
 import { THEME_OPTIONS, normalizeTheme, stepTheme, type ThemeValue } from '@/lib/utils/theme'
 
 const ICONS: Record<ThemeValue, typeof Sun> = { light: Sun, dark: Moon, system: Monitor }
@@ -21,6 +22,7 @@ export function ThemeSelector() {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const current = normalizeTheme(theme)
+  const choose = (value: ThemeValue) => withThemeFade(() => setTheme(value))
 
   function onKeyDown(e: React.KeyboardEvent) {
     // RTL: ArrowLeft moves to the next item visually, ArrowRight to the previous.
@@ -30,7 +32,7 @@ export function ThemeSelector() {
     if (!dir) return
     e.preventDefault()
     const next = stepTheme(current, dir)
-    setTheme(next)
+    choose(next)
     refs.current[next]?.focus()
   }
 
@@ -58,7 +60,7 @@ export function ThemeSelector() {
             aria-label={label}
             title={label}
             tabIndex={selected ? 0 : -1}
-            onClick={() => setTheme(value)}
+            onClick={() => choose(value)}
             className={cn(
               'flex-1 h-full rounded-md flex items-center justify-center transition-colors duration-base ease-ui',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

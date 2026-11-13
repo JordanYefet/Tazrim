@@ -241,6 +241,11 @@
   body::before { background: hsl(var(--background)); }
 }
 
+/* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
+   While it runs the elements' own colour transitions are held, so the new snapshot is final. */
+::view-transition-group(root) { animation-duration: var(--motion-fast); animation-timing-function: var(--ease-ui); }
+html[data-theme-fade] *, html[data-theme-fade] *::before, html[data-theme-fade] *::after { transition: none !important; }
+
 @layer base {
   * { @apply border-border; }
   body { @apply text-foreground; }
@@ -399,6 +404,17 @@ html {
 .add-step--back { --add-step-from: 12px; }
 @keyframes add-step-in { from { opacity: 0; transform: translateX(var(--add-step-from, 0)); } }
 
+/* The bar over a table while rows are ticked (components/categories/bulk-category-bar.tsx):
+   it takes its place in the flow at once, as ever (the table does not move later), and only
+   its opacity and a 6px shift ease in and out. Leaving, it is inert for the exit's length. */
+.bulk-bar { animation: bulk-bar-in var(--motion-fast) var(--ease-ui) backwards; }
+.bulk-bar[data-leaving] { animation: bulk-bar-out var(--motion-fast) var(--ease-ui) forwards; }
+@keyframes bulk-bar-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes bulk-bar-out { to { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .bulk-bar, .bulk-bar[data-leaving] { animation: none; }
+}
+
 /* A row's category window: the contains-text field drops in a short way under the
    scopes when that scope is picked (components/categories/category-picker.tsx) */
 .contains-field { animation: contains-field-in var(--motion-base) var(--ease-ui) backwards; }
@@ -472,6 +488,18 @@ html {
   -webkit-touch-callout: none;
 }
 .tab-highlight { transform-origin: center; will-change: transform; }
+/* Scrolling down shrinks the bar (components/layout/bottom-nav.tsx, on the header's
+   own signal); any scroll up, the top, the sheet, a touch or keyboard focus on it
+   bring it back. Transform only, around its bottom middle, a few px lower; the icons
+   all stay. The capsule's maths take the scale out (tab-bubble.ts). */
+.tab-bar {
+  transform-origin: 50% 100%;
+  transition: transform var(--motion-base) var(--ease-spring);
+}
+.tab-bar[data-shrunk]:not([data-steering]):not(:has(:focus-visible)) { transform: translate3d(0, 4px, 0) scale(0.72); }
+@media (prefers-reduced-motion: reduce) {
+  .tab-bar, .tab-bar[data-shrunk]:not([data-steering]):not(:has(:focus-visible)) { transform: none; transition: none; }
+}
 /* While steering, the icon under the capsule is the lit one, not the page's */
 .tab-bar[data-steering] > [data-slot] { color: hsl(var(--foreground) / 0.6); }
 .tab-bar[data-steering] > [data-slot][data-hot] { color: hsl(var(--primary)); }
@@ -537,6 +565,47 @@ html {
   stroke: hsl(var(--primary) / 0.5);
   stroke-width: 1;
   stroke-dasharray: 3 3;
+}
+
+/* Pull to refresh (components/layout/pull-to-refresh.tsx): a round chip under the header.
+   --pull is its resisted travel in px (0 hidden above, 56 resting). It follows the finger
+   with no transition while pulling, and eases to its place on release. The icon turns
+   with the pull and spins while refreshing (from where the pull left it: 64 * 4deg).
+   A constant spin is the `linear` keyword, which stays on the compositor. */
+.pull-chip {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 3.5rem + 0.5rem);
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: -1.125rem;
+  border-radius: 9999px;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, calc(var(--pull) * 1px - 52px), 0) scale(1);
+  transition: transform var(--motion-base) var(--ease-spring), opacity var(--motion-fast) var(--ease-ui), color var(--motion-fast) var(--ease-ui);
+}
+.pull-chip[data-phase='pulling'] { opacity: calc(var(--pull) / 24); transition: color var(--motion-fast) var(--ease-ui); }
+.pull-chip[data-phase='refreshing'] { opacity: 1; }
+.pull-chip[data-armed], .pull-chip[data-phase='refreshing'] { color: hsl(var(--primary)); }
+.pull-chip[data-leaving] { opacity: 0; transform: translate3d(0, calc(var(--pull) * 1px - 52px), 0) scale(0.5); transition: transform var(--motion-fast) var(--ease-ui), opacity var(--motion-fast) var(--ease-ui); }
+.pull-chip__icon { transform: rotate(calc(var(--pull) * 4deg)); }
+.pull-chip[data-phase='refreshing'] .pull-chip__icon { animation: pull-spin 800ms linear infinite; }
+@keyframes pull-spin { from { transform: rotate(256deg); } to { transform: rotate(616deg); } }
+@media (prefers-reduced-motion: reduce) {
+  /* No travel, turning or spinning: it appears in its resting place, dim while pulling, full once armed */
+  .pull-chip, .pull-chip[data-phase='pulling'], .pull-chip[data-phase='refreshing'], .pull-chip[data-leaving] {
+    transform: translate3d(0, 12px, 0);
+    transition: none;
+  }
+  .pull-chip[data-phase='pulling'] { opacity: 0.5; }
+  .pull-chip[data-phase='pulling'][data-armed], .pull-chip[data-phase='refreshing'] { opacity: 1; }
+  .pull-chip[data-leaving] { opacity: 0; }
+  .pull-chip__icon, .pull-chip[data-phase='refreshing'] .pull-chip__icon { transform: none; animation: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1039,6 +1108,25 @@ html {
   [data-wallet-view='list'] [data-view='trends'],
   [data-wallet-view='trends'] [data-view='list'] { display: none; }
 }
+/* The view that appears after a tap on the switch eases in from the side its segment
+   sits on (the page is RTL: תנועות right, מגמות left), the way the thumb travels.
+   display: none -> shown restarts the animation, so it plays on every switch and, with
+   no data-switched yet (first render, router.refresh), never. The outgoing view just goes. */
+@keyframes wallet-view-from-right { from { opacity: 0; transform: translateX(16px); } }
+@keyframes wallet-view-from-left { from { opacity: 0; transform: translateX(-16px); } }
+@media (max-width: 1023.98px) {
+  [data-switched='list'] [data-view='list'] {
+    animation: wallet-view-from-right var(--motion-base) var(--ease-ui);
+  }
+  [data-switched='trends'] > .wallet-shell__beside,
+  [data-switched='trends'] [data-view='trends'] {
+    animation: wallet-view-from-left var(--motion-base) var(--ease-ui);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-switched] > .wallet-shell__beside,
+  [data-switched] [data-view] { animation: none; }
+}
 @media (min-width: 1024px) {
   .wallet-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wallet-shell__head { grid-column: 1 / -1; }
@@ -1520,15 +1608,60 @@ html.dark[data-bg='ribbons'] { background-image: var(--bg-tile-dark); }
 /* Ribbons: as wide as the page, repeated down it */
 html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-y; }
 
-/* Reduced transparency or more contrast: the plain backdrop */
+/* The wallpapers (lib/background/wallpapers.ts). Their layers, sizes and page
+   colours come from <html>'s style (lib/background/tile-svg.ts tileStyle), so
+   the canvas the glass bakes from (lib/background/paint.ts) paints the same.
+   Tiles on <html>, scrolling with the document: topo, grid, bubbles */
+html[data-bg='topo'],
+html[data-bg='grid'],
+html[data-bg='bubbles'] {
+  background-color: var(--bg-page-light);
+  background-image: var(--bg-tile-light);
+  background-position: 0 0;
+  background-size: var(--bg-size);
+  background-repeat: var(--bg-repeat);
+}
+html.dark[data-bg='topo'],
+html.dark[data-bg='grid'],
+html.dark[data-bg='bubbles'] { background-color: var(--bg-page-dark); background-image: var(--bg-tile-dark); }
+html[data-bg='topo'] body::before,
+html[data-bg='grid'] body::before,
+html[data-bg='bubbles'] body::before { display: none; }
+/* Fixed to the viewport, on the plain backdrop's layer: aurora, waves, dots, sunrise */
+html[data-bg='aurora'],
+html[data-bg='waves'],
+html[data-bg='dots'],
+html[data-bg='sunrise'] { background-color: var(--bg-page-light); }
+html.dark[data-bg='aurora'],
+html.dark[data-bg='waves'],
+html.dark[data-bg='dots'],
+html.dark[data-bg='sunrise'] { background-color: var(--bg-page-dark); }
+html[data-bg='aurora'] body::before,
+html[data-bg='waves'] body::before,
+html[data-bg='dots'] body::before,
+html[data-bg='sunrise'] body::before {
+  background-color: var(--bg-page-light);
+  background-image: var(--bg-tile-light);
+  background-position: 0 0;
+  background-size: var(--bg-size);
+  background-repeat: var(--bg-repeat);
+}
+html.dark[data-bg='aurora'] body::before,
+html.dark[data-bg='waves'] body::before,
+html.dark[data-bg='dots'] body::before,
+html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark); background-image: var(--bg-tile-dark); }
+
+/* Reduced transparency or more contrast: the plain backdrop (more contrast: a solid
+   page). The doubled attribute outranks every background's own rules, dark included */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  html[data-bg='lines'],
-  html[data-bg='ribbons'],
-  html.dark[data-bg='lines'],
-  html.dark[data-bg='ribbons'] { background-image: none; }
-  html[data-bg='lines'] body::before,
-  html[data-bg='ribbons'] body::before { display: block; }
-  html[data-bg] { background-color: hsl(var(--background)); }
+  html[data-bg][data-bg],
+  html.dark[data-bg][data-bg] { background-image: none; background-color: hsl(var(--background)); }
+  html[data-bg][data-bg] body::before,
+  html.dark[data-bg][data-bg] body::before { display: block; background: var(--page-backdrop); }
+}
+@media (prefers-contrast: more) {
+  html[data-bg][data-bg] body::before,
+  html.dark[data-bg][data-bg] body::before { background: hsl(var(--background)); }
 }
 
 /* Background cross-fade (components/background/crossfade.ts): a picked
@@ -1566,6 +1699,14 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
 .pattern-thumb--plain { background: #eef2f7; }
 .pattern-thumb--lines { background: #ffffff; }
 .pattern-thumb--ribbons { background: #f8fafc; }
+/* A wallpaper's thumbnail: its layers come from the element's style (background-settings.tsx) */
+.pattern-thumb--wallpaper {
+  background-color: var(--thumb-page-light);
+  background-image: var(--thumb-light);
+  background-size: var(--thumb-size);
+  background-repeat: var(--thumb-repeat);
+}
+.dark .pattern-thumb--wallpaper { background-color: var(--thumb-page-dark); background-image: var(--thumb-dark); }
 .pattern-thumb__ribbons { filter: blur(3px); }
 .pattern-thumb__ribbon-a { fill: #c4b5fd; opacity: 0.8; }
 .pattern-thumb__ribbon-b { fill: #f9a8d4; opacity: 0.7; }
@@ -1683,6 +1824,23 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
   0% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(-6%, 4%) scale(1.08); }
   100% { transform: translate(5%, -4%) scale(1.04); }
+}
+/* Phones, the sign-in page's first screen (components/auth/auth-shell.tsx): the card fills
+   it, its content centred; a card taller than the screen keeps its natural height. The
+   chevron under it bobs a few px, slowly. */
+@media (max-width: 1023.98px) {
+  .auth-first > .surface-raised {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin-inline: auto;
+  }
+}
+.auth-bob { animation: auth-bob 1.8s ease-in-out infinite alternate; }
+@keyframes auth-bob { from { transform: translateY(-2px); } to { transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-bob { animation: none; }
 }
 /* A sign-in card's content swapping (passkey ↔ recovery code), and the gallery's caption */
 .auth-swap { animation: page-in var(--motion-base) var(--ease-ui) backwards; }
