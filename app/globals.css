@@ -472,6 +472,18 @@ html {
   -webkit-touch-callout: none;
 }
 .tab-highlight { transform-origin: center; will-change: transform; }
+/* Scrolling down shrinks the bar (components/layout/bottom-nav.tsx, on the header's
+   own signal); any scroll up, the top, the sheet, a touch or keyboard focus on it
+   bring it back. Transform only, around its bottom middle, a few px lower; the icons
+   all stay. The capsule's maths take the scale out (tab-bubble.ts). */
+.tab-bar {
+  transform-origin: 50% 100%;
+  transition: transform var(--motion-base) var(--ease-spring);
+}
+.tab-bar[data-shrunk]:not([data-steering]):not(:has(:focus-visible)) { transform: translate3d(0, 4px, 0) scale(0.72); }
+@media (prefers-reduced-motion: reduce) {
+  .tab-bar, .tab-bar[data-shrunk]:not([data-steering]):not(:has(:focus-visible)) { transform: none; transition: none; }
+}
 /* While steering, the icon under the capsule is the lit one, not the page's */
 .tab-bar[data-steering] > [data-slot] { color: hsl(var(--foreground) / 0.6); }
 .tab-bar[data-steering] > [data-slot][data-hot] { color: hsl(var(--primary)); }
