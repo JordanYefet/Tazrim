@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MESSAGES } from '@/lib/updates/messages'
 import { readOnlyRefusal } from '@/lib/updates/guard'
 import { helperRollback } from '@/lib/updates/helper'
 
@@ -10,5 +11,6 @@ export async function POST() {
   if (refused) return refused
   const r = await helperRollback()
   if (r.status === 202) return NextResponse.json({ ok: true }, { status: 202 })
-  return NextResponse.json({ error: r.error ?? 'HELPER_ERROR', code: r.status === 503 ? 'NO_HELPER' : 'REFUSED' }, { status: r.status })
+  const code = r.code ?? 'HELPER_ERROR'
+  return NextResponse.json({ error: MESSAGES[code], code }, { status: r.status })
 }

@@ -122,4 +122,33 @@ describe('getUpdateView', () => {
     await getUpdateView()
     expect(fs.existsSync(path.join(dir(), '.updating'))).toBe(true)
   })
+
+  it('does not clear the flag on a stale status file when the helper does not answer the status call', async () => {
+    helper({ '/v1/health': () => json(HEALTH) })
+    fs.writeFileSync(path.join(dir(), '.update-status.json'), JSON.stringify(DONE))
+    fs.writeFileSync(path.join(dir(), '.updating'), 'x')
+    const { getUpdateView } = await import('../state')
+    const v = await getUpdateView()
+    expect(v.job?.state).toBe('done')
+    expect(fs.existsSync(path.join(dir(), '.updating'))).toBe(true)
+  })
+
+  it('does not call the helper again while it is known to be down, and still reads the status file', async () => {
+    helper({})
+    fs.writeFileSync(path.join(dir(), '.update-status.json'), JSON.stringify(DONE))
+    const { getUpdateView } = await import('../state')
+    await getUpdateView()
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length
+    const v = await getUpdateView()
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(calls)
+    expect(v.job?.state).toBe('done')
+  })
+
+  it('keeps the helper error text and paths out of the view', async () => {
+    helper({ '/v1/health': () => json(HEALTH), '/v1/status': () => json({ ...DONE, state: 'failed', error: 'Backup failed: docker said secret-ish text' }) })
+    const { getUpdateView } = await import('../state')
+    const text = JSON.stringify(await getUpdateView())
+    expect(text).not.toContain('secret-ish')
+    expect(text).toContain('"state":"failed"')
+  })
 })

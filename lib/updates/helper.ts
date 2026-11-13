@@ -103,25 +103,50 @@ function readStatusFile(): JobStatus | null {
   }
 }
 
-/** The current or last job: from the helper, or from its status file when it can't be reached (the new version reads the outcome this way) */
-export async function helperStatus(): Promise<JobStatus | null> {
-  const r = await call('GET', '/v1/status', { timeoutMs: HEALTH_TIMEOUT_MS })
-  if (r && r.status === 200) return r.json && typeof r.json === 'object' ? (r.json as JobStatus) : null
-  return readStatusFile()
+/** Was the helper's health last seen? undefined when unknown or older than the cache; null when it was down */
+export function cachedHealth(): HelperHealth | null | undefined {
+  return healthCache && Date.now() - healthCache.at < HEALTH_CACHE_MS ? healthCache.value : undefined
 }
+
+/**
+ * The current or last job. `live` is true only when the helper itself answered; otherwise
+ * the job is read from its status file (how the new version reads the outcome), which may be
+ * stale, so nothing destructive may rest on it. `skipHelper` goes straight to the file.
+ */
+export async function helperJob(skipHelper = false): Promise<{ job: JobStatus | null; live: boolean }> {
+  if (!skipHelper) {
+    const r = await call('GET', '/v1/status', { timeoutMs: HEALTH_TIMEOUT_MS })
+    if (r && r.status === 200) return { job: r.json && typeof r.json === 'object' ? (r.json as JobStatus) : null, live: true }
+  }
+  return { job: readStatusFile(), live: false }
+}
+
+export const helperStatus = async (): Promise<JobStatus | null> => (await helperJob()).job
+
+/** Why the helper said no, as a fixed code (its own text is English and may carry Docker output, so it never leaves the server) */
+export type HelperRefusal = 'NO_HELPER' | 'BUSY' | 'NOT_NEWER' | 'NOT_UPDATABLE' | 'NO_ROLLBACK' | 'HELPER_ERROR'
 
 export interface HelperResult {
   status: number
-  error?: string
+  code?: HelperRefusal
 }
 
-async function post(route: string, body?: unknown): Promise<HelperResult> {
+function refusal(kind: 'update' | 'rollback', status: number, text: string): HelperRefusal {
+  if (status === 409) return /already running/i.test(text) ? 'BUSY' : kind === 'rollback' ? 'NO_ROLLBACK' : 'BUSY'
+  if (status === 400) return kind === 'update' ? 'NOT_NEWER' : 'HELPER_ERROR'
+  if (status === 422) return 'NOT_UPDATABLE'
+  if (status === 401 || status === 403) return 'NO_HELPER'
+  return 'HELPER_ERROR'
+}
+
+async function post(kind: 'update' | 'rollback', route: string, body?: unknown): Promise<HelperResult> {
   const r = await call('POST', route, { body: body ?? {} })
-  if (!r) return { status: 503, error: 'NO_HELPER' }
+  if (!r) return { status: 503, code: 'NO_HELPER' }
   if (r.status === 202) return { status: 202 }
-  const error = (r.json as { error?: unknown } | null)?.error
-  return { status: r.status, error: typeof error === 'string' ? error : undefined }
+  const text = (r.json as { error?: unknown } | null)?.error
+  const code = refusal(kind, r.status, typeof text === 'string' ? text : '')
+  return { status: code === 'NO_HELPER' ? 503 : r.status, code }
 }
 
-export const helperStart = (version: string) => post('/v1/update', { version })
-export const helperRollback = () => post('/v1/rollback')
+export const helperStart = (version: string) => post('update', '/v1/update', { version })
+export const helperRollback = () => post('rollback', '/v1/rollback')

@@ -2,7 +2,7 @@
 import { prisma } from '@/lib/db/client'
 import { isSyncActive } from '@/lib/sync/runs'
 import { CURRENT_VERSION, getUpdateCache, type UpdateCache } from './check'
-import { helperHealth, helperStatus, type JobStatus } from './helper'
+import { cachedHealth, helperHealth, helperJob, type JobStatus } from './helper'
 import { isUpdating, setUpdating } from './paths'
 import { getAutoCheck } from './settings'
 import { isNewer, type ReleaseInfo } from './version'
@@ -84,12 +84,14 @@ async function savedSince(backupAt: string): Promise<LastUpdate['since']> {
 }
 
 export async function getUpdateView(): Promise<UpdateView> {
-  const [cache, auto, health] = await Promise.all([getUpdateCache(), getAutoCheck(), helperHealth()])
-  const job = await helperStatus()
+  // A helper known to be down costs no call; otherwise health and status are asked together
+  const down = cachedHealth() === null
+  const [cache, auto, health, { job, live }] = await Promise.all([getUpdateCache(), getAutoCheck(), helperHealth(), helperJob(down)])
   await recordFinished(job)
 
-  // Self-heal: a flag left behind (the helper died before clearing it) would pause saving for good
-  if (health && isUpdating() && job?.state !== 'running') {
+  // Self-heal: a flag left behind (the helper died before clearing it) would pause saving for good.
+  // Only on the helper's own live answer: the status file can be stale while a job really runs.
+  if (live && health && isUpdating() && job?.state !== 'running') {
     console.warn('updates: the updating flag was left behind and no job runs; clearing it')
     setUpdating(false)
   }
@@ -104,8 +106,8 @@ export async function getUpdateView(): Promise<UpdateView> {
       }
     : null
 
-  // Paths and image ids stay on the server
-  const safeJob = job && Object.fromEntries(Object.entries(job).filter(([k]) => k !== 'backup' && k !== 'previousImage'))
+  // Paths, image ids and the helper's error text stay on the server: the card words the reason from the failed step
+  const safeJob = job && Object.fromEntries(Object.entries(job).filter(([k]) => k !== 'backup' && k !== 'previousImage' && k !== 'error'))
   return {
     current: CURRENT_VERSION,
     latest: cache.latest,
