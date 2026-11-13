@@ -1,18 +1,35 @@
 import { LoginStory } from './login-story'
+import { StoryChevron } from './story-chevron'
 
 /**
  * The sign-in, first-run and invite pages' frame (ENG-89): a soft gradient
  * that drifts slowly behind a solid card. With `story`, what the app is and
- * why it was built: beside the card on wide screens, under it on phones.
+ * why it was built: beside the card on wide screens; on phones the first screen
+ * is the card alone, stretched to fill it, with a chevron under it that hints at
+ * (and scrolls to) the story below. min-h-svh, not dvh: the small viewport stays
+ * put while Safari's toolbars come and go, so nothing jumps; a card taller than
+ * the screen (small phone, recovery code, keyboard) keeps its height and the
+ * chevron follows under it.
  */
 export function AuthShell({ children, story = false }: { children: React.ReactNode; story?: boolean }) {
+  // overflow-clip, not only hidden: the drifting gradient overflows this box, and a hidden one is still
+  // a scroll container that scrollIntoView (a focused field) can scroll out of place
   return (
-    <div className="relative isolate flex min-h-dvh overflow-hidden">
+    <div className="relative isolate flex min-h-dvh overflow-hidden overflow-clip">
       <div aria-hidden className="auth-gradient pointer-events-none absolute -inset-[20%] -z-10" />
       {story ? (
         <div className="grid w-full lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
-          <div className="flex items-center justify-center p-4 py-10 lg:p-12">{children}</div>
-          <div className="flex min-w-0 items-center justify-center px-5 pb-12 lg:py-12 lg:pe-12 lg:ps-4 xl:pe-16">
+          <div className="auth-first flex min-h-svh flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:min-h-0 lg:flex-row lg:items-center lg:justify-center lg:p-12">
+            {children}
+            <div className="flex shrink-0 justify-center pb-[env(safe-area-inset-bottom)] lg:hidden">
+              <StoryChevron targetId="login-story" />
+            </div>
+          </div>
+          <div
+            id="login-story"
+            tabIndex={-1}
+            className="flex min-w-0 items-center justify-center px-5 pb-12 pt-4 focus:outline-none lg:py-12 lg:pe-12 lg:ps-4 xl:pe-16"
+          >
             <LoginStory />
           </div>
         </div>

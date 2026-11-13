@@ -14,6 +14,7 @@ import { useOpenOrigin } from '@/components/ui/open-origin'
 import { SheetProfile, useMe } from './profile-menu'
 import { useTabBubble } from './tab-bubble'
 import { useDragToDismiss } from '@/hooks/use-drag-to-dismiss'
+import { useTabBarShrunk } from '@/hooks/use-tab-bar-shrunk'
 
 // Home sits in the middle slot (of five, with "עוד" last), like most phone apps
 const TABS: { href: string; label: string; title?: string; icon: typeof LayoutDashboard }[] = [
@@ -115,11 +116,19 @@ export function BottomNav() {
     },
   })
 
+  // Shrinks on the header's beat while the page scrolls down; a touch on it expands it
+  const { shrunk, engage } = useTabBarShrunk({ sheetOpen: sheetSide, routeKey: pathname })
+
   return (
     <nav
       ref={navRef}
       aria-label="ניווט ראשי"
+      data-shrunk={shrunk || undefined}
       {...bubble}
+      onPointerDown={e => {
+        if (e.target instanceof Node && navRef.current?.contains(e.target)) engage()
+        bubble.onPointerDown(e)
+      }}
       // Over an open sheet too (Radix turns the page's pointer events off): the capsule can be dragged out of "עוד"
       className="tab-bar glass-pill pointer-events-auto fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[45] mx-auto flex h-16 w-[min(22rem,calc(100%-2rem))] rounded-full p-1.5 md:hidden"
     >
