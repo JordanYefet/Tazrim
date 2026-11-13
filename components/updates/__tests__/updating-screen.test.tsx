@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { JobStatus, JobStep } from '@/lib/updates/helper'
 import type { UpdateView } from '@/lib/updates/state'
-import { MANUAL_COMMAND, UpdatingCard, UpdatingScreen, applyPoll, progressOf, rowsOf, startScreen, type Screen } from '../updating-screen'
+import {
+  MANUAL_COMMAND,
+  STUCK_MS,
+  UpdatingCard,
+  UpdatingScreen,
+  applyPoll,
+  progressOf,
+  retryErrorText,
+  rowsOf,
+  startScreen,
+  type Screen,
+} from '../updating-screen'
 
 // Made-up versions only.
 
@@ -153,5 +164,62 @@ describe('UpdatingCard', () => {
     )
     expect(html).toContain('חוזרים לגרסה')
     expect(html).toContain('שחזור הנתונים מהגיבוי')
+  })
+})
+
+describe('review fixes', () => {
+  afterEach(() => vi.useRealTimers())
+
+  const card = (s: Screen) => renderToStaticMarkup(<UpdatingCard screen={s} manualOpen={false} />)
+
+  it('a roll back that failed after the restart says the data did not change; an update keeps its sentence', () => {
+    const rb = job({ restore: 'done', restart: 'done', check: 'failed' }, { kind: 'rollback', from: '9.2.0', to: '9.1.0', state: 'failed', restored: true })
+    const html = card(screen(rb))
+    expect(html).toContain('והנתונים לא השתנו.')
+    expect(html).not.toContain('לפני העדכון')
+    const up = job({ backup: 'done', download: 'done', restart: 'failed' }, { state: 'failed', restored: true })
+    expect(card(screen(up))).toContain('הנתונים שמורים כפי שהיו לפני העדכון.')
+    expect(card(screen(up))).not.toContain('והנתונים לא השתנו')
+  })
+
+  it('offline during a roll back keeps the restore row running, not done', () => {
+    const rb = job({ restore: 'running' }, { kind: 'rollback' })
+    const s = applyPoll(screen(rb), { kind: 'network' }) as Screen
+    expect(rowsOf(s).find(r => r.id === 'restore')?.state).toBe('running')
+  })
+
+  it('?start=rollback shows the three roll back rows from the first paint', () => {
+    const v = view(null)
+    v.lastUpdate = { from: '9.0.0', to: '9.1.0', at: '2030-01-01T00:00:00.000Z', canRollBack: true, backupAt: '2030-01-01T00:00:00.000Z', since: { uploads: 0, transactions: 0 } }
+    const s = startScreen(v, 'rollback')
+    expect(rowsOf(s).map(r => r.id)).toEqual(['restore', 'restart', 'check'])
+    expect(card(s)).toContain('חוזרים לגרסה')
+    expect(card(s)).toContain('v9.0.0')
+  })
+
+  it('the retry error names what was retried, with a final period', () => {
+    expect(retryErrorText('update')).toBe('העדכון לא התחיל. נסו שוב.')
+    expect(retryErrorText('rollback')).toBe('החזרה לגרסה הקודמת לא התחילה. נסו שוב.')
+  })
+
+  it('five minutes without an answer turns into a failure at the restart; an answer resumes', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2030-01-01T10:00:00Z'))
+    let s = applyPoll(screen(job({ backup: 'done', download: 'done', restart: 'running' })), { kind: 'network' }) as Screen
+    vi.advanceTimersByTime(STUCK_MS - 1000)
+    s = applyPoll(s, { kind: 'network' }) as Screen
+    expect(card(s)).not.toContain('תזרים לא חזר לפעול')
+    vi.advanceTimersByTime(1000)
+    s = applyPoll(s, { kind: 'status', status: 502 }) as Screen
+    const html = card(s)
+    expect(html).toContain('תזרים לא חזר לפעול. אפשר להריץ את הפקודה הידנית כדי להפעיל אותו מחדש.')
+    expect(html).toMatch(/data-s="failed"[^]*?ההפעלה מחדש לא הצליחה/)
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>לנסות שוב/)
+    expect(html).toContain('הצגת פקודות ידניות')
+    expect(renderToStaticMarkup(<UpdatingCard screen={s} manualOpen />)).toContain(CMD)
+    const back = job({ backup: 'done', download: 'done', restart: 'done', migrate: 'running' })
+    s = applyPoll(s, { kind: 'view', view: view(back, '9.2.0') }) as Screen
+    expect(card(s)).not.toContain('תזרים לא חזר לפעול')
+    expect(card(s)).toContain('מעדכנים לגרסה')
   })
 })

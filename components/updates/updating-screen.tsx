@@ -22,6 +22,8 @@ const POLL_MS = 1000
 const POLL_TIMEOUT_MS = 4000
 /** How long the done state shows before going back to About */
 const DONE_MS = 1200
+/** Unreachable this long in a row: the app did not come back, which is a failure (polling goes on) */
+export const STUCK_MS = 5 * 60 * 1000
 /** Polls to wait for a job that was just started to show up before giving up on it */
 const WAIT_POLLS = 20
 
@@ -72,6 +74,10 @@ export interface Screen {
   current: string
   /** The last poll got no answer (the app is restarting) */
   offline: boolean
+  /** When the polls stopped getting answers (ms), while offline */
+  offlineSince?: number
+  /** Offline for STUCK_MS: shown as a failure at the restart */
+  stuck?: boolean
   /** A job was just started: until it shows up, a finished job with this finishedAt is the old one */
   waitingFor?: { stale: string | null; polls: number }
 }
@@ -95,17 +101,26 @@ function pendingJob(kind: JobStatus['kind'], from: string, to: string): JobStatu
 export function startScreen(view: UpdateView, start?: string): Screen {
   const job = view.job
   if (job && (job.state === 'running' || start === undefined)) return { job, current: view.current, offline: false }
-  const to = start || view.latest?.version || job?.to || view.current
-  return { job: pendingJob('update', view.current, to), current: view.current, offline: false, waitingFor: { stale: job?.finishedAt ?? null, polls: 0 } }
+  const kind: JobStatus['kind'] = start === 'rollback' ? 'rollback' : 'update'
+  const to =
+    kind === 'rollback'
+      ? view.lastUpdate?.from || (job?.kind === 'update' ? job.from : undefined) || view.current
+      : start || view.latest?.version || job?.to || view.current
+  return { job: pendingJob(kind, view.current, to), current: view.current, offline: false, waitingFor: { stale: job?.finishedAt ?? null, polls: 0 } }
 }
 
 /** One poll's answer applied to the screen; `go` leaves the page */
 export function applyPoll(s: Screen, o: PollOutcome): Screen | { go: string } {
-  if (o.kind === 'network') return { ...s, offline: true }
+  const away = (): Screen => {
+    const now = Date.now()
+    const since = s.offline && s.offlineSince !== undefined ? s.offlineSince : now
+    return { ...s, offline: true, offlineSince: since, stuck: now - since >= STUCK_MS }
+  }
+  if (o.kind === 'network') return away()
   if (o.kind === 'status') {
     // This route is gone (an older version) or the session went with a restored backup: the app is back, on another version
     if ((o.status === 404 || o.status === 401) && pastRestart(s)) return { go: '/' }
-    return { ...s, offline: true }
+    return away()
   }
   const { view } = o
   const job = view.job
@@ -131,13 +146,30 @@ export interface Row {
 
 const isDone = (s: Screen) => s.job.state === 'done' && s.current === s.job.to
 
-/** What the screen shows: done only once the app answers as the new version; while the app is away, the restart runs */
+/**
+ * What the screen shows: done only once the app answers as the new version; while the
+ * app is away during an update, the restart runs (a roll back stops the app inside its
+ * restore, so its rows stay as last reported); away for STUCK_MS, the restart failed.
+ */
 function shownJob(s: Screen): JobStatus {
   const { job } = s
+  if (s.stuck && job.state !== 'failed') {
+    const ids = rowIds(job)
+    const at = ids.indexOf('restart')
+    // An update's rows before the restart are done by then; a roll back's restore may still be what stalled
+    const doneUpTo = job.kind === 'rollback' ? job.steps.filter(st => st.state === 'done' && ids.includes(st.id)).length : at
+    const failedAt = Math.min(at, doneUpTo)
+    return {
+      ...job,
+      state: 'failed',
+      restored: false,
+      steps: ids.map((id, i) => ({ id, state: i < failedAt ? 'done' : i === failedAt ? 'failed' : 'waiting' })),
+    }
+  }
   if (job.state === 'done' && !isDone(s)) {
     return { ...job, state: 'running', steps: job.steps.map(st => (st.id === 'check' ? { ...st, state: 'running' } : st)) }
   }
-  if (!s.offline || job.state !== 'running') return job
+  if (!s.offline || job.state !== 'running' || job.kind === 'rollback') return job
   const ids = rowIds(job)
   const at = ids.indexOf('restart')
   if (job.steps.find(st => st.id === 'restart')?.state !== 'waiting') return job
@@ -158,9 +190,9 @@ function mb(bytes: number): string {
 /** The rows, always the same ones in the same order: five for an update, three for a roll back */
 export function rowsOf(s: Screen): Row[] {
   const job = shownJob(s)
+  if (isDone(s)) return rowIds(job).map(id => ({ id, label: LABEL[id], state: 'done', note: '' }))
   const ids = rowIds(job)
   const rows: Row[] = ids.map(id => ({ id, label: LABEL[id], state: job.steps.find(st => st.id === id)?.state ?? 'waiting', note: '' }))
-  if (isDone(s)) return rows.map(r => ({ ...r, state: 'done' }))
   if (job.state === 'failed') {
     // The helper may append its own step (the restore after a failed update): the row that failed is one of ours
     let failed = rows.findIndex(r => r.state === 'failed')
@@ -188,7 +220,11 @@ function V({ v }: { v: string }) {
 }
 
 type Phase = 'running' | 'done' | 'failed'
-const phaseOf = (s: Screen): Phase => (isDone(s) ? 'done' : s.job.state === 'failed' ? 'failed' : 'running')
+const phaseOf = (s: Screen): Phase => (isDone(s) ? 'done' : s.job.state === 'failed' || s.stuck ? 'failed' : 'running')
+
+/** Under the buttons when "לנסות שוב" could not start the job and the route gave no text */
+export const retryErrorText = (kind: JobStatus['kind']): string =>
+  kind === 'rollback' ? 'החזרה לגרסה הקודמת לא התחילה. נסו שוב.' : 'העדכון לא התחיל. נסו שוב.'
 
 function Heading({ s, rows }: { s: Screen; rows: Row[] }) {
   const { job } = s
@@ -213,7 +249,13 @@ function Heading({ s, rows }: { s: Screen; rows: Row[] }) {
       <>
         <h1 className="min-h-[30px] text-xl font-semibold tracking-tight">{rollback ? 'החזרה לגרסה הקודמת לא הושלמה' : 'העדכון לא הושלם'}</h1>
         <p className="mt-1 min-h-11 text-sm leading-relaxed text-muted-foreground">
-          {job.restored ? (
+          {s.stuck ? (
+            'תזרים לא חזר לפעול. אפשר להריץ את הפקודה הידנית כדי להפעיל אותו מחדש.'
+          ) : job.restored && rollback && afterRestart ? (
+            <>
+              תזרים חזר לגרסה <V v={job.from} />, והנתונים לא השתנו.
+            </>
+          ) : job.restored ? (
             <>
               תזרים חזר לגרסה <V v={job.from} />.{afterRestart ? ' הנתונים שמורים כפי שהיו לפני העדכון.' : ''}
             </>
@@ -329,7 +371,7 @@ export function UpdatingCard({
       </ul>
       {/* Reserved in every state, shown on a failure, so nothing moves when it appears */}
       <div className="update-actions mt-[22px] grid min-h-12 grid-cols-2 gap-2.5" data-shown={failed || undefined} aria-hidden={!failed || undefined}>
-        <button type="button" className={primaryHalf} onClick={onRetry} disabled={!failed || retrying} tabIndex={failed ? undefined : -1}>
+        <button type="button" className={primaryHalf} onClick={onRetry} disabled={!failed || retrying || !!screen.stuck} tabIndex={failed ? undefined : -1}>
           לנסות שוב
         </button>
         <a href="/" className={secondaryHalf} tabIndex={failed ? undefined : -1}>
@@ -424,7 +466,7 @@ export function UpdatingScreen({ initial, start }: { initial: UpdateView; start?
             })
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null
-        setRetryError(body?.error || 'העדכון לא התחיל. נסו שוב')
+        setRetryError(body?.error || retryErrorText(job.kind))
         return
       }
       setManualOpen(false)
@@ -435,7 +477,7 @@ export function UpdatingScreen({ initial, start }: { initial: UpdateView; start?
         waitingFor: { stale: job.finishedAt ?? null, polls: 0 },
       }))
     } catch {
-      setRetryError('העדכון לא התחיל. נסו שוב')
+      setRetryError(retryErrorText(job.kind))
     } finally {
       setRetrying(false)
     }
