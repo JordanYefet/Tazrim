@@ -1756,6 +1756,23 @@ html[data-bg='ribbons'] { background-size: 100% auto; background-repeat: repeat-
   50% { transform: translate(-6%, 4%) scale(1.08); }
   100% { transform: translate(5%, -4%) scale(1.04); }
 }
+/* Phones, the sign-in page's first screen (components/auth/auth-shell.tsx): the card fills
+   it, its content centred; a card taller than the screen keeps its natural height. The
+   chevron under it bobs a few px, slowly. */
+@media (max-width: 1023.98px) {
+  .auth-first > .surface-raised {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin-inline: auto;
+  }
+}
+.auth-bob { animation: auth-bob 1.8s ease-in-out infinite alternate; }
+@keyframes auth-bob { from { transform: translateY(-2px); } to { transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-bob { animation: none; }
+}
 /* A sign-in card's content swapping (passkey ↔ recovery code), and the gallery's caption */
 .auth-swap { animation: page-in var(--motion-base) var(--ease-ui) backwards; }
 @media (prefers-reduced-motion: reduce) {
