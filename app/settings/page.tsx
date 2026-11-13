@@ -28,13 +28,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (params.recovered === '1') redirect('/settings/people?recovered=1')
 
   const auth = isAuthRequired()
-  // About's dot: a newer version in the last check's cache (no helper call); never in the read-only demo
-  const newVersion = isReadOnly()
-    ? Promise.resolve(false)
+  // The Updates tile (ENG-98) and its dot: a newer version in the last check's cache (no helper
+  // call). Never in the read-only demo, which has no updates.
+  const readOnly = isReadOnly()
+  const newVersion: Promise<string | null> = readOnly
+    ? Promise.resolve(null)
     : getUpdateCache()
-        .then(c => !!c.latest && isNewer(c.latest.version, CURRENT_VERSION))
-        .catch(() => false)
-  const [accounts, profiles, cushion, people, devices, vault, logins, hasNewVersion] = await Promise.all([
+        .then(c => (c.latest && isNewer(c.latest.version, CURRENT_VERSION) ? c.latest.version : null))
+        .catch(() => null)
+  const [accounts, profiles, cushion, people, devices, vault, logins, latest] = await Promise.all([
     listAccounts(),
     listImportProfiles(),
     getCushion(),
@@ -86,7 +88,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             : `${count(logins, 'פרטי כניסה שמורים לחשבון אחד', 'פרטי כניסה שמורים')}. ${vault.open ? 'פתוחה עכשיו.' : 'נעולה.'}`,
         }]
       : []),
-    { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.', dot: hasNewVersion },
+    ...(readOnly
+      ? []
+      : [{
+          href: '/settings/updates',
+          icon: 'updates' as const,
+          title: 'עדכונים',
+          summary: latest
+            ? `גרסה ${latest} זמינה לעדכון.`
+            : `${/^\d+\.\d+\.\d+$/.test(CURRENT_VERSION) ? `גרסה ${CURRENT_VERSION}. ` : ''}בדיקה אם יצאה גרסה חדשה ועדכון אליה.`,
+          dot: !!latest,
+        }]),
+    { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 
   return (

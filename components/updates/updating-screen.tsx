@@ -130,7 +130,7 @@ export function applyPoll(s: Screen, o: PollOutcome): Screen | { go: string } {
     if (!fresh) {
       const polls = s.waitingFor.polls + 1
       if (polls < WAIT_POLLS) return { ...s, current: view.current, offline: false, waitingFor: { ...s.waitingFor, polls } }
-      return job ? { job, current: view.current, offline: false } : { go: '/about' }
+      return job ? { job, current: view.current, offline: false } : { go: '/settings/updates' }
     }
   }
   if (!job) return { ...s, current: view.current, offline: false, waitingFor: undefined }
@@ -455,7 +455,7 @@ export function UpdatingScreen({ initial, start }: { initial: UpdateView; start?
   useEffect(() => {
     if (phase !== 'done') return
     leaving.current = true
-    const t = setTimeout(() => location.assign('/about'), DONE_MS)
+    const t = setTimeout(() => location.assign('/settings/updates'), DONE_MS)
     return () => clearTimeout(t)
   }, [phase])
 

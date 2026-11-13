@@ -13,7 +13,7 @@ export { rollbackLossText } from './update-dialogs'
 /** The README's section on updating, where adding the helper is explained */
 const README_UPDATES = `${REPO_URL}#עדכון-לגרסה-חדשה`
 
-// The About page's buttons (app/about/page.tsx), pressed a little deeper
+// The About page's link buttons (components/about/about-content.tsx), pressed a little deeper
 const BUTTON =
   'relative inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-[background-color,transform] duration-quick ease-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60'
 const PRIMARY = `${BUTTON} bg-primary text-primary-foreground hover:bg-primary/90`

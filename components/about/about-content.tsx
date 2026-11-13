@@ -2,8 +2,6 @@ import Link from 'next/link'
 import { ArrowUpLeft, ChevronRight, EyeOff, HardDrive, ServerOff, UserX, type LucideIcon } from 'lucide-react'
 import pkg from '@/package.json'
 import { CREDITS, ISSUES_URL, LICENSE_URL, NEW_ISSUE_URL, REPO_URL, STORY } from '@/lib/about/content'
-import { VersionCard } from '@/components/updates/version-card'
-import type { UpdateView } from '@/lib/updates/state'
 
 const PRIVACY: { icon: LucideIcon; title: string; body: string; checkLine?: string }[] = [
   {
@@ -15,8 +13,8 @@ const PRIVACY: { icon: LucideIcon; title: string; body: string; checkLine?: stri
     icon: ServerOff,
     title: 'הנתונים לא יוצאים מהמחשב',
     body: 'כל הקבצים מפוענחים ונשמרים מקומית, והגופן מוגש מהאפליקציה עצמה.',
-    // Not in the read-only demo: it never checks, and has no switch below
-    checkLine: 'הדבר היחיד שיוצא: פעם ביום תזרים שואל את GitHub אם יש גרסה חדשה, ואפשר לכבות את זה כאן למטה.',
+    // Not in the read-only demo: it never checks, and has no Updates page
+    checkLine: 'הדבר היחיד שיוצא: פעם ביום תזרים שואל את GitHub אם יש גרסה חדשה, ואפשר לכבות את זה בהגדרות ← עדכונים.',
   },
   {
     icon: UserX,
@@ -63,10 +61,10 @@ function ExternalLink({
 }
 
 /**
- * The About page (app/about/page.tsx); `update` null shows the plain version line instead of the
- * version card. `readOnly` (the demo) leaves out the daily update check, which it never runs.
+ * The About page (app/about/page.tsx). `readOnly` (the demo) leaves out the daily update check,
+ * which it never runs. The version card lives in Settings → Updates (ENG-98).
  */
-export function AboutContent({ update, readOnly = false }: { update: UpdateView | null; readOnly?: boolean }) {
+export function AboutContent({ readOnly = false }: { readOnly?: boolean }) {
   return (
     // Header static, the sections and footer rise in on the page beat (.page-in)
     <article className="page-in mx-auto max-w-2xl min-w-0 space-y-12 pb-4 md:pt-4">
@@ -159,15 +157,9 @@ export function AboutContent({ update, readOnly = false }: { update: UpdateView 
       </section>
 
       <footer className="space-y-2 border-t pt-6 text-sm text-muted-foreground">
-        {update ? (
-          <div className="pb-4">
-            <VersionCard initial={update} />
-          </div>
-        ) : (
-          <p>
-            גרסה <span dir="ltr" className="tabular-nums">{pkg.version}</span>
-          </p>
-        )}
+        <p>
+          גרסה <span dir="ltr" className="tabular-nums">{pkg.version}</span>
+        </p>
         <p className="leading-6">
           נבנה על כתפי פרויקטים של קוד פתוח:{' '}
           {CREDITS.map((c, i) => (

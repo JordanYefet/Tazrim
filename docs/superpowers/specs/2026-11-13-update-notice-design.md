@@ -80,7 +80,9 @@ as a fallback, out of sight until asked for.
   runs (a consistent single file, no stop needed). Older ones are deleted after a
   successful backup. Same volume as the database: this protects against a bad release,
   not against losing the disk. The README says so.
-- **Notice placement**: a card in Settings → About in place of the version line in the
+- **Notice placement** (changed by the owner after the build: the card now has its own page,
+  Settings → Updates (`/settings/updates`), with its own tile and the dot; About keeps only
+  the plain version line). Original text: a card in Settings → About in place of the version line in the
   footer (mockup frame 1), plus a small dot on the About tile in Settings. No dot in the
   profile menu or nav (quiet).
 - **Who can update**: anyone signed in (it's a household app, and the update is backed up

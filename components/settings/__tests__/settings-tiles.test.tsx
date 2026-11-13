@@ -4,7 +4,7 @@ import { SettingsTiles, type SettingsTile } from '../settings-tiles'
 
 const tiles = (dot?: boolean): SettingsTile[] => [
   { href: '/settings/appearance', icon: 'appearance', title: 'מראה', summary: 'תקציר בדוי.' },
-  { href: '/about', icon: 'about', title: 'אודות', summary: 'תקציר בדוי.', dot },
+  { href: '/settings/updates', icon: 'updates', title: 'עדכונים', summary: 'תקציר בדוי.', dot },
 ]
 
 describe('SettingsTiles', () => {

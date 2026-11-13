@@ -14,10 +14,10 @@ afterEach(() => {
 })
 
 describe('/updating', () => {
-  it('the read-only demo has no updates: back to About without reading any state', async () => {
+  it('the read-only demo has no updates: back to Settings → Updates without reading any state', async () => {
     vi.stubEnv('TAZRIM_READ_ONLY', '1')
     const { default: UpdatingPage } = await import('../page')
-    await expect(UpdatingPage({ searchParams: Promise.resolve({ start: '9.2.0' }) })).rejects.toThrow('REDIRECT /about')
+    await expect(UpdatingPage({ searchParams: Promise.resolve({ start: '9.2.0' }) })).rejects.toThrow('REDIRECT /settings/updates')
     expect(getUpdateView).not.toHaveBeenCalled()
   })
 

@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 export interface SettingsTile {
   href: string
   title: string
   summary: string
-  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'about'
+  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'about'
   /** A small primary dot beside the title: a new version is out (ENG-98). Takes no room of its own. */
   dot?: boolean
 }
@@ -18,13 +18,14 @@ const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
   'import-profiles': FileText,
   people: Users,
   vault: LockKeyhole,
+  updates: RefreshCw,
   about: Info,
 }
 
 /**
  * The Settings home: a tile per section, each opening its own page. Rows split
  * evenly: six tiles are two rows of thirds; an odd number is a row of thirds,
- * then rows of halves (five: 3 + 2, seven: 3 + 2 + 2); four are halves. The danger zone
+ * then rows of halves (five: 3 + 2, seven: 3 + 2 + 2); four and eight are halves. The danger zone
  * is a quiet link under them, apart from the everyday sections.
  */
 export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
