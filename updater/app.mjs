@@ -5,10 +5,14 @@
  */
 import nodeFs from 'node:fs'
 import path from 'node:path'
+import { copyNew, isRealFile, realDir } from './files.mjs'
 
 const BACKUP_NAME = /^pre-update-v[\w.]+-to-v[\w.]+-\d{8}-\d{6}\.db$/
 const BACKUP_TIMEOUT_MS = 2 * 60 * 1000
 const CLEAR_TIMEOUT_MS = 5 * 1000
+/** How many before-rollback-<time> folders to keep */
+const KEEP_SET_ASIDE = 3
+const SET_ASIDE_NAME = /^before-rollback-\d{8}-\d{6}$/
 /** The app runs as user node */
 const APP_OWNER = { uid: 1000, gid: 1000 }
 
@@ -28,20 +32,28 @@ export function createApp({ url, token, dbFile, fetchImpl = fetch, fs = nodeFs, 
   const endpoint = `${url.replace(/\/+$/, '')}/api/updates/backup`
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
-  const isNonEmptyFile = file => {
+  /** A plain, non-empty file: a symlink planted in the app's folder never counts */
+  const isNonEmptyFile = file => isRealFile(file, fs) && fs.lstatSync(file).size > 0
+
+  /** Only files directly in a real <dataDir>/backups folder with a pre-update name */
+  const isOurBackup = file => {
+    if (path.dirname(path.resolve(file)) !== backupsDir || !BACKUP_NAME.test(path.basename(file))) return false
     try {
-      const st = fs.statSync(file)
-      return st.isFile() && st.size > 0
+      realDir(backupsDir, fs)
+      return true
     } catch {
       return false
     }
   }
 
-  /** Only files directly in <dataDir>/backups with a pre-update name */
-  const isOurBackup = file => path.dirname(path.resolve(file)) === backupsDir && BACKUP_NAME.test(path.basename(file))
-
-  const own = file => {
-    if (owner) fs.chownSync(file, owner.uid, owner.gid)
+  /** Keeps the newest few before-rollback folders (their names end in the local time) */
+  const pruneSetAside = () => {
+    const doomed = fs
+      .readdirSync(backupsDir)
+      .filter(n => SET_ASIDE_NAME.test(n))
+      .sort()
+      .slice(0, -KEEP_SET_ASIDE)
+    for (const n of doomed) fs.rmSync(path.join(backupsDir, n), { recursive: true, force: true })
   }
 
   return {
@@ -62,7 +74,7 @@ export function createApp({ url, token, dbFile, fetchImpl = fetch, fs = nodeFs, 
       const name = path.posix.basename(body.file)
       if (!BACKUP_NAME.test(name)) throw new Error('the app named an unexpected backup file')
       const local = path.join(backupsDir, name)
-      if (!isNonEmptyFile(local)) throw new Error('the backup file is missing or empty')
+      if (!isOurBackup(local) || !isNonEmptyFile(local)) throw new Error('the backup file is missing or empty')
       return local
     },
 
@@ -84,19 +96,26 @@ export function createApp({ url, token, dbFile, fetchImpl = fetch, fs = nodeFs, 
       if (!isOurBackup(file)) throw new Error('not a pre-update backup')
       if (!isNonEmptyFile(file)) throw new Error('the backup file is missing or empty')
       for (const f of sidecars) fs.rmSync(f, { force: true })
+      // a fresh temp file (never a planted link), owned by the app's user, then renamed over the database
       const tmp = `${dbFile}.restoring`
-      fs.copyFileSync(file, tmp)
-      own(tmp)
+      copyNew(file, tmp, { mode: 0o644, owner, fs })
       fs.renameSync(tmp, dbFile)
     },
 
-    /** With the app stopped: moves the live database (and -wal/-shm) into backups/before-rollback-<time>/; returns that folder */
+    /**
+     * With the app stopped: moves the live database (and -wal/-shm) into
+     * backups/before-rollback-<local time>/ (owned by the app's user); keeps the newest 3 such folders.
+     */
     async setAside() {
+      realDir(backupsDir, fs)
       const dir = path.join(backupsDir, `before-rollback-${stamp(now())}`)
-      fs.mkdirSync(dir, { recursive: true })
+      fs.rmSync(dir, { recursive: true, force: true })
+      fs.mkdirSync(dir, { mode: 0o755 })
+      if (owner) fs.lchownSync(dir, owner.uid, owner.gid)
       for (const f of [dbFile, ...sidecars]) {
         if (fs.existsSync(f)) fs.renameSync(f, path.join(dir, path.basename(f)))
       }
+      pruneSetAside()
       return dir
     },
 

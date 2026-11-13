@@ -3,6 +3,7 @@
  * so the app, coming back up as the new version, can read the outcome even if the helper restarted.
  */
 import nodeFs from 'node:fs'
+import { readPlain, writeText } from './files.mjs'
 
 /** A job that was running when the helper stopped can't be resumed: it reads as failed */
 function settle(s) {
@@ -17,17 +18,19 @@ function settle(s) {
 }
 
 export function createStatusStore(file, { fs = nodeFs } = {}) {
+  // The folder belongs to the app's user: the temp file is created afresh (never through a planted
+  // link) and the status file is only read when it's a plain file
   const write = s => {
     const tmp = `${file}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify(s, null, 2), { mode: 0o644 })
+    writeText(tmp, JSON.stringify(s, null, 2), { mode: 0o644, fs })
     fs.renameSync(tmp, file)
   }
 
   let current = null
   try {
-    const loaded = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const loaded = JSON.parse(readPlain(file, fs) ?? 'null')
     current = settle(loaded)
-    if (current !== loaded) write(current)
+    if (current && current !== loaded) write(current)
   } catch {
     current = null
   }

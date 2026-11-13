@@ -13,6 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.mjs'
 import { createDocker } from './docker.mjs'
+import { readPlain, writeText } from './files.mjs'
 import { createJobs, IMAGE } from './job.mjs'
 import { createStatusStore } from './status.mjs'
 
@@ -21,22 +22,27 @@ export const API_VERSION = 1
 const MAX_BODY = 4096
 const TOKEN_RE = /^[0-9a-f]{64}$/
 
-/** Reads the token file, or writes a new random one; always 0600 and owned by the app's user (1000:1000) */
-export function ensureToken(dataDir, { chown = fs.chownSync } = {}) {
+/**
+ * Reads the token file, or writes a new random one; always 0600 and owned by the app's user
+ * (1000:1000). The folder is the app's: a symlink (or anything but a plain file) in its place is
+ * removed, never followed, and mode and owner are set on the open file.
+ */
+export function ensureToken(dataDir, { owner = { uid: 1000, gid: 1000 } } = {}) {
   const file = path.join(dataDir, '.updater-token')
-  let token = ''
-  try {
-    token = fs.readFileSync(file, 'utf8').trim()
-  } catch {
-    // first start
+  const token = readPlain(file)?.trim() ?? ''
+  if (TOKEN_RE.test(token)) {
+    const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+    try {
+      fs.fchmodSync(fd, 0o600)
+      if (owner) fs.fchownSync(fd, owner.uid, owner.gid)
+    } finally {
+      fs.closeSync(fd)
+    }
+    return token
   }
-  if (!TOKEN_RE.test(token)) {
-    token = crypto.randomBytes(32).toString('hex')
-    fs.writeFileSync(file, token, { mode: 0o600 })
-  }
-  fs.chmodSync(file, 0o600)
-  chown(file, 1000, 1000)
-  return token
+  const fresh = crypto.randomBytes(32).toString('hex')
+  writeText(file, fresh, { mode: 0o600, owner })
+  return fresh
 }
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest()

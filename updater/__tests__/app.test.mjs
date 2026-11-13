@@ -75,7 +75,64 @@ describe('restoreBackup', () => {
   })
 })
 
+describe('symlinks planted in the data folder', () => {
+  const name = 'pre-update-v1.0.0-to-v1.2.0-20261113-120000.db'
+
+  it('restoring never writes through a planted temp-file link', async () => {
+    const backup = path.join(dir, 'backups', name)
+    fs.writeFileSync(backup, 'old data')
+    const victim = path.join(dir, 'victim')
+    fs.writeFileSync(victim, 'precious')
+    fs.symlinkSync(victim, db + '.restoring')
+    await app.restoreBackup(backup)
+    expect(fs.readFileSync(victim, 'utf8')).toBe('precious')
+    expect(fs.lstatSync(db).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(db, 'utf8')).toBe('old data')
+  })
+
+  it('a backup that is a link is no backup', async () => {
+    const victim = path.join(dir, 'victim')
+    fs.writeFileSync(victim, 'secret')
+    fs.symlinkSync(victim, path.join(dir, 'backups', name))
+    expect(app.backupExists(path.join(dir, 'backups', name))).toBe(false)
+    await expect(app.restoreBackup(path.join(dir, 'backups', name))).rejects.toThrow()
+    reply.body = { file: `/data/backups/${name}` }
+    await expect(app.requestBackup('1.0.0', '1.2.0')).rejects.toThrow()
+  })
+
+  it('a backups folder that is a link is refused', async () => {
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-elsewhere-'))
+    try {
+      fs.writeFileSync(path.join(elsewhere, name), 'x')
+      fs.rmSync(path.join(dir, 'backups'), { recursive: true })
+      fs.symlinkSync(elsewhere, path.join(dir, 'backups'))
+      fs.writeFileSync(db, 'live')
+      expect(app.backupExists(path.join(dir, 'backups', name))).toBe(false)
+      await expect(app.restoreBackup(path.join(dir, 'backups', name))).rejects.toThrow()
+      await expect(app.setAside()).rejects.toThrow()
+      expect(fs.readFileSync(db, 'utf8')).toBe('live')
+    } finally {
+      fs.rmSync(elsewhere, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('setAside / putBack', () => {
+  it('names the folder in local time and keeps the newest 3', async () => {
+    let t = new Date(2026, 10, 13, 9, 5, 0)
+    const timed = createApp({ url: 'http://tazrim:3000', token: 'fake-token', dbFile: db, fetchImpl: async () => new Response('{}'), owner: null, now: () => t })
+    const made = []
+    for (let i = 0; i < 5; i++) {
+      fs.writeFileSync(db, `live ${i}`)
+      made.push(path.basename(await timed.setAside()))
+      t = new Date(t.getTime() + 60_000)
+    }
+    expect(made[0]).toBe('before-rollback-20261113-090500')
+    const left = fs.readdirSync(path.join(dir, 'backups')).filter(n => n.startsWith('before-rollback-')).sort()
+    expect(left).toEqual(made.slice(2))
+    expect(fs.readFileSync(path.join(dir, 'backups', made[4], 'tazrim.db'), 'utf8')).toBe('live 4')
+  })
+
   it('moves the live database away and back', async () => {
     fs.writeFileSync(db, 'live')
     fs.writeFileSync(db + '-wal', 'wal')

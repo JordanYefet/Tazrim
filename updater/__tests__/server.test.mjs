@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createJobs } from '../job.mjs'
 import { createServer, ensureToken } from '../server.mjs'
 import { fakes, memStore } from './fakes.mjs'
@@ -95,14 +95,31 @@ describe('ensureToken', () => {
   let dir
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
-  it('creates a 0600 token once and then reuses it', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('creates a 0600 token owned by 1000:1000 once and then reuses it', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-updater-'))
-    const chowned = []
-    const token = ensureToken(dir, { chown: (file, uid, gid) => chowned.push([file, uid, gid]) })
+    const chown = vi.spyOn(fs, 'fchownSync').mockImplementation(() => {})
+    const token = ensureToken(dir)
     expect(token).toMatch(/^[0-9a-f]{64}$/)
     const file = path.join(dir, '.updater-token')
     expect(fs.statSync(file).mode & 0o777).toBe(0o600)
-    expect(chowned).toContainEqual([file, 1000, 1000])
-    expect(ensureToken(dir, { chown: () => {} })).toBe(token)
+    expect(chown).toHaveBeenCalledWith(expect.any(Number), 1000, 1000)
+    expect(ensureToken(dir)).toBe(token)
+  })
+
+  it('never follows a symlink planted as the token file', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-updater-'))
+    vi.spyOn(fs, 'fchownSync').mockImplementation(() => {})
+    const victim = path.join(dir, 'victim')
+    fs.writeFileSync(victim, 'f'.repeat(64), { mode: 0o644 })
+    const file = path.join(dir, '.updater-token')
+    fs.symlinkSync(victim, file)
+    const token = ensureToken(dir)
+    expect(token).not.toBe('f'.repeat(64))
+    expect(fs.lstatSync(file).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(file, 'utf8')).toBe(token)
+    expect(fs.readFileSync(victim, 'utf8')).toBe('f'.repeat(64))
+    expect(fs.statSync(victim).mode & 0o777).toBe(0o644)
   })
 })

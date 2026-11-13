@@ -304,3 +304,23 @@ describe('status file', () => {
     expect(s.error).toEqual(expect.any(String))
   })
 })
+
+describe('status file and symlinks', () => {
+  let dir
+  afterEach(() => dir && fs.rmSync(dir, { recursive: true, force: true }))
+
+  it('writes through neither a planted temp-file link nor reads a linked status file', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-updater-'))
+    const victim = path.join(dir, 'victim')
+    fs.writeFileSync(victim, JSON.stringify(doneUpdate))
+    const file = path.join(dir, '.update-status.json')
+    fs.symlinkSync(victim, file)
+    fs.symlinkSync(victim, `${file}.tmp`)
+    const store = createStatusStore(file)
+    expect(store.get()).toBeNull()
+    store.save({ ...doneUpdate, to: '9.9.9' })
+    expect(JSON.parse(fs.readFileSync(victim, 'utf8')).to).toBe('1.2.0')
+    expect(fs.lstatSync(file).isSymbolicLink()).toBe(false)
+    expect(createStatusStore(file).get().to).toBe('9.9.9')
+  })
+})
