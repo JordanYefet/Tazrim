@@ -1619,6 +1619,14 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 .pattern-thumb--plain { background: #eef2f7; }
 .pattern-thumb--lines { background: #ffffff; }
 .pattern-thumb--ribbons { background: #f8fafc; }
+/* A wallpaper's thumbnail: its layers come from the element's style (background-settings.tsx) */
+.pattern-thumb--wallpaper {
+  background-color: var(--thumb-page-light);
+  background-image: var(--thumb-light);
+  background-size: var(--thumb-size);
+  background-repeat: var(--thumb-repeat);
+}
+.dark .pattern-thumb--wallpaper { background-color: var(--thumb-page-dark); background-image: var(--thumb-dark); }
 .pattern-thumb__ribbons { filter: blur(3px); }
 .pattern-thumb__ribbon-a { fill: #c4b5fd; opacity: 0.8; }
 .pattern-thumb__ribbon-b { fill: #f9a8d4; opacity: 0.7; }
