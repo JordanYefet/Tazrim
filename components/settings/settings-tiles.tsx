@@ -7,6 +7,8 @@ export interface SettingsTile {
   title: string
   summary: string
   icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'about'
+  /** A small primary dot beside the title: a new version is out (ENG-98). Takes no room of its own. */
+  dot?: boolean
 }
 
 const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
@@ -48,7 +50,14 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
                 <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
               </span>
               <span className="space-y-1">
-                <span className="block text-[17px] font-semibold">{t.title}</span>
+                <span className="flex items-center gap-2 text-[17px] font-semibold">
+                  {t.title}
+                  {t.dot && (
+                    <span data-dot className="h-2 w-2 shrink-0 rounded-full bg-primary">
+                      <span className="sr-only">יש גרסה חדשה</span>
+                    </span>
+                  )}
+                </span>
                 <span className="block text-sm leading-relaxed text-muted-foreground text-pretty">{t.summary}</span>
               </span>
             </Link>

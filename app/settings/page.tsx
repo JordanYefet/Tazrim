@@ -9,6 +9,9 @@ import { settingsAccountsHref, type QueryInput } from '@/lib/accounts/routes'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SettingsTiles, type SettingsTile } from '@/components/settings/settings-tiles'
 import { LegacySettingsHash } from '@/components/settings/legacy-settings-hash'
+import { isReadOnly } from '@/lib/read-only'
+import { CURRENT_VERSION, getUpdateCache } from '@/lib/updates/check'
+import { isNewer } from '@/lib/updates/version'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +28,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (params.recovered === '1') redirect('/settings/people?recovered=1')
 
   const auth = isAuthRequired()
-  const [accounts, profiles, cushion, people, devices, vault, logins] = await Promise.all([
+  // About's dot: a newer version in the last check's cache (no helper call); never in the read-only demo
+  const newVersion = isReadOnly()
+    ? Promise.resolve(false)
+    : getUpdateCache()
+        .then(c => !!c.latest && isNewer(c.latest.version, CURRENT_VERSION))
+        .catch(() => false)
+  const [accounts, profiles, cushion, people, devices, vault, logins, hasNewVersion] = await Promise.all([
     listAccounts(),
     listImportProfiles(),
     getCushion(),
@@ -33,6 +42,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     auth ? prisma.passkey.count() : 0,
     vaultStatus(),
     auth ? prisma.bankCredential.count() : 0,
+    newVersion,
   ])
   const banks = accounts.filter(a => a.kind === 'BANK').length
   const cards = accounts.filter(a => a.kind === 'CREDIT_CARD').length
@@ -76,7 +86,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             : `${count(logins, 'פרטי כניסה שמורים לחשבון אחד', 'פרטי כניסה שמורים')}. ${vault.open ? 'פתוחה עכשיו.' : 'נעולה.'}`,
         }]
       : []),
-    { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
+    { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.', dot: hasNewVersion },
   ]
 
   return (

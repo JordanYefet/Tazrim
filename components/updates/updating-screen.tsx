@@ -9,8 +9,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { JobStatus, StepId } from '@/lib/updates/helper'
 import type { UpdateView } from '@/lib/updates/state'
 import { ghostButton, primaryButton } from '@/components/auth/ui'
+import { ManualCommandsPanel } from './manual-commands'
 
-export const MANUAL_COMMAND = 'docker compose pull && docker compose up -d'
+export { MANUAL_COMMAND } from './manual-commands'
 
 /** The sign-in card's buttons, kept on one line in the two halves */
 const half = (cls: string) => `${cls.replace('px-5', 'px-3')} whitespace-nowrap`
@@ -295,34 +296,6 @@ function StepIcon() {
 
 const STATE_WORD: Record<RowState, string> = { waiting: 'ממתין', running: 'בתהליך', done: 'הושלם', failed: 'נכשל' }
 
-function ManualCommands() {
-  const [copied, setCopied] = useState(false)
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(MANUAL_COMMAND)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // No clipboard (plain http): the command is selectable
-    }
-  }
-  return (
-    <div className="mt-1 space-y-2 rounded-xl bg-muted p-3">
-      <p className="text-sm text-muted-foreground">בתיקייה של תזרים במחשב שעליו הוא רץ:</p>
-      <p dir="ltr" className="select-all break-words font-mono text-sm">
-        {MANUAL_COMMAND}
-      </p>
-      <button
-        type="button"
-        onClick={copy}
-        className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-primary transition-colors duration-quick hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {copied ? 'הועתק' : 'העתקה'}
-      </button>
-    </div>
-  )
-}
-
 /** The card itself, from a screen: no polling here (tests render it directly) */
 export function UpdatingCard({
   screen,
@@ -393,7 +366,7 @@ export function UpdatingCard({
       >
         הצגת פקודות ידניות
       </button>
-      {failed && manualOpen && <ManualCommands />}
+      {failed && manualOpen && <ManualCommandsPanel />}
     </div>
   )
 }
