@@ -16,6 +16,15 @@ const ROLLBACK_STEPS = ['restore', 'restart', 'check']
 /** Download progress is kept in memory on every event but written to the status file at most this often */
 const PROGRESS_SAVE_MS = 1000
 
+const IMAGE_ID_RE = /^sha256:[0-9a-f]{64}$/
+
+/** "ghcr.io/x/y:1.2.0" or "...@sha256:..." -> "ghcr.io/x/y" (a registry port's colon is kept) */
+export function repoOf(ref) {
+  const noDigest = ref.split('@')[0]
+  const colon = noDigest.lastIndexOf(':')
+  return colon > noDigest.lastIndexOf('/') ? noDigest.slice(0, colon) : noDigest
+}
+
 /** Is x.y.z `candidate` higher than x.y.z `current`? */
 export function isNewer(candidate, current) {
   const a = candidate.split('.').map(Number)
@@ -92,8 +101,9 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
   }
 
   /**
-   * Puts the container that was running before the job back: removes the new one, puts the
-   * database back (`restoreDb`), renames the old one back, points :latest at its image, starts it.
+   * Puts the container that was running before the job back: gets the new one out of the way,
+   * puts the database back (`restoreDb`), renames the old one back, points :latest at its image,
+   * starts it. Each step tries to keep going: a half-done undo leaves the app down.
    */
   async function putBack(job, { target, newId, renamed, retagged, restoreDb, showStep }) {
     if (showStep) {
@@ -103,13 +113,22 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
     try {
       if (newId) {
         await quietly(() => docker.stop(newId))
-        await docker.remove(newId)
+        try {
+          await docker.remove(newId)
+        } catch {
+          // can't remove it now: at least free the name for the old container
+          await docker.rename(newId, `${target.name}-failed-${now().getTime()}`)
+        }
       }
-      await restoreDb()
+      // The old container is under -previous, so whatever holds its name is left over from this job
+      if (renamed) await quietly(() => docker.remove(target.name))
+      // Never write the database under a running app (e.g. the stop itself failed)
+      const oldRunning = (await docker.inspect(target.id))?.State?.Running === true
+      if (!oldRunning) await restoreDb()
       await quietly(() => app.clearFlag())
       if (renamed) await docker.rename(target.id, target.name)
       if (retagged) await quietly(() => docker.tag(target.imageId, IMAGE, 'latest'))
-      await docker.start(target.id)
+      if (!oldRunning) await docker.start(target.id)
       job.restored = true
       if (showStep) setStep(job, 'restore', 'done')
     } catch (e) {
@@ -260,8 +279,16 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
       if (!last || last.kind !== 'update' || last.state !== 'done' || !last.backup || !last.previousImage) {
         return refuse(409, 'There is no finished update to roll back.')
       }
+      // The status file sits on the app's volume: only ever run an image that is really ours
+      if (!IMAGE_ID_RE.test(last.previousImage)) return refuse(409, 'The previous version is not a known image.')
       busy = true
       try {
+        const img = await docker.inspectImage(last.previousImage).catch(() => null)
+        const refs = [...(img?.RepoTags ?? []), ...(img?.RepoDigests ?? [])]
+        if (!refs.some(r => repoOf(r) === IMAGE)) {
+          busy = false
+          return refuse(409, `The previous version's image is gone or is not a ${IMAGE} image.`)
+        }
         if (!(await app.backupExists(last.backup))) {
           busy = false
           return refuse(409, 'The backup from before the update is gone.')

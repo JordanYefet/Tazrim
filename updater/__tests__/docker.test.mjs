@@ -1,5 +1,9 @@
+import fs from 'node:fs'
+import http from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { containerIdFrom, createBody, repoOf } from '../docker.mjs'
+import { containerIdFrom, createBody, createDocker, repoOf } from '../docker.mjs'
 
 const ID = 'abc123def4567890'.padEnd(64, '0')
 
@@ -88,5 +92,44 @@ describe('containerIdFrom', () => {
     const mountinfo = `1 2 0:1 / / rw - overlay overlay rw\n3 1 8:1 /var/lib/docker/containers/${ID}/hostname /etc/hostname rw - ext4 /dev/sda1 rw\n`
     expect(containerIdFrom(mountinfo, 'fallback')).toBe(ID)
     expect(containerIdFrom('nothing here', 'fallback')).toBe('fallback')
+  })
+})
+
+/** A fake Docker daemon on a unix socket: `handler(method, url)` -> [status, body] */
+async function fakeDaemon(handler) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tzu-'))
+  const socketPath = path.join(dir, 'd.sock')
+  const seen = []
+  const server = http.createServer((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      seen.push(`${req.method} ${req.url}`)
+      const [status, body] = handler(req.method, req.url)
+      res.writeHead(status, { 'Content-Type': 'application/json' })
+      res.end(body === undefined ? '' : JSON.stringify(body))
+    })
+  })
+  await new Promise(r => server.listen(socketPath, r))
+  const close = () =>
+    new Promise(r => server.close(r)).then(() => fs.rmSync(dir, { recursive: true, force: true }))
+  return { socketPath, seen, close }
+}
+
+describe('createLike', () => {
+  it('removes the container it made when connecting a network fails', async () => {
+    const daemon = await fakeDaemon((method, url) => {
+      if (url.includes('/images/')) return [200, oldImage]
+      if (url.includes('/containers/create')) return [201, { Id: 'fresh-id' }]
+      if (url.includes('/connect')) return [500, { message: 'network tazrim_edge not found' }]
+      if (method === 'DELETE') return [204]
+      return [404, { message: 'unexpected' }]
+    })
+    try {
+      const docker = createDocker({ socketPath: daemon.socketPath, selfId: 'x' })
+      await expect(docker.createLike(container, 'ghcr.io/jordanyefet/tazrim:1.2.0')).rejects.toThrow(/network tazrim_edge not found/)
+      expect(daemon.seen).toContain('DELETE /v1.43/containers/fresh-id?force=true&v=false')
+    } finally {
+      await daemon.close()
+    }
   })
 })

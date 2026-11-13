@@ -5,6 +5,9 @@
  */
 import fs from 'node:fs'
 import http from 'node:http'
+import { repoOf } from './job.mjs'
+
+export { repoOf }
 
 const API = '/v1.43'
 const VERSION_RE = /^v?(\d+\.\d+\.\d+)$/
@@ -14,13 +17,6 @@ const enc = encodeURIComponent
 /** Image names go into the path as Docker's own client sends them: slashes and colons kept */
 const encName = s => enc(s).replace(/%2F/gi, '/').replace(/%3A/gi, ':')
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-
-/** "ghcr.io/x/y:1.2.0" or "...@sha256:..." -> "ghcr.io/x/y" (a registry port's colon is kept) */
-export function repoOf(ref) {
-  const noDigest = ref.split('@')[0]
-  const colon = noDigest.lastIndexOf(':')
-  return colon > noDigest.lastIndexOf('/') ? noDigest.slice(0, colon) : noDigest
-}
 
 /** The helper's own container id: from /proc/self/mountinfo (/etc/hostname is mounted from the container's folder), else HOSTNAME */
 export function containerIdFrom(mountinfo, fallback) {
@@ -200,6 +196,8 @@ export function createDocker({ socketPath = '/var/run/docker.sock', selfId = own
 
     inspect,
 
+    inspectImage,
+
     stop: id => call('POST', `/containers/${enc(id)}/stop?t=30`, { fine: [304] }),
 
     rename: (id, name) => call('POST', `/containers/${enc(id)}/rename?name=${enc(name)}`),
@@ -209,8 +207,14 @@ export function createDocker({ socketPath = '/var/run/docker.sock', selfId = own
       const oldImage = await inspectImage(inspected.Image).catch(() => null)
       const { body, name, extraNetworks } = createBody(inspected, oldImage, newImage)
       const created = await call('POST', `/containers/create?name=${enc(name)}`, { body })
-      for (const n of extraNetworks) {
-        await call('POST', `/networks/${enc(n.name)}/connect`, { body: { Container: created.Id, EndpointConfig: n.endpoint } })
+      try {
+        for (const n of extraNetworks) {
+          await call('POST', `/networks/${enc(n.name)}/connect`, { body: { Container: created.Id, EndpointConfig: n.endpoint } })
+        }
+      } catch (e) {
+        // the caller never gets this id, so don't leave the container holding the name
+        await call('DELETE', `/containers/${enc(created.Id)}?force=true&v=false`).catch(() => {})
+        throw e
       }
       return created.Id
     },

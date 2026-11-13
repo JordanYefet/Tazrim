@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createJobs, IMAGE } from '../job.mjs'
 import { createStatusStore } from '../status.mjs'
-import { BACKUP, doneUpdate, fakes, memStore } from './fakes.mjs'
+import { BACKUP, doneUpdate, fakes, memStore, OLD_IMAGE } from './fakes.mjs'
 
 const names = calls => calls.map(c => c[0])
 const indexOf = (calls, ...call) => calls.findIndex(c => JSON.stringify(c) === JSON.stringify(call))
@@ -31,7 +31,7 @@ describe('update', () => {
     expect(s.steps.map(x => x.id)).toEqual(['backup', 'download', 'restart', 'migrate', 'check'])
     expect(s.steps.every(x => x.state === 'done')).toBe(true)
     expect(s.backup).toBe(BACKUP)
-    expect(s.previousImage).toBe('sha256:old')
+    expect(s.previousImage).toBe(OLD_IMAGE)
     expect(s.downloaded).toEqual({ current: 100, total: 100 })
     expect(s.finishedAt).toEqual(expect.any(String))
     expect(s.error).toBeUndefined()
@@ -95,9 +95,47 @@ describe('update', () => {
     expect(renamedBack).toBeGreaterThan(removed)
     expect(started).toBeGreaterThan(restored)
     expect(started).toBeGreaterThan(renamedBack)
-    expect(calls).toContainEqual(['tag', 'sha256:old', IMAGE, 'latest'])
+    expect(calls).toContainEqual(['tag', OLD_IMAGE, IMAGE, 'latest'])
     expect(names(calls)).toContain('clearFlag')
     expect(indexOf(calls, 'remove', 'old-id')).toBe(-1)
+  })
+
+  it('never restores the database under an old container that did not stop', async () => {
+    const { jobs, calls } = setup({ stopFails: true })
+    const r = await jobs.startUpdate('1.2.0')
+    await r.done
+    const s = jobs.current()
+    expect(s.state).toBe('failed')
+    expect(stepStates(s)).toMatchObject({ restart: 'failed' })
+    expect(names(calls)).not.toContain('restoreBackup')
+    expect(names(calls)).not.toContain('createLike')
+    expect(names(calls)).toContain('clearFlag')
+    expect(s.restored).toBe(true)
+  })
+
+  it('a failed create still lets the old container take its name back', async () => {
+    const { jobs, calls } = setup({ createFails: true })
+    const r = await jobs.startUpdate('1.2.0')
+    await r.done
+    const s = jobs.current()
+    expect(s.restored).toBe(true)
+    // whatever holds the name now (a half-made container) goes before the rename back
+    const cleared = indexOf(calls, 'remove', 'tazrim-tazrim-1')
+    expect(cleared).toBeGreaterThan(-1)
+    expect(indexOf(calls, 'rename', 'old-id', 'tazrim-tazrim-1')).toBeGreaterThan(cleared)
+    expect(calls.findLastIndex(c => c[0] === 'start' && c[1] === 'old-id')).toBeGreaterThan(cleared)
+  })
+
+  it('when the new container cannot be removed, it is renamed aside and the undo carries on', async () => {
+    const { jobs, calls } = setup({ unhealthy: true, removeFails: ['new-id'] })
+    const r = await jobs.startUpdate('1.2.0')
+    await r.done
+    const s = jobs.current()
+    expect(s.restored).toBe(true)
+    expect(calls.some(c => c[0] === 'rename' && c[1] === 'new-id' && /^tazrim-tazrim-1-failed-\d+$/.test(c[2]))).toBe(true)
+    expect(calls).toContainEqual(['restoreBackup', BACKUP])
+    expect(indexOf(calls, 'rename', 'old-id', 'tazrim-tazrim-1')).toBeGreaterThan(-1)
+    expect(calls.findLastIndex(c => c[0] === 'start' && c[1] === 'old-id')).toBeGreaterThan(indexOf(calls, 'restoreBackup', BACKUP))
   })
 
   it('refuses a second job while one runs', async () => {
@@ -147,6 +185,27 @@ describe('rollback', () => {
     expect((await setup({ last: doneUpdate, backupMissing: true }).jobs.startRollback()).status).toBe(409)
   })
 
+  it('is refused when previousImage is not an image id from ghcr.io/jordanyefet/tazrim', async () => {
+    for (const opts of [
+      { last: { ...doneUpdate, previousImage: 'evil/image:latest' } },
+      { last: { ...doneUpdate, previousImage: 'sha256:abc' } },
+      { last: doneUpdate, image: { RepoTags: ['evil/image:latest'], RepoDigests: ['evil/image@sha256:' + 'b'.repeat(64)] } },
+      { last: doneUpdate, image: { RepoTags: [], RepoDigests: [] } },
+      { last: doneUpdate, imageGone: true },
+    ]) {
+      const { jobs, calls } = setup(opts)
+      expect((await jobs.startRollback()).status).toBe(409)
+      for (const n of ['stop', 'tag', 'restoreBackup', 'setAside', 'createLike']) expect(names(calls)).not.toContain(n)
+    }
+  })
+
+  it('accepts a previous image known only by its digest', async () => {
+    const image = { RepoTags: [], RepoDigests: ['ghcr.io/jordanyefet/tazrim@sha256:' + 'c'.repeat(64)] }
+    const r = await setup({ last: doneUpdate, image }).jobs.startRollback()
+    expect(r.status).toBe(202)
+    await r.done
+  })
+
   it('restores the backup and restarts on the previous image', async () => {
     const { jobs, calls } = setup({ last: doneUpdate })
     const r = await jobs.startRollback()
@@ -159,8 +218,8 @@ describe('rollback', () => {
     expect(s.steps.every(x => x.state === 'done')).toBe(true)
 
     expect(indexOf(calls, 'stop', 'old-id')).toBeLessThan(indexOf(calls, 'restoreBackup', BACKUP))
-    expect(calls).toContainEqual(['tag', 'sha256:old', IMAGE, '1.0.0'])
-    expect(calls).toContainEqual(['tag', 'sha256:old', IMAGE, 'latest'])
+    expect(calls).toContainEqual(['tag', OLD_IMAGE, IMAGE, '1.0.0'])
+    expect(calls).toContainEqual(['tag', OLD_IMAGE, IMAGE, 'latest'])
     expect(indexOf(calls, 'restoreBackup', BACKUP)).toBeLessThan(indexOf(calls, 'createLike', 'old-id', `${IMAGE}:1.0.0`))
     expect(calls).toContainEqual(['start', 'new-id'])
     expect(calls).toContainEqual(['waitHealthy', 'new-id', 1000])
