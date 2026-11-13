@@ -352,6 +352,13 @@ function paintTiledWallpaper(ctx: CanvasRenderingContext2D, kind: WallpaperKind,
   if (kind === 'grid') {
     const g = GRID[mode]
     const { size, step } = GRID_TILE
+    // The wash, in its layer at the top of the document (100% × GRID_WASH.ry), under the grid's
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, page.width, GRID_WASH.ry)
+    ctx.clip()
+    paintGlow(ctx, GRID_WASH.x * page.width, 0, GRID_WASH.rx, GRID_WASH.ry, g.wash, g.washAlpha)
+    ctx.restore()
     ctx.lineWidth = 1
     for (const major of [false, true]) {
       ctx.strokeStyle = hsla(g.line, major ? g.major : g.minor)
@@ -368,13 +375,6 @@ function paintTiledWallpaper(ctx: CanvasRenderingContext2D, kind: WallpaperKind,
       }
       ctx.stroke()
     }
-    // The wash, in its layer at the top of the document (100% × GRID_WASH.ry)
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(0, 0, page.width, GRID_WASH.ry)
-    ctx.clip()
-    paintGlow(ctx, GRID_WASH.x * page.width, 0, GRID_WASH.rx, GRID_WASH.ry, g.wash, g.washAlpha)
-    ctx.restore()
     return
   }
   // Bubbles
