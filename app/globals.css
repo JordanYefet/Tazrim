@@ -1563,21 +1563,13 @@ html.dark[data-bg='waves'] body::before,
 html.dark[data-bg='dots'] body::before,
 html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark); background-image: var(--bg-tile-dark); }
 
-/* Reduced transparency or more contrast: the plain backdrop */
+/* Reduced transparency or more contrast: the plain backdrop (more contrast: a solid
+   page). The doubled attribute outranks every background's own rules, dark included */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  html[data-bg='lines'],
-  html[data-bg='ribbons'],
-  html.dark[data-bg='lines'],
-  html.dark[data-bg='ribbons'],
   html[data-bg][data-bg],
-  html.dark[data-bg][data-bg] { background-image: none; }
-  html[data-bg='lines'] body::before,
-  html[data-bg='ribbons'] body::before,
-  html[data-bg][data-bg] body::before { display: block; }
-  html[data-bg][data-bg],
-  html.dark[data-bg][data-bg] { background-color: hsl(var(--background)); }
+  html.dark[data-bg][data-bg] { background-image: none; background-color: hsl(var(--background)); }
   html[data-bg][data-bg] body::before,
-  html.dark[data-bg][data-bg] body::before { background: var(--page-backdrop); }
+  html.dark[data-bg][data-bg] body::before { display: block; background: var(--page-backdrop); }
 }
 @media (prefers-contrast: more) {
   html[data-bg][data-bg] body::before,
