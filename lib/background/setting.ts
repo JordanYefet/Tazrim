@@ -6,13 +6,23 @@
  *   plain    today's tonal backdrop
  *   lines    faint looping lines (the default), strength 4-30%, three palettes
  *   ribbons  soft blurred ribbons of colour
+ * and seven wallpapers without options (lib/background/wallpapers.ts), each
+ * with a light and a dark version:
+ *   aurora   זוהר      soft glows of colour, fixed to the screen
+ *   waves    גלים      layered wave bands at the bottom of the screen
+ *   topo     טופוגרפי  thin contour lines, a tile down the page
+ *   dots     נקודות    a dot grid fading out from behind the heading, fixed
+ *   sunrise  זריחה     one warm glow from the top corner, fixed
+ *   grid     רשת       a fine blueprint grid, a tile down the page
+ *   bubbles  בועות     large soft out-of-focus circles, a tile down the page
+ * The strength and palette belong to the lines only (the cookie keeps them).
  *
  * Pure helpers only; components/background/ reads and writes the setting.
  */
 
 export const BACKGROUND_COOKIE = 'tazrim_bg'
 
-export type BackgroundKind = 'plain' | 'lines' | 'ribbons'
+export type BackgroundKind = 'plain' | 'lines' | 'ribbons' | 'aurora' | 'waves' | 'topo' | 'dots' | 'sunrise' | 'grid' | 'bubbles'
 export type BackgroundPalette = 'indigo-pink' | 'ocean' | 'grey'
 
 export interface BackgroundSetting {
@@ -31,7 +41,24 @@ export const BACKGROUND_KINDS: ReadonlyArray<{ value: BackgroundKind; label: str
   { value: 'plain', label: 'רגיל' },
   { value: 'lines', label: 'קווים עדינים' },
   { value: 'ribbons', label: 'סרטי צבע' },
+  { value: 'aurora', label: 'זוהר' },
+  { value: 'waves', label: 'גלים' },
+  { value: 'topo', label: 'טופוגרפי' },
+  { value: 'dots', label: 'נקודות' },
+  { value: 'sunrise', label: 'זריחה' },
+  { value: 'grid', label: 'רשת' },
+  { value: 'bubbles', label: 'בועות' },
 ]
+
+/**
+ * Kinds painted on a layer fixed to the viewport (body::before), like the
+ * plain backdrop; the others are a tile on <html> that scrolls with the page.
+ */
+const FIXED_KINDS: ReadonlySet<BackgroundKind> = new Set<BackgroundKind>(['plain', 'aurora', 'waves', 'dots', 'sunrise'])
+
+export function isFixedKind(kind: BackgroundKind): boolean {
+  return FIXED_KINDS.has(kind)
+}
 
 /** The two line colours of each palette, for light and dark pages. */
 export const BACKGROUND_PALETTES: ReadonlyArray<{
@@ -55,7 +82,7 @@ export function clampStrength(n: number): number {
   return Math.min(STRENGTH_MAX, Math.max(STRENGTH_MIN, Math.round(n)))
 }
 
-function isKind(v: string): v is BackgroundKind {
+export function isKind(v: string): v is BackgroundKind {
   return BACKGROUND_KINDS.some(k => k.value === v)
 }
 
