@@ -1039,6 +1039,25 @@ html {
   [data-wallet-view='list'] [data-view='trends'],
   [data-wallet-view='trends'] [data-view='list'] { display: none; }
 }
+/* The view that appears after a tap on the switch eases in from the side its segment
+   sits on (the page is RTL: תנועות right, מגמות left), the way the thumb travels.
+   display: none -> shown restarts the animation, so it plays on every switch and, with
+   no data-switched yet (first render, router.refresh), never. The outgoing view just goes. */
+@keyframes wallet-view-from-right { from { opacity: 0; transform: translateX(16px); } }
+@keyframes wallet-view-from-left { from { opacity: 0; transform: translateX(-16px); } }
+@media (max-width: 1023.98px) {
+  [data-switched='list'] [data-view='list'] {
+    animation: wallet-view-from-right var(--motion-base) var(--ease-ui);
+  }
+  [data-switched='trends'] > .wallet-shell__beside,
+  [data-switched='trends'] [data-view='trends'] {
+    animation: wallet-view-from-left var(--motion-base) var(--ease-ui);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-switched] > .wallet-shell__beside,
+  [data-switched] [data-view] { animation: none; }
+}
 @media (min-width: 1024px) {
   .wallet-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wallet-shell__head { grid-column: 1 / -1; }
