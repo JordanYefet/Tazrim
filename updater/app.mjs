@@ -115,7 +115,12 @@ export function createApp({ url, token, dbFile, fetchImpl = fetch, fs = nodeFs, 
       for (const f of [dbFile, ...sidecars]) {
         if (fs.existsSync(f)) fs.renameSync(f, path.join(dir, path.basename(f)))
       }
-      pruneSetAside()
+      // The database is already moved: a failed prune must not lose the folder the undo needs
+      try {
+        pruneSetAside()
+      } catch (e) {
+        console.warn(`updater: could not prune old before-rollback folders: ${e?.message ?? e}`)
+      }
       return dir
     },
 

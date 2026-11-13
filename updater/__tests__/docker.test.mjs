@@ -3,7 +3,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { containerIdFrom, createBody, createDocker, negotiateApi, repoOf } from '../docker.mjs'
+import { containerIdFrom, createBody, createDocker, negotiateApi, PULL_IDLE_MS, PULL_TOTAL_MS, repoOf } from '../docker.mjs'
 import { createJobs } from '../job.mjs'
 import { createServer } from '../server.mjs'
 
@@ -185,6 +185,11 @@ describe('API version', () => {
 })
 
 describe('timeouts', () => {
+  it('a pull may take up to 2 hours (Chromium on a slow link), but not 5 minutes without progress', () => {
+    expect(PULL_TOTAL_MS).toBe(2 * 60 * 60 * 1000)
+    expect(PULL_IDLE_MS).toBe(5 * 60 * 1000)
+  })
+
   it('a pull with no progress fails', async () => {
     const daemon = await fakeDaemon((method, url, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' })

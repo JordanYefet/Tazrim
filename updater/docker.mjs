@@ -16,9 +16,9 @@ const VERSION_RE = /^v?(\d+\.\d+\.\d+)$/
 const POLL_MS = 2000
 /** No answer (or no new bytes) for this long fails a call */
 const CALL_TIMEOUT_MS = 60 * 1000
-/** A pull fails when no progress line arrives for 5 minutes, or after 30 minutes in all */
-const PULL_IDLE_MS = 5 * 60 * 1000
-const PULL_TOTAL_MS = 30 * 60 * 1000
+/** A pull fails when no progress line arrives for 5 minutes, or after 2 hours in all (the image carries Chromium; slow links are fine) */
+export const PULL_IDLE_MS = 5 * 60 * 1000
+export const PULL_TOTAL_MS = 2 * 60 * 60 * 1000
 
 const apiParts = v => String(v ?? '').split('.').map(Number)
 const apiLess = (a, b) => {

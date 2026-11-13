@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from '../app.mjs'
 
 let dir, db, app, requests, reply
@@ -118,6 +118,19 @@ describe('symlinks planted in the data folder', () => {
 })
 
 describe('setAside / putBack', () => {
+  it('a prune that fails still hands back the set-aside folder, so a failed roll back can put the database back', async () => {
+    const failingPrune = { ...fs, readdirSync: () => { throw new Error('EIO: fake read error') } }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const shaky = createApp({ url: 'http://tazrim:3000', token: 'fake-token', dbFile: db, fetchImpl: async () => new Response('{}'), owner: null, fs: failingPrune })
+    fs.writeFileSync(db, 'live')
+    const kept = await shaky.setAside()
+    expect(fs.existsSync(path.join(kept, 'tazrim.db'))).toBe(true)
+    expect(warn).toHaveBeenCalled()
+    await shaky.putBack(kept)
+    expect(fs.readFileSync(db, 'utf8')).toBe('live')
+    warn.mockRestore()
+  })
+
   it('names the folder in local time and keeps the newest 3', async () => {
     let t = new Date(2026, 10, 13, 9, 5, 0)
     const timed = createApp({ url: 'http://tazrim:3000', token: 'fake-token', dbFile: db, fetchImpl: async () => new Response('{}'), owner: null, now: () => t })
