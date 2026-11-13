@@ -6,6 +6,7 @@
 # Update:         docker compose pull && docker compose up -d
 # Phones: http://<this computer's IP>:3000 with a password, or HTTPS for passkeys:
 #                 COMPOSE_PROFILES=https,dns in .env, see the README
+# Updating from the app's About page: COMPOSE_PROFILES=updater in .env (or https,dns,updater)
 #
 # All data is in the "tazrim_tazrim-data" volume on this machine (/data/tazrim.db inside the container).
 
@@ -45,6 +46,35 @@ services:
       start_period: 30s
       start_interval: 2s
       retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Optional: updating from inside the app (Settings -> About, README: "עדכון לגרסה חדשה").
+  # Off unless .env turns it on:
+  #   COMPOSE_PROFILES=updater        (together with the others: https,dns,updater)
+  # A small helper that, when you press "Update" in the app, downloads the new release, backs
+  # the data up, and restarts Tazrim on it (and puts the old version back if the new one does
+  # not start). It uses the same image as the app.
+  # It holds the Docker socket. A container with the socket can control Docker on this
+  # computer; this one only accepts "update Tazrim to a release" and "go back", and only from
+  # the app, with a token kept in the data volume. Leave it off to update by hand with
+  #   docker compose pull && docker compose up -d
+  # ---------------------------------------------------------------------------
+
+  updater:
+    profiles: [updater]
+    image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
+    entrypoint: ["node", "/app/updater/server.mjs"]
+    # Root: it writes the token the app reads, and uses the Docker socket
+    user: root
+    environment:
+      TAZRIM_DATABASE_URL: file:/data/tazrim.db
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tazrim-data:/data
+    restart: unless-stopped
+    # The image's healthcheck asks the Next server, which this container does not run
+    healthcheck:
+      disable: true
 
   # ---------------------------------------------------------------------------
   # Optional: HTTPS and local names, so phones can use passkeys (README: "פתיחה מהטלפון").
