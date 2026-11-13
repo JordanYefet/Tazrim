@@ -9,9 +9,37 @@ import { repoOf } from './job.mjs'
 
 export { repoOf }
 
-const API = '/v1.43'
+/** The newest Engine API this helper is written against, and the oldest it accepts (Healthcheck.StartInterval needs 1.44) */
+export const API_MAX = '1.47'
+export const API_MIN = '1.44'
 const VERSION_RE = /^v?(\d+\.\d+\.\d+)$/
 const POLL_MS = 2000
+/** No answer (or no new bytes) for this long fails a call */
+const CALL_TIMEOUT_MS = 60 * 1000
+/** A pull fails when no progress line arrives for 5 minutes, or after 30 minutes in all */
+const PULL_IDLE_MS = 5 * 60 * 1000
+const PULL_TOTAL_MS = 30 * 60 * 1000
+
+const apiParts = v => String(v ?? '').split('.').map(Number)
+const apiLess = (a, b) => {
+  const [a1, a2] = apiParts(a)
+  const [b1, b2] = apiParts(b)
+  return a1 !== b1 ? a1 < b1 : a2 < b2
+}
+
+/**
+ * The API version to speak, from the daemon's `GET /version`: its own version capped at
+ * API_MAX, never below its minimum. `error` when that is older than API_MIN.
+ */
+export function negotiateApi(daemon) {
+  const own = daemon?.ApiVersion
+  if (!/^\d+\.\d+$/.test(own ?? '')) return { version: null, error: 'Docker did not say which API version it speaks' }
+  let version = apiLess(own, API_MAX) ? own : API_MAX
+  const min = daemon.MinAPIVersion
+  if (/^\d+\.\d+$/.test(min ?? '') && apiLess(version, min)) version = min
+  if (apiLess(version, API_MIN)) return { version, error: `Docker's API ${version} is older than ${API_MIN}; update Docker` }
+  return { version, error: null }
+}
 
 const enc = encodeURIComponent
 /** Image names go into the path as Docker's own client sends them: slashes and colons kept */
@@ -82,18 +110,42 @@ export function createBody(c, oldImage, image) {
   return { body, name: c.Name.replace(/^\//, ''), extraNetworks }
 }
 
-export function createDocker({ socketPath = '/var/run/docker.sock', selfId = ownContainerId(), service = 'tazrim', image = 'ghcr.io/jordanyefet/tazrim' } = {}) {
-  /** One request; `onLine` gets each line of a streamed (2xx) answer */
-  function request(method, path, { body, onLine } = {}) {
+export function createDocker({
+  socketPath = '/var/run/docker.sock',
+  selfId = ownContainerId(),
+  service = 'tazrim',
+  image = 'ghcr.io/jordanyefet/tazrim',
+  timeouts = {},
+} = {}) {
+  const callMs = timeouts.callMs ?? CALL_TIMEOUT_MS
+  const pullIdleMs = timeouts.pullIdleMs ?? PULL_IDLE_MS
+  const pullTotalMs = timeouts.pullTotalMs ?? PULL_TOTAL_MS
+
+  /**
+   * One request; `onLine` gets each line of a streamed (2xx) answer. Fails when no bytes arrive
+   * for `idleMs`, or when the whole answer takes longer than `totalMs`.
+   */
+  function request(method, path, { body, onLine, idleMs = callMs, totalMs = Infinity, idleWhat = 'Docker did not answer' } = {}) {
     return new Promise((resolve, reject) => {
       const data = body === undefined ? undefined : JSON.stringify(body)
       const headers = data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}
-      const req = http.request({ socketPath, path: API + path, method, headers }, res => {
+      let idle = null
+      let total = null
+      const stop = () => {
+        clearTimeout(idle)
+        clearTimeout(total)
+      }
+      const fail = e => {
+        stop()
+        reject(e)
+      }
+      const req = http.request({ socketPath, path, method, headers }, res => {
         const streaming = onLine && res.statusCode < 300
         let text = ''
         let buf = ''
         res.setEncoding('utf8')
         res.on('data', chunk => {
+          armIdle()
           if (!streaming) return void (text += chunk)
           buf += chunk
           let i
@@ -104,20 +156,48 @@ export function createDocker({ socketPath = '/var/run/docker.sock', selfId = own
           }
         })
         res.on('end', () => {
+          stop()
           if (streaming && buf.trim()) onLine(buf.trim())
           resolve({ status: res.statusCode, text })
         })
-        res.on('error', reject)
+        res.on('error', fail)
+        res.on('aborted', () => fail(new Error('Docker closed the connection')))
       })
-      req.on('error', reject)
+      const armIdle = () => {
+        clearTimeout(idle)
+        idle = setTimeout(() => req.destroy(new Error(`${idleWhat} for ${Math.round(idleMs / 1000)} seconds`)), idleMs)
+      }
+      armIdle()
+      if (Number.isFinite(totalMs)) {
+        total = setTimeout(() => req.destroy(new Error(`gave up after ${Math.round(totalMs / 60000)} minutes`)), totalMs)
+      }
+      req.on('error', fail)
       if (data) req.write(data)
       req.end()
     })
   }
 
+  /** The API prefix, negotiated once with the daemon (a failed try is retried on the next call) */
+  let api = null
+  async function apiPrefix() {
+    if (!api) {
+      api = (async () => {
+        const r = await request('GET', '/version')
+        if (r.status !== 200) throw new Error(`Docker: GET /version answered ${r.status}`)
+        return negotiateApi(JSON.parse(r.text))
+      })()
+      api.catch(() => {
+        api = null
+      })
+    }
+    const { version, error } = await api
+    if (error) throw new Error(error)
+    return `/v${version}`
+  }
+
   /** Throws Docker's message on an error status (unless it's in `fine`); returns parsed JSON or null */
-  async function call(method, path, { body, onLine, fine = [] } = {}) {
-    const r = await request(method, path, { body, onLine })
+  async function call(method, path, { body, onLine, fine = [], ...limits } = {}) {
+    const r = await request(method, (await apiPrefix()) + path, { body, onLine, ...limits })
     if (r.status >= 400 && !fine.includes(r.status)) {
       let message = r.text
       try {
@@ -167,6 +247,9 @@ export function createDocker({ socketPath = '/var/run/docker.sock', selfId = own
       const layers = new Map()
       let failure = null
       await call('POST', `/images/create?fromImage=${enc(repo)}&tag=${enc(tag)}`, {
+        idleMs: pullIdleMs,
+        totalMs: pullTotalMs,
+        idleWhat: 'the download made no progress',
         onLine: line => {
           let ev
           try {
@@ -193,6 +276,9 @@ export function createDocker({ socketPath = '/var/run/docker.sock', selfId = own
       })
       if (failure) throw new Error(failure)
     },
+
+    /** The negotiated API version, e.g. "1.47"; rejects when Docker is too old or unreachable */
+    api: async () => (await apiPrefix()).slice(2),
 
     inspect,
 

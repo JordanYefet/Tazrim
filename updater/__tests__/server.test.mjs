@@ -61,6 +61,7 @@ describe('routes', () => {
   it('POST /v1/update refuses a version that is not newer', async () => {
     const r = await call('/v1/update', { method: 'POST', body: { version: '0.0.1' } })
     expect(r.status).toBe(400)
+    expect(await r.json()).toMatchObject({ code: 'NOT_NEWER' })
     expect(f.calls.map(c => c[0])).not.toContain('pull')
   })
 
@@ -79,7 +80,9 @@ describe('routes', () => {
   })
 
   it('POST /v1/rollback without a finished update is 409', async () => {
-    expect((await call('/v1/rollback', { method: 'POST' })).status).toBe(409)
+    const r = await call('/v1/rollback', { method: 'POST' })
+    expect(r.status).toBe(409)
+    expect(await r.json()).toMatchObject({ code: 'NO_ROLLBACK', error: expect.any(String) })
   })
 
   it('unknown paths are 404, also outside /v1', async () => {

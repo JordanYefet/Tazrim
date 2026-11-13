@@ -91,11 +91,11 @@ export function createServer({ jobs, token, helperVersion }) {
     'POST /v1/update': async req => {
       const body = await readJson(req)
       const r = await jobs.startUpdate(body?.version)
-      return r.status === 202 ? [202, { job: r.job }] : [r.status, { error: r.error }]
+      return r.status === 202 ? [202, { job: r.job }] : [r.status, { code: r.code, error: r.error }]
     },
     'POST /v1/rollback': async () => {
       const r = await jobs.startRollback()
-      return r.status === 202 ? [202, { job: r.job }] : [r.status, { error: r.error }]
+      return r.status === 202 ? [202, { job: r.job }] : [r.status, { code: r.code, error: r.error }]
     },
   }
 
@@ -138,6 +138,11 @@ function main() {
   const dataDir = path.dirname(dbFile)
   const token = ensureToken(dataDir)
   const docker = createDocker({ image: IMAGE })
+  // Negotiated now so a too-old Docker shows in the log at once; /v1/health reports it too
+  docker.api().then(
+    v => console.log(`updater: Docker API ${v}`),
+    e => console.warn(`updater: ${e?.message ?? e}`),
+  )
   const app = createApp({ url: process.env.TAZRIM_APP_URL || 'http://tazrim:3000', token, dbFile })
   const status = createStatusStore(path.join(dataDir, '.update-status.json'))
   const jobs = createJobs({ docker, app, status })

@@ -44,6 +44,9 @@ describe('update', () => {
       indexOf(calls, 'createLike', 'old-id', `${IMAGE}:1.2.0`),
     )
     expect(calls).toContainEqual(['start', 'new-id'])
+    // the old image keeps a version tag, so `docker image prune` leaves the roll back possible
+    expect(indexOf(calls, 'tag', OLD_IMAGE, IMAGE, '1.0.0')).toBeGreaterThan(-1)
+    expect(indexOf(calls, 'tag', OLD_IMAGE, IMAGE, '1.0.0')).toBeLessThan(indexOf(calls, 'stop', 'old-id'))
     expect(calls).toContainEqual(['tag', `${IMAGE}:1.2.0`, IMAGE, 'latest'])
     expect(calls).toContainEqual(['waitHealthy', 'new-id', 1000])
     expect(calls).toContainEqual(['remove', 'old-id'])
@@ -62,6 +65,9 @@ describe('update', () => {
     expect(s.error).toMatch(/download/i)
     expect(names(calls)).not.toContain('stop')
     expect(names(calls)).not.toContain('requestBackup')
+    expect(names(calls)).not.toContain('tag')
+    // a stalled download may outlive anything else: the write pause is lifted whatever happened
+    expect(names(calls)).toContain('clearFlag')
   })
 
   it('a running sync fails the job at backup, clears the flag and never stops the app', async () => {
@@ -149,6 +155,22 @@ describe('update', () => {
     await first.done
   })
 
+  it('every refusal carries a machine code', async () => {
+    let release
+    const busy = setup({ pullGate: new Promise(r => (release = r)) })
+    const first = await busy.jobs.startUpdate('1.2.0')
+    expect(await busy.jobs.startUpdate('1.2.0')).toMatchObject({ status: 409, code: 'BUSY' })
+    expect(await busy.jobs.startRollback()).toMatchObject({ status: 409, code: 'BUSY' })
+    release()
+    await first.done
+    const { jobs } = setup()
+    expect(await jobs.startUpdate('x')).toMatchObject({ status: 400, code: 'INVALID_VERSION' })
+    expect(await jobs.startUpdate('0.9.0')).toMatchObject({ status: 400, code: 'NOT_NEWER' })
+    expect(await jobs.startRollback()).toMatchObject({ status: 409, code: 'NO_ROLLBACK' })
+    expect(await setup({ updatable: false }).jobs.startUpdate('1.2.0')).toMatchObject({ status: 422, code: 'NOT_UPDATABLE' })
+    expect(await setup({ last: doneUpdate, imageGone: true }).jobs.startRollback()).toMatchObject({ status: 409, code: 'NO_ROLLBACK' })
+  })
+
   it('refuses versions that are malformed or not newer', async () => {
     const { jobs, calls } = setup()
     expect((await jobs.startUpdate('1.2.0; rm -rf /')).status).toBe(400)
@@ -166,11 +188,12 @@ describe('update', () => {
   })
 
   it('allows any valid version when the running version is unknown', async () => {
-    const { jobs } = setup({ version: null })
+    const { jobs, calls } = setup({ version: null })
     const r = await jobs.startUpdate('0.0.1')
     expect(r.status).toBe(202)
     await r.done
     expect(jobs.current().state).toBe('done')
+    expect(calls.filter(c => c[0] === 'tag' && c[1] === OLD_IMAGE)).toEqual([])
   })
 })
 

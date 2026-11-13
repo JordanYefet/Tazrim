@@ -49,7 +49,8 @@ async function quietly(fn) {
   }
 }
 
-const refuse = (status, error) => ({ status, error })
+/** A refusal: HTTP status, a fixed machine code the app maps to its own words, and English detail */
+const refuse = (status, code, error) => ({ status, code, error })
 
 export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEOUT_MS, now = () => new Date() }) {
   /** Set synchronously before the first await, so a second request can't slip in */
@@ -139,18 +140,18 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
 
   async function runUpdate(job, target) {
     const ref = `${IMAGE}:${job.to}`
-    let backupAsked = false
     let stopping = false
     let renamed = false
     let retagged = false
     let newId = null
     try {
       await step(job, 'download', 'Download failed', () => docker.pull(IMAGE, job.to, progress(job)))
-      backupAsked = true
       job.backup = await step(job, 'backup', 'Backup failed', () => app.requestBackup(job.from, job.to))
       job.previousImage = target.imageId
       await step(job, 'restart', 'Restart failed', async () => {
         const inspected = await docker.inspect(target.id)
+        // Keep the old image tagged, so a routine `docker image prune` can't take the roll back away
+        if (VERSION_RE.test(job.from)) await quietly(() => docker.tag(target.imageId, IMAGE, job.from))
         stopping = true
         await docker.stop(target.id)
         await docker.rename(target.id, `${target.name}-previous`)
@@ -171,7 +172,8 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
     } catch {
       if (stopping) {
         await putBack(job, { target, newId, renamed, retagged, restoreDb: () => app.restoreBackup(job.backup), showStep: true })
-      } else if (backupAsked) {
+      } else {
+        // nothing changed; the write pause may or may not have started (a stalled download never asks for it)
         await quietly(() => app.clearFlag())
       }
       finish(job, 'failed')
@@ -245,8 +247,8 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
 
     /** 202 {job, done} | 400 bad or not newer | 409 a job runs | 422 not updatable */
     async startUpdate(version) {
-      if (typeof version !== 'string' || !VERSION_RE.test(version)) return refuse(400, 'The version must look like 1.2.3.')
-      if (busy) return refuse(409, 'An update or rollback is already running.')
+      if (typeof version !== 'string' || !VERSION_RE.test(version)) return refuse(400, 'INVALID_VERSION', 'The version must look like 1.2.3.')
+      if (busy) return refuse(409, 'BUSY', 'An update or rollback is already running.')
       busy = true
       try {
         let target
@@ -254,15 +256,15 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
           target = await docker.findTarget()
         } catch (e) {
           busy = false
-          return refuse(422, `Can't find the Tazrim container: ${short(e)}`)
+          return refuse(422, 'NOT_UPDATABLE', `Can't find the Tazrim container: ${short(e)}`)
         }
         if (!target.updatable) {
           busy = false
-          return refuse(422, `This install doesn't run an ${IMAGE} image, so it can only be updated by hand.`)
+          return refuse(422, 'NOT_UPDATABLE', `This install doesn't run an ${IMAGE} image, so it can only be updated by hand.`)
         }
         if (target.version && !isNewer(version, target.version)) {
           busy = false
-          return refuse(400, `Version ${version} is not newer than the running ${target.version}.`)
+          return refuse(400, 'NOT_NEWER', `Version ${version} is not newer than the running ${target.version}.`)
         }
         const job = begin('update', target.version ?? 'unknown', version, UPDATE_STEPS)
         return launch(job, () => runUpdate(job, target))
@@ -274,31 +276,31 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
 
     /** 202 {job, done} | 409 no finished update, its backup is gone, or a job runs */
     async startRollback() {
-      if (busy) return refuse(409, 'An update or rollback is already running.')
+      if (busy) return refuse(409, 'BUSY', 'An update or rollback is already running.')
       const last = status.get()
       if (!last || last.kind !== 'update' || last.state !== 'done' || !last.backup || !last.previousImage) {
-        return refuse(409, 'There is no finished update to roll back.')
+        return refuse(409, 'NO_ROLLBACK', 'There is no finished update to roll back.')
       }
       // The status file sits on the app's volume: only ever run an image that is really ours
-      if (!IMAGE_ID_RE.test(last.previousImage)) return refuse(409, 'The previous version is not a known image.')
+      if (!IMAGE_ID_RE.test(last.previousImage)) return refuse(409, 'NO_ROLLBACK', 'The previous version is not a known image.')
       busy = true
       try {
         const img = await docker.inspectImage(last.previousImage).catch(() => null)
         const refs = [...(img?.RepoTags ?? []), ...(img?.RepoDigests ?? [])]
         if (!refs.some(r => repoOf(r) === IMAGE)) {
           busy = false
-          return refuse(409, `The previous version's image is gone or is not a ${IMAGE} image.`)
+          return refuse(409, 'NO_ROLLBACK', `The previous version's image is gone or is not a ${IMAGE} image.`)
         }
         if (!(await app.backupExists(last.backup))) {
           busy = false
-          return refuse(409, 'The backup from before the update is gone.')
+          return refuse(409, 'NO_ROLLBACK', 'The backup from before the update is gone.')
         }
         let target
         try {
           target = await docker.findTarget()
         } catch (e) {
           busy = false
-          return refuse(409, `Can't find the Tazrim container: ${short(e)}`)
+          return refuse(409, 'NO_ROLLBACK', `Can't find the Tazrim container: ${short(e)}`)
         }
         const job = begin('rollback', last.to, last.from, ROLLBACK_STEPS, { backup: last.backup, previousImage: last.previousImage })
         return launch(job, () => runRollback(job, target))
