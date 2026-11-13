@@ -241,6 +241,11 @@
   body::before { background: hsl(var(--background)); }
 }
 
+/* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
+   While it runs the elements' own colour transitions are held, so the new snapshot is final. */
+::view-transition-group(root) { animation-duration: var(--motion-fast); animation-timing-function: var(--ease-ui); }
+html[data-theme-fade] *, html[data-theme-fade] *::before, html[data-theme-fade] *::after { transition: none !important; }
+
 @layer base {
   * { @apply border-border; }
   body { @apply text-foreground; }
