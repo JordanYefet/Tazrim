@@ -107,16 +107,18 @@ export function rollbackLossText(since: LastUpdate['since']): string {
   return `כל מה שנוסף או שונה מאז (${uploads}, ${transactions}) יימחק.`
 }
 
-/** Frame 5: what a roll back does, the backup's time, what it deletes, and that everyone signs in again */
+/** Frame 5: what a roll back does, the backup's time, what it deletes, and who signs in again. Waits while a sync runs. */
 export function RollbackConfirmDialog({
   open,
   onOpenChange,
   last,
   backupWhen,
+  syncRunning,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   last: LastUpdate
+  syncRunning: boolean
   /** The backup's time in words ("היום ב-09:14"), or null before the page knows the clock */
   backupWhen: string | null
 }) {
@@ -155,6 +157,7 @@ export function RollbackConfirmDialog({
       busyLabel="מתחילים…"
       destructive
       busy={busy}
+      confirmDisabled={syncRunning}
       error={error}
     >
       {/* Red only when something would be lost */}
@@ -168,7 +171,8 @@ export function RollbackConfirmDialog({
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>{rollbackLossText(last.since)}</span>
       </p>
-      <p className="text-sm leading-relaxed text-muted-foreground">כל מי שמחובר יצטרך להתחבר מחדש.</p>
+      <p className="text-sm leading-relaxed text-muted-foreground">מי שהתחבר אחרי העדכון יצטרך להתחבר מחדש.</p>
+      {syncRunning && <p className="text-sm font-medium text-foreground">סנכרון רץ עכשיו. אפשר לחזור לגרסה הקודמת כשהוא יסתיים.</p>}
     </ConfirmDialog>
   )
 }

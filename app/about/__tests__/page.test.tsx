@@ -45,6 +45,13 @@ describe('AboutPage', () => {
     expect(html).not.toContain('שום דבר לא נשלח החוצה')
   })
 
+  it('the read-only demo never checks, so it does not mention the daily question or a switch below', () => {
+    const h = renderToStaticMarkup(<AboutContent update={null} readOnly />)
+    expect(h).toContain('כל הקבצים מפוענחים ונשמרים מקומית, והגופן מוגש מהאפליקציה עצמה.')
+    expect(h).not.toContain('פעם ביום תזרים שואל את GitHub')
+    expect(h).not.toContain('כאן למטה')
+  })
+
   it('read-only (no update state): the plain version line, no card', () => {
     expect(html).not.toContain('בדיקת עדכונים')
   })

@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 /** Who made Tazrim and why, how it treats your data, the license and how to get in touch (ENG-59). */
 export default async function AboutPage() {
   // The version card (ENG-98); not in the read-only demo, and a failing read leaves the plain version line
-  const update = isReadOnly() ? null : await getUpdateView().catch(() => null)
-  return <AboutContent update={update} />
+  const readOnly = isReadOnly()
+  const update = readOnly ? null : await getUpdateView().catch(() => null)
+  return <AboutContent update={update} readOnly={readOnly} />
 }

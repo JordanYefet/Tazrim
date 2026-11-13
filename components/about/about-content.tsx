@@ -5,7 +5,7 @@ import { CREDITS, ISSUES_URL, LICENSE_URL, NEW_ISSUE_URL, REPO_URL, STORY } from
 import { VersionCard } from '@/components/updates/version-card'
 import type { UpdateView } from '@/lib/updates/state'
 
-const PRIVACY: { icon: LucideIcon; title: string; body: string }[] = [
+const PRIVACY: { icon: LucideIcon; title: string; body: string; checkLine?: string }[] = [
   {
     icon: HardDrive,
     title: 'הנתונים נשארים אצלכם',
@@ -14,7 +14,9 @@ const PRIVACY: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ServerOff,
     title: 'הנתונים לא יוצאים מהמחשב',
-    body: 'כל הקבצים מפוענחים ונשמרים מקומית, והגופן מוגש מהאפליקציה עצמה. הדבר היחיד שיוצא: פעם ביום תזרים שואל את GitHub אם יש גרסה חדשה, ואפשר לכבות את זה כאן למטה.',
+    body: 'כל הקבצים מפוענחים ונשמרים מקומית, והגופן מוגש מהאפליקציה עצמה.',
+    // Not in the read-only demo: it never checks, and has no switch below
+    checkLine: 'הדבר היחיד שיוצא: פעם ביום תזרים שואל את GitHub אם יש גרסה חדשה, ואפשר לכבות את זה כאן למטה.',
   },
   {
     icon: UserX,
@@ -60,8 +62,11 @@ function ExternalLink({
   )
 }
 
-/** The About page (app/about/page.tsx); `update` null shows the plain version line instead of the version card */
-export function AboutContent({ update }: { update: UpdateView | null }) {
+/**
+ * The About page (app/about/page.tsx); `update` null shows the plain version line instead of the
+ * version card. `readOnly` (the demo) leaves out the daily update check, which it never runs.
+ */
+export function AboutContent({ update, readOnly = false }: { update: UpdateView | null; readOnly?: boolean }) {
   return (
     // Header static, the sections and footer rise in on the page beat (.page-in)
     <article className="page-in mx-auto max-w-2xl min-w-0 space-y-12 pb-4 md:pt-4">
@@ -103,14 +108,16 @@ export function AboutContent({ update }: { update: UpdateView | null }) {
           <p className="text-sm text-muted-foreground">אלה נתונים רגישים, ולכן תזרים בנוי כך שהם לא יוצאים מהמחשב שלכם.</p>
         </div>
         <ul className="grid gap-x-8 gap-y-5 rounded-xl surface-hero p-5 sm:grid-cols-2 md:p-6">
-          {PRIVACY.map(({ icon: Icon, title, body }) => (
+          {PRIVACY.map(({ icon: Icon, title, body, checkLine }) => (
             <li key={title} className="flex gap-3">
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
               <span className="min-w-0 space-y-0.5">
                 <span className="block text-sm font-medium">{title}</span>
-                <span className="block text-sm leading-6 text-muted-foreground">{body}</span>
+                <span className="block text-sm leading-6 text-muted-foreground">
+                  {checkLine && !readOnly ? `${body} ${checkLine}` : body}
+                </span>
               </span>
             </li>
           ))}

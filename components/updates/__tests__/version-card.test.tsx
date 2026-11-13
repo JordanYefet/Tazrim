@@ -74,6 +74,14 @@ describe('VersionCard', () => {
     expect(h).not.toMatch(/destructive|red-|expense/)
   })
 
+  it('the switch has a 44 px hit area around the visual switch', () => {
+    const h = html(view())
+    const button = /<button[^>]*role="switch"[^>]*>/.exec(h)?.[0] ?? ''
+    expect(button).toMatch(/min-h-11/)
+    expect(button).toMatch(/min-w-11/)
+    expect(h).toMatch(/role="switch"[^>]*>\s*<span aria-hidden="true" class="[^"]*h-6 w-10/)
+  })
+
   it('the switch shows the daily check', () => {
     const h = html(view({ auto: false }))
     expect(h).toContain('בדיקה אוטומטית פעם ביום')

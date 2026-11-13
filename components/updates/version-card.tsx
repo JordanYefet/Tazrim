@@ -227,25 +227,30 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
         <span id="auto-check-label" className="text-sm text-muted-foreground">
           בדיקה אוטומטית פעם ביום
         </span>
+        {/* The button is the 44 px hit area; the visual switch inside keeps its size, so the row doesn't move */}
         <button
           type="button"
           role="switch"
           aria-checked={view.auto}
           aria-labelledby="auto-check-label"
           onClick={() => setAuto(!view.auto)}
-          className={cn(
-            'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-fast ease-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            view.auto ? 'bg-primary' : 'bg-muted-foreground/30'
-          )}
+          className="group -my-2.5 -me-0.5 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
         >
           <span
             aria-hidden
             className={cn(
-              'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
-              // RTL: "on" moves the knob toward the end (left)
-              view.auto && '-translate-x-4'
+              'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-fast ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
+              view.auto ? 'bg-primary' : 'bg-muted-foreground/30'
             )}
-          />
+          >
+            <span
+              className={cn(
+                'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
+                // RTL: "on" moves the knob toward the end (left)
+                view.auto && '-translate-x-4'
+              )}
+            />
+          </span>
         </button>
       </div>
 
@@ -258,6 +263,7 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
           onOpenChange={setRollbackOpen}
           last={lastUpdate}
           backupWhen={now ? whenText(lastUpdate.backupAt, now) : null}
+          syncRunning={view.syncRunning}
         />
       )}
     </section>

@@ -18,8 +18,8 @@ const NOTICE_MS = 3200
  * Read-only mode in the browser (lib/read-only.ts; the server refuses the
  * same requests in middleware.ts). Writes to the API are stopped before they
  * are sent: the save throws, so components never show it as done (dialogs
- * stay open with what was typed), and a short notice explains why. Rendered
- * by the root layout only when the mode is on.
+ * stay open with what was typed), and a short notice explains why. The root
+ * layout always renders it, with `readOnly` saying whether the mode is on.
  *
  * It also explains a write the server paused during an update (ENG-98): the
  * response says `updating: true`, the notice shows the update message, and the
