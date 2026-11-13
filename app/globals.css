@@ -539,6 +539,47 @@ html {
   stroke-dasharray: 3 3;
 }
 
+/* Pull to refresh (components/layout/pull-to-refresh.tsx): a round chip under the header.
+   --pull is its resisted travel in px (0 hidden above, 56 resting). It follows the finger
+   with no transition while pulling, and eases to its place on release. The icon turns
+   with the pull and spins while refreshing (from where the pull left it: 64 * 4deg).
+   A constant spin is the `linear` keyword, which stays on the compositor. */
+.pull-chip {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 3.5rem + 0.5rem);
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: -1.125rem;
+  border-radius: 9999px;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, calc(var(--pull) * 1px - 52px), 0) scale(1);
+  transition: transform var(--motion-base) var(--ease-spring), opacity var(--motion-fast) var(--ease-ui), color var(--motion-fast) var(--ease-ui);
+}
+.pull-chip[data-phase='pulling'] { opacity: calc(var(--pull) / 24); transition: color var(--motion-fast) var(--ease-ui); }
+.pull-chip[data-phase='refreshing'] { opacity: 1; }
+.pull-chip[data-armed], .pull-chip[data-phase='refreshing'] { color: hsl(var(--primary)); }
+.pull-chip[data-leaving] { opacity: 0; transform: translate3d(0, calc(var(--pull) * 1px - 52px), 0) scale(0.5); transition: transform var(--motion-fast) var(--ease-ui), opacity var(--motion-fast) var(--ease-ui); }
+.pull-chip__icon { transform: rotate(calc(var(--pull) * 4deg)); }
+.pull-chip[data-phase='refreshing'] .pull-chip__icon { animation: pull-spin 800ms linear infinite; }
+@keyframes pull-spin { from { transform: rotate(256deg); } to { transform: rotate(616deg); } }
+@media (prefers-reduced-motion: reduce) {
+  /* No travel, turning or spinning: it appears in its resting place, dim while pulling, full once armed */
+  .pull-chip, .pull-chip[data-phase='pulling'], .pull-chip[data-phase='refreshing'], .pull-chip[data-leaving] {
+    transform: translate3d(0, 12px, 0);
+    transition: none;
+  }
+  .pull-chip[data-phase='pulling'] { opacity: 0.5; }
+  .pull-chip[data-phase='pulling'][data-armed], .pull-chip[data-phase='refreshing'] { opacity: 1; }
+  .pull-chip[data-leaving] { opacity: 0; }
+  .pull-chip__icon, .pull-chip[data-phase='refreshing'] .pull-chip__icon { transform: none; animation: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flyout-in, .rail-tip[data-state='delayed-open'] { animation: none; }
   /* Instant: the capsule jumps to the new tab, sheets and dialogs appear and go (ENG-67) */
