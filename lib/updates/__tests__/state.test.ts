@@ -36,6 +36,7 @@ beforeEach(async () => {
 afterEach(() => {
   vi.unstubAllGlobals()
   for (const f of ['.updater-token', '.update-status.json', '.updating']) fs.rmSync(path.join(dir(), f), { force: true })
+  fs.rmSync(path.join(dir(), 'backups'), { recursive: true, force: true })
 })
 afterAll(async () => {
   await releasePrisma()
@@ -84,8 +85,18 @@ describe('getUpdateView', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`)
   })
 
+  it('offers no roll back once the pre-update backup is gone', async () => {
+    helper({ '/v1/health': () => json(HEALTH), '/v1/status': () => json(DONE) })
+    fs.rmSync(path.join(dir(), 'backups'), { recursive: true, force: true })
+    const { getUpdateView } = await import('../state')
+    expect((await getUpdateView()).lastUpdate?.canRollBack).toBe(false)
+  })
+
   it('records a finished update once, counts what was saved since, and allows a roll back', async () => {
     helper({ '/v1/health': () => json(HEALTH), '/v1/status': () => json(DONE) })
+    // the backup sits on the same volume, at the same path, in both containers
+    fs.mkdirSync(path.join(dir(), 'backups'), { recursive: true })
+    fs.writeFileSync(path.join(dir(), 'backups', path.basename(DONE.backup)), 'fake backup')
     db.exec(`INSERT INTO "UploadHistory" ("id","accountId","fileName","uploadedAt","recordCount") VALUES
       ('u1','acct_leumi','old.xlsx',1700000000000,10),
       ('u2','acct_leumi','new.xlsx',${Date.now()},7);`)

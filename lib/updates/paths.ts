@@ -22,6 +22,22 @@ export function setUpdating(on: boolean): void {
   else fs.rmSync(flagFile(), { force: true })
 }
 
+/**
+ * A flag older than this is stale: the helper sets it right before the stop and clears it within
+ * minutes (restart + a 3-minute health wait), so an old one means the helper died mid-job.
+ */
+const STALE_MS = 15 * 60 * 1000
+
+/** Is an update pausing writes? A stale flag is removed (and logged) so it can't pause saving, and sign-in, for good. */
 export function isUpdating(): boolean {
-  return fs.existsSync(flagFile())
+  let mtime: number
+  try {
+    mtime = fs.statSync(flagFile()).mtimeMs
+  } catch {
+    return false
+  }
+  if (Date.now() - mtime < STALE_MS) return true
+  console.warn(`updates: the updating flag is older than ${STALE_MS / 60000} minutes; removing it`)
+  fs.rmSync(flagFile(), { force: true })
+  return false
 }

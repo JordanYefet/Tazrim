@@ -90,5 +90,22 @@ describe('the updating flag', () => {
     expect(isUpdating()).toBe(false)
     setUpdating(false)
   })
+
+  it('older than 15 minutes is stale: removed (and logged), so a dead helper cannot pause saving for good', async () => {
+    const { isUpdating, setUpdating } = await import('../paths')
+    const flag = path.join(path.dirname(db.file), '.updating')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setUpdating(true)
+    const old = new Date(Date.now() - 16 * 60 * 1000)
+    fs.utimesSync(flag, old, old)
+    expect(isUpdating()).toBe(false)
+    expect(fs.existsSync(flag)).toBe(false)
+    expect(warn).toHaveBeenCalled()
+    setUpdating(true)
+    const recent = new Date(Date.now() - 14 * 60 * 1000)
+    fs.utimesSync(flag, recent, recent)
+    expect(isUpdating()).toBe(true)
+    warn.mockRestore()
+  })
 })
 

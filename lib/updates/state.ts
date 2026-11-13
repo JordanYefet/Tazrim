@@ -1,9 +1,11 @@
 /** What the update card shows (ENG-98): the check's cache, the helper, the job, and the last update. */
+import fs from 'node:fs'
+import path from 'node:path'
 import { prisma } from '@/lib/db/client'
 import { isSyncActive } from '@/lib/sync/runs'
 import { CURRENT_VERSION, getUpdateCache, type UpdateCache } from './check'
 import { cachedHealth, helperHealth, helperJob, type JobStatus } from './helper'
-import { isUpdating, setUpdating } from './paths'
+import { dataDir, isUpdating, setUpdating } from './paths'
 import { getAutoCheck } from './settings'
 import { isNewer, type ReleaseInfo } from './version'
 
@@ -42,6 +44,16 @@ function backupTime(file: string | undefined): string | null {
   if (!m) return null
   const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
   return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+/** Is the job's pre-update backup still there? Same volume and path in both containers; checked by its name in our backups folder. */
+function backupPresent(file: string | undefined): boolean {
+  if (!file) return false
+  try {
+    return fs.statSync(path.join(dataDir(), 'backups', path.basename(file))).isFile()
+  } catch {
+    return false
+  }
 }
 
 async function readLast(): Promise<StoredLast | null> {
@@ -101,7 +113,7 @@ export async function getUpdateView(): Promise<UpdateView> {
   const lastUpdate: LastUpdate | null = stored
     ? {
         ...stored,
-        canRollBack: canUpdate && job?.state !== 'running' && !!job && job.kind === 'update' && job.state === 'done' && job.finishedAt === stored.at,
+        canRollBack: canUpdate && job?.state !== 'running' && !!job && job.kind === 'update' && job.state === 'done' && job.finishedAt === stored.at && backupPresent(job.backup),
         since: await savedSince(stored.backupAt),
       }
     : null

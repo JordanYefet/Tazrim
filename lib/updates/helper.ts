@@ -131,7 +131,12 @@ export interface HelperResult {
   code?: HelperRefusal
 }
 
-function refusal(kind: 'update' | 'rollback', status: number, text: string): HelperRefusal {
+const HELPER_CODES: readonly HelperRefusal[] = ['BUSY', 'NOT_NEWER', 'NOT_UPDATABLE', 'NO_ROLLBACK']
+
+/** By the helper's `code` when it sends one; older helpers only send text, so then by status and text */
+function refusal(kind: 'update' | 'rollback', status: number, text: string, code: unknown): HelperRefusal {
+  if (status === 401 || status === 403) return 'NO_HELPER'
+  if (typeof code === 'string') return (HELPER_CODES as readonly string[]).includes(code) ? (code as HelperRefusal) : 'HELPER_ERROR'
   if (status === 409) return /already running/i.test(text) ? 'BUSY' : kind === 'rollback' ? 'NO_ROLLBACK' : 'BUSY'
   if (status === 400) return kind === 'update' ? 'NOT_NEWER' : 'HELPER_ERROR'
   if (status === 422) return 'NOT_UPDATABLE'
@@ -143,8 +148,8 @@ async function post(kind: 'update' | 'rollback', route: string, body?: unknown):
   const r = await call('POST', route, { body: body ?? {} })
   if (!r) return { status: 503, code: 'NO_HELPER' }
   if (r.status === 202) return { status: 202 }
-  const text = (r.json as { error?: unknown } | null)?.error
-  const code = refusal(kind, r.status, typeof text === 'string' ? text : '')
+  const j = r.json as { error?: unknown; code?: unknown } | null
+  const code = refusal(kind, r.status, typeof j?.error === 'string' ? j.error : '', j?.code)
   return { status: code === 'NO_HELPER' ? 503 : r.status, code }
 }
 

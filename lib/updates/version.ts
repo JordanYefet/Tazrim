@@ -49,8 +49,10 @@ function notesFrom(body: unknown): string[] {
   if (typeof body !== 'string') return []
   const notes: string[] = []
   for (const raw of body.split(/\r?\n/)) {
+    // GitHub's generated tail: nothing after these is a change
+    if (/^\s*#+\s*New Contributors\b/i.test(raw) || /^\s*[-*]?\s*\**Full Changelog\b/i.test(raw)) break
     const m = /^\s*[-*]\s+(.*)$/.exec(raw)
-    if (!m) continue
+    if (!m || /made their first contribution/i.test(m[1])) continue
     const note = cleanNote(m[1])
     if (note) notes.push(note)
     if (notes.length === MAX_NOTES) break

@@ -56,6 +56,21 @@ describe('parseRelease', () => {
     expect(r.notes.every(n => n.length <= 140)).toBe(true)
     expect(r.notes[0].startsWith('Note 1 link')).toBe(true)
   })
+  it('leaves out first contributions and the New Contributors / Full Changelog sections', () => {
+    const body = [
+      "## What's Changed",
+      '* feat: Fake feature by @someone in https://github.com/x/y/pull/1',
+      '* @newbie made their first contribution in https://github.com/x/y/pull/2',
+      '',
+      '## New Contributors',
+      '* @newbie made their first contribution in https://github.com/x/y/pull/2',
+      '* fix: not a note, it sits under New Contributors',
+      '',
+      '**Full Changelog**: https://github.com/x/y/compare/v1.0.0...v1.1.0',
+      '* fix: not a note either',
+    ].join('\n')
+    expect(parseRelease({ ...release, body })?.notes).toEqual(['Fake feature'])
+  })
   it('copes with a missing body', () => {
     expect(parseRelease({ ...release, body: null })?.notes).toEqual([])
   })
