@@ -51,7 +51,7 @@ services:
   # Optional: updating from inside the app (Settings -> About, README: "עדכון לגרסה חדשה").
   # Off unless .env turns it on:
   #   COMPOSE_PROFILES=updater        (together with the others: https,dns,updater)
-  # A small helper that, when you press "Update" in the app, downloads the new release, backs
+  # A small helper that, when you press "עדכון לגרסה vX" in the app (Settings -> About), downloads the new release, backs
   # the data up, and restarts Tazrim on it (and puts the old version back if the new one does
   # not start). It uses the same image as the app.
   # It holds the Docker socket. A container with the socket can control Docker on this

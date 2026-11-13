@@ -76,7 +76,7 @@ COPY --from=build --chown=node:node /app/prisma/schema.prisma ./prisma/schema.pr
 COPY --from=build --chown=node:node /app/prisma/migrations ./prisma/migrations
 COPY --from=build --chown=node:node /app/scripts/seed-demo.mjs ./scripts/seed-demo.mjs
 # The updater helper (ENG-98) runs from this same image: docker-compose.yml's `updater` service
-COPY --from=build --chown=node:node /app/updater ./updater
+COPY --from=build --chown=node:node /app/updater/*.mjs ./updater/
 COPY --from=build /opt/prisma-cli /opt/prisma-cli
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/tazrim-entrypoint
 
