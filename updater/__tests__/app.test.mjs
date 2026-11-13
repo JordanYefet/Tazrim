@@ -25,17 +25,28 @@ describe('requestBackup', () => {
   it('asks the app with the token and maps the file into the helper volume', async () => {
     const name = 'pre-update-v1.0.0-to-v1.2.0-20261113-120000.db'
     fs.writeFileSync(path.join(dir, 'backups', name), 'fake backup')
-    reply.body = { file: `/data/backups/${name}` }
-    expect(await app.requestBackup('1.0.0', '1.2.0')).toBe(path.join(dir, 'backups', name))
+    reply.body = { file: `/data/backups/${name}`, from: '1.0.0' }
+    expect(await app.requestBackup('1.0.0', '1.2.0')).toEqual({ file: path.join(dir, 'backups', name), from: '1.0.0' })
     expect(requests[0]).toMatchObject({ url: 'http://tazrim:3000/api/updates/backup', method: 'POST', auth: 'Bearer fake-token' })
     expect(JSON.parse(requests[0].body)).toEqual({ from: '1.0.0', to: '1.2.0' })
   })
 
-  it('accepts the backup of an install whose version is unknown', async () => {
-    const name = 'pre-update-vunknown-to-v1.2.0-20261113-120000.db'
+  it('for an image without a version label, takes the version the app names itself by', async () => {
+    const name = 'pre-update-v0.9.0-to-v1.2.0-20261113-120000.db'
+    fs.writeFileSync(path.join(dir, 'backups', name), 'fake backup')
+    reply.body = { file: `/data/backups/${name}`, from: '0.9.0' }
+    expect(await app.requestBackup('unknown', '1.2.0')).toEqual({ file: path.join(dir, 'backups', name), from: '0.9.0' })
+    expect(JSON.parse(requests[0].body)).toEqual({ from: 'unknown', to: '1.2.0' })
+    expect(app.backupExists(path.join(dir, 'backups', name))).toBe(true)
+  })
+
+  it('an app that sends no version (or an odd one) leaves `from` unknown', async () => {
+    const name = 'pre-update-v0.9.0-to-v1.2.0-20261113-120000.db'
     fs.writeFileSync(path.join(dir, 'backups', name), 'fake backup')
     reply.body = { file: `/data/backups/${name}` }
-    expect(await app.requestBackup('unknown', '1.2.0')).toBe(path.join(dir, 'backups', name))
+    expect((await app.requestBackup('unknown', '1.2.0')).from).toBeNull()
+    reply.body = { file: `/data/backups/${name}`, from: '1.0.0; x' }
+    expect((await app.requestBackup('unknown', '1.2.0')).from).toBeNull()
   })
 
   it('says a sync is running on 409 SYNC_RUNNING', async () => {

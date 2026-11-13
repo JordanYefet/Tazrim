@@ -5,8 +5,12 @@ import type { LastUpdate } from '@/lib/updates/state'
 
 // The real dialog renders in a portal (nothing in static markup): show its props instead
 vi.mock('@/components/ui/confirm-dialog', () => ({
-  ConfirmDialog: (p: { confirmDisabled?: boolean; children?: ReactNode }) => (
-    <div data-confirm-disabled={String(Boolean(p.confirmDisabled))}>{p.children}</div>
+  ConfirmDialog: (p: { confirmDisabled?: boolean; title?: ReactNode; description?: ReactNode; children?: ReactNode }) => (
+    <div data-confirm-disabled={String(Boolean(p.confirmDisabled))}>
+      {p.title}
+      {p.description}
+      {p.children}
+    </div>
   ),
 }))
 
@@ -26,6 +30,14 @@ const html = (syncRunning: boolean) =>
   renderToStaticMarkup(<RollbackConfirmDialog open onOpenChange={() => {}} last={last} backupWhen={null} syncRunning={syncRunning} />)
 
 describe('RollbackConfirmDialog', () => {
+  it('a last update from an unknown version never prints "vunknown"', () => {
+    const h = renderToStaticMarkup(
+      <RollbackConfirmDialog open onOpenChange={() => {}} last={{ ...last, from: 'unknown' }} backupWhen={null} syncRunning={false} />
+    )
+    expect(h).not.toContain('unknown')
+    expect(h).toContain('חזרה לגרסה הקודמת')
+  })
+
   it('waits while a sync runs, like the update confirm', () => {
     expect(html(true)).toContain('data-confirm-disabled="true"')
     expect(html(true)).toContain('סנכרון רץ עכשיו')

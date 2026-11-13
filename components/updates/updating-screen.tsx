@@ -212,6 +212,9 @@ export function rowsOf(s: Screen): Row[] {
   return rows
 }
 
+/** x.y.z, or null: an image without a version label leaves the helper with 'unknown' */
+const known = (v: string | null | undefined): string | null => (v && /^\d+\.\d+\.\d+$/.test(v) ? v : null)
+
 function V({ v }: { v: string }) {
   return (
     <span dir="ltr" className="tabular-nums">
@@ -231,12 +234,23 @@ function Heading({ s, rows }: { s: Screen; rows: Row[] }) {
   const { job } = s
   const rollback = job.kind === 'rollback'
   const phase = phaseOf(s)
+  // Never "vunknown": the version running now stands in for "from"; with nothing to show, the sentence goes without
+  const to = known(job.to)
+  const from = known(job.from) ?? known(s.current)
   if (phase === 'done') {
     return (
       <>
         <h1 className="min-h-[30px] text-xl font-semibold tracking-tight">
-          {rollback ? 'חזרנו לגרסה ' : 'עודכן לגרסה '}
-          <V v={job.to} />
+          {to ? (
+            <>
+              {rollback ? 'חזרנו לגרסה ' : 'עודכן לגרסה '}
+              <V v={to} />
+            </>
+          ) : rollback ? (
+            'חזרנו לגרסה הקודמת'
+          ) : (
+            'העדכון הושלם'
+          )}
         </h1>
         <p className="mt-1 min-h-11 text-sm leading-relaxed text-muted-foreground">חוזרים לאפליקציה…</p>
       </>
@@ -253,19 +267,32 @@ function Heading({ s, rows }: { s: Screen; rows: Row[] }) {
           {s.stuck ? (
             'תזרים לא חזר לפעול. אפשר להריץ את הפקודה הידנית כדי להפעיל אותו מחדש.'
           ) : job.restored && rollback && afterRestart ? (
-            <>
-              תזרים חזר לגרסה <V v={job.from} />, והנתונים לא השתנו.
-            </>
+            from ? (
+              <>
+                תזרים חזר לגרסה <V v={from} />, והנתונים לא השתנו.
+              </>
+            ) : (
+              'תזרים חזר לגרסה שרצה קודם, והנתונים לא השתנו.'
+            )
           ) : job.restored ? (
             <>
-              תזרים חזר לגרסה <V v={job.from} />.{afterRestart ? ' הנתונים שמורים כפי שהיו לפני העדכון.' : ''}
+              {from ? (
+                <>
+                  תזרים חזר לגרסה <V v={from} />.
+                </>
+              ) : (
+                'תזרים חזר לגרסה הקודמת.'
+              )}
+              {afterRestart ? ' הנתונים שמורים כפי שהיו לפני העדכון.' : ''}
             </>
           ) : afterRestart ? (
             'משהו השתבש בזמן העדכון. כדאי לפתוח את הפקודות הידניות.'
-          ) : (
+          ) : from ? (
             <>
-              תזרים ממשיך לרוץ על <V v={job.from} />, ושום נתון לא השתנה.
+              תזרים ממשיך לרוץ על <V v={from} />, ושום נתון לא השתנה.
             </>
+          ) : (
+            'תזרים ממשיך לרוץ, ושום נתון לא השתנה.'
           )}
         </p>
       </>
@@ -274,8 +301,16 @@ function Heading({ s, rows }: { s: Screen; rows: Row[] }) {
   return (
     <>
       <h1 className="min-h-[30px] text-xl font-semibold tracking-tight">
-        {rollback ? 'חוזרים לגרסה ' : 'מעדכנים לגרסה '}
-        <V v={job.to} />
+        {to ? (
+          <>
+            {rollback ? 'חוזרים לגרסה ' : 'מעדכנים לגרסה '}
+            <V v={to} />
+          </>
+        ) : rollback ? (
+          'חוזרים לגרסה הקודמת'
+        ) : (
+          'מעדכנים את תזרים'
+        )}
       </h1>
       <p className="mt-1 min-h-11 text-sm leading-relaxed text-muted-foreground">אפשר להשאיר את הדף פתוח. הוא יתרענן לבד בסיום.</p>
     </>

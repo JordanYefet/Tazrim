@@ -76,7 +76,7 @@ export function fakes(opts = {}) {
     async requestBackup(from, to) {
       calls.push(['requestBackup', from, to])
       if (opts.syncRunning) throw Object.assign(new Error('A bank sync is running. Try again when it ends.'), { code: 'SYNC_RUNNING' })
-      return BACKUP
+      return { file: BACKUP, from: 'appVersion' in opts ? opts.appVersion : '1.0.0' }
     },
     async clearFlag() {
       calls.push(['clearFlag'])

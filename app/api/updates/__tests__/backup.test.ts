@@ -45,12 +45,35 @@ describe('/api/updates/backup', () => {
     expect(fs.existsSync(path.join(dir(), '.updating'))).toBe(false)
   })
 
+  it('the app names the backup with its own version, whatever the helper thinks it runs', async () => {
+    const { CURRENT_VERSION } = await import('@/lib/updates/check')
+    const { POST } = await import('../backup/route')
+    const esc = CURRENT_VERSION.replace(/\./g, '\\.')
+    for (const body of [{ from: 'unknown', to: '1.2.0' }, { to: '1.2.0' }, { from: '0.0.7', to: '1.2.0' }]) {
+      const res = await POST(post(auth, body))
+      expect(res.status).toBe(200)
+      const j = await res.json()
+      expect(j.from).toBe(CURRENT_VERSION)
+      expect(path.basename(j.file)).toMatch(new RegExp(`^pre-update-v${esc}-to-v1\\.2\\.0-\\d{8}-\\d{6}\\.db$`))
+      fs.rmSync(path.join(dir(), '.updating'), { force: true })
+    }
+  })
+
+  it('still refuses a bad `to`, or a `from` that is neither x.y.z nor unknown', async () => {
+    const { POST } = await import('../backup/route')
+    for (const body of [{ from: 'unknown', to: 'unknown' }, { from: '1.0.0' }, { from: '1.0.0; rm -rf /', to: '1.2.0' }]) {
+      expect((await POST(post(auth, body))).status).toBe(400)
+    }
+    expect(fs.existsSync(path.join(dir(), '.updating'))).toBe(false)
+  })
+
   it('takes the backup, sets the flag, and DELETE clears it', async () => {
+    const { CURRENT_VERSION } = await import('@/lib/updates/check')
     const { POST, DELETE } = await import('../backup/route')
     const res = await POST(post())
     expect(res.status).toBe(200)
     const { file } = await res.json()
-    expect(path.basename(file)).toMatch(/^pre-update-v1\.0\.0-to-v1\.2\.0-\d{8}-\d{6}\.db$/)
+    expect(path.basename(file)).toMatch(new RegExp(`^pre-update-v${CURRENT_VERSION.replace(/\./g, '\\.')}-to-v1\\.2\\.0-\\d{8}-\\d{6}\\.db$`))
     expect(fs.existsSync(file)).toBe(true)
     expect(fs.existsSync(path.join(dir(), '.updating'))).toBe(true)
     const del = await DELETE(new Request('http://localhost/x', { method: 'DELETE', headers: auth }))

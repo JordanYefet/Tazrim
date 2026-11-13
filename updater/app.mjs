@@ -57,7 +57,7 @@ export function createApp({ url, token, dbFile, fetchImpl = fetch, fs = nodeFs, 
   }
 
   return {
-    /** The app pauses writes, takes the backup, and answers with its path; returns the same file on this side's mount */
+    /** The app pauses writes, takes the backup, and answers with its path and its version; returns { file (on this side's mount), from } */
     async requestBackup(from, to) {
       const res = await fetchImpl(endpoint, {
         method: 'POST',
@@ -75,7 +75,9 @@ export function createApp({ url, token, dbFile, fetchImpl = fetch, fs = nodeFs, 
       if (!BACKUP_NAME.test(name)) throw new Error('the app named an unexpected backup file')
       const local = path.join(backupsDir, name)
       if (!isOurBackup(local) || !isNonEmptyFile(local)) throw new Error('the backup file is missing or empty')
-      return local
+      // The app's own version (it names the backup with it); null from an app that doesn't say
+      const appFrom = typeof body.from === 'string' && /^\d+\.\d+\.\d+$/.test(body.from) ? body.from : null
+      return { file: local, from: appFrom }
     },
 
     /** Lifts the app's write pause; removes the flag file directly when the app doesn't answer */

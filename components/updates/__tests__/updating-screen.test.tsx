@@ -167,6 +167,31 @@ describe('UpdatingCard', () => {
   })
 })
 
+describe('a job whose versions are not x.y.z (an image without a version label)', () => {
+  const card = (s: Screen) => renderToStaticMarkup(<UpdatingCard screen={s} manualOpen={false} />)
+
+  it('never prints "vunknown": the version running now stands in for "from"', () => {
+    const j = job({ backup: 'failed', download: 'done' }, { from: 'unknown', state: 'failed' })
+    const html = card(screen(j))
+    expect(html).not.toContain('unknown')
+    expect(html).toContain('תזרים ממשיך לרוץ על ')
+    expect(html).toContain('v9.1.0')
+    const restored = job({ backup: 'done', download: 'done', restart: 'done', migrate: 'failed' }, { from: 'unknown', state: 'failed', restored: true })
+    expect(card(screen(restored))).not.toContain('unknown')
+    expect(card(screen(restored))).toContain('v9.1.0')
+  })
+
+  it('with no x.y.z at all, the sentences leave the version out', () => {
+    const j = job({ backup: 'failed', download: 'done' }, { from: 'unknown', state: 'failed' })
+    const html = card(screen(j, { current: 'dev' }))
+    expect(html).not.toMatch(/vunknown|vdev/)
+    expect(html).toContain('תזרים ממשיך לרוץ, ושום נתון לא השתנה.')
+    const running = card(screen(job({ backup: 'running' }, { kind: 'rollback', from: '9.2.0', to: 'unknown', steps: [{ id: 'restore', state: 'running' }, { id: 'restart', state: 'waiting' }, { id: 'check', state: 'waiting' }] })))
+    expect(running).not.toContain('unknown')
+    expect(running).toContain('חוזרים לגרסה הקודמת')
+  })
+})
+
 describe('review fixes', () => {
   afterEach(() => vi.useRealTimers())
 

@@ -146,7 +146,10 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
     let newId = null
     try {
       await step(job, 'download', 'Download failed', () => docker.pull(IMAGE, job.to, progress(job)))
-      job.backup = await step(job, 'backup', 'Backup failed', () => app.requestBackup(job.from, job.to))
+      const backup = await step(job, 'backup', 'Backup failed', () => app.requestBackup(job.from, job.to))
+      job.backup = backup.file
+      // An image without a version label: the app knows what it runs (the old image's tag below uses it too)
+      if (!VERSION_RE.test(job.from) && backup.from && VERSION_RE.test(backup.from)) job.from = backup.from
       job.previousImage = target.imageId
       await step(job, 'restart', 'Restart failed', async () => {
         const inspected = await docker.inspect(target.id)

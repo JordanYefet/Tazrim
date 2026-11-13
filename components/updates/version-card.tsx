@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils/cn'
 import { REPO_URL } from '@/lib/about/content'
 import type { UpdateView } from '@/lib/updates/state'
 import { ManualCommands } from './manual-commands'
-import { RollbackConfirmDialog, UpdateConfirmDialog, Ver } from './update-dialogs'
+import { RollbackConfirmDialog, UpdateConfirmDialog, Ver, knownVersion } from './update-dialogs'
 
 export { rollbackLossText } from './update-dialogs'
 
@@ -218,7 +218,13 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
         <div className="space-y-2 border-t pt-4">
           <p className="text-sm text-muted-foreground">משהו לא עובד כמו שצריך בגרסה החדשה?</p>
           <button type="button" className={SECONDARY} onClick={() => setRollbackOpen(true)} disabled={running}>
-            חזרה לגרסה <Ver v={lastUpdate.from} />
+            {knownVersion(lastUpdate.from) ? (
+              <>
+                חזרה לגרסה <Ver v={lastUpdate.from} />
+              </>
+            ) : (
+              'חזרה לגרסה הקודמת'
+            )}
           </button>
         </div>
       )}

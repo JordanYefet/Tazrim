@@ -188,12 +188,31 @@ describe('update', () => {
   })
 
   it('allows any valid version when the running version is unknown', async () => {
-    const { jobs, calls } = setup({ version: null })
+    const { jobs, calls } = setup({ version: null, appVersion: null })
     const r = await jobs.startUpdate('0.0.1')
     expect(r.status).toBe(202)
     await r.done
     expect(jobs.current().state).toBe('done')
+    expect(jobs.current().from).toBe('unknown')
     expect(calls.filter(c => c[0] === 'tag' && c[1] === OLD_IMAGE)).toEqual([])
+  })
+
+  it('without a version label, takes the version the app names itself by, for the status and the old image tag', async () => {
+    const { jobs, calls, status } = setup({ version: null, appVersion: '0.9.0' })
+    const r = await jobs.startUpdate('1.18.0')
+    expect(r.job.from).toBe('unknown')
+    await r.done
+    expect(calls).toContainEqual(['requestBackup', 'unknown', '1.18.0'])
+    expect(jobs.current()).toMatchObject({ state: 'done', from: '0.9.0' })
+    expect(status.saves.at(-1).from).toBe('0.9.0')
+    expect(indexOf(calls, 'tag', OLD_IMAGE, IMAGE, '0.9.0')).toBeGreaterThan(-1)
+    expect(indexOf(calls, 'tag', OLD_IMAGE, IMAGE, '0.9.0')).toBeLessThan(indexOf(calls, 'stop', 'old-id'))
+  })
+
+  it('a known running version is kept even if the app says otherwise', async () => {
+    const { jobs } = setup({ appVersion: '0.9.0' })
+    await (await jobs.startUpdate('1.2.0')).done
+    expect(jobs.current().from).toBe('1.0.0')
   })
 })
 

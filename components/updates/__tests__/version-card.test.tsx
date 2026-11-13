@@ -74,6 +74,20 @@ describe('VersionCard', () => {
     expect(h).not.toMatch(/destructive|red-|expense/)
   })
 
+  it('a last update from an unknown version offers the roll back without "vunknown"', () => {
+    const lastUpdate = {
+      from: 'unknown',
+      to: '9.1.0',
+      at: '2030-01-01T09:20:00.000Z',
+      canRollBack: true,
+      backupAt: '2030-01-01T09:14:00.000Z',
+      since: { uploads: 0, transactions: 0 },
+    }
+    const h = html(view({ lastUpdate }))
+    expect(h).not.toContain('unknown')
+    expect(h).toContain('חזרה לגרסה הקודמת')
+  })
+
   it('the switch has a 44 px hit area around the visual switch', () => {
     const h = html(view())
     const button = /<button[^>]*role="switch"[^>]*>/.exec(h)?.[0] ?? ''

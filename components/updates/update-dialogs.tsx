@@ -6,6 +6,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { LastUpdate } from '@/lib/updates/state'
 import type { ReleaseInfo } from '@/lib/updates/version'
 
+/** x.y.z, or null (a last update recorded from an image without a version label says 'unknown') */
+export const knownVersion = (v: string | null | undefined): string | null => (v && /^\d+\.\d+\.\d+$/.test(v) ? v : null)
+
 /** A version, left to right with even digits, inside Hebrew text */
 export function Ver({ v }: { v: string }) {
   return (
@@ -144,9 +147,13 @@ export function RollbackConfirmDialog({
       }}
       onConfirm={confirm}
       title={
-        <>
-          חזרה לגרסה <Ver v={last.from} />
-        </>
+        knownVersion(last.from) ? (
+          <>
+            חזרה לגרסה <Ver v={last.from} />
+          </>
+        ) : (
+          'חזרה לגרסה הקודמת'
+        )
       }
       description={
         <p>
