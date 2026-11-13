@@ -1847,3 +1847,125 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 @media (prefers-reduced-motion: reduce) {
   .auth-gradient, .auth-swap { animation: none; }
 }
+
+/* The update page (components/updates/updating-screen.tsx, ENG-98): the sign-in drift, whose
+   colour follows the update. Three stacked layers cross-fade (opacity only): working is the
+   sign-in gradient, done a calm teal-green, failed a soft red that stops drifting. */
+.update-drift {
+  animation: auth-drift 12s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.update-drift > i { position: absolute; inset: 0; transition: opacity 900ms ease; }
+.update-bg-work {
+  background:
+    radial-gradient(40% 50% at 25% 30%, hsl(256 80% 90%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 70% 75%, hsl(322 70% 90%) 0%, transparent 70%),
+    radial-gradient(40% 45% at 80% 20%, hsl(203 62% 88%) 0%, transparent 70%),
+    linear-gradient(150deg, hsl(254 60% 96%) 0%, hsl(var(--background)) 50%, hsl(203 50% 96%) 100%);
+}
+.update-drift > .update-bg-done {
+  opacity: 0;
+  background:
+    radial-gradient(45% 55% at 30% 35%, hsl(165 55% 86%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 72% 70%, hsl(199 65% 86%) 0%, transparent 70%),
+    linear-gradient(150deg, hsl(165 40% 96%) 0%, hsl(var(--background)) 55%, hsl(199 45% 96%) 100%);
+}
+.update-drift > .update-bg-fail {
+  opacity: 0;
+  background:
+    radial-gradient(42% 52% at 30% 35%, hsl(3 75% 89%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 72% 72%, hsl(350 60% 90%) 0%, transparent 70%),
+    linear-gradient(150deg, hsl(3 55% 96%) 0%, hsl(var(--background)) 55%, hsl(350 40% 96%) 100%);
+}
+.dark .update-bg-work {
+  background:
+    radial-gradient(40% 50% at 25% 30%, hsl(256 45% 24%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 70% 75%, hsl(322 35% 20%) 0%, transparent 70%),
+    radial-gradient(40% 45% at 80% 20%, hsl(203 45% 20%) 0%, transparent 70%),
+    hsl(var(--background));
+}
+.dark .update-drift > .update-bg-done {
+  background:
+    radial-gradient(45% 55% at 30% 35%, hsl(165 40% 20%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 72% 70%, hsl(199 45% 20%) 0%, transparent 70%),
+    hsl(var(--background));
+}
+.dark .update-drift > .update-bg-fail {
+  background:
+    radial-gradient(42% 52% at 30% 35%, hsl(3 50% 22%) 0%, transparent 70%),
+    radial-gradient(45% 55% at 72% 72%, hsl(350 40% 18%) 0%, transparent 70%),
+    hsl(var(--background));
+}
+[data-update-state='done'] .update-drift > .update-bg-done,
+[data-update-state='failed'] .update-drift > .update-bg-fail { opacity: 1; }
+[data-update-state='failed'] .update-drift { animation-play-state: paused; }
+
+/* The bar fills from the right (RTL); its colour turns green when done, red on a failure */
+.update-track {
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: hsl(var(--foreground) / 0.08);
+}
+.update-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 99px;
+  background: hsl(var(--primary));
+  transform-origin: right;
+  transition: transform 500ms var(--ease-ui), background-color 300ms ease;
+}
+[data-update-state='done'] .update-fill { background: hsl(var(--income)); }
+[data-update-state='failed'] .update-fill { background: hsl(var(--expense)); }
+
+/* A step row: its icon box never changes size; the four icons cross-fade */
+.update-step {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 22px;
+  font-size: 14px;
+  transition: color 200ms ease;
+}
+.update-step[data-s='waiting'] { color: hsl(var(--muted-foreground)); }
+.update-note { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.update-step[data-s='failed'] .update-note { color: hsl(var(--expense)); }
+.update-ic { position: relative; width: 20px; height: 20px; }
+.update-ic > span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 180ms ease-out, transform 220ms var(--ease-ui);
+}
+.update-ic-w { border: 1.5px solid hsl(var(--border)); }
+.update-ic-r {
+  border: 2px solid hsl(var(--primary) / 0.25);
+  border-top-color: hsl(var(--primary));
+  animation: update-spin 800ms linear infinite;
+}
+.update-ic-d { background: hsl(var(--income)); }
+.update-ic-f { background: hsl(var(--expense)); }
+.update-step[data-s='waiting'] .update-ic-w,
+.update-step[data-s='running'] .update-ic-r,
+.update-step[data-s='done'] .update-ic-d,
+.update-step[data-s='failed'] .update-ic-f { opacity: 1; transform: scale(1); }
+@keyframes update-spin { to { transform: rotate(360deg); } }
+
+/* The failure's actions: their space is always there; they fade in */
+.update-actions { opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
+.update-actions[data-shown] { opacity: 1; pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .update-drift { animation: none; }
+  .update-ic-r { animation: none; border-color: hsl(var(--primary)); }
+  .update-fill { transition: background-color 300ms ease; }
+}

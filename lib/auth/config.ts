@@ -37,7 +37,7 @@ export const BARE_HEADER = 'x-tazrim-bare'
 /** Reachable with no session. Everything else redirects to /login (pages) or answers 401 (API). */
 export function isPublicPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
-  if (isBarePath(path)) return true
+  if (isAuthPage(path)) return true
   if (path === '/api/health' || path.startsWith('/api/auth/')) return true
   // The updater helper calls this with its own token, which the route checks (ENG-98)
   if (path === '/api/updates/backup') return true
@@ -55,6 +55,11 @@ export function isPublicPath(pathname: string): boolean {
 }
 
 /** The sign-in, first-run and invite pages */
-export function isBarePath(path: string): boolean {
+function isAuthPage(path: string): boolean {
   return path === '/login' || path === '/setup' || path === '/invite' || path.startsWith('/invite/')
+}
+
+/** Pages without the app's sidebar and header: the sign-in pages, and an update's progress (ENG-98), which still needs a session */
+export function isBarePath(path: string): boolean {
+  return isAuthPage(path) || path === '/updating'
 }
