@@ -46,8 +46,8 @@ export function relyingParty(headers: Headers): RelyingParty | null {
 /** What a challenge was issued for, checked again when the browser answers */
 export type Flow =
   | { kind: 'login' }
-  | { kind: 'setup'; personId: string; name: string }
-  | { kind: 'invite'; inviteId: string; personId: string; name: string; isNewPerson: boolean }
+  /** Another device for someone already in the household (a new person joins with a password first) */
+  | { kind: 'invite'; inviteId: string; personId: string }
   | { kind: 'device'; personId: string }
   | { kind: 'confirm'; personId: string }
   /** The vault (ENG-90): the PRF salt asked of each allowed passkey, by credential id */
