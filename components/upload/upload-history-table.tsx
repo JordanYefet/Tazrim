@@ -76,7 +76,7 @@ export function UploadHistoryTable({ refresh }: { refresh: number }) {
                 <tr key={row.id} className="border-b hover:bg-muted/30 transition-colors">
                   <td className="py-2.5 px-4 max-w-[200px] truncate font-medium">{row.fileName}</td>
                   <td className="py-2.5 px-4">
-                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', KIND_COLORS[row.account.kind] ?? 'bg-muted text-muted-foreground')}>
+                    <span className={cn('inline-block whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium', KIND_COLORS[row.account.kind] ?? 'bg-muted text-muted-foreground')}>
                       {row.account.displayName}
                     </span>
                   </td>

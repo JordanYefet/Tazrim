@@ -75,7 +75,7 @@ export function AccountSwitcher() {
               )}
               {p.label}
               {p.account?.lastFour && (
-                <span dir="ltr" className="text-[11px] tabular-nums opacity-70">·{p.account.lastFour}</span>
+                <span dir="ltr" data-steady className="text-[11px] tabular-nums opacity-70">·{p.account.lastFour}</span>
               )}
             </WalletLink>
           </li>

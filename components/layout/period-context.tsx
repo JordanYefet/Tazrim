@@ -22,7 +22,7 @@ import {
  * so moving around the app never drops the selected month.
  *
  * Changing the period (or the scope) of the page on screen runs as one transition
- * (`start`): the page that is shown stays, dimmed by <PageMain> while `pending`,
+ * (`start`): the page that is shown stays (marked as loading by <PageMain>) while `pending`,
  * until the next one has arrived, and then the numbers roll to their new values.
  * No skeleton, no blank. The header's pickers, the charts' month clicks and
  * <PeriodLink> all navigate through it.
@@ -101,7 +101,7 @@ export function useRememberPeriod(): (p: Period) => void {
   return useContext(PeriodContext).remember
 }
 
-/** Whether a period or scope navigation is in flight (the page on screen is the old one, dimmed). */
+/** Whether a period or scope navigation is in flight (the page on screen is the old one). */
 export function usePeriodPending(): boolean {
   return useContext(PeriodContext).pending
 }
@@ -114,7 +114,7 @@ export function usePeriodTransition(): (navigate: () => void) => void {
 /**
  * Navigates to `href` as the period transition: for the charts' month clicks and
  * other same-page moves that only change the period or the scope. The page stays
- * (dimmed) until the next one arrives; `scroll` is false by default, as those
+ * (marked as loading) until the next one arrives; `scroll` is false by default, as those
  * clicks keep the reader where they were.
  */
 export function usePeriodNavigation(): (href: string, options?: { scroll?: boolean }) => void {

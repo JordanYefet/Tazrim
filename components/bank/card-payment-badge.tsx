@@ -61,7 +61,7 @@ export function CardPaymentBadges({
               <>
                 {/* Its own span, so in RTL it sits between the name and the digits */}
                 <span aria-hidden className="-mx-0.5 max-sm:hidden">·</span>
-                <span dir="ltr" className="tabular-nums opacity-80">{card.lastFour}</span>
+                <span dir="ltr" data-steady className="tabular-nums opacity-80">{card.lastFour}</span>
               </>
             )}
           </Link>
