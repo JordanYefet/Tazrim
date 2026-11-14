@@ -15,7 +15,9 @@
 #      latest: amd64 and arm64 built side by side, each on a runner of its own chip
 #      (no emulation), from the same files as that commit, then joined under one name
 #   4. then, only once the image is pushed: the `release` branch and the tag
-#      v<version> go up, and the GitHub release is created (notes from the merged PRs)
+#      v<version> go up, and the GitHub release is created (notes from the merged PRs),
+#      with the double-click installers from installer/ attached (version filled in,
+#      so each downloads the docker-compose.yml of that same release)
 #
 # Vercel builds the live demo from the `release` branch through its GitHub
 # link (vercel.json allows that branch only), so each release updates the demo.
@@ -274,6 +276,25 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v${{ needs.validate.outputs.version }}
+
+      # The installers with this release's version in them. The zips keep the Mac file
+      # executable (a loose download loses that, and Finder then refuses to open it).
+      - name: Installers
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          mkdir -p dist
+          sed "s/@@TAZRIM_VERSION@@/$VERSION/" "installer/Install Tazrim.command" > "dist/Install Tazrim.command"
+          chmod +x "dist/Install Tazrim.command"
+          sed "s/@@TAZRIM_VERSION@@/$VERSION/" installer/install-tazrim.ps1 > dist/install-tazrim.ps1
+          cp "installer/Install Tazrim.bat" dist/
+          grep -q "@@TAZRIM_VERSION@@" dist/* && { echo "::error::an installer still has the version placeholder"; exit 1; }
+          (cd dist && zip -X "Install-Tazrim-Mac.zip" "Install Tazrim.command" \
+            && zip -X "Install-Tazrim-Windows.zip" "Install Tazrim.bat" install-tazrim.ps1)
+
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -285,4 +306,9 @@ jobs:
             --verify-tag \
             --title "v$VERSION" \
             --generate-notes \
-            --notes "Docker image: \`$image:$VERSION\` (also \`latest\`)"
+            --notes "Docker image: \`$image:$VERSION\` (also \`latest\`)" \
+            "dist/Install-Tazrim-Mac.zip" \
+            "dist/Install-Tazrim-Windows.zip" \
+            "dist/Install Tazrim.command" \
+            "dist/Install Tazrim.bat" \
+            "dist/install-tazrim.ps1"
