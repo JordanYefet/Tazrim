@@ -45,3 +45,15 @@ export interface InstallView {
   installDir: string | null
   job: ConfigJob | null
 }
+
+/** Beside the install view, for the phones and HTTPS pages (ENG-122/123): /api/install/network */
+export interface NetworkInfo {
+  /** Home-network addresses this computer has; only outside Docker (a container sees its own) */
+  lanHints: string[]
+  /** Caddy's HTTPS port on this computer (443 unless TAZRIM_HTTPS_PORT moved it) */
+  httpsPort: string
+  /** Caddy's root certificate is there, so the download links work */
+  certReady: boolean
+  /** Passwords only over HTTPS or on this computer (Settings → General) */
+  requireHttps: boolean
+}

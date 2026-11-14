@@ -8,7 +8,7 @@ import { ManualEnvSteps } from '../container-settings'
 const view = (extra: Partial<InstallView> = {}): InstallView => ({
   helper: 'ready',
   reason: null,
-  values: { TAZRIM_PORT: '3005', TAZRIM_PHONE_PORT: '3006', COMPOSE_PROFILES: 'updater', TAZRIM_LAN_IP: '192.168.1.20', TAZRIM_HOST: 'tazrim.internal', TAZRIM_DNS_HOST: 'dns.internal' },
+  values: { TAZRIM_PORT: '3005', TAZRIM_PHONE_PORT: '3006', COMPOSE_PROFILES: 'updater', TAZRIM_LAN_IP: '192.168.1.20', TAZRIM_HOST: 'tazrim.internal', TAZRIM_DNS_HOST: 'dns.internal', TAZRIM_DNS_BIND: '127.0.0.1' },
   fileValues: null,
   installDir: '/home/someone/tazrim',
   job: null,

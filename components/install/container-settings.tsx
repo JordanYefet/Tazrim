@@ -363,6 +363,50 @@ export function ContainerSettingField({
   )
 }
 
+/** The on/off switch itself (44px target), as in the profile switches below */
+export function SwitchButton({
+  on,
+  labelledBy,
+  busy,
+  disabled,
+  onClick,
+}: {
+  on: boolean
+  labelledBy: string
+  busy?: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-labelledby={labelledBy}
+      aria-busy={busy || undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className="group -my-2.5 -me-0.5 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none disabled:opacity-60"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-fast ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
+          on ? 'bg-primary' : 'bg-muted-foreground/30'
+        )}
+      >
+        <span
+          className={cn(
+            'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
+            // RTL: "on" moves the knob toward the end (left)
+            on && '-translate-x-4'
+          )}
+        />
+      </span>
+    </button>
+  )
+}
+
 /** On/off for a compose profile (HTTPS, local names). The updater's own profile is never offered. */
 export function ContainerProfileSwitch({
   settings,
@@ -392,32 +436,13 @@ export function ContainerProfileSwitch({
           </span>
           {description && <span className="block text-xs text-muted-foreground">{description}</span>}
         </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-labelledby={`${id}-label`}
-          aria-busy={saving || undefined}
+        <SwitchButton
+          on={on}
+          labelledBy={`${id}-label`}
+          busy={saving}
           disabled={!settings.canApply || settings.busy}
           onClick={() => void settings.apply({ COMPOSE_PROFILES: next })}
-          className="group -my-2.5 -me-0.5 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none disabled:opacity-60"
-        >
-          <span
-            aria-hidden
-            className={cn(
-              'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-fast ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
-              on ? 'bg-primary' : 'bg-muted-foreground/30'
-            )}
-          >
-            <span
-              className={cn(
-                'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
-                // RTL: "on" moves the knob toward the end (left)
-                on && '-translate-x-4'
-              )}
-            />
-          </span>
-        </button>
+        />
       </div>
       {!settings.canApply && <ManualEnvSteps lines={[`COMPOSE_PROFILES=${next}`]} installDir={settings.view.installDir} />}
     </div>
