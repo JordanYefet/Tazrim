@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpLeft, ChevronRight, EyeOff, HardDrive, ServerOff, UserX, type LucideIcon } from 'lucide-react'
 import pkg from '@/package.json'
-import { CREDITS, ISSUES_URL, LICENSE_URL, NEW_ISSUE_URL, REPO_URL, STORY } from '@/lib/about/content'
+import { AVATAR_CREDITS, BANK_SYNC_CREDIT, CREDITS, DICEBEAR_URL, ISSUES_URL, LICENSE_URL, NEW_ISSUE_URL, REPO_URL, STORY } from '@/lib/about/content'
 
 const PRIVACY: { icon: LucideIcon; title: string; body: string; checkLine?: string }[] = [
   {
@@ -64,6 +64,15 @@ function ExternalLink({
  * The About page (app/about/page.tsx). `readOnly` (the demo) leaves out the daily update check,
  * which it never runs. The version card lives in Settings → Updates (ENG-98).
  */
+/** A credit in the footer: an outside link, set left to right */
+function CreditLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" dir="ltr" className="text-foreground/80 underline-offset-4 hover:text-foreground hover:underline">
+      {children}
+    </a>
+  )
+}
+
 export function AboutContent({ readOnly = false }: { readOnly?: boolean }) {
   return (
     // Header static, the sections and footer rise in on the page beat (.page-in)
@@ -176,6 +185,21 @@ export function AboutContent({ readOnly = false }: { readOnly?: boolean }) {
               {i < CREDITS.length - 1 ? ', ' : '.'}
             </span>
           ))}
+        </p>
+        <p className="leading-6">
+          סנכרון הבנקים וחברות האשראי מתאפשר בזכות{' '}
+          <CreditLink href={BANK_SYNC_CREDIT.url}>{BANK_SYNC_CREDIT.name}</CreditLink>, פרויקט קוד פתוח של הקהילה
+          שעושה את העבודה הקשה מול האתרים של הבנקים.
+        </p>
+        <p className="leading-6">
+          האיורים של התמונות האישיות:{' '}
+          {AVATAR_CREDITS.map((c, i) => (
+            <span key={c.name}>
+              <CreditLink href={c.url}>{c.name}</CreditLink> מאת <bdi>{c.by}</bdi>
+              {i < AVATAR_CREDITS.length - 2 ? ', ' : i === AVATAR_CREDITS.length - 2 ? ' ו-' : ''}
+            </span>
+          ))}
+          , ברישיון CC0, ומצוירים באפליקציה עצמה בעזרת <CreditLink href={DICEBEAR_URL}>DiceBear</CreditLink>.
         </p>
       </footer>
     </article>

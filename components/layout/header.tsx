@@ -10,7 +10,7 @@ import { isPeriodPath, periodQuery, type Period } from '@/lib/period'
 import { useCurrentPeriod, usePeriodPending, usePeriodTransition, useRememberPeriod, useToday } from './period-context'
 import { PeriodPicker } from './period-picker'
 import { ReadOnlyBadge } from './read-only-guard'
-import { SyncButton } from '@/components/sync/sync-button'
+import { ProfileButton } from './profile-card'
 
 /**
  * A period chosen in the picker. Pages without a period (settings, upload...) only remember it,
@@ -86,8 +86,8 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
         )}
       >
         {/* The start column is as wide as the end one, so the period sits in the middle.
-            It holds the bank sync (ENG-91); in read-only mode (the demo) it says so instead */}
-        <div className="flex min-w-0 items-center">{readOnly ? <ReadOnlyBadge /> : <SyncButton />}</div>
+            It holds the profile avatar (sync status and the profile card, ENG-91); in read-only mode (the demo) it says so instead */}
+        <div className="flex min-w-0 items-center">{readOnly ? <ReadOnlyBadge /> : <ProfileButton />}</div>
         {/* The picker; the way back to this month is inside its panel */}
         <div className="flex items-center">
           <PeriodPicker period={{ year: shown.year, month: shown.month }} today={today} onChange={update} />

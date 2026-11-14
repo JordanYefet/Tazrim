@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { ChevronLeft, KeyRound, Laptop, LockKeyhole, LogOut, ShieldCheck, Smartphone, UserPlus, type LucideIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronLeft, KeyRound, Laptop, LockKeyhole, LogOut, Pencil, ShieldCheck, Smartphone, UserPlus, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -10,15 +11,15 @@ import { RecoveryCode } from '@/components/auth/recovery-code'
 import { createPasskey, guessDeviceLabel, passkeyBlocker } from '@/components/auth/passkey-client'
 import { errorText, primaryButton, secondaryButton } from '@/components/auth/ui'
 import { inputClass } from '@/components/accounts/add-account-form'
+import { PersonAvatar } from '@/components/avatar/person-avatar'
+import { AvatarPicker } from './avatar-picker'
+import type { Avatar } from '@/lib/avatar/options'
 
 interface Device { id: string; label: string; createdAt: string; lastUsedAt: string | null }
-interface Person { id: string; name: string; hasPassword: boolean; passkeys: Device[] }
+interface Person { id: string; name: string; hasPassword: boolean; passkeys: Device[]; avatar: Avatar | null }
 interface PeopleInfo { people: Person[]; me: string | null; thisDevice: string | null; hasRecoveryCode: boolean }
 
 const date = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' })
-
-/** A person's initial, tinted by position: the app's blue, then green, then the card amber */
-const AVATARS = ['bg-primary/10 text-primary', 'bg-[hsl(var(--income)/0.12)] text-[hsl(var(--income))]', 'bg-[hsl(var(--cc)/0.14)] text-[hsl(var(--cc))]']
 
 const ROW = 'flex min-h-14 items-center gap-3.5 px-4 py-2.5 md:px-5 [&+&]:border-t'
 const ROW_BUTTON = cn(ROW, 'w-full text-start transition-[background-color,transform] duration-quick ease-ui hover:bg-muted/60 active:scale-[0.99] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring')
@@ -52,7 +53,9 @@ async function call(url: string, method: string, body?: unknown) {
  * `open` (from the profile menu) opens adding a device for me, or my password, at once.
  */
 export function PeopleSettings({ recovered, open }: { recovered: boolean; open?: 'device' | 'password' }) {
+  const router = useRouter()
   const [info, setInfo] = useState<PeopleInfo | null>(null)
+  const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invite, setInvite] = useState<{ title: string; url: string; qr: string; expiresAt: string } | null>(null)
   const [revoking, setRevoking] = useState<Device | null>(null)
@@ -191,12 +194,25 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
       {!info ? (
         <div className="h-40 animate-pulse rounded-2xl bg-muted motion-reduce:animate-none" aria-label="טוען" />
       ) : (
-        info.people.map((p, i) => (
+        info.people.map(p => (
           <section key={p.id} aria-label={p.name} className="overflow-hidden rounded-2xl surface">
             <div className="flex items-center gap-3.5 px-4 py-4 md:px-5">
-              <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-bold', AVATARS[i % AVATARS.length])} aria-hidden>
-                {[...p.name][0]}
-              </span>
+              {p.id === info.me ? (
+                // Your own: a pencil badge opens the picker
+                <button
+                  type="button"
+                  onClick={() => setPicking(true)}
+                  aria-label="שינוי התמונה"
+                  className="relative shrink-0 rounded-[30%] transition-transform duration-quick ease-ui active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card motion-reduce:transition-none"
+                >
+                  <PersonAvatar avatar={p.avatar} name={p.name} size={44} />
+                  <span aria-hidden className="absolute -bottom-1 -end-1 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-card bg-primary text-primary-foreground">
+                    <Pencil className="h-[11px] w-[11px]" strokeWidth={2.5} />
+                  </span>
+                </button>
+              ) : (
+                <PersonAvatar avatar={p.avatar} name={p.name} size={44} />
+              )}
               <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate text-[17px] font-semibold">{p.name}</span>
                 {p.id === info.me && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">את/ה</span>}
@@ -301,6 +317,20 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
         <LogOut className="h-4 w-4 -scale-x-100" aria-hidden />
         יציאה
       </button>
+
+      {info && (
+        <AvatarPicker
+          open={picking}
+          onOpenChange={setPicking}
+          avatar={info.people.find(p => p.id === info.me)?.avatar ?? null}
+          name={info.people.find(p => p.id === info.me)?.name ?? ''}
+          onSaved={() => {
+            load()
+            // The header and the profile card carry it too
+            router.refresh()
+          }}
+        />
+      )}
 
       <AppDialog open={!!invite} onOpenChange={o => !o && setInvite(null)} title={invite?.title ?? ''}>
         {invite && (

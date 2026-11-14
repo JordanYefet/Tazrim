@@ -16,9 +16,8 @@ import {
   toggleSection,
   type NavSectionKey,
 } from '@/lib/nav/state'
-import { ABOUT_NAV, MAIN_NAV, SETTINGS_NAV, useNavSections, type NavLinkItem, type NavSectionItem } from './nav-context'
+import { MAIN_NAV, useNavSections, type NavLinkItem, type NavSectionItem } from './nav-context'
 import { RailFlyout } from './rail-flyout'
-import { SidebarProfile, useMe } from './profile-menu'
 import { usePeriodHref } from './period-context'
 
 /*
@@ -203,7 +202,6 @@ export function Sidebar({
 }) {
   const pathname = usePathname()
   const periodHref = usePeriodHref()
-  const me = useMe()
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [closed, setClosed] = useState(initialClosed)
 
@@ -269,9 +267,8 @@ export function Sidebar({
           </Link>
         </div>
 
-        {/* The links scroll (min-h-0 lets the list shrink below its content) and the
-            bottom row stays in view at any height, such as an iPad in landscape with the
-            sections open; dvh is the height Safari shows, toolbars included */}
+        {/* The links scroll when the sections are open on a short screen (min-h-0 lets the list
+            shrink below its content); dvh is the height Safari shows, toolbars included */}
         <nav aria-label="ניווט ראשי" className={cn('flex min-h-0 flex-1 flex-col gap-0.5 p-3', collapsed ? 'overflow-visible' : 'overflow-y-auto')}>
           {MAIN_NAV.map(item =>
             item.type === 'section' ? (
@@ -288,18 +285,6 @@ export function Sidebar({
             )
           )}
         </nav>
-
-        {/* Signed in: Settings (with About inside it) is in the profile menu. With the login off, plain links */}
-        {me ? (
-          <div className="shrink-0 border-t p-2">
-            <SidebarProfile collapsed={collapsed} />
-          </div>
-        ) : (
-          <div className="flex shrink-0 flex-col gap-0.5 border-t p-3">
-            <PlainItem item={SETTINGS_NAV} pathname={pathname} collapsed={collapsed} />
-            <PlainItem item={ABOUT_NAV} pathname={pathname} collapsed={collapsed} />
-          </div>
-        )}
       </aside>
     </Tooltip.Provider>
   )

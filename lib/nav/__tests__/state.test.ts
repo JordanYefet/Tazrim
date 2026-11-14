@@ -4,7 +4,6 @@ import {
   SIDEBAR_COOKIE,
   buildNavSections,
   cookieAssignment,
-  isMoreActive,
   parseClosedSections,
   parseSidebarCollapsed,
   routeAccountId,
@@ -74,20 +73,6 @@ describe('routeAccountId', () => {
 
   it('survives a malformed escape', () => {
     expect(routeAccountId('/cards/%E0%A4%A', 'CREDIT_CARD')).toBe('%E0%A4%A')
-  })
-})
-
-describe('isMoreActive', () => {
-  it('is active on the pages behind עוד', () => {
-    for (const p of ['/upload', '/upload/preview', '/categories', '/settings', '/accounts', '/about']) {
-      expect(isMoreActive(p)).toBe(true)
-    }
-  })
-
-  it('is not active on the main tabs', () => {
-    for (const p of ['/', '/banks', '/cards/acct_test_card', '/recurring', '/search', '/uploads', '/projections', '/projection', '/analysis', '/analysis/bank']) {
-      expect(isMoreActive(p)).toBe(false)
-    }
   })
 })
 

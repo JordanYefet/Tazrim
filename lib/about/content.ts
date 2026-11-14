@@ -32,3 +32,14 @@ export const CREDITS: { name: string; url: string }[] = [
   { name: 'next-themes', url: 'https://github.com/pacocoursey/next-themes' },
   { name: 'Heebo', url: 'https://fonts.google.com/specimen/Heebo' },
 ]
+
+/** The bank sync (ENG-91) runs on this community project; it gets its own line in About */
+export const BANK_SYNC_CREDIT = { name: 'israeli-bank-scrapers', url: 'https://github.com/eshaham/israeli-bank-scrapers' }
+
+/** The avatar illustrations (CC0), drawn in the app with DiceBear: the sets and who drew them */
+export const AVATAR_CREDITS: { name: string; by: string; url: string }[] = [
+  { name: 'Notionists', by: 'Zoish', url: 'https://www.dicebear.com/styles/notionists' },
+  { name: 'Lorelei', by: 'Lisa Wischofsky', url: 'https://www.dicebear.com/styles/lorelei' },
+  { name: 'Thumbs', by: 'DiceBear', url: 'https://www.dicebear.com/styles/thumbs' },
+]
+export const DICEBEAR_URL = 'https://www.dicebear.com'

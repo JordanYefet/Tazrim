@@ -9,7 +9,7 @@ import { ROUTE_CALM_MS, stillEngaged, tabBarShrunk } from '@/lib/nav/tab-bar-shr
  * scroll signal, unless the sheet is open, a route just changed or the bar was
  * just touched (`engage`, called on a touch on the bar).
  */
-export function useTabBarShrunk({ sheetOpen, routeKey }: { sheetOpen: boolean; routeKey: string }) {
+export function useTabBarShrunk({ routeKey }: { routeKey: string }) {
   const headerHidden = useHeaderHidden()
   const [calm, setCalm] = useState(false)
   const [engaged, setEngaged] = useState(false)
@@ -45,5 +45,5 @@ export function useTabBarShrunk({ sheetOpen, routeKey }: { sheetOpen: boolean; r
     setEngaged(true)
   }, [])
 
-  return { shrunk: tabBarShrunk({ headerHidden, sheetOpen, calm, engaged }), engage }
+  return { shrunk: tabBarShrunk({ headerHidden, calm, engaged }), engage }
 }
