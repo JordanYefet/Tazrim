@@ -1966,8 +1966,8 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 /* A period loading (PageMain; the wallet's account switch alike): the numbers on
    screen are the old period's. After 400 ms, so an ordinary change shows nothing,
    rolling numbers (RollingNumber) spin, each digit at its own speed, and roll into
-   the new figures when they arrive; plain figures (.tabular-nums, or data-amount)
-   fade. data-steady marks digits that don't change with the period (a card's last
+   the new figures when they arrive, never faded (nor is a figure holding one);
+   plain figures (.tabular-nums, or data-amount) fade. data-steady marks digits that don't change with the period (a card's last
    four). The header shows a running line meanwhile (.period-loading). */
 @keyframes digit-spin {
   from { transform: translateY(0); }
@@ -1977,7 +1977,7 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
   animation: digit-spin var(--digit-spin, 560ms) linear 400ms infinite;
 }
 :is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest))
-  :is(.tabular-nums, [data-amount]):not([data-steady], [data-rolling]) {
+  :is(.tabular-nums, [data-amount]):not([data-steady], [data-rolling], :has([data-rolling])) {
   opacity: 0.45;
   transition: opacity var(--motion-fast) var(--ease-ui) 400ms;
 }
