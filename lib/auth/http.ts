@@ -4,6 +4,7 @@ import { SESSION_COOKIE } from './config'
 import { clientKey, rateLimit } from './rate-limit'
 import { readSession, sessionCookie } from './session'
 import { relyingParty, type RelyingParty } from './webauthn'
+import { getRequireHttps } from '@/lib/settings/app-settings'
 import { isLoopbackHost } from '@/lib/local-request'
 
 export const fail = (status: number, error: string, code: string) => NextResponse.json({ error, code }, { status })
@@ -18,9 +19,9 @@ export function allow(req: Request, bucket: string, limit: number, windowMs = 10
   return rateLimit(`${bucket}:${clientKey(req.headers)}`, limit, windowMs)
 }
 
-/** TAZRIM_REQUIRE_HTTPS=1: passwords only over https (or on this computer itself) */
+/** Settings (or TAZRIM_REQUIRE_HTTPS=1): passwords only over https (or on this computer itself) */
 export function httpsRequired(): boolean {
-  return /^(1|true|yes|on)$/i.test(process.env.TAZRIM_REQUIRE_HTTPS ?? '')
+  return getRequireHttps()
 }
 
 /**

@@ -72,6 +72,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       title: 'מיפויי ייבוא',
       summary: profiles.length ? `${count(profiles.length, 'מיפוי שמור אחד', 'מיפויים שמורים')} לקבצים שהאפליקציה לא מכירה.` : 'אין מיפויים שמורים. הם נוצרים בהעלאת קובץ שהאפליקציה לא מכירה.',
     },
+    ...(readOnly
+      ? []
+      : [{
+          href: '/settings/general',
+          icon: 'general' as const,
+          title: 'כללי',
+          summary: 'אזור הזמן, כמה בנקים מסתנכרנים יחד וכתובות הכניסה.',
+        }]),
     ...(auth
       ? [{
           href: '/settings/people',
