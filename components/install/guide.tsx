@@ -24,7 +24,33 @@ export interface GuideItem {
  * The guides as rows in one card. `openId` opens one from outside (a link like
  * /settings/phones?guide=reserve); it is read once.
  */
-export function GuideList({ title, guides, openId }: { title: string; guides: GuideItem[]; openId?: string | null }) {
+/**
+ * A section's own surface on a Settings page; inside /setup's card (`plain`) a section split by a
+ * hairline instead, so there is no card inside a card (as SettingCard does, ENG-125)
+ */
+export function sectionClass(plain: boolean) {
+  return plain ? 'border-t pt-4 first:border-t-0 first:pt-0' : 'rounded-xl surface p-5'
+}
+
+/**
+ * An address on one line where it fits; when it can't, it breaks only after "://" or before the
+ * port, never inside a number or a name.
+ */
+export function Address({ url, className }: { url: string; className?: string }) {
+  const parts = url.split(/(?<=:\/\/)|(?=:\d+$)/)
+  return (
+    <p dir="ltr" className={cn('text-end font-mono font-semibold tabular-nums tracking-tight [overflow-wrap:normal] [word-break:keep-all]', className)}>
+      {parts.map((p, i) => (
+        <span key={i}>
+          {i > 0 && <wbr />}
+          <span className="whitespace-nowrap">{p}</span>
+        </span>
+      ))}
+    </p>
+  )
+}
+
+export function GuideList({ title, guides, openId, plain = false }: { title: string; guides: GuideItem[]; openId?: string | null; plain?: boolean }) {
   const [open, setOpen] = useState<string | null>(null)
   useEffect(() => {
     if (openId && guides.some(g => g.id === openId)) setOpen(openId)
@@ -33,15 +59,18 @@ export function GuideList({ title, guides, openId }: { title: string; guides: Gu
   }, [openId])
   const current = guides.find(g => g.id === open)
   return (
-    <section aria-label={title} className="rounded-xl surface">
-      <h2 className="px-5 pb-1 pt-4 text-base font-semibold">{title}</h2>
+    <section aria-label={title} className={plain ? 'border-t pt-4 first:border-t-0 first:pt-0' : 'rounded-xl surface'}>
+      <h2 className={cn('pb-1 text-base font-semibold', plain ? '' : 'px-5 pt-4')}>{title}</h2>
       <ul className="divide-y">
         {guides.map(g => (
           <li key={g.id}>
             <button
               type="button"
               onClick={() => setOpen(g.id)}
-              className="flex min-h-14 w-full items-center gap-3 px-5 py-3 text-start transition-colors duration-quick hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              className={cn(
+                'flex min-h-14 w-full items-center gap-3 py-3 text-start transition-colors duration-quick hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                plain ? '-mx-2 w-[calc(100%+1rem)] rounded-lg px-2' : 'px-5'
+              )}
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <g.icon className="h-[18px] w-[18px]" aria-hidden />
@@ -132,9 +161,9 @@ export function QrImage({ url, size = 148, label }: { url: string | null; size?:
 }
 
 /** While /setup loads a page's data (the Settings pages pass it in): a quiet card, or a retry */
-export function InstallLoading({ failed, retry }: { failed: boolean; retry: () => void }) {
+export function InstallLoading({ failed, retry, plain = false }: { failed: boolean; retry: () => void; plain?: boolean }) {
   return (
-    <div className="flex min-h-48 items-center justify-center rounded-xl surface p-5 text-sm text-muted-foreground">
+    <div className={cn('flex min-h-48 items-center justify-center text-sm text-muted-foreground', !plain && 'rounded-xl surface p-5')}>
       {failed ? (
         <span className="flex flex-col items-center gap-1">
           לא הצלחנו לטעון את ההגדרות.

@@ -18,7 +18,7 @@ import { httpsAddress, isHttpsOn, phoneAddress, withHttps } from '@/lib/install/
 import { cn } from '@/lib/utils/cn'
 import { SegmentedTabs } from '@/components/ui/segmented-tabs'
 import { ContainerApplyStatus, ManualEnvSteps, SwitchButton, useContainerSettings, type ContainerSettings } from '@/components/install/container-settings'
-import { CopyLine, GuideList, InstallLoading, Note, QrImage, Steps, Ui, type GuideItem } from '@/components/install/guide'
+import { Address, CopyLine, GuideList, InstallLoading, Note, QrImage, Steps, Ui, sectionClass, type GuideItem } from '@/components/install/guide'
 import { fetchNetwork, useInstallData } from '@/components/install/use-install-data'
 import { TEXT_BUTTON } from '@/components/updates/manual-commands'
 
@@ -28,7 +28,7 @@ export const CERT_FILE = '/tazrim-root.crt'
 
 export function HttpsSettings({ inSetup, initial, network }: { inSetup?: boolean; initial?: InstallView; network?: NetworkInfo }) {
   const data = useInstallData(initial, network)
-  if (!data.view || !data.network) return <InstallLoading failed={data.failed} retry={data.retry} />
+  if (!data.view || !data.network) return <InstallLoading failed={data.failed} retry={data.retry} plain={!!inSetup} />
   return <Https inSetup={!!inSetup} initial={data.view} network={data.network} />
 }
 
@@ -70,7 +70,10 @@ function SwitchRow({
   )
 }
 
-/** One downloadable file: its QR code (for a phone on the Wi-Fi) and a link (for this browser) */
+/**
+ * One downloadable file: its QR code (for a phone on the Wi-Fi) and a link (for this browser).
+ * A card on the Settings page; in /setup's narrow card (`row`) a row: the text and link, the code beside.
+ */
 function DeviceFile({
   title,
   line,
@@ -78,6 +81,7 @@ function DeviceFile({
   base,
   state,
   onRecheck,
+  row = false,
 }: {
   title: string
   line: string
@@ -86,39 +90,60 @@ function DeviceFile({
   base: string | null
   state: 'off' | 'waiting' | 'ready'
   onRecheck: () => void
+  row?: boolean
 }) {
   const ready = state === 'ready'
+  const info = (
+    <span className="space-y-0.5">
+      <span className="block text-sm font-semibold">{title}</span>
+      <span className="block text-xs text-muted-foreground">{line}</span>
+    </span>
+  )
+  // On a phone the link is the way; the code is for a phone looking at a computer's screen
+  const qr = (
+    <span className="hidden shrink-0 sm:block" aria-hidden={!ready || undefined}>
+      <QrImage url={ready && base ? base + file : null} size={row ? 88 : 128} label={`קוד QR להורדת ${file.slice(1)}`} />
+    </span>
+  )
+  const action = (
+    <span className={cn('flex min-h-11 flex-col justify-center text-xs text-muted-foreground', row ? 'items-start' : 'items-center')}>
+      {state === 'ready' ? (
+        <>
+          <a href={file} download className={cn(TEXT_BUTTON, '-my-1', row && '-ms-3')}>
+            הורדה
+          </a>
+          <bdi dir="ltr" className="break-all font-mono text-[11px]">
+            {file.slice(1)}
+          </bdi>
+        </>
+      ) : state === 'waiting' ? (
+        <span className="flex items-center gap-1">
+          האישור עוד נוצר.
+          <button type="button" onClick={onRecheck} className={cn(TEXT_BUTTON, '-my-2 px-2')}>
+            בדיקה שוב
+          </button>
+        </span>
+      ) : (
+        'זמין אחרי שמפעילים HTTPS'
+      )}
+    </span>
+  )
+  if (row) {
+    return (
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          {info}
+          {action}
+        </div>
+        {qr}
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl surface px-3 py-4 text-center sm:p-5">
-      <span className="space-y-0.5">
-        <span className="block text-sm font-semibold">{title}</span>
-        <span className="block text-xs text-muted-foreground">{line}</span>
-      </span>
-      {/* On a phone the link is the way; the code is for a phone looking at a computer's screen */}
-      <span className="hidden sm:block" aria-hidden={!ready || undefined}>
-        <QrImage url={ready && base ? base + file : null} size={128} label={`קוד QR להורדת ${file.slice(1)}`} />
-      </span>
-      <span className="flex min-h-11 flex-col items-center justify-center text-xs text-muted-foreground">
-        {state === 'ready' ? (
-          <>
-            <a href={file} download className={cn(TEXT_BUTTON, '-my-1')}>
-              הורדה
-            </a>
-            <bdi dir="ltr" className="break-all font-mono text-[11px]">
-              {file.slice(1)}
-            </bdi>
-          </>
-        ) : state === 'waiting' ? (
-          <span className="flex items-center gap-1">
-            האישור עוד נוצר.
-            <button type="button" onClick={onRecheck} className={cn(TEXT_BUTTON, '-my-2 px-2')}>
-              בדיקה שוב
-            </button>
-          </span>
-        ) : (
-          'זמין אחרי שמפעילים HTTPS'
-        )}
-      </span>
+      {info}
+      {qr}
+      {action}
     </div>
   )
 }
@@ -249,8 +274,8 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
   ]
 
   return (
-    <div className={cn('space-y-4', inSetup && 'space-y-3')}>
-      <section aria-labelledby="https-main" className="space-y-4 rounded-xl surface p-5">
+    <div className="space-y-4">
+      <section aria-labelledby="https-main" className={cn('space-y-4', sectionClass(inSetup))}>
         <div className="space-y-1">
           <h2 id="https-main" className="text-base font-semibold">
             הפעלה
@@ -286,9 +311,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
 
         <div className={cn('space-y-0.5 rounded-xl bg-muted px-4 py-3 transition-opacity duration-fast', !on && 'opacity-50')}>
           <p className="text-xs text-muted-foreground">{on ? 'הכתובת המוצפנת' : 'הכתובת המוצפנת, אחרי ההפעלה'}</p>
-          <p dir="ltr" className="break-all text-end font-mono text-xl font-semibold tracking-tight">
-            {url}
-          </p>
+          <Address url={url} className={inSetup ? 'text-base' : 'text-xl'} />
         </div>
 
         <SwitchRow
@@ -316,12 +339,19 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
           ))}
       </section>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <DeviceFile title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
-        <DeviceFile title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
-      </div>
+      {inSetup ? (
+        <section aria-label="קבצים להתקנה" className={cn('space-y-3', sectionClass(true))}>
+          <DeviceFile row title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
+          <DeviceFile row title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
+        </section>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <DeviceFile title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
+          <DeviceFile title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
+        </div>
+      )}
 
-      <GuideList title="מדריכים" guides={guides} />
+      <GuideList title="מדריכים" guides={guides} plain={inSetup} />
 
       {!inSetup && (
         <p className="flex items-start gap-2 px-1 text-xs text-muted-foreground text-pretty">

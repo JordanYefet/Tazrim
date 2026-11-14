@@ -18,7 +18,7 @@ const view = (values: Partial<InstallView['values']> = {}, extra: Partial<Instal
   ...extra,
 })
 const net = (extra: Partial<NetworkInfo> = {}): NetworkInfo => ({ lanHints: [], httpsPort: '443', certReady: false, requireHttps: false, ...extra })
-const text = (html: string) => html.replace(/<!-- -->/g, '')
+const text = (html: string) => html.replace(/<!-- -->/g, '').replace(/<wbr\/?>|<\/?span[^>]*>/g, '')
 
 describe('PhonesSettings', () => {
   it('shows the phone address, the password note and the guides', () => {
@@ -71,5 +71,22 @@ describe('HttpsSettings', () => {
   it('without the helper: the .env lines to change by hand', () => {
     const html = renderToStaticMarkup(<HttpsSettings initial={view({}, { helper: 'none' })} network={net()} />)
     expect(html.match(/הצגת שלבים ידניים/g)).toHaveLength(2)
+  })
+})
+
+describe('inside /setup', () => {
+  it('no card inside the setup card: sections split by hairlines', () => {
+    for (const html of [
+      renderToStaticMarkup(<PhonesSettings inSetup initial={view()} network={net()} />),
+      renderToStaticMarkup(<HttpsSettings inSetup initial={view({ COMPOSE_PROFILES: 'updater,https,dns' })} network={net({ certReady: true })} />),
+    ]) {
+      expect(html).not.toContain('rounded-xl surface')
+      expect(html).toContain('border-t pt-4')
+    }
+  })
+
+  it('the address breaks only at its seams', () => {
+    const html = renderToStaticMarkup(<PhonesSettings inSetup initial={view()} network={net()} />)
+    expect(html).toContain('<span class="whitespace-nowrap">http://</span></span><span><wbr/><span class="whitespace-nowrap">192.168.1.20</span></span><span><wbr/><span class="whitespace-nowrap">:3006</span>')
   })
 })

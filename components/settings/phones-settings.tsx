@@ -16,14 +16,14 @@ import type { InstallView, NetworkInfo } from '@/lib/install/types'
 import { phoneAddress } from '@/lib/install/addresses'
 import { cn } from '@/lib/utils/cn'
 import { ContainerApplyStatus, ContainerSettingField, useContainerSettings } from '@/components/install/container-settings'
-import { GuideList, InstallLoading, Note, QrImage, Steps, Ui, type GuideItem } from '@/components/install/guide'
+import { Address, GuideList, InstallLoading, Note, QrImage, Steps, Ui, sectionClass, type GuideItem } from '@/components/install/guide'
 import { useInstallData } from '@/components/install/use-install-data'
 
 const LINK = 'font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded'
 
 export function PhonesSettings({ inSetup, initial, network }: { inSetup?: boolean; initial?: InstallView; network?: NetworkInfo }) {
   const data = useInstallData(initial, network)
-  if (!data.view || !data.network) return <InstallLoading failed={data.failed} retry={data.retry} />
+  if (!data.view || !data.network) return <InstallLoading failed={data.failed} retry={data.retry} plain={!!inSetup} />
   return <Phones inSetup={!!inSetup} initial={data.view} network={data.network} />
 }
 
@@ -129,18 +129,16 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
   ]
 
   return (
-    <div className={cn('space-y-4', inSetup && 'space-y-3')}>
-      <section aria-labelledby="phones-address" className="space-y-4 rounded-xl surface p-5">
+    <div className="space-y-4">
+      <section aria-labelledby="phones-address" className={cn('space-y-4', sectionClass(inSetup))}>
         <h2 id="phones-address" className="text-base font-semibold">
           הכתובת לטלפון
         </h2>
-        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-          <div className="w-full sm:min-h-[164px] min-w-0 flex-1 space-y-2">
+        <div className={cn('flex flex-col items-center gap-4', !inSetup && 'sm:flex-row sm:items-start')}>
+          <div className={cn('w-full min-w-0 flex-1 space-y-2', !inSetup && 'sm:min-h-[164px]')}>
             {address ? (
               <>
-                <p dir="ltr" className="break-all text-end font-mono text-xl font-semibold tabular-nums tracking-tight sm:text-[28px]">
-                  {address}
-                </p>
+                <Address url={address} className={inSetup ? 'text-lg' : 'text-xl sm:text-[28px]'} />
                 <p className="text-sm text-muted-foreground text-pretty">בטלפון או בטאבלט, באותה רשת Wi-Fi: פותחים את הכתובת בדפדפן, או סורקים את הקוד במצלמה.</p>
               </>
             ) : (
@@ -182,7 +180,7 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
         {settings.canApply && <ContainerApplyStatus settings={settings} />}
       </section>
 
-      <section aria-labelledby="phones-signin" className="space-y-2 rounded-xl surface p-5">
+      <section aria-labelledby="phones-signin" className={cn('space-y-2', sectionClass(inSetup))}>
         <h2 id="phones-signin" className="flex items-center gap-2 text-base font-semibold">
           <Lock className="h-4 w-4 text-muted-foreground" aria-hidden />
           כניסה מהטלפון
@@ -213,7 +211,7 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
         </p>
       </section>
 
-      <GuideList title="מדריכים" guides={guides} openId={guideParam} />
+      <GuideList title="מדריכים" guides={guides} openId={guideParam} plain={inSetup} />
 
       {!inSetup && (
         <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
