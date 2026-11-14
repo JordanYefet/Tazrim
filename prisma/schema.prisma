@@ -347,6 +347,19 @@ model Person {
   createdAt    DateTime  @default(now())
   passkeys     Passkey[]
   sessions     Session[]
+  preferences  PersonPreference[]
+}
+
+/// A person's own choices, the same on every device they sign in on (the page background).
+/// One row per choice; `value` is that choice's own short format (lib/preferences/).
+model PersonPreference {
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@id([personId, key])
 }
 
 /// A passkey (WebAuthn credential) a person signs in with; one per device or password manager.

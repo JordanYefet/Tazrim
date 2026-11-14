@@ -36,7 +36,9 @@ const WIPE_ORDER = {
   // The vault key's copies point at passkeys
   VaultKeyWrap: 20,
   Passkey: 21,
-  Person: 22,
+  // Each person's own choices (the page background) point at people
+  PersonPreference: 22,
+  Person: 23,
 }
 
 WIPE_ORDER satisfies Record<Prisma.ModelName, number>

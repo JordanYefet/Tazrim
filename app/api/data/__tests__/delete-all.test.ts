@@ -32,6 +32,7 @@ const SEED = `
   INSERT INTO "Session" ("id","tokenHash","personId","passkeyId") VALUES ('s1','hash','p1','k1');
   INSERT INTO "Invite" ("id","tokenHash","expiresAt") VALUES ('i1','ihash',CURRENT_TIMESTAMP);
   INSERT INTO "VaultKeyWrap" ("id","passkeyId","prfSalt","wrappedKey") VALUES ('vw1','k1','salt','v1.a.b.c');
+  INSERT INTO "PersonPreference" ("personId","key","value","updatedAt") VALUES ('p1','background','grid.10.indigo-pink',1900000000000);
   INSERT INTO "BankCredential" ("id","company","label","accountId","sealed","updatedAt") VALUES ('bc1','max','Fake login','acct_test_card','v1.a.b.c',1893456000000);
   INSERT INTO "SyncLink" ("id","company","externalAccount","accountId","createdAt") VALUES ('sl1','leumi','000-000000/00','acct_leumi',1893456000000);
   INSERT INTO "RecurringSeriesOverride" ("id","key","baseKey","accountId","status","createdAt","updatedAt") VALUES
