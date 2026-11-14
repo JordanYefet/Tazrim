@@ -6,7 +6,7 @@
  * moves. Each guide fits on a laptop screen without scrolling.
  */
 import { useEffect, useState } from 'react'
-import { ChevronLeft, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, QrCode, type LucideIcon } from 'lucide-react'
 import QRCode from 'qrcode'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { cn } from '@/lib/utils/cn'
@@ -122,8 +122,11 @@ export function QrImage({ url, size = 148, label }: { url: string | null; size?:
     }
   }, [url, size])
   return (
-    <span className="block shrink-0 rounded-xl bg-white p-2" style={{ width: size + 16, height: size + 16 }}>
-      {src && <img src={src} alt={label} width={size} height={size} className="block" />}
+    <span
+      className={cn('flex shrink-0 items-center justify-center rounded-xl p-2', src ? 'bg-white' : 'border border-dashed bg-muted/40 text-muted-foreground/40')}
+      style={{ width: size + 16, height: size + 16 }}
+    >
+      {src ? <img src={src} alt={label} width={size} height={size} className="block" /> : <QrCode className="h-10 w-10" aria-hidden />}
     </span>
   )
 }

@@ -89,19 +89,25 @@ function DeviceFile({
 }) {
   const ready = state === 'ready'
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl surface p-5 text-center md:col-span-1">
+    <div className="flex flex-col items-center gap-3 rounded-xl surface px-3 py-4 text-center sm:p-5">
       <span className="space-y-0.5">
         <span className="block text-sm font-semibold">{title}</span>
         <span className="block text-xs text-muted-foreground">{line}</span>
       </span>
-      <span className={cn(!ready && 'opacity-30')} aria-hidden={!ready || undefined}>
+      {/* On a phone the link is the way; the code is for a phone looking at a computer's screen */}
+      <span className="hidden sm:block" aria-hidden={!ready || undefined}>
         <QrImage url={ready && base ? base + file : null} size={128} label={`קוד QR להורדת ${file.slice(1)}`} />
       </span>
       <span className="flex min-h-11 flex-col items-center justify-center text-xs text-muted-foreground">
         {state === 'ready' ? (
-          <a href={file} download className={cn(TEXT_BUTTON, 'font-mono')} dir="ltr">
-            {file.slice(1)}
-          </a>
+          <>
+            <a href={file} download className={cn(TEXT_BUTTON, '-my-1')}>
+              הורדה
+            </a>
+            <bdi dir="ltr" className="break-all font-mono text-[11px]">
+              {file.slice(1)}
+            </bdi>
+          </>
         ) : state === 'waiting' ? (
           <span className="flex items-center gap-1">
             האישור עוד נוצר.
@@ -177,7 +183,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
     {
       id: 'android',
       icon: Smartphone,
-      title: 'Android: האישור',
+      title: 'האישור ב-Android',
       summary: 'מתקינים את האישור מההגדרות של הטלפון.',
       body: (
         <>
@@ -192,7 +198,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
             </li>
           </Steps>
           <Note>השמות בתפריט שונים בין יצרנים. לא מוצאים? מחפשים בהגדרות &quot;אישור&quot;, &quot;תעודה&quot; או &quot;certificate&quot;.</Note>
-          <Note>Chrome סומך על האישור, וגם תזרים כשהוא מותקן כאפליקציה. אחר כך: &quot;Android: השמות&quot;.</Note>
+          <Note>Chrome סומך על האישור, וגם תזרים כשהוא מותקן כאפליקציה. אחר כך: &quot;השמות ב-Android&quot;.</Note>
           <Note tone="warn">ייתכן שמפתח לא יעבוד ב-Android עם אישור שהותקן כך. סיסמה תמיד עובדת.</Note>
         </>
       ),
@@ -200,7 +206,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
     {
       id: 'android-names',
       icon: Network,
-      title: 'Android: השמות',
+      title: 'השמות ב-Android',
       summary: 'הטלפון שואל את המחשב על השמות, ברשת הביתית.',
       body: (
         <>
@@ -247,7 +253,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
       <section aria-labelledby="https-main" className="space-y-4 rounded-xl surface p-5">
         <div className="space-y-1">
           <h2 id="https-main" className="text-base font-semibold">
-            HTTPS ושמות מקומיים
+            הפעלה
           </h2>
           <p className="text-sm text-muted-foreground text-pretty">
             צריך קודם כתובת קבועה למחשב, אחרת זה יפסיק לעבוד כשהנתב יחליף אותה.{' '}
@@ -310,7 +316,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
           ))}
       </section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <DeviceFile title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
         <DeviceFile title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
       </div>
@@ -375,7 +381,7 @@ function OtherComputers({ ip, port }: { ip: string; port: string }) {
         </Steps>
       )}
       <Note>
-        שתי הפקודות שולחות למחשב של תזרים רק שמות <bdi dir="ltr">.internal</bdi>, וכל השאר ממשיך כרגיל. במחשב שתזרים רץ עליו לא צריך כלום:{' '}
+        הפקודה שולחת למחשב של תזרים רק שמות <bdi dir="ltr">.internal</bdi>, וכל השאר ממשיך כרגיל. במחשב שתזרים רץ עליו לא צריך כלום:{' '}
         <bdi dir="ltr" className="font-mono">
           http://localhost:{port}
         </bdi>

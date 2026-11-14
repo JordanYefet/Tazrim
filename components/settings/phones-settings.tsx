@@ -135,10 +135,10 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
           הכתובת לטלפון
         </h2>
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-          <div className="min-h-[164px] w-full min-w-0 flex-1 space-y-2">
+          <div className="w-full sm:min-h-[164px] min-w-0 flex-1 space-y-2">
             {address ? (
               <>
-                <p dir="ltr" className="break-all text-end font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-[28px]">
+                <p dir="ltr" className="break-all text-end font-mono text-xl font-semibold tabular-nums tracking-tight sm:text-[28px]">
                   {address}
                 </p>
                 <p className="text-sm text-muted-foreground text-pretty">בטלפון או בטאבלט, באותה רשת Wi-Fi: פותחים את הכתובת בדפדפן, או סורקים את הקוד במצלמה.</p>
@@ -167,7 +167,7 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
             )}
           </div>
           {/* The code's square stays whether or not there's an address */}
-          <span className={cn(!address && 'opacity-30')} aria-hidden={!address || undefined}>
+          <span className="hidden sm:block" aria-hidden={!address || undefined}>
             <QrImage url={address} size={148} label={`קוד QR לכתובת ${address ?? ''}`} />
           </span>
         </div>
