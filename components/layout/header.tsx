@@ -14,6 +14,41 @@ import { ReadOnlyBadge } from './read-only-guard'
 import { SyncButton } from '@/components/sync/sync-button'
 
 /**
+ * A period chosen in the picker. Pages without a period (settings, upload...) only remember it,
+ * so every page opened from there shows it. On a period page the same page loads with the new
+ * period; the page on screen stays, dimmed, until it arrives (period-context.tsx, PageMain).
+ * There the period is remembered inside that transition, not before it: the links that follow
+ * it (the tab bar's fetch their pages ahead) change with the new page. Changed at once, they
+ * fetched three more pages alongside it, and the month took twice as long to load.
+ */
+export function changePeriod(
+  next: Period,
+  deps: {
+    pathname: string
+    params: Iterable<[string, string]>
+    remember: (p: Period) => void
+    show: (p: Period) => void
+    startPeriod: (fn: () => void) => void
+    push: (href: string) => void
+  }
+) {
+  const { pathname, params, remember, show, startPeriod, push } = deps
+  if (!isPeriodPath(pathname)) {
+    remember(next)
+    return
+  }
+  // Year always written, so "all months" is explicit in the URL
+  const sp = new URLSearchParams(periodQuery(next))
+  for (const [k, v] of params) if (k !== 'year' && k !== 'month') sp.append(k, v)
+  startPeriod(() => {
+    // The picker shows it at once (optimistic); the remembered period (and its cookie) moves with the page
+    show(next)
+    remember(next)
+    push(`${pathname}?${sp.toString()}`)
+  })
+}
+
+/**
  * Sticky, translucent header: sync at the start, the period picker in the middle, search at the end. It slides
  * up out of the way while scrolling down and comes back on any scroll up
  * (transform only). It stays put while focus is inside it and under
@@ -34,19 +69,7 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
   const today = useToday()
 
   function update(next: Period) {
-    // Remembered at once (cookie too), so every page opened from here on shows it
-    remember(next)
-    // Pages without a period (settings, upload...) keep their URL
-    if (!isPeriodPath(pathname)) return
-    // Year always written, so "all months" is explicit in the URL
-    const sp = new URLSearchParams(periodQuery(next))
-    for (const [k, v] of params) if (k !== 'year' && k !== 'month') sp.append(k, v)
-    // Same page, new period: keep the reader where they were. The page on screen stays,
-    // dimmed, until the new one arrives (period-context.tsx, PageMain)
-    startPeriod(() => {
-      show(next)
-      router.push(`${pathname}?${sp.toString()}`, { scroll: false })
-    })
+    changePeriod(next, { pathname, params, remember, show, startPeriod, push: href => router.push(href, { scroll: false }) })
   }
 
   return (
