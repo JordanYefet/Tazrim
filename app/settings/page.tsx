@@ -107,6 +107,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             : `${/^\d+\.\d+\.\d+$/.test(CURRENT_VERSION) ? `גרסה ${CURRENT_VERSION}. ` : ''}בדיקה אם יצאה גרסה חדשה ועדכון אליה.`,
           dot: !!latest,
         }]),
+    // Container-level settings (ENG-121); never in the read-only demo
+    ...(readOnly ? [] : [{ href: '/settings/install', icon: 'install' as const, title: 'התקנה', summary: 'הכתובת במחשב הזה והפורטים של תזרים.' }]),
     { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 

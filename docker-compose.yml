@@ -73,9 +73,12 @@ services:
   # the data up, and restarts Tazrim on it (and puts the old version back if the new one does
   # not start). It uses the same image as the app.
   # It holds the Docker socket. A container with the socket can control Docker on this
-  # computer; this one only accepts "update Tazrim to a release" and "go back", and only from
-  # the app, with a token kept in the data volume. Leave it off to update by hand with
+  # computer; this one only accepts "update Tazrim to a release", "go back" and "change one of
+  # these settings in .env" (ports, this computer's address, host names, the https/dns
+  # profiles: checked values only), and only from the app, with a token kept in the data volume.
+  # Leave it off to update by hand with
   #   docker compose pull && docker compose up -d
+  # Its own settings must never use those .env values: a change would recreate it mid-job.
   # ---------------------------------------------------------------------------
 
   updater:

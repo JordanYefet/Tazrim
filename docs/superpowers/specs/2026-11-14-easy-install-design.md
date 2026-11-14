@@ -65,8 +65,15 @@ publish one host port on both `127.0.0.1` and `0.0.0.0` ("port is already alloca
   `updater,https,dns`; `updater` can't be removed from the UI), `TAZRIM_LAN_IP` (IPv4 in a
   private range, or empty), `TAZRIM_HOST`, `TAZRIM_DNS_HOST` (DNS host names).
 * Routes (token auth as today): `GET /v1/config` → `{ available, reason?, values, installDir }`;
-  `POST /v1/config` `{ changes: { KEY: string | null } }` → 202 `{ job }`, progress through the
-  existing `/v1/status` job store (kind `config`).
+  `POST /v1/config` `{ changes: { KEY: string | null } }` → 202 `{ job }`, progress through
+  `GET /v1/status?kind=config` (kind `config`; its own status file, `.config-status.json`, so a
+  settings change never hides the last update's roll back; one job at a time across both).
+  `/v1/health` stays `api: 1` and adds `features: ['config']`; the app shows manual steps when
+  that is missing (older helper).
+* App side (built in ENG-121): `getInstallView()` in `lib/install/config.ts`, `/api/install`
+  (GET view, POST `{ changes }`), and in `components/install/container-settings.tsx`:
+  `useContainerSettings(view)`, `<ContainerSettingField>`, `<ContainerProfileSwitch>`,
+  `<ContainerApplyStatus>`, `<ManualEnvSteps>`.
 * Applying: back up `.env` to `.env.bak-<timestamp>`, write it keeping every other line and
   comment, then run `docker compose up -d` in a short-lived `docker:<pinned>-cli` container
   (Engine API) with the host install path (label `com.docker.compose.project.working_dir`)
