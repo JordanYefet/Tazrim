@@ -3,7 +3,7 @@
 # Another port:   TAZRIM_PORT=3005 docker compose up -d   (or put TAZRIM_PORT=3005 in a .env file)
 # Demo data:      TAZRIM_DEMO=1 docker compose up -d      (only fills an empty database)
 # Time zone:      TAZRIM_TZ=Europe/London docker compose up -d   (default Asia/Jerusalem)
-# Update:         docker compose pull && docker compose up -d
+# Update:         docker compose pull && docker compose up -d   (or from the app, with the updater below)
 # Phones: http://<this computer's IP>:3000 with a password, or HTTPS for passkeys:
 #                 COMPOSE_PROFILES=https,dns in .env, see the README
 # Updating from the app (Settings -> Updates): COMPOSE_PROFILES=updater in .env (or https,dns,updater)
