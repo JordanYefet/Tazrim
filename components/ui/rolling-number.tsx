@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EASE as MOTION_EASE, ROLL } from '@/lib/motion'
 import { cn } from '@/lib/utils/cn'
 
@@ -47,14 +47,49 @@ const SPIN_MS = [520, 610, 470, 580, 660, 500, 630]
 // Sign, digits and separators: the part that is laid out character by character
 const NUMERIC_CORE = /[-−]?\d(?:[\d.,]*\d)?/
 
+/**
+ * A digit that spun while a period loaded (globals.css, `.digit-strip`) lands the
+ * way a page's numbers enter: the spin stops, and the strip rolls up from 0 to its
+ * digit on the entrance's beat, so the load and the arrival read as one motion.
+ * The spin's removal fires `animationcancel`; the plain transition the new digit
+ * started is dropped for it. A spin still waiting out its delay never moved, so it
+ * changes nothing.
+ */
+function useSpinLanding(duration: number, delay: number) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const timing = useRef({ duration, delay })
+  timing.current = { duration, delay }
+  useEffect(() => {
+    const strip = ref.current
+    if (!strip) return
+    function land(e: AnimationEvent) {
+      if (!strip || e.target !== strip || e.animationName !== 'digit-spin' || e.elapsedTime <= 0) return
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      const target = strip.style.transform
+      for (const a of strip.getAnimations()) if ('transitionProperty' in a) a.cancel()
+      strip.animate([{ transform: 'translateY(0%)' }, { transform: target }], {
+        duration: timing.current.duration,
+        delay: timing.current.delay,
+        easing: EASE,
+        fill: 'backwards',
+      })
+    }
+    strip.addEventListener('animationcancel', land)
+    return () => strip.removeEventListener('animationcancel', land)
+  }, [])
+  return ref
+}
+
 /** One rolling digit; also used for the card digits as they are typed (ENG-56). */
 export function DigitStrip({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
+  const strip = useSpinLanding(duration, delay)
   return (
     <span
       className="relative block overflow-hidden"
       style={{ height: LINE_HEIGHT, maskImage: EDGE_MASK, WebkitMaskImage: EDGE_MASK }}
     >
       <span
+        ref={strip}
         // No will-change: a page holds hundreds of digits, and a permanent layer each
         // (masked, so a render pass each) made every scroll frame redraw them all.
         // The browser still runs the transform transition on the compositor.
