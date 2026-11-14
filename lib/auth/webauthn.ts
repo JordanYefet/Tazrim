@@ -18,6 +18,7 @@ import {
 } from '@simplewebauthn/server'
 import { prisma } from '@/lib/db/client'
 import { CHALLENGE_TTL_MS } from './config'
+import { getOrigins } from '@/lib/settings/app-settings'
 
 const RP_NAME = 'תזרים'
 
@@ -30,15 +31,15 @@ export interface RelyingParty {
 /**
  * The page's origin as the browser saw it: the proxy's X-Forwarded-Proto and
  * X-Forwarded-Host when Caddy is in front, else the Host header. With
- * TAZRIM_ORIGINS set (comma-separated), any other origin is refused.
+ * allowed addresses set (Settings, or TAZRIM_ORIGINS; comma-separated), any other origin is refused.
  */
 export function relyingParty(headers: Headers): RelyingParty | null {
   const host = (headers.get('x-forwarded-host') ?? headers.get('host') ?? '').split(',')[0].trim().toLowerCase()
   const proto = (headers.get('x-forwarded-proto') ?? 'http').split(',')[0].trim().toLowerCase()
   if (!host || (proto !== 'http' && proto !== 'https')) return null
   const origin = `${proto}://${host}`
-  const allowed = process.env.TAZRIM_ORIGINS?.split(',').map(s => s.trim().replace(/\/+$/, '').toLowerCase()).filter(Boolean)
-  if (allowed?.length && !allowed.includes(origin)) return null
+  const allowed = getOrigins()
+  if (allowed.length && !allowed.includes(origin)) return null
   const rpID = host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.replace(/:\d+$/, '')
   return { rpID, origin, secure: proto === 'https' }
 }
