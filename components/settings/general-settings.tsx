@@ -1,25 +1,6 @@
 import { SelectSetting, SwitchSetting, TextSetting } from './app-setting-controls'
+import { TimeZoneSetting } from './time-zone-setting'
 import type { AppSettingsView } from '@/lib/settings/app-settings'
-
-/** The common zones, Israel first; the current one is added by the select when it is none of them */
-export const TIME_ZONES: { value: string; label: string }[] = [
-  { value: 'Asia/Jerusalem', label: 'ישראל (Asia/Jerusalem)' },
-  { value: 'UTC', label: 'UTC' },
-  { value: 'Europe/London', label: 'לונדון (Europe/London)' },
-  { value: 'Europe/Paris', label: 'פריז, ברלין, רומא (Europe/Paris)' },
-  { value: 'Europe/Athens', label: 'אתונה (Europe/Athens)' },
-  { value: 'Europe/Moscow', label: 'מוסקבה (Europe/Moscow)' },
-  { value: 'Asia/Dubai', label: 'דובאי (Asia/Dubai)' },
-  { value: 'Asia/Kolkata', label: 'הודו (Asia/Kolkata)' },
-  { value: 'Asia/Bangkok', label: 'בנגקוק (Asia/Bangkok)' },
-  { value: 'Asia/Tokyo', label: 'טוקיו (Asia/Tokyo)' },
-  { value: 'Australia/Sydney', label: 'סידני (Australia/Sydney)' },
-  { value: 'America/New_York', label: 'ניו יורק (America/New_York)' },
-  { value: 'America/Chicago', label: 'שיקגו (America/Chicago)' },
-  { value: 'America/Denver', label: 'דנבר (America/Denver)' },
-  { value: 'America/Los_Angeles', label: 'לוס אנג׳לס (America/Los_Angeles)' },
-  { value: 'America/Sao_Paulo', label: 'סאו פאולו (America/Sao_Paulo)' },
-]
 
 const CONCURRENCY = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
 
@@ -31,15 +12,7 @@ const CONCURRENCY = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1),
 export function GeneralSettings({ view }: { view: AppSettingsView }) {
   return (
     <div className="space-y-6">
-      <SelectSetting
-        name="timeZone"
-        title="אזור זמן"
-        help="תאריכים וחודשים נספרים לפי האזור הזה. הוא צריך להתאים למקום שבו נוצרו הנתונים, אחרת התנועות של סוף החודש עלולות לעבור לחודש אחר."
-        label="אזור זמן"
-        value={view.timeZone.value}
-        locked={view.timeZone.locked}
-        options={TIME_ZONES}
-      />
+      <TimeZoneSetting setting={view.timeZone} />
       <SelectSetting
         name="syncConcurrency"
         title="בנקים בסנכרון אחד"

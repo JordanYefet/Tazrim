@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { inputClass } from '@/components/accounts/add-account-form'
 import { secondaryButton } from '@/components/auth/ui'
@@ -41,6 +41,17 @@ export function useSave() {
   return { busy, error, run }
 }
 
+const Plain = createContext(false)
+
+/**
+ * Inside another card (a step of the first run, ENG-125): the setting cards below
+ * lose their own surface and sit as sections split by a hairline, so there is no
+ * card inside a card.
+ */
+export function PlainSettingCards({ children }: { children: React.ReactNode }) {
+  return <Plain.Provider value>{children}</Plain.Provider>
+}
+
 /** A card for one setting: its title and explanation, the control, and one line under it that is always there */
 export function SettingCard({
   title,
@@ -55,8 +66,9 @@ export function SettingCard({
   error?: string | null
   children: React.ReactNode
 }) {
+  const plain = useContext(Plain)
   return (
-    <section className="space-y-3 rounded-2xl surface p-4 md:p-5">
+    <section className={plain ? 'space-y-3 border-t pt-4 first:border-t-0 first:pt-0' : 'space-y-3 rounded-2xl surface p-4 md:p-5'}>
       <div className="space-y-1">
         <h2 className="text-[15px] font-semibold">{title}</h2>
         <p className="text-sm text-muted-foreground text-pretty">{help}</p>

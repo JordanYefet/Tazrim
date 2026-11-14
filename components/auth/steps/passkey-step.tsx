@@ -31,15 +31,7 @@ export function PasskeyStep({ onDone }: { onDone: (added: boolean) => void }) {
 
   return (
     <div className={`${card} auth-swap`}>
-      <div className="space-y-3 text-center">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-primary/10 text-primary" aria-hidden>
-          <KeyRound className="h-6 w-6" />
-        </span>
-        <h1 className="text-xl font-semibold">גם Face ID / Touch ID?</h1>
-        <p className="text-sm text-muted-foreground text-pretty">
-          לא חובה. במכשיר הזה תיכנסו בלי להקליד סיסמה, עם Face ID, Touch ID או קוד המכשיר. הסיסמה ממשיכה לעבוד.
-        </p>
-      </div>
+      <PasskeyIntro />
       {error && <p className={errorText} role="alert">{error}</p>}
       {blocker && <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">{blocker}</p>}
       <div className="flex flex-col gap-2">
@@ -52,6 +44,21 @@ export function PasskeyStep({ onDone }: { onDone: (added: boolean) => void }) {
         </button>
       </div>
       <p className="text-center text-xs text-muted-foreground text-pretty">אפשר להוסיף בכל זמן: הגדרות ← אנשים ומכשירים.</p>
+    </div>
+  )
+}
+
+/** The step's icon, question and why; also the first run's passkey step (ENG-125) */
+export function PasskeyIntro() {
+  return (
+    <div className="space-y-3 text-center">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-primary/10 text-primary" aria-hidden>
+        <KeyRound className="h-6 w-6" />
+      </span>
+      <h1 className="text-xl font-semibold">גם Face ID / Touch ID?</h1>
+      <p className="text-sm text-muted-foreground text-pretty">
+        לא חובה. במכשיר הזה תיכנסו בלי להקליד סיסמה, עם Face ID, Touch ID או קוד המכשיר. הסיסמה ממשיכה לעבוד.
+      </p>
     </div>
   )
 }
