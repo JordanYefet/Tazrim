@@ -43,6 +43,8 @@ export interface HelperHealth {
   image: string
   runningVersion: string | null
   error?: string
+  /** What it can do beyond API 1: 'config' = container settings (ENG-121). Missing on older helpers. */
+  features?: string[]
 }
 
 export function helperUrl(): string {
@@ -63,7 +65,8 @@ export function resetHelperCache(): void {
   healthCache = null
 }
 
-async function call(method: string, route: string, opts: { body?: unknown; timeoutMs?: number } = {}) {
+/** One call to the helper with its token; null when there is no token or no answer */
+export async function helperCall(method: string, route: string, opts: { body?: unknown; timeoutMs?: number } = {}) {
   const token = readToken()
   if (!token) return null
   try {
@@ -87,7 +90,7 @@ async function call(method: string, route: string, opts: { body?: unknown; timeo
 /** The helper's health, or null when it is unreachable, refuses our token, or speaks another API. Cached 60 s. */
 export async function helperHealth(): Promise<HelperHealth | null> {
   if (healthCache && Date.now() - healthCache.at < HEALTH_CACHE_MS) return healthCache.value
-  const r = await call('GET', '/v1/health', { timeoutMs: HEALTH_TIMEOUT_MS })
+  const r = await helperCall('GET', '/v1/health', { timeoutMs: HEALTH_TIMEOUT_MS })
   const j = r?.json as Partial<HelperHealth> | null | undefined
   const value = r && r.status === 200 && j && j.ok === true && j.api === HELPER_API ? (j as HelperHealth) : null
   healthCache = { at: Date.now(), value }
@@ -115,7 +118,7 @@ export function cachedHealth(): HelperHealth | null | undefined {
  */
 export async function helperJob(skipHelper = false): Promise<{ job: JobStatus | null; live: boolean }> {
   if (!skipHelper) {
-    const r = await call('GET', '/v1/status', { timeoutMs: HEALTH_TIMEOUT_MS })
+    const r = await helperCall('GET', '/v1/status', { timeoutMs: HEALTH_TIMEOUT_MS })
     if (r && r.status === 200) return { job: r.json && typeof r.json === 'object' ? (r.json as JobStatus) : null, live: true }
   }
   return { job: readStatusFile(), live: false }
@@ -145,7 +148,7 @@ function refusal(kind: 'update' | 'rollback', status: number, text: string, code
 }
 
 async function post(kind: 'update' | 'rollback', route: string, body?: unknown): Promise<HelperResult> {
-  const r = await call('POST', route, { body: body ?? {} })
+  const r = await helperCall('POST', route, { body: body ?? {} })
   if (!r) return { status: 503, code: 'NO_HELPER' }
   if (r.status === 202) return { status: 202 }
   const j = r.json as { error?: unknown; code?: unknown } | null

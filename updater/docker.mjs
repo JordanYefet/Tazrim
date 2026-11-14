@@ -348,7 +348,9 @@ export function createDocker({
       const configFiles = (appLabels['com.docker.compose.project.config_files'] ?? '').split(',').filter(Boolean)
       if (!workingDir || !configFiles.length) throw Object.assign(new Error('the app container has no compose labels'), { code: 'NOT_COMPOSE' })
       const trim = p => p.replace(/\/+$/, '') || '/'
-      if (trim(install.Source) !== trim(workingDir)) {
+      // Docker Desktop (macOS) reports a host folder as /host_mnt/<path>
+      const source = install.Source.replace(/^\/host_mnt(?=\/)/, '')
+      if (trim(source) !== trim(workingDir)) {
         throw Object.assign(new Error(`${installMount} is ${install.Source}, but compose runs from ${workingDir}`), { code: 'FOLDER_MISMATCH' })
       }
       // `--env-file` elsewhere: the .env we write is not the one compose reads
@@ -383,6 +385,9 @@ export function createDocker({
             `COMPOSE_PROJECT_NAME=${ctx.project}`,
             `COMPOSE_FILE=${ctx.configFiles.join(':')}`,
             `COMPOSE_PATH_SEPARATOR=:`,
+            // Plain lines in the log, no colours or progress bars
+            'COMPOSE_ANSI=never',
+            'COMPOSE_PROGRESS=plain',
             `TAZRIM_WD=${ctx.workingDir}`,
             `TAZRIM_SELF=${ctx.selfService}`,
           ],
@@ -408,7 +413,7 @@ export function createDocker({
         }
         // Tty: the log is the plain text the commands printed
         const logs = await request('GET', `${await apiPrefix()}/containers/${enc(id)}/logs?stdout=1&stderr=1&tail=200`)
-        const output = logs.text.replace(/\r/g, '').slice(-4096)
+        const output = logs.text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\r/g, '').slice(-4096)
         return { exitCode: state.ExitCode ?? 1, output }
       } finally {
         await call('DELETE', `/containers/${enc(id)}?force=true&v=true`).catch(() => {})

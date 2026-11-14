@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, CreditCard, FileText, HardDrive, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 export interface SettingsTile {
   href: string
   title: string
   summary: string
-  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'about'
+  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'install' | 'about'
   /** A small primary dot beside the title: a new version is out (ENG-98). Takes no room of its own. */
   dot?: boolean
 }
@@ -19,6 +19,7 @@ const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
   people: Users,
   vault: LockKeyhole,
   updates: RefreshCw,
+  install: HardDrive,
   about: Info,
 }
 
