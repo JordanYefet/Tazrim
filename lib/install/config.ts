@@ -18,6 +18,7 @@ function envValues(): ConfigValues {
     TAZRIM_LAN_IP: env.TAZRIM_LAN_IP ?? '',
     TAZRIM_HOST: env.TAZRIM_HOST || null,
     TAZRIM_DNS_HOST: env.TAZRIM_DNS_HOST || null,
+    TAZRIM_DNS_BIND: env.TAZRIM_DNS_BIND || null,
   }) as ConfigValues
 }
 

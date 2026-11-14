@@ -30,6 +30,7 @@ describe('parseEnv / configValues', () => {
       TAZRIM_LAN_IP: null,
       TAZRIM_HOST: null,
       TAZRIM_DNS_HOST: null,
+      TAZRIM_DNS_BIND: null,
     })
     expect(configValues('').TAZRIM_PORT).toBeNull()
   })
@@ -89,6 +90,12 @@ describe('validateChanges', () => {
     }
   })
 
+  it('AdGuard listens on this computer only, or on the home network too', () => {
+    expect(validateChanges({ TAZRIM_DNS_BIND: '0.0.0.0' }, cur)).toMatchObject({ ok: true, changes: { TAZRIM_DNS_BIND: '0.0.0.0' } })
+    expect(validateChanges({ TAZRIM_DNS_BIND: null }, cur)).toMatchObject({ ok: true, changes: { TAZRIM_DNS_BIND: null } })
+    expect(effectiveValues({ TAZRIM_DNS_BIND: '' }).TAZRIM_DNS_BIND).toBe('127.0.0.1')
+  })
+
   it('refuses bad values', () => {
     const bad = {
       TAZRIM_PORT: ['80', '1023', '65536', '03005', '3005\nX=1', '3005 #', 3005, ''],
@@ -97,6 +104,7 @@ describe('validateChanges', () => {
       TAZRIM_LAN_IP: ['8.8.8.8', '192.168.1', '192.168.1.256', '172.32.0.1', '010.0.0.1', '127.0.0.1'],
       TAZRIM_HOST: ['tazrim', 'a..b', '-a.internal', 'a.internal\nX=1', 'x y.internal', '1.2.3.4', ''],
       TAZRIM_DNS_HOST: ['$(id).internal'],
+      TAZRIM_DNS_BIND: ['192.168.1.20', '::', '0.0.0.0\nX=1', 'any'],
     }
     for (const [k, list] of Object.entries(bad)) {
       for (const v of list) expect(validateChanges({ [k]: v }, cur), `${k}=${JSON.stringify(v)}`).toMatchObject({ ok: false })

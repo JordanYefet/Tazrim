@@ -1,8 +1,9 @@
 /** Types for env-file.mjs, which the app imports for its forms (ENG-121) */
-type Key = 'TAZRIM_PORT' | 'TAZRIM_PHONE_PORT' | 'COMPOSE_PROFILES' | 'TAZRIM_LAN_IP' | 'TAZRIM_HOST' | 'TAZRIM_DNS_HOST'
+type Key = 'TAZRIM_PORT' | 'TAZRIM_PHONE_PORT' | 'COMPOSE_PROFILES' | 'TAZRIM_LAN_IP' | 'TAZRIM_HOST' | 'TAZRIM_DNS_HOST' | 'TAZRIM_DNS_BIND'
 
 export const CONFIG_DEFAULTS: Readonly<Record<Key, string>>
 export const CONFIG_KEYS: readonly Key[]
+export const DNS_BINDS: readonly ('127.0.0.1' | '0.0.0.0')[]
 export const PROFILES: readonly ('updater' | 'https' | 'dns')[]
 
 export function isPort(v: string): boolean

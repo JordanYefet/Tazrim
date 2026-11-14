@@ -4,7 +4,7 @@
  */
 import { CONFIG_KEYS } from '@/updater/env-file.mjs'
 
-export type ConfigKey = 'TAZRIM_PORT' | 'TAZRIM_PHONE_PORT' | 'COMPOSE_PROFILES' | 'TAZRIM_LAN_IP' | 'TAZRIM_HOST' | 'TAZRIM_DNS_HOST'
+export type ConfigKey = 'TAZRIM_PORT' | 'TAZRIM_PHONE_PORT' | 'COMPOSE_PROFILES' | 'TAZRIM_LAN_IP' | 'TAZRIM_HOST' | 'TAZRIM_DNS_HOST' | 'TAZRIM_DNS_BIND'
 export const CONFIG_KEY_LIST = CONFIG_KEYS as readonly ConfigKey[]
 export type ConfigValues = Record<ConfigKey, string>
 export type ConfigChanges = Partial<Record<ConfigKey, string | null>>

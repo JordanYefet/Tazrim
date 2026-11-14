@@ -27,5 +27,6 @@ export const INVALID_VALUE_BY_KEY: Record<string, string> = {
   TAZRIM_LAN_IP: 'כתובת ברשת הביתית, למשל 192.168.1.20',
   TAZRIM_HOST: 'שם כמו tazrim.internal',
   TAZRIM_DNS_HOST: 'שם כמו dns.internal',
+  TAZRIM_DNS_BIND: 'הערך לא תקין',
   COMPOSE_PROFILES: 'הערך לא תקין',
 }
