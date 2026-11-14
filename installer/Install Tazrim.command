@@ -54,7 +54,7 @@ port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
 wait_healthy() { # wait_healthy PORT
   local i
-  msg "מחכים שטזרים תעלה (עד שתי דקות)..." "Waiting for Tazrim to start (up to two minutes)..."
+  msg "מחכים שתזרים תעלה (עד שתי דקות)..." "Waiting for Tazrim to start (up to two minutes)..."
   for i in $(seq 1 60); do
     if curl -fsS -m 3 "http://localhost:$1/api/health" >/dev/null 2>&1; then return 0; fi
     sleep 2
@@ -63,7 +63,7 @@ wait_healthy() { # wait_healthy PORT
 }
 
 echo
-msg "טזרים: התקנה" "Tazrim: install"
+msg "תזרים: התקנה" "Tazrim: install"
 echo
 
 # ---- 1. Docker ----------------------------------------------------------------------
@@ -92,7 +92,7 @@ msg "✓ Docker רץ." "✓ Docker is running."
 
 # ---- An install that is already there: start it, change nothing -----------------------
 if [ -e "$INSTALL_DIR" ]; then
-  [ -f "$INSTALL_DIR/docker-compose.yml" ] || fail "התיקייה $INSTALL_DIR כבר קיימת אבל אין בה התקנה של טזרים, ולכן לא נוגעים בה. מעבירים אותה למקום אחר ומנסים שוב." \
+  [ -f "$INSTALL_DIR/docker-compose.yml" ] || fail "התיקייה $INSTALL_DIR כבר קיימת אבל אין בה התקנה של תזרים, ולכן לא נוגעים בה. מעבירים אותה למקום אחר ומנסים שוב." \
                                                    "The folder $INSTALL_DIR already exists but is not a Tazrim install, so it is left alone. Move it away and try again."
   msg "נמצאה התקנה קיימת ב-$INSTALL_DIR. לא משנים בה כלום ולא נוגעים בנתונים; רק מפעילים אותה." \
       "Found an existing install in $INSTALL_DIR. Nothing in it is changed and your data is not touched; it is only started."
@@ -102,9 +102,9 @@ if [ -e "$INSTALL_DIR" ]; then
   if ! (cd "$INSTALL_DIR" && docker compose up -d); then
     fail "ההפעלה נכשלה. ההודעה של Docker מופיעה למעלה." "Starting failed. Docker's message is above."
   fi
-  wait_healthy "$PORT" || fail "טזרים לא ענתה תוך שתי דקות. אפשר לראות מה קרה עם: cd \"$INSTALL_DIR\" && docker compose logs" \
+  wait_healthy "$PORT" || fail "תזרים לא ענתה תוך שתי דקות. אפשר לראות מה קרה עם: cd \"$INSTALL_DIR\" && docker compose logs" \
                               "Tazrim did not answer within two minutes. To see why: cd \"$INSTALL_DIR\" && docker compose logs"
-  msg "✓ טזרים רצה. פותחים את הדפדפן." "✓ Tazrim is running. Opening the browser."
+  msg "✓ תזרים רצה. פותחים את הדפדפן." "✓ Tazrim is running. Opening the browser."
   open_url "http://localhost:$PORT"
   msg "הכתובת: http://localhost:$PORT" "Address: http://localhost:$PORT"
   finish 0
@@ -138,7 +138,7 @@ PHONE_PORT=$(env_value TAZRIM_PHONE_PORT "$env_text" 3001)
 
 for p in "$PORT" "$PHONE_PORT"; do
   if port_busy "$p"; then
-    fail "הפורט $p תפוס על ידי תוכנה אחרת במחשב הזה, ולכן טזרים לא יכולה לעלות עליו. סוגרים אותה ומנסים שוב. (אפשר לראות מי תופס: lsof -iTCP:$p -sTCP:LISTEN)" \
+    fail "הפורט $p תפוס על ידי תוכנה אחרת במחשב הזה, ולכן תזרים לא יכולה לעלות עליו. סוגרים אותה ומנסים שוב. (אפשר לראות מי תופס: lsof -iTCP:$p -sTCP:LISTEN)" \
          "Port $p is in use by another program on this computer, so Tazrim cannot start on it. Close that program and try again. (To see which: lsof -iTCP:$p -sTCP:LISTEN)"
   fi
 done
@@ -172,18 +172,18 @@ printf '%s\n' "$env_text" > "$INSTALL_DIR/.env"
 msg "✓ נוצרה התיקייה $INSTALL_DIR" "✓ Created the folder $INSTALL_DIR"
 
 # ---- 6. Start -------------------------------------------------------------------------
-msg "מפעילים את טזרים. בפעם הראשונה Docker מוריד את האפליקציה, וזה יכול לקחת כמה דקות..." \
+msg "מפעילים את תזרים. בפעם הראשונה Docker מוריד את האפליקציה, וזה יכול לקחת כמה דקות..." \
     "Starting Tazrim. The first time Docker downloads the app, which can take a few minutes..."
 if ! (cd "$INSTALL_DIR" && docker compose up -d); then
   fail "ההפעלה נכשלה. ההודעה של Docker מופיעה למעלה. אם כתוב שם על חיבור או הורדה, בודקים את האינטרנט. ההתקנה נשארה ב-$INSTALL_DIR, ואפשר ללחוץ שוב על הקובץ." \
        "Starting failed. Docker's message is above; if it mentions a connection or a download, check your internet. The install stays in $INSTALL_DIR, and you can double-click this file again."
 fi
-wait_healthy "$PORT" || fail "טזרים לא ענתה תוך שתי דקות. אפשר לראות מה קרה עם: cd \"$INSTALL_DIR\" && docker compose logs" \
+wait_healthy "$PORT" || fail "תזרים לא ענתה תוך שתי דקות. אפשר לראות מה קרה עם: cd \"$INSTALL_DIR\" && docker compose logs" \
                             "Tazrim did not answer within two minutes. To see why: cd \"$INSTALL_DIR\" && docker compose logs"
 
 # ---- 7. Open --------------------------------------------------------------------------
 echo
-msg "✓ טזרים רצה! פותחים את הדפדפן להגדרה הראשונה." "✓ Tazrim is running! Opening the browser for first-time setup."
+msg "✓ תזרים רצה! פותחים את הדפדפן להגדרה הראשונה." "✓ Tazrim is running! Opening the browser for first-time setup."
 open_url "http://localhost:$PORT/setup"
 msg "אם הדפדפן לא נפתח: http://localhost:$PORT/setup" "If the browser did not open: http://localhost:$PORT/setup"
 [ -n "$lan_ip" ] && msg "מהטלפון (באותה רשת Wi-Fi): http://$lan_ip:$PHONE_PORT" "From a phone on the same Wi-Fi: http://$lan_ip:$PHONE_PORT"
