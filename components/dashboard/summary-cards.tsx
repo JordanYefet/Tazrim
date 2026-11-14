@@ -462,6 +462,8 @@ export function DashboardSummaryCards({
   cardSplit,
 }: Props) {
   const qs = query ? `?${query}` : ''
+  // Income and expenses open the banks page already filtered to their side (FlowFilter's ?flow=)
+  const flowQs = (flow: 'in' | 'out') => `?${query ? `${query}&` : ''}flow=${flow}`
   // Bank expenses already include the card payment, so the net is bank-only
   const net = bankIncome - bankExpense
   const inProgress = !!progress?.inProgress
@@ -510,11 +512,11 @@ export function DashboardSummaryCards({
         <p className="mt-2 min-h-5 text-sm text-muted-foreground">{sub}</p>
       </div>
       <dl className="flex flex-col justify-end">
-        <HeroRow label="הכנסות" hint={bankHint} href={`/banks${qs}`} value={bankIncome} tone="income" />
+        <HeroRow label="הכנסות" hint={bankHint} href={`/banks${flowQs('in')}`} value={bankIncome} tone="income" />
         <HeroRow
           label="הוצאות"
           hint={`ממוצע חודשי ${formatCurrencyWhole(averageExpense)}`}
-          href={`/banks${qs}`}
+          href={`/banks${flowQs('out')}`}
           value={bankExpense}
           tone="expense"
           chip={chip}
