@@ -311,7 +311,7 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
 
         <div className={cn('space-y-0.5 rounded-xl bg-muted px-4 py-3 transition-opacity duration-fast', !on && 'opacity-50')}>
           <p className="text-xs text-muted-foreground">{on ? 'הכתובת המוצפנת' : 'הכתובת המוצפנת, אחרי ההפעלה'}</p>
-          <Address url={url} className={inSetup ? 'text-base' : 'text-xl'} />
+          <Address url={url} className={inSetup ? 'text-base' : 'text-base sm:text-xl'} />
         </div>
 
         <SwitchRow

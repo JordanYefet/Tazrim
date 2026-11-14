@@ -179,7 +179,9 @@ export function SetupWizard({ step, account, basics, summary }: SetupWizardProps
  * header (the counter, "חזרה") stays put while the steps' heights differ. On a
  * phone it fills the screen, its buttons at the foot, as the sign-in card does.
  */
-const FRAME = 'flex w-full max-w-md justify-center self-start md:mt-[6vh]'
+// Every step's card a little wider than the sign-in card (max-w-md over its max-w-sm), the
+// same on each step, so the phones and HTTPS steps have room for an address and its QR code
+const FRAME = 'flex w-full max-w-md justify-center self-start md:mt-[6vh] [&>*]:max-w-md'
 
 /** Two equal halves at the card's foot */
 function Actions({ children }: { children: React.ReactNode }) {
