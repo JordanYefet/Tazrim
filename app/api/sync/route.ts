@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/client'
 import { NOT_LOCAL, maySync } from '@/lib/sync/access'
-import { isReadOnly } from '@/lib/read-only'
+import { UPDATING_MESSAGE, isReadOnly } from '@/lib/read-only'
+import { isUpdating } from '@/lib/updates/paths'
 import { SYNC_COMPANIES, VERIFIED_COMPANIES, syncCompany, validateCredentials } from '@/lib/sync/providers'
 import { currentQueue, currentRun, startQueue, startRun, type LoginSource } from '@/lib/sync/runs'
 import { earliestStart, sourceSummary } from '@/lib/sync/store'
@@ -89,6 +90,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
  */
 export async function POST(req: Request) {
   if (!maySync(req.headers)) return NextResponse.json(NOT_LOCAL, { status: 403 })
+  if (isUpdating()) return NextResponse.json({ error: UPDATING_MESSAGE, code: 'UPDATING' }, { status: 409 })
   const body = (await req.json().catch(() => null)) as
     | { company?: unknown; credentials?: unknown; startDate?: unknown; save?: unknown; saved?: unknown; all?: unknown }
     | null

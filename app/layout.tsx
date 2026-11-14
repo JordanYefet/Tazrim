@@ -117,7 +117,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <BottomNav />
               <FreshData />
               <PullToRefresh />
-              {readOnly && <ReadOnlyGuard />}
+              <ReadOnlyGuard readOnly={readOnly} />
             </NavSectionsProvider>
             </MeProvider>
           </PeriodProvider>
