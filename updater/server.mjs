@@ -12,6 +12,7 @@ import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.mjs'
+import { createConfig } from './config.mjs'
 import { createDocker } from './docker.mjs'
 import { readPlain, writeText } from './files.mjs'
 import { createJobs, IMAGE } from './job.mjs'
@@ -19,6 +20,12 @@ import { createStatusStore } from './status.mjs'
 
 export const PORT = 8080
 export const API_VERSION = 1
+/**
+ * What this helper can do beyond API 1, for the app to check: a helper without 'config' (older
+ * than ENG-121) makes the app show the manual steps instead. The API number itself stays 1, so
+ * apps and helpers of either age keep working with each other.
+ */
+export const FEATURES = Object.freeze(['config'])
 const MAX_BODY = 4096
 const TOKEN_RE = /^[0-9a-f]{64}$/
 
@@ -77,7 +84,8 @@ function readJson(req) {
   })
 }
 
-export function createServer({ jobs, token, helperVersion }) {
+export function createServer({ jobs, config = null, token, helperVersion }) {
+  const features = config ? FEATURES : []
   // Compare hashes: same length always, so timingSafeEqual never throws and the length doesn't leak
   const expected = sha256(token)
   const authorized = header => {
@@ -88,12 +96,13 @@ export function createServer({ jobs, token, helperVersion }) {
   const routes = {
     'GET /v1/health': async () => {
       try {
-        return [200, { ok: true, helperVersion, api: API_VERSION, ...(await jobs.health()) }]
+        return [200, { ok: true, helperVersion, api: API_VERSION, features, ...(await jobs.health()) }]
       } catch (e) {
-        return [200, { ok: true, helperVersion, api: API_VERSION, updatable: false, image: '', runningVersion: null, error: String(e?.message ?? e) }]
+        return [200, { ok: true, helperVersion, api: API_VERSION, features, updatable: false, image: '', runningVersion: null, error: String(e?.message ?? e) }]
       }
     },
-    'GET /v1/status': async () => [200, jobs.current()],
+    // ?kind=config: the last settings job (its own store, so it never hides the last update's roll back)
+    'GET /v1/status': async (req, url) => [200, url.searchParams.get('kind') === 'config' ? (config?.current() ?? null) : jobs.current()],
     'POST /v1/update': async req => {
       const body = await readJson(req)
       const r = await jobs.startUpdate(body?.version)
@@ -103,18 +112,27 @@ export function createServer({ jobs, token, helperVersion }) {
       const r = await jobs.startRollback()
       return r.status === 202 ? [202, { job: r.job }] : [r.status, { code: r.code, error: r.error }]
     },
+    ...(config && {
+      'GET /v1/config': async () => [200, await config.info()],
+      'POST /v1/config': async req => {
+        const body = await readJson(req)
+        const r = await config.start(body?.changes)
+        return r.status === 202 ? [202, { job: r.job }] : [r.status, { code: r.code, key: r.key, reason: r.reason, error: r.error }]
+      },
+    }),
   }
 
   return http.createServer(async (req, res) => {
     try {
       if (!authorized(req.headers.authorization)) return send(res, 401, { error: 'unauthorized' })
-      const { pathname } = new URL(req.url ?? '/', 'http://updater')
+      const url = new URL(req.url ?? '/', 'http://updater')
+      const { pathname } = url
       const route = routes[`${req.method} ${pathname}`]
       if (!route) {
         const known = Object.keys(routes).some(k => k.endsWith(` ${pathname}`))
         return send(res, known ? 405 : 404, { error: known ? 'method not allowed' : 'not found' })
       }
-      const [status, body] = await route(req)
+      const [status, body] = await route(req, url)
       send(res, status, body)
     } catch (e) {
       if (!res.headersSent) send(res, e?.status ?? 500, { error: e?.status ? e.message : 'internal error' })
@@ -151,8 +169,10 @@ function main() {
   )
   const app = createApp({ url: process.env.TAZRIM_APP_URL || 'http://tazrim:3000', token, dbFile })
   const status = createStatusStore(path.join(dataDir, '.update-status.json'))
-  const jobs = createJobs({ docker, app, status })
-  createServer({ jobs, token, helperVersion: helperVersionFromPackage() }).listen(PORT, () => {
+  const lock = { busy: false }
+  const jobs = createJobs({ docker, app, status, lock })
+  const config = createConfig({ docker, lock, status: createStatusStore(path.join(dataDir, '.config-status.json')) })
+  createServer({ jobs, config, token, helperVersion: helperVersionFromPackage() }).listen(PORT, () => {
     console.log(`updater: listening on :${PORT} (api v${API_VERSION}), data in ${dataDir}`)
   })
 }
