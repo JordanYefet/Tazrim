@@ -6,12 +6,9 @@ import {
   ChartPie,
   CreditCard,
   House,
-  Info,
   Repeat,
-  Settings,
   Tag,
   TrendingUp,
-  Upload,
   type LucideIcon,
 } from 'lucide-react'
 import type { PagedAccountKind } from '@/lib/accounts/routes'
@@ -68,12 +65,8 @@ export const MAIN_NAV: NavItem[] = [
   SECTION_ITEMS.cards,
   { type: 'link', href: '/recurring', label: 'חיובים קבועים', icon: Repeat },
   { type: 'link', href: '/projection', label: 'תחזית', icon: TrendingUp },
-  { type: 'link', href: '/upload', label: 'העלאת קבצים', icon: Upload },
   { type: 'link', href: '/analysis', label: 'ניתוח לפי קטגוריה', icon: ChartPie },
   { type: 'link', href: '/categories', label: 'קטגוריות', icon: Tag },
 ]
-
-export const SETTINGS_NAV: NavLinkItem = { type: 'link', href: '/settings', label: 'הגדרות', icon: Settings }
-export const ABOUT_NAV: NavLinkItem = { type: 'link', href: '/about', label: 'אודות', icon: Info }
 
 export type { NavAccount }

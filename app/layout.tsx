@@ -25,6 +25,7 @@ import { listAccounts } from '@/lib/db/accounts'
 import { BRAND } from '@/lib/brand/colors'
 import { BackgroundProvider } from '@/components/background/background-provider'
 import { BACKGROUND_COOKIE, backgroundHtmlAttributes, backgroundHtmlStyle, parseBackgroundCookie } from '@/lib/background/setting'
+import { getAvatars } from '@/lib/preferences/avatar'
 import { getStoredBackground } from '@/lib/preferences/background'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
@@ -138,5 +139,6 @@ async function signedInPerson(): Promise<Me | null> {
   const session = await currentSession()
   if (!session) return null
   const passkey = session.passkeyId ? await prisma.passkey.findUnique({ where: { id: session.passkeyId }, select: { label: true } }) : null
-  return { name: session.personName, device: passkey?.label ?? null }
+  const avatar = (await getAvatars([session.personId]).catch(() => null))?.get(session.personId) ?? null
+  return { name: session.personName, device: passkey?.label ?? null, avatar }
 }

@@ -16,15 +16,14 @@ export const ROUTE_CALM_MS = 700
 export interface TabBarShrinkInput {
   /** The header's hide-on-scroll signal */
   headerHidden: boolean
-  sheetOpen: boolean
   /** A route changed a moment ago */
   calm: boolean
   /** Touched while shrunk and the page has not moved on yet */
   engaged: boolean
 }
 
-export function tabBarShrunk({ headerHidden, sheetOpen, calm, engaged }: TabBarShrinkInput): boolean {
-  return headerHidden && !sheetOpen && !calm && !engaged
+export function tabBarShrunk({ headerHidden, calm, engaged }: TabBarShrinkInput): boolean {
+  return headerHidden && !calm && !engaged
 }
 
 /** A touch at scroll offset `engagedAt` still holds the bar open at `y` */

@@ -299,8 +299,8 @@ html {
    - anchored panels (.period-panel, .flyout-in, .menu-panel, .rail-tip) grow
      out of their trigger's edge on one keyframe pair, nudged by --panel-dx /
      --panel-dy toward the trigger
-   - sheets on the bottom edge (.sheet, AppDialog on phones) rise from under
-     the tap's x
+   - sheets on the bottom edge (.sheet, AppDialog on phones) slide up from
+     the bottom of the screen and back down it
    - every scrim fades the same */
 
 /* Anchored panels */
@@ -344,20 +344,23 @@ html {
 .period-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
 .period-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
 
-/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the tap's x;
-   without one, the pill's last slot, at the left edge under RTL), and back
-   into it on close */
-.sheet { transform-origin: var(--origin-x, 90%) 100%; }
-[dir='rtl'] .sheet { transform-origin: var(--origin-x, 10%) 100%; }
-.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-ui); }
+/* Phone sheets slide up from the bottom of the screen and back down it, iOS-style: in on
+   the drawer curve, out on the quick beat. --sheet-gap is how far above the screen's
+   edge the sheet rests (the sync panel sits over the tab bar), so it starts fully out of view */
+.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-spring); }
 .sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
-@keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
-@keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
-/* The header's sync panel (components/sync/sync-button.tsx): the "עוד" sheet's
-   rise on phones; wider, a dropdown that grows down out of its button, from the
-   button's centre (the panel's right edge is the button's), like the period panel */
+.sheet { --sheet-gap: 6rem; }
+@keyframes sheet-in { from { transform: translateY(calc(100% + var(--sheet-gap, 0px))); } }
+@keyframes sheet-out { to { transform: translateY(calc(100% + var(--sheet-gap, 0px))); } }
+@media (prefers-reduced-motion: reduce) {
+  .sheet[data-state='open'] { animation: fade-in var(--motion-fast) var(--ease-ui); }
+  .sheet[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
+}
+/* The sync panel (components/sync/sync-dialog.tsx, opened from the avatar card):
+   the sheet's rise on phones; wider, a dropdown that grows down out of the 36px
+   avatar, from its centre (the panel's right edge is the avatar's), like the period panel */
 @media (min-width: 768px) {
-  .sheet.sync-panel { --panel-dy: -6px; transform-origin: calc(100% - 5.25rem) 0; }
+  .sheet.sync-panel { --panel-dy: -6px; transform-origin: calc(100% - 1.125rem) 0; }
   .sheet.sync-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
   .sheet.sync-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
 }
@@ -369,12 +372,16 @@ html {
 .app-window[data-state='closed'] { animation: window-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes window-in { from { opacity: 0; transform: scale(0.94); } }
 @keyframes window-out { to { opacity: 0; transform: scale(0.96); } }
-/* AppDialog on phones sits on the bottom edge: it rises like the "עוד"
-   sheet, from under the tap's x (below Tailwind's sm) */
+/* AppDialog on phones sits on the bottom edge: it slides up from it like the
+   sync sheet, and back down (below Tailwind's sm). Reduced motion: a fade */
 @media (max-width: 639.98px) {
-  .app-window--sheet { transform-origin: var(--origin-x, 50%) 100%; }
-  .app-window--sheet[data-state='open'] { animation-name: sheet-in; }
+  .app-window--sheet { --sheet-gap: 0px; }
+  .app-window--sheet[data-state='open'] { animation-name: sheet-in; animation-timing-function: var(--ease-spring); }
   .app-window--sheet[data-state='closed'] { animation-name: sheet-out; }
+}
+@media (max-width: 639.98px) and (prefers-reduced-motion: reduce) {
+  .app-window--sheet[data-state='open'] { animation-name: fade-in; }
+  .app-window--sheet[data-state='closed'] { animation-name: fade-out; }
 }
 
 /* Scrims: one fade for every popup */
@@ -2020,3 +2027,8 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 @media (prefers-reduced-motion: reduce) {
   .period-loading::after { animation: none; inset-inline-start: 0; width: 100%; }
 }
+
+/* The avatar picker's preview: a new face pops in over the old one */
+@keyframes face-in { from { opacity: 0; transform: scale(0.86); } }
+.face-in { animation: face-in var(--motion-fast) var(--ease-ui); }
+@media (prefers-reduced-motion: reduce) { .face-in { animation: none; } }
