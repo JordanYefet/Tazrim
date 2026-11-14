@@ -35,12 +35,18 @@ export function isAuthRequired(): boolean {
 export const BARE_HEADER = 'x-tazrim-bare'
 
 /** Reachable with no session. Everything else redirects to /login (pages) or answers 401 (API). */
+/** The certificate files a phone or tablet downloads (app/tazrim.mobileconfig, app/tazrim-root.crt) */
+export const DEVICE_FILES = ['/tazrim.mobileconfig', '/tazrim-root.crt']
+
 export function isPublicPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
   if (isAuthPage(path)) return true
   if (path === '/api/health' || path.startsWith('/api/auth/')) return true
   // The updater helper calls this with its own token, which the route checks (ENG-98)
   if (path === '/api/updates/backup') return true
+  // HTTPS (ENG-123): a phone downloads these before it can sign in. They hold only the public
+  // root certificate and this computer's home-network address (lib/install/device-files.ts)
+  if (DEVICE_FILES.includes(path)) return true
   // What the browser and the home screen fetch before anyone signs in
   return (
     path.startsWith('/_next/') ||

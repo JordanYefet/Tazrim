@@ -109,6 +109,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         }]),
     // Container-level settings (ENG-121); never in the read-only demo
     ...(readOnly ? [] : [{ href: '/settings/install', icon: 'install' as const, title: 'התקנה', summary: 'הכתובת במחשב הזה והפורטים של תזרים.' }]),
+    // Phones and HTTPS (ENG-122/123); never in the read-only demo
+    ...(readOnly
+      ? []
+      : [
+          { href: '/settings/phones', icon: 'phones' as const, title: 'טלפונים וטאבלטים', summary: 'הכתובת לפתיחה מהטלפון ברשת הביתית, וקוד QR אליה.' },
+          { href: '/settings/https', icon: 'https' as const, title: 'HTTPS ומפתחות בטלפון', summary: 'חיבור מוצפן ושם קבוע, לכניסה מהטלפון עם מפתח.' },
+        ]),
     { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 

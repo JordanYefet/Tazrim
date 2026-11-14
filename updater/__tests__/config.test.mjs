@@ -63,7 +63,7 @@ describe('GET info', () => {
     expect(await config.info()).toEqual({
       available: true,
       installDir: CTX.workingDir,
-      values: { TAZRIM_PORT: '3000', TAZRIM_PHONE_PORT: null, COMPOSE_PROFILES: 'updater', TAZRIM_LAN_IP: null, TAZRIM_HOST: null, TAZRIM_DNS_HOST: null },
+      values: { TAZRIM_PORT: '3000', TAZRIM_PHONE_PORT: null, COMPOSE_PROFILES: 'updater', TAZRIM_LAN_IP: null, TAZRIM_HOST: null, TAZRIM_DNS_HOST: null, TAZRIM_DNS_BIND: null },
     })
   })
 

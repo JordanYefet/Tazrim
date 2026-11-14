@@ -13,7 +13,7 @@ import { getInstallView, startConfigChange } from '../config'
 import { nextOrigin } from '@/components/install/container-settings'
 
 const health = (features?: string[]) => ({ ok: true, helperVersion: '1.0.0', api: 1, updatable: true, image: 'x', runningVersion: '1.0.0', ...(features ? { features } : {}) })
-const FILE = { TAZRIM_PORT: '3005', TAZRIM_PHONE_PORT: null, COMPOSE_PROFILES: 'updater', TAZRIM_LAN_IP: null, TAZRIM_HOST: null, TAZRIM_DNS_HOST: null }
+const FILE = { TAZRIM_PORT: '3005', TAZRIM_PHONE_PORT: null, COMPOSE_PROFILES: 'updater', TAZRIM_LAN_IP: null, TAZRIM_HOST: null, TAZRIM_DNS_HOST: null, TAZRIM_DNS_BIND: null }
 
 beforeEach(() => {
   helper.health = null
@@ -80,7 +80,7 @@ describe('startConfigChange', () => {
 })
 
 describe('nextOrigin', () => {
-  const before = { TAZRIM_PORT: '3000', TAZRIM_PHONE_PORT: '3001', COMPOSE_PROFILES: '', TAZRIM_LAN_IP: '', TAZRIM_HOST: 'tazrim.internal', TAZRIM_DNS_HOST: 'dns.internal' }
+  const before = { TAZRIM_PORT: '3000', TAZRIM_PHONE_PORT: '3001', COMPOSE_PROFILES: '', TAZRIM_LAN_IP: '', TAZRIM_HOST: 'tazrim.internal', TAZRIM_DNS_HOST: 'dns.internal', TAZRIM_DNS_BIND: '127.0.0.1' }
   it('follows the port the page is on', () => {
     expect(nextOrigin('http://localhost:3000/settings/install', before, { ...before, TAZRIM_PORT: '3005' })).toBe('http://localhost:3005')
     expect(nextOrigin('http://192.168.1.20:3001/settings/install', before, { ...before, TAZRIM_PHONE_PORT: '3006' })).toBe('http://192.168.1.20:3006')

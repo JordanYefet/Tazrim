@@ -4,7 +4,7 @@
  */
 import { CONFIG_KEYS } from '@/updater/env-file.mjs'
 
-export type ConfigKey = 'TAZRIM_PORT' | 'TAZRIM_PHONE_PORT' | 'COMPOSE_PROFILES' | 'TAZRIM_LAN_IP' | 'TAZRIM_HOST' | 'TAZRIM_DNS_HOST'
+export type ConfigKey = 'TAZRIM_PORT' | 'TAZRIM_PHONE_PORT' | 'COMPOSE_PROFILES' | 'TAZRIM_LAN_IP' | 'TAZRIM_HOST' | 'TAZRIM_DNS_HOST' | 'TAZRIM_DNS_BIND'
 export const CONFIG_KEY_LIST = CONFIG_KEYS as readonly ConfigKey[]
 export type ConfigValues = Record<ConfigKey, string>
 export type ConfigChanges = Partial<Record<ConfigKey, string | null>>
@@ -44,4 +44,16 @@ export interface InstallView {
   /** The Tazrim folder on the computer, when the helper knows it */
   installDir: string | null
   job: ConfigJob | null
+}
+
+/** Beside the install view, for the phones and HTTPS pages (ENG-122/123): /api/install/network */
+export interface NetworkInfo {
+  /** Home-network addresses this computer has; only outside Docker (a container sees its own) */
+  lanHints: string[]
+  /** Caddy's HTTPS port on this computer (443 unless TAZRIM_HTTPS_PORT moved it) */
+  httpsPort: string
+  /** Caddy's root certificate is there, so the download links work */
+  certReady: boolean
+  /** Passwords only over HTTPS or on this computer (Settings → General) */
+  requireHttps: boolean
 }

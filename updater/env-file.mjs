@@ -16,7 +16,13 @@ export const CONFIG_DEFAULTS = Object.freeze({
   TAZRIM_LAN_IP: '',
   TAZRIM_HOST: 'tazrim.internal',
   TAZRIM_DNS_HOST: 'dns.internal',
+  // Where AdGuard's plain DNS (port 53) listens: this computer only, or the home network too
+  // (ENG-123: Android phones and other computers set it as their DNS for the .internal names)
+  TAZRIM_DNS_BIND: '127.0.0.1',
 })
+
+/** The two places AdGuard's port 53 may listen */
+export const DNS_BINDS = Object.freeze(['127.0.0.1', '0.0.0.0'])
 export const CONFIG_KEYS = Object.freeze(Object.keys(CONFIG_DEFAULTS))
 
 /** The profiles the app may turn on or off, in the order they are written */
@@ -72,6 +78,8 @@ function normalize(key, value) {
     }
     case 'TAZRIM_LAN_IP':
       return v === '' || isPrivateIPv4(v) ? { value: v } : null
+    case 'TAZRIM_DNS_BIND':
+      return v === '' || DNS_BINDS.includes(v) ? { value: v } : null
     case 'TAZRIM_HOST':
     case 'TAZRIM_DNS_HOST':
       return isHostName(v.toLowerCase()) ? { value: v.toLowerCase() } : null
