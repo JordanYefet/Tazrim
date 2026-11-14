@@ -122,15 +122,15 @@ export function ProfileButton() {
             'before:absolute before:-inset-1 before:content-[""]',
             // A rounded square with a person; the plain person icon (login off) keeps its circle
             me ? 'rounded-[30%]' : 'rounded-full bg-primary/10',
-            (open || syncOpen) && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+            // Open: a ring around it. While a sync runs, its moving ring takes that place instead
+            (open || syncOpen) && mark !== 'ring' && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
           )}
         >
           {me ? <Avatar me={me} size={36} /> : <User className="h-[18px] w-[18px]" aria-hidden />}
           {mark === 'ring' && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -inset-1 animate-spin rounded-[34%] border-[2.5px] border-transparent border-r-primary border-t-primary motion-reduce:animate-none motion-reduce:border-primary"
-            />
+            // The outline stays put and a bright arc travels around it (globals.css, .sync-ring):
+            // spinning the shape itself only works for a circle
+            <span aria-hidden className={cn('sync-ring', me ? 'rounded-[34%]' : 'rounded-full')} />
           )}
           <Badge mark={mark} />
         </DropdownMenu.Trigger>
