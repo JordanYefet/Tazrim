@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
-import { SESSION_IDLE_MS, isPublicPath } from '../config'
+import { SESSION_IDLE_MS, isBarePath, isPublicPath } from '../config'
 import { normalizeCode, readableCode } from '../tokens'
 import { rateLimit } from '../rate-limit'
 
@@ -48,9 +48,14 @@ describe('isPublicPath', () => {
   it.each(['/login', '/setup', '/invite/abc', '/api/auth/login', '/api/health', '/manifest.webmanifest', '/_next/static/x.js'])('%s is public', p =>
     expect(isPublicPath(p)).toBe(true)
   )
-  it.each(['/', '/settings', '/api/people', '/api/sync', '/api/data/delete-all', '/loginx', '/api/healthz'])('%s needs a session', p =>
+  it.each(['/', '/settings', '/api/people', '/api/sync', '/api/data/delete-all', '/loginx', '/api/healthz', '/updating'])('%s needs a session', p =>
     expect(isPublicPath(p)).toBe(false)
   )
+})
+
+describe('isBarePath', () => {
+  it.each(['/login', '/setup', '/invite/abc', '/updating'])('%s renders without the app shell', p => expect(isBarePath(p)).toBe(true))
+  it.each(['/', '/about', '/settings'])('%s keeps the app shell', p => expect(isBarePath(p)).toBe(false))
 })
 
 describe('relyingParty', () => {

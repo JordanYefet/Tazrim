@@ -162,6 +162,11 @@ function finish(run: Run, status: RunState) {
 const queueActive = () => !!registry.queue && !registry.queue.finishedAt
 const anyActive = () => [...registry.runs.values()].some(active) || queueActive()
 
+/** Is any sync (single or "sync all") still going? An update waits for it (ENG-98). */
+export function isSyncActive(): boolean {
+  return active(registry.current) || anyActive()
+}
+
 /** The latest single sync, finished or not ("sync all" shows in currentQueue). */
 export function currentRun(): RunView | null {
   return registry.current ? view(registry.current) : null

@@ -14,4 +14,10 @@ export async function register() {
   } catch (e) {
     console.warn('backfills: failed, will try again on the next start', e)
   }
+  try {
+    const { startDailyCheck } = await import('./lib/updates/check')
+    startDailyCheck()
+  } catch (e) {
+    console.warn('updates: could not start the daily check', e)
+  }
 }
