@@ -6,17 +6,16 @@ import { SearchButton } from '@/components/search/search-button'
 import { CommandSearch } from '@/components/search/command-search'
 import { useHeaderHidden } from '@/hooks/use-header-hidden'
 import { cn } from '@/lib/utils/cn'
-import { isPeriodPath, periodQuery, samePeriod, type Period } from '@/lib/period'
-import { useCurrentPeriod, usePeriodTransition, useRememberPeriod, useToday } from './period-context'
+import { isPeriodPath, periodQuery, type Period } from '@/lib/period'
+import { useCurrentPeriod, usePeriodPending, usePeriodTransition, useRememberPeriod, useToday } from './period-context'
 import { PeriodPicker } from './period-picker'
-import { TodayButton } from './today-button'
 import { ReadOnlyBadge } from './read-only-guard'
 import { SyncButton } from '@/components/sync/sync-button'
 
 /**
  * A period chosen in the picker. Pages without a period (settings, upload...) only remember it,
  * so every page opened from there shows it. On a period page the same page loads with the new
- * period; the page on screen stays, dimmed, until it arrives (period-context.tsx, PageMain).
+ * period; the page on screen stays (its numbers spin or fade on a slow load) until it arrives (period-context.tsx, PageMain).
  * There the period is remembered inside that transition, not before it: the links that follow
  * it (the tab bar's fetch their pages ahead) change with the new page. Changed at once, they
  * fetched three more pages alongside it, and the month took twice as long to load.
@@ -67,6 +66,7 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
   const [shown, show] = useOptimistic(current)
   const startPeriod = usePeriodTransition()
   const today = useToday()
+  const pending = usePeriodPending()
 
   function update(next: Period) {
     changePeriod(next, { pathname, params, remember, show, startPeriod, push: href => router.push(href, { scroll: false }) })
@@ -88,15 +88,16 @@ export function Header({ readOnly = false }: { readOnly?: boolean }) {
         {/* The start column is as wide as the end one, so the period sits in the middle.
             It holds the bank sync (ENG-91); in read-only mode (the demo) it says so instead */}
         <div className="flex min-w-0 items-center">{readOnly ? <ReadOnlyBadge /> : <SyncButton />}</div>
-        {/* The picker and, away from this month, the way back to it; the pair stays centred */}
-        <div data-period-controls className="flex items-center">
-          <PeriodPicker period={{ year: shown.year, month: shown.month }} onChange={update} />
-          <TodayButton show={!samePeriod(shown, today)} onClick={() => update(today)} />
+        {/* The picker; the way back to this month is inside its panel */}
+        <div className="flex items-center">
+          <PeriodPicker period={{ year: shown.year, month: shown.month }} today={today} onChange={update} />
         </div>
 
         <div className="flex items-center justify-end gap-2">
           <SearchButton />
         </div>
+        {/* A period loading: a thin line runs along the bottom edge (globals.css, .period-loading) */}
+        <div aria-hidden data-on={pending || undefined} className="period-loading" />
       </header>
       <CommandSearch />
     </>

@@ -42,6 +42,8 @@ const EASE = MOTION_EASE.ui
 const STAGGER_MS = ROLL.stagger
 // Soft top/bottom edges so passing digits fade instead of being cut off
 const EDGE_MASK = 'linear-gradient(to bottom, transparent 0, #000 18%, #000 82%, transparent 100%)'
+// One turn of the 0–9 strip while a period loads, per digit from the right
+const SPIN_MS = [520, 610, 470, 580, 660, 500, 630]
 // Sign, digits and separators: the part that is laid out character by character
 const NUMERIC_CORE = /[-−]?\d(?:[\d.,]*\d)?/
 
@@ -56,7 +58,8 @@ export function DigitStrip({ digit, duration, delay }: { digit: number; duration
         // No will-change: a page holds hundreds of digits, and a permanent layer each
         // (masked, so a render pass each) made every scroll frame redraw them all.
         // The browser still runs the transform transition on the compositor.
-        className="flex flex-col transition-transform motion-reduce:transition-none"
+        // digit-strip: spins while a period loads (globals.css, main[data-pending])
+        className="digit-strip flex flex-col transition-transform motion-reduce:transition-none"
         style={{
           transform: `translateY(${-digit * 10}%)`,
           transitionDuration: `${duration}ms`,
@@ -90,7 +93,7 @@ interface RollingNumberProps {
  * with the page, ENG-67), and also when a number gains a digit later
  * (0.00 → 12,345.67 rolls the new leading digits too, not only the last three).
  */
-function RollingDigit({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
+function RollingDigit({ digit, duration, delay, spin }: { digit: number; duration: number; delay: number; spin: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [mounted, setMounted] = useState(false)
   useLayoutEffect(() => {
@@ -98,7 +101,7 @@ function RollingDigit({ digit, duration, delay }: { digit: number; duration: num
     setMounted(true)
   }, [])
   return (
-    <span ref={ref} className="contents">
+    <span ref={ref} className="contents" style={{ '--digit-spin': `${spin}ms` } as React.CSSProperties}>
       <DigitStrip digit={mounted ? digit : 0} duration={duration} delay={delay} />
     </span>
   )
@@ -114,7 +117,7 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
   const chars = [...match[0]]
 
   return (
-    <span className={cn('tabular-nums', className)}>
+    <span data-rolling className={cn('tabular-nums', className)}>
       <span className="sr-only">{text}</span>
       <span aria-hidden>
         {before}
@@ -132,6 +135,8 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
                 // Shorter by its delay, so all digits land together
                 duration={Math.max(duration / 2, duration - fromEnd * STAGGER_MS)}
                 delay={fromEnd * STAGGER_MS}
+                // Each digit spins at its own speed while a period loads, so the number scrambles
+                spin={SPIN_MS[fromEnd % SPIN_MS.length]}
               />
             ) : (
               <span key={`s${fromEnd}`}>{ch}</span>
