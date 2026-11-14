@@ -6,7 +6,7 @@
 # Update:         docker compose pull && docker compose up -d
 # Phones: http://<this computer's IP>:3000 with a password, or HTTPS for passkeys:
 #                 COMPOSE_PROFILES=https,dns in .env, see the README
-# Updating from the app's About page: COMPOSE_PROFILES=updater in .env (or https,dns,updater)
+# Updating from the app (Settings -> Updates): COMPOSE_PROFILES=updater in .env (or https,dns,updater)
 #
 # All data is in the "tazrim_tazrim-data" volume on this machine (/data/tazrim.db inside the container).
 
@@ -50,10 +50,10 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # Optional: updating from inside the app (Settings -> About, README: "עדכון לגרסה חדשה").
+  # Optional: updating from inside the app (Settings -> Updates, README: "עדכון לגרסה חדשה").
   # Off unless .env turns it on:
   #   COMPOSE_PROFILES=updater        (together with the others: https,dns,updater)
-  # A small helper that, when you press "עדכון לגרסה vX" in the app (Settings -> About), downloads the new release, backs
+  # A small helper that, when you press "עדכון לגרסה vX" in the app (Settings -> Updates), downloads the new release, backs
   # the data up, and restarts Tazrim on it (and puts the old version back if the new one does
   # not start). It uses the same image as the app.
   # It holds the Docker socket. A container with the socket can control Docker on this
