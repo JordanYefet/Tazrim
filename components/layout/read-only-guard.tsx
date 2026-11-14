@@ -100,7 +100,7 @@ export function ReadOnlyBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary max-[379px]:px-1.5">
       <Eye className="h-3.5 w-3.5" aria-hidden />
-      {/* The narrowest phones show the eye only: the header's middle (picker and "החודש") needs the room */}
+      {/* The narrowest phones show the eye only: the header's middle (the period picker) needs the room */}
       <span className="max-[379px]:sr-only">
         דמו<span className="max-sm:hidden"> · קריאה בלבד</span>
       </span>

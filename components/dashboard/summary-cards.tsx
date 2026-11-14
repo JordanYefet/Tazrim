@@ -198,7 +198,7 @@ export function StatTile({
             {split.map(s => (
               <li key={s.label} className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate">{s.label}</span>
-                <span className="shrink-0 font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.value)}</span>
+                <RollingNumber value={s.value} className="shrink-0 font-medium text-foreground" />
               </li>
             ))}
           </ul>
@@ -531,7 +531,7 @@ export function DashboardSummaryCards({
                 {cardSplit.map(s => (
                   <li key={s.label} className="flex items-baseline justify-between gap-2">
                     <span className="min-w-0 truncate">{s.label}</span>
-                    <span className="shrink-0 font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.value)}</span>
+                    <RollingNumber value={s.value} className="shrink-0 font-medium text-foreground" />
                   </li>
                 ))}
               </ul>

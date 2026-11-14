@@ -64,6 +64,13 @@ export function useDragToDismiss({
 
     // Kept across renders (the listeners are re-bound on each, the gesture lives on)
     const g = gesture.current
+    // A new sheet (the window opened again) starts at rest. A drag that closed the last one
+    // left its offset at the sheet's height, and the next touch carried on from there: the
+    // sheet jumped off screen and could no longer be dragged
+    g.stop()
+    g.state = 'idle'
+    g.offset = 0
+    g.samples = []
 
     const scrollerAt = (target: EventTarget | null): HTMLElement | null => {
       // The nearest scrolled box between the touch and the sheet (the sheet itself included)

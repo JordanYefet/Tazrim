@@ -299,8 +299,8 @@ html {
    - anchored panels (.period-panel, .flyout-in, .menu-panel, .rail-tip) grow
      out of their trigger's edge on one keyframe pair, nudged by --panel-dx /
      --panel-dy toward the trigger
-   - sheets on the bottom edge (.sheet, AppDialog on phones) rise from under
-     the tap's x
+   - sheets on the bottom edge (.sheet, AppDialog on phones) slide up from
+     the bottom of the screen and back down it
    - every scrim fades the same */
 
 /* Anchored panels */
@@ -344,20 +344,23 @@ html {
 .period-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
 .period-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
 
-/* Phone "עוד" sheet: a short, soft rise out of the "עוד" tab (the tap's x;
-   without one, the pill's last slot, at the left edge under RTL), and back
-   into it on close */
-.sheet { transform-origin: var(--origin-x, 90%) 100%; }
-[dir='rtl'] .sheet { transform-origin: var(--origin-x, 10%) 100%; }
-.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-ui); }
+/* Phone sheets slide up from the bottom of the screen and back down it, iOS-style: in on
+   the drawer curve, out on the quick beat. --sheet-gap is how far above the screen's
+   edge the sheet rests (the sync panel sits over the tab bar), so it starts fully out of view */
+.sheet[data-state='open'] { animation: sheet-in var(--motion-base) var(--ease-spring); }
 .sheet[data-state='closed'] { animation: sheet-out var(--motion-fast) var(--ease-ui) forwards; }
-@keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
-@keyframes sheet-out { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
-/* The header's sync panel (components/sync/sync-button.tsx): the "עוד" sheet's
-   rise on phones; wider, a dropdown that grows down out of its button, from the
-   button's centre (the panel's right edge is the button's), like the period panel */
+.sheet { --sheet-gap: 6rem; }
+@keyframes sheet-in { from { transform: translateY(calc(100% + var(--sheet-gap, 0px))); } }
+@keyframes sheet-out { to { transform: translateY(calc(100% + var(--sheet-gap, 0px))); } }
+@media (prefers-reduced-motion: reduce) {
+  .sheet[data-state='open'] { animation: fade-in var(--motion-fast) var(--ease-ui); }
+  .sheet[data-state='closed'] { animation: fade-out var(--motion-fast) var(--ease-ui) forwards; }
+}
+/* The sync panel (components/sync/sync-dialog.tsx, opened from the avatar card):
+   the sheet's rise on phones; wider, a dropdown that grows down out of the 36px
+   avatar, from its centre (the panel's right edge is the avatar's), like the period panel */
 @media (min-width: 768px) {
-  .sheet.sync-panel { --panel-dy: -6px; transform-origin: calc(100% - 5.25rem) 0; }
+  .sheet.sync-panel { --panel-dy: -6px; transform-origin: calc(100% - 1.125rem) 0; }
   .sheet.sync-panel[data-state='open'] { animation: panel-in var(--motion-base) var(--ease-ui); }
   .sheet.sync-panel[data-state='closed'] { animation: panel-out var(--motion-fast) var(--ease-ui) forwards; }
 }
@@ -369,12 +372,16 @@ html {
 .app-window[data-state='closed'] { animation: window-out var(--motion-fast) var(--ease-ui) forwards; }
 @keyframes window-in { from { opacity: 0; transform: scale(0.94); } }
 @keyframes window-out { to { opacity: 0; transform: scale(0.96); } }
-/* AppDialog on phones sits on the bottom edge: it rises like the "עוד"
-   sheet, from under the tap's x (below Tailwind's sm) */
+/* AppDialog on phones sits on the bottom edge: it slides up from it like the
+   sync sheet, and back down (below Tailwind's sm). Reduced motion: a fade */
 @media (max-width: 639.98px) {
-  .app-window--sheet { transform-origin: var(--origin-x, 50%) 100%; }
-  .app-window--sheet[data-state='open'] { animation-name: sheet-in; }
+  .app-window--sheet { --sheet-gap: 0px; }
+  .app-window--sheet[data-state='open'] { animation-name: sheet-in; animation-timing-function: var(--ease-spring); }
   .app-window--sheet[data-state='closed'] { animation-name: sheet-out; }
+}
+@media (max-width: 639.98px) and (prefers-reduced-motion: reduce) {
+  .app-window--sheet[data-state='open'] { animation-name: fade-in; }
+  .app-window--sheet[data-state='closed'] { animation-name: fade-out; }
 }
 
 /* Scrims: one fade for every popup */
@@ -1141,15 +1148,8 @@ html {
    the same entrance as every other page (.page-in) */
 .wallet-shell__beside,
 .wallet-shell__rest { animation: page-in var(--motion-page) var(--ease-ui) backwards; }
-/* Between a tap on an account (or the stack) and its page, the page on screen dims
-   as on a period change (components/layout/page-main.tsx): after a beat, so a page
-   the browser already holds swaps without a blink; the wallet is not dimmed */
-.wallet-shell__beside,
-.wallet-shell__rest { transition: opacity var(--motion-fast) var(--ease-ui) 0ms; }
-.wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest) {
-  opacity: 0.6;
-  transition-delay: var(--motion-quick);
-}
+/* Between a tap on an account (or the stack) and its page, the numbers on screen
+   spin or fade as on a period change (main[data-pending], at the end of this file) */
 
 /* The wallet: cards are absolutely placed in a box whose height follows the
    mode. Positions are CSS (container units) so the server render is already
@@ -1969,3 +1969,66 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
   .update-ic-r { animation: none; border-color: hsl(var(--primary)); }
   .update-fill { transition: background-color 300ms ease; }
 }
+
+/* A period loading (PageMain; the wallet's account switch alike): the numbers on
+   screen are the old period's. After 400 ms, so an ordinary change shows nothing,
+   rolling numbers (RollingNumber) spin, each digit at its own speed, and roll into
+   the new figures when they arrive, never faded (nor is a figure holding one);
+   plain figures (.tabular-nums, or data-amount) fade. data-steady marks digits that don't change with the period (a card's last
+   four). The header shows a running line meanwhile (.period-loading). */
+@keyframes digit-spin {
+  from { transform: translateY(0); }
+  to { transform: translateY(-90%); }
+}
+:is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest)) .digit-strip {
+  animation: digit-spin var(--digit-spin, 560ms) linear 400ms infinite;
+}
+:is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest))
+  :is(.tabular-nums, [data-amount]):not([data-steady], [data-rolling], :has([data-rolling])) {
+  opacity: 0.45;
+  transition: opacity var(--motion-fast) var(--ease-ui) 400ms;
+}
+/* Reduced motion: no spin; the rolling numbers fade like the rest */
+@media (prefers-reduced-motion: reduce) {
+  :is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest)) .digit-strip { animation: none; }
+  :is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest))
+    :is(.tabular-nums, [data-amount]):not([data-steady]) {
+    opacity: 0.45;
+    transition: opacity 0s 400ms;
+  }
+}
+
+.period-loading {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-quick) var(--ease-ui);
+}
+.period-loading[data-on] { opacity: 1; transition-delay: 400ms; }
+.period-loading::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: hsl(var(--primary));
+  animation: period-loading-run 1.1s var(--ease-in-out, cubic-bezier(0.65, 0, 0.35, 1)) infinite;
+  animation-play-state: paused;
+}
+.period-loading[data-on]::after { animation-play-state: running; }
+@keyframes period-loading-run {
+  from { inset-inline-start: -40%; }
+  to { inset-inline-start: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .period-loading::after { animation: none; inset-inline-start: 0; width: 100%; }
+}
+
+/* The avatar picker's preview: a new face pops in over the old one */
+@keyframes face-in { from { opacity: 0; transform: scale(0.86); } }
+.face-in { animation: face-in var(--motion-fast) var(--ease-ui); }
+@media (prefers-reduced-motion: reduce) { .face-in { animation: none; } }

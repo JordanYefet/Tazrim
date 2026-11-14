@@ -1,6 +1,6 @@
 {
   "name": "tazrim",
-  "version": "1.20.0",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -18,6 +18,10 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@dicebear/core": "^9.4.3",
+    "@dicebear/lorelei": "^9.4.2",
+    "@dicebear/notionists": "^9.4.2",
+    "@dicebear/thumbs": "^9.4.2",
     "@fontsource-variable/heebo": "^5.3.0",
     "@prisma/client": "^6.6.0",
     "@radix-ui/react-dialog": "^1.1.6",

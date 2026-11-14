@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ENGAGE_RELEASE, stillEngaged, tabBarShrunk } from '../tab-bar-shrink'
 
-const base = { headerHidden: true, sheetOpen: false, calm: false, engaged: false }
+const base = { headerHidden: true, calm: false, engaged: false }
 
 describe('tabBarShrunk', () => {
   it('shrinks with the header', () => expect(tabBarShrunk(base)).toBe(true))
   it('is full while the header shows (top of the page, any scroll up)', () =>
     expect(tabBarShrunk({ ...base, headerHidden: false })).toBe(false))
   it.each([
-    ['the sheet is open', { sheetOpen: true }],
     ['a route just changed', { calm: true }],
     ['it was just touched', { engaged: true }],
   ])('is full when %s', (_, patch) => expect(tabBarShrunk({ ...base, ...patch })).toBe(false))

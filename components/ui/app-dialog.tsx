@@ -22,12 +22,15 @@ export function AppDialog({
   onOpenChange,
   title,
   className,
+  closeButton = true,
   children,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: React.ReactNode
   className?: string
+  /** The corner ×; leave it out when the window has its own ביטול */
+  closeButton?: boolean
   children: React.ReactNode
 }) {
   const originRef = useOpenOrigin()
@@ -53,13 +56,15 @@ export function AppDialog({
         >
           {/* The sheet's grabber (phones): it can be dragged down to close */}
           <span aria-hidden className="pointer-events-none absolute inset-x-0 top-2 mx-auto h-1 w-9 rounded-full bg-border sm:hidden" />
-          <Dialog.Close
-            aria-label="סגור"
-            className="absolute end-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </Dialog.Close>
-          <Dialog.Title className="pe-10 text-lg font-semibold">{title}</Dialog.Title>
+          {closeButton && (
+            <Dialog.Close
+              aria-label="סגור"
+              className="absolute end-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </Dialog.Close>
+          )}
+          <Dialog.Title className={cn('text-lg font-semibold', closeButton && 'pe-10')}>{title}</Dialog.Title>
           {children}
         </Dialog.Content>
       </Dialog.Portal>

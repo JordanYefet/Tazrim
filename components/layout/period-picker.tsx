@@ -2,16 +2,16 @@
 
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { monthName, monthsArray } from '@/lib/utils/date'
-import { stepPeriod, type Period } from '@/lib/period'
+import { samePeriod, stepPeriod, type Period } from '@/lib/period'
 
 const MONTHS = monthsArray()
 
 const ARROW =
   // before: the 32px button's hit area grows to 44px up and down only; sideways it keeps to
-  // its own width, so it never overlaps the month label beside it or the "החודש" button
+  // its own width, so it never overlaps the month label beside it
   'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[""]'
 const CELL =
   'h-10 rounded-[10px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -23,9 +23,18 @@ const LATER = 'border border-dashed border-foreground/[0.12] text-muted-foregrou
 /**
  * The header's period: one month back / forward on the arrows (crossing years;
  * a whole year when all months are shown), and the month grid on the middle
- * button: a panel under it that grows out of the button (.period-panel).
+ * button: a panel under it that grows out of the button (.period-panel). The panel ends
+ * with "כל השנה" and, beside it, the way back to this month (disabled while it is shown).
  */
-export function PeriodPicker({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
+export function PeriodPicker({
+  period,
+  today,
+  onChange,
+}: {
+  period: Period
+  today: Period
+  onChange: (next: Period) => void
+}) {
   const [open, setOpen] = useState(false)
   const [viewYear, setViewYear] = useState(period.year)
   const [anchor, setAnchor] = useState({ top: 0, center: 0 })
@@ -113,17 +122,32 @@ export function PeriodPicker({ period, onChange }: { period: Period; onChange: (
                 )
               })}
             </div>
-            <button
-              type="button"
-              aria-pressed={period.year === viewYear && !period.month}
-              onClick={() => pick({ year: viewYear })}
-              className={cn(
-                CELL,
-                period.year === viewYear && !period.month ? PICKED : 'border border-foreground/10 hover:bg-foreground/[0.06]'
-              )}
-            >
-              כל השנה
-            </button>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                aria-pressed={period.year === viewYear && !period.month}
+                onClick={() => pick({ year: viewYear })}
+                className={cn(
+                  CELL,
+                  period.year === viewYear && !period.month ? PICKED : 'border border-foreground/10 hover:bg-foreground/[0.06]'
+                )}
+              >
+                כל השנה
+              </button>
+              <button
+                type="button"
+                disabled={samePeriod(period, today)}
+                onClick={() => pick(today)}
+                className={cn(
+                  CELL,
+                  'flex items-center justify-center gap-1.5 border border-foreground/10 hover:bg-foreground/[0.06]',
+                  'disabled:pointer-events-none disabled:opacity-40'
+                )}
+              >
+                <CalendarCheck className="h-4 w-4" aria-hidden />
+                החודש
+              </button>
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

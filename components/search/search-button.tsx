@@ -6,8 +6,9 @@ import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { OPEN_SEARCH_EVENT } from './command-search'
 
+// 36px tall, like the avatar and the period picker beside it in the header
 const box =
-  'relative flex h-8 shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[""]'
+  'relative flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-muted text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-y-1 before:inset-x-0 before:content-[""]'
 
 /**
  * Header search: on phones a link to /search, on md+ a button that opens the
@@ -21,7 +22,7 @@ export function SearchButton() {
 
   return (
     <>
-      <Link href="/search" aria-label="חיפוש" title="חיפוש" className={cn(box, 'w-8 before:-inset-x-1.5 md:hidden')}>
+      <Link href="/search" aria-label="חיפוש" title="חיפוש" className={cn(box, 'w-9 before:-inset-x-1 md:hidden')}>
         <Search className="h-4 w-4" aria-hidden />
       </Link>
       <button
@@ -30,7 +31,7 @@ export function SearchButton() {
         data-search-trigger
         aria-label="חיפוש תנועות"
         aria-keyshortcuts="Meta+K Control+K"
-        className={cn(box, 'hidden px-2.5 text-sm md:flex')}
+        className={cn(box, 'hidden px-3 text-sm md:flex')}
       >
         <Search className="h-4 w-4" aria-hidden />
         <span>חיפוש</span>
