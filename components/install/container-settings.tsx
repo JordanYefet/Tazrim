@@ -217,8 +217,9 @@ const STATUS: Partial<Record<ApplyPhase, string>> = {
 
 /** One line under the controls: what the change is doing, or why it failed. Its height is kept. */
 export function ContainerApplyStatus({ settings, className }: { settings: ContainerSettings; className?: string }) {
-  const { phase, message, busy } = settings
-  const text = phase === 'failed' ? message : (STATUS[phase] ?? '')
+  const { phase, message, busy, errorKey } = settings
+  // A refusal about one field shows under that field instead
+  const text = phase === 'failed' ? (errorKey ? '' : message) : (STATUS[phase] ?? '')
   return (
     <p aria-live="polite" className={cn('flex min-h-5 items-center gap-1.5 text-xs', phase === 'failed' ? 'text-destructive' : 'text-muted-foreground', className)}>
       {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />}
