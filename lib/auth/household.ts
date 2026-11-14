@@ -15,10 +15,12 @@ export async function hasPeople(): Promise<boolean> {
 
 /**
  * First run: whoever reaches the server before anyone has signed up could
- * claim it, so setup asks for a code only the person who installed it knows:
- * TAZRIM_SETUP_CODE from `.env` (at least 8 characters), or else one printed
- * to the server's log (`docker compose logs tazrim`), kept in memory and
- * changed on restart.
+ * claim it, so setup from another device asks for a code only the person who
+ * installed it knows: TAZRIM_SETUP_CODE from `.env` (at least 8 characters), or
+ * else one printed to the server's log (`docker compose logs tazrim`), kept in
+ * memory and changed on restart. On the computer itself (ENG-119: the "this
+ * computer" door, lib/local-door.ts) no code is asked, and the page shows it,
+ * for finishing from a phone instead.
  */
 const g = globalThis as unknown as { __tazrimSetupCode?: string; __tazrimSetupNoticed?: boolean }
 
@@ -195,9 +197,9 @@ export async function checkPassword(name: unknown, password: unknown): Promise<{
 export type JoinResult = { id: string } | 'gone' | 'name-taken'
 
 /**
- * An invite link used with a password instead of a passkey (plain http,
- * where passkeys can't work): a new person with this name and password. The
- * name must be free, since password sign-in asks for it.
+ * A new person from an invite link: a name and a password, always (ENG-119);
+ * a passkey can be added after. The name must be free, since password sign-in
+ * asks for it.
  */
 export async function joinWithPassword(inviteId: string, name: string, password: string, now = new Date()): Promise<JoinResult> {
   const passwordHash = await hashPassword(password)
@@ -212,7 +214,7 @@ export async function joinWithPassword(inviteId: string, name: string, password:
 
 export type FirstPersonResult = { id: string } | 'already-set-up'
 
-/** First run with a password instead of a passkey: the household's first person */
+/** First run: the household's first person, with a name and a password (a passkey can be added after) */
 export async function createFirstPerson(name: string, password: string): Promise<FirstPersonResult> {
   const passwordHash = await hashPassword(password)
   return prisma.$transaction(async tx => {
@@ -253,25 +255,30 @@ export async function revokePasskey(id: string): Promise<RevokeResult> {
   })
 }
 
-/** Saves a verified passkey for a person, creating the person first when new. */
+/**
+ * Saves a verified passkey for someone already in the household (ENG-119: a
+ * person is always made with a password first; a passkey is an extra).
+ */
 export async function savePasskey(
-  person: { id: string; name: string; isNew: boolean },
+  personId: string,
   cred: { credentialId: string; publicKey: Uint8Array; counter: number; transports: string | null },
   label: string
 ) {
-  return prisma.$transaction(async tx => {
-    if (person.isNew) await tx.person.create({ data: { id: person.id, name: person.name } })
-    return tx.passkey.create({
-      data: {
-        personId: person.id,
-        credentialId: cred.credentialId,
-        publicKey: Buffer.from(cred.publicKey),
-        counter: cred.counter,
-        transports: cred.transports,
-        label,
-      },
-    })
+  return prisma.passkey.create({
+    data: {
+      personId,
+      credentialId: cred.credentialId,
+      publicKey: Buffer.from(cred.publicKey),
+      counter: cred.counter,
+      transports: cred.transports,
+      label,
+    },
   })
+}
+
+/** A password (or recovery code) session that just made a passkey on its device now belongs to that passkey */
+export async function linkSessionToPasskey(sessionId: string, passkeyId: string) {
+  await prisma.session.updateMany({ where: { id: sessionId, passkeyId: null }, data: { passkeyId } })
 }
 
 /** A device or person name as typed: trimmed, at most 40 characters, a fallback when empty */

@@ -5,7 +5,7 @@ import { clientKey, rateLimit } from './rate-limit'
 import { readSession, sessionCookie } from './session'
 import { relyingParty, type RelyingParty } from './webauthn'
 import { getRequireHttps } from '@/lib/settings/app-settings'
-import { isLoopbackHost } from '@/lib/local-request'
+import { isLoopbackHost, isThisComputer } from '@/lib/local-request'
 
 export const fail = (status: number, error: string, code: string) => NextResponse.json({ error, code }, { status })
 
@@ -33,7 +33,7 @@ export function httpsRequired(): boolean {
 export function passwordTransportOr400(req: Request, rp: RelyingParty): NextResponse | null {
   if (!httpsRequired()) return null
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? ''
-  if (rp.secure || isLoopbackHost(host.split(',')[0])) return null
+  if (rp.secure || isThisComputer(req.headers) || isLoopbackHost(host.split(',')[0])) return null
   return fail(400, 'סיסמה עובדת רק בחיבור מאובטח (https), או ב-localhost על המחשב עצמו', 'INSECURE')
 }
 

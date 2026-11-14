@@ -1,14 +1,21 @@
 /**
- * Runs once when the server starts (Next.js instrumentation): the app settings and the
- * clock (lib/settings/app-settings.ts), then the one-time data
- * updates a release needs (lib/db/backfills.ts). Never in the read-only demo, and a
- * failure is logged, never fatal: the app works without them.
+ * Runs once when the server starts (Next.js instrumentation): the "this computer"
+ * door (lib/local-door.ts, when TAZRIM_LOCAL_PORT is set), the app settings and the
+ * clock (lib/settings/app-settings.ts), the one-time data updates a release needs
+ * (lib/db/backfills.ts) and the daily update check. Never in the read-only demo
+ * (except the time zone), and a failure is logged, never fatal.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   // TAZRIM_TZ wins over the database (ENG-120); the demo has no stored settings
   if (process.env.TAZRIM_TZ?.trim()) process.env.TZ = process.env.TAZRIM_TZ.trim()
   const { isReadOnly } = await import('./lib/read-only')
+  try {
+    const { startLocalDoor } = await import('./lib/local-door')
+    startLocalDoor({ off: isReadOnly() })
+  } catch (e) {
+    console.warn('this-computer door: could not start', e)
+  }
   if (isReadOnly()) return
   // The stored app settings (time zone, allowed addresses...) are in memory, and the clock
   // is the effective one, before the first request

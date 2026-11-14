@@ -2,9 +2,10 @@
  * The whole passkey flow through the routes (ENG-89), with a software
  * authenticator (ES256, "none" attestation) in place of Face ID / Touch ID:
  * first-run setup, sign-in, an invite for a second person, revoking a device,
- * the recovery code, passwords, and confirming "delete all data".
+ * the recovery code, passwords, and confirming "delete all data". Since ENG-119
+ * a person is always made with a name and a password; the passkey is added after.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:crypto'
 import { isoCBOR } from '@simplewebauthn/server/helpers'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
@@ -72,6 +73,39 @@ async function call(path: string, body?: unknown, method = 'POST', headers: Reco
   return { status: res.status, body: await res.json(), setCookie: set }
 }
 
+/** A new passkey on "this device" for the signed-in person */
+async function addPasskey(auth: ReturnType<typeof authenticator>, label: string) {
+  const opts = await call('/people/devices', {})
+  expect(opts.status).toBe(200)
+  return call('/auth/register', { flowId: opts.body.flowId, response: auth.create(opts.body.options.challenge), label })
+}
+
+const SETUP_PASSWORD = 'first run password'
+
+/** First run with the code (from another device), then a passkey on this device */
+async function setUpWithPasskey(name: string, auth: ReturnType<typeof authenticator>, label = 'Mac') {
+  const { setupCode } = await import('../household')
+  cookieJar = ''
+  const done = await call('/auth/setup', { code: setupCode(), name, password: SETUP_PASSWORD })
+  expect(done.status).toBe(200)
+  expect((await addPasskey(auth, label)).status).toBe(200)
+  return done
+}
+
+/** A new person through an invite link: name and password, then a passkey on this device */
+async function joinWithPasskey(name: string, auth: ReturnType<typeof authenticator>, label = 'Mac', password = 'joined with a password') {
+  const inv = await call('/people/invites', { personId: null })
+  const token = inv.body.url.split('/invite/')[1]
+  cookieJar = ''
+  expect((await call('/auth/invite', { token, name, password })).status).toBe(200)
+  expect((await addPasskey(auth, label)).status).toBe(200)
+  return token
+}
+
+beforeEach(async () => {
+  ;(await import('../rate-limit')).resetRateLimits()
+})
+
 beforeAll(async () => {
   db = createTestDb()
   usePrismaOn(db)
@@ -89,21 +123,27 @@ describe('passkey flow', () => {
   const spouse = authenticator()
   let recovery = ''
 
-  it('first run: the setup code, a passkey, a session cookie and a recovery code', async () => {
+  it('first run: no passkey-only setup; a password, a session cookie, a recovery code, then a passkey', async () => {
     const { setupCode } = await import('../household')
     const code = setupCode()
-    const opts = await call('/auth/register/options', { mode: 'setup', code, name: 'Owner' })
-    expect(opts.status).toBe(200)
-    expect(opts.body.options.rp.id).toBe('tazrim.home.arpa')
-    const done = await call('/auth/register', { flowId: opts.body.flowId, response: owner.create(opts.body.options.challenge), label: 'Mac' })
+    expect((await call('/auth/register/options', { mode: 'setup', code, name: 'Owner' })).body.code).toBe('PASSWORD_FIRST')
+    const done = await call('/auth/setup', { code, name: 'Owner', password: SETUP_PASSWORD })
     expect(done.status).toBe(200)
     expect(done.body.recoveryCode).toMatch(/^[0-9A-Z]{4}(-[0-9A-Z]{4}){4}$/)
     recovery = done.body.recoveryCode
     expect(done.setCookie).toMatch(/HttpOnly/i)
     expect(done.setCookie).toMatch(/Secure/i)
     expect(done.setCookie).not.toMatch(/Max-Age|Expires/i)
+
+    const opts = await call('/people/devices', {})
+    expect(opts.body.options.rp.id).toBe('tazrim.home.arpa')
+    const added = await call('/auth/register', { flowId: opts.body.flowId, response: owner.create(opts.body.options.challenge), label: 'Mac' })
+    expect(added.status).toBe(200)
+    // This browser's session now belongs to the new passkey ("this device" in Settings)
+    const people = await call('/people', undefined, 'GET')
+    expect(people.body.thisDevice).toBe(people.body.people[0].passkeys[0].id)
     // Setup is closed now
-    expect((await call('/auth/register/options', { mode: 'setup', code, name: 'X' })).status).toBe(409)
+    expect((await call('/auth/setup', { code, name: 'X', password: SETUP_PASSWORD })).status).toBe(409)
   })
 
   it('signs in with the passkey; a challenge works once', async () => {
@@ -116,15 +156,18 @@ describe('passkey flow', () => {
     expect((await call('/auth/login', { flowId: opts.body.flowId, response: answer })).status).toBe(400)
   })
 
-  it('an invite registers the spouse once, who can then sign in', async () => {
+  it('an invite registers the spouse once (password first, then a passkey), who can then sign in', async () => {
     const inv = await call('/people/invites', { personId: null })
-    const token = inv.body.url.split('/invite/')[1]
     expect(inv.body.url.startsWith(`${ORIGIN}/invite/`)).toBe(true)
+    const token = inv.body.url.split('/invite/')[1]
     cookieJar = ''
-    const opts = await call('/auth/register/options', { mode: 'invite', token, name: 'Spouse' })
-    const done = await call('/auth/register', { flowId: opts.body.flowId, response: spouse.create(opts.body.options.challenge), label: 'iPhone' })
-    expect(done.status).toBe(200)
-    expect((await call('/auth/register/options', { mode: 'invite', token, name: 'Again' })).status).toBe(410)
+    // A new person can't join with a passkey alone
+    expect((await call('/auth/register/options', { mode: 'invite', token, name: 'Spouse' })).body.code).toBe('PASSWORD_FIRST')
+    expect((await call('/auth/invite', { token, name: 'Spouse', password: 'short' })).body.code).toBe('BAD_PASSWORD')
+    expect((await call('/auth/invite', { token, name: 'Spouse', password: 'spouse password' })).status).toBe(200)
+    expect((await addPasskey(spouse, 'iPhone')).status).toBe(200)
+    expect((await call('/auth/invite', { token, name: 'Again', password: 'spouse password' })).status).toBe(410)
+    cookieJar = ''
     const login = await call('/auth/options', {})
     expect((await call('/auth/login', { flowId: login.body.flowId, response: spouse.get(login.body.options.challenge) })).status).toBe(200)
   })
@@ -135,6 +178,30 @@ describe('passkey flow', () => {
     expect((await call('/people/passkeys/[id]', { id: iphone.id }, 'DELETE')).status).toBe(200)
     const login = await call('/auth/options', {})
     expect((await call('/auth/login', { flowId: login.body.flowId, response: spouse.get(login.body.options.challenge) })).status).toBe(401)
+  })
+
+  it("someone with a passkey and no password (from before ENG-119) still signs in", async () => {
+    const legacy = authenticator()
+    await joinWithPasskey('Legacy', legacy, 'iPad')
+    expect((await call('/people/password', undefined, 'DELETE')).status).toBe(200)
+    cookieJar = ''
+    const login = await call('/auth/options', {})
+    expect((await call('/auth/login', { flowId: login.body.flowId, response: legacy.get(login.body.options.challenge) })).status).toBe(200)
+    const people = await call('/people', undefined, 'GET')
+    expect(people.body.people.find((p: { id: string }) => p.id === people.body.me)).toMatchObject({ name: 'Legacy', hasPassword: false })
+  })
+
+  it('a link for another device of someone makes a passkey for them, once', async () => {
+    const owner2 = authenticator()
+    const people = await call('/people', undefined, 'GET')
+    const me = people.body.people.find((p: { id: string }) => p.id === people.body.me)
+    const token = (await call('/people/invites', { personId: me.id })).body.url.split('/invite/')[1]
+    cookieJar = ''
+    const opts = await call('/auth/register/options', { mode: 'invite', token })
+    expect(opts.status).toBe(200)
+    expect((await call('/auth/register', { flowId: opts.body.flowId, response: owner2.create(opts.body.options.challenge), label: 'Laptop' })).status).toBe(200)
+    expect(cookieJar).not.toBe('')
+    expect((await call('/auth/register/options', { mode: 'invite', token })).status).toBe(410)
   })
 
   it('the recovery code signs in once', async () => {
@@ -152,11 +219,7 @@ describe('passwords', () => {
   it('the owner (signed in with a passkey) sets a password; too short is refused', async () => {
     const { prisma } = await import('@/lib/db/client')
     // A fresh household member with a passkey, signed in through an invite
-    const inv = await call('/people/invites', { personId: null })
-    const token = inv.body.url.split('/invite/')[1]
-    cookieJar = ''
-    const opts = await call('/auth/register/options', { mode: 'invite', token, name: 'Partner' })
-    expect((await call('/auth/register', { flowId: opts.body.flowId, response: owner.create(opts.body.options.challenge), label: 'Mac' })).status).toBe(200)
+    await joinWithPasskey('Partner', owner)
 
     expect((await call('/people/password', { password: 'short' }, 'PUT')).body.code).toBe('WEAK_PASSWORD')
     expect((await call('/people/password', { password: PASSWORD }, 'PUT')).status).toBe(200)
@@ -252,11 +315,7 @@ describe('confirming "delete all data" (ENG-89)', () => {
   const PHRASE = 'מחק הכל'
 
   it('needs the signed-in person to confirm: their passkey, or their password', async () => {
-    const inv = await call('/people/invites', { personId: null })
-    const token = inv.body.url.split('/invite/')[1]
-    cookieJar = ''
-    const reg = await call('/auth/register/options', { mode: 'invite', token, name: 'Deleter' })
-    expect((await call('/auth/register', { flowId: reg.body.flowId, response: me.create(reg.body.options.challenge), label: 'Mac' })).status).toBe(200)
+    await joinWithPasskey('Deleter', me, 'Mac', 'deleter password')
 
     // The phrase alone, a sign-in challenge, or a wrong password: refused, nothing deleted
     expect((await call('/data/delete-all', { confirm: PHRASE })).body.code).toBe('NOT_CONFIRMED')
@@ -278,11 +337,7 @@ describe('confirming "delete all data" (ENG-89)', () => {
   })
 
   it('or with their password, after setting up again', async () => {
-    const { setupCode } = await import('../household')
-    ;(await import('../rate-limit')).resetRateLimits()
-    const again = authenticator()
-    const reg = await call('/auth/register/options', { mode: 'setup', code: setupCode(), name: 'Owner again' })
-    expect((await call('/auth/register', { flowId: reg.body.flowId, response: again.create(reg.body.options.challenge), label: 'Mac' })).status).toBe(200)
+    await setUpWithPasskey('Owner again', authenticator())
     expect((await call('/people/password', { password: PASSWORD }, 'PUT')).status).toBe(200)
     expect((await call('/data/delete-all', { confirm: PHRASE, password: PASSWORD })).status).toBe(200)
     expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "Person"')[0].n).toBe(0)
@@ -308,11 +363,7 @@ describe('the vault (ENG-90) through its routes', () => {
   }
 
   it('is created with the signed-in person passkey, and gives a recovery key once', async () => {
-    ;(await import('../rate-limit')).resetRateLimits()
-    cookieJar = ''
-    const { setupCode } = await import('../household')
-    const reg = await call('/auth/register/options', { mode: 'setup', code: setupCode(), name: 'Vault owner' })
-    expect((await call('/auth/register', { flowId: reg.body.flowId, response: owner.create(reg.body.options.challenge), label: 'iPhone' })).status).toBe(200)
+    await setUpWithPasskey('Vault owner', owner, 'iPhone')
 
     expect((await call('/vault/options', { purpose: 'unlock' })).body.code).toBe('NO_VAULT')
     const created = await answer('create')

@@ -14,6 +14,7 @@ import { inputClass } from '@/components/accounts/add-account-form'
 import { PersonAvatar } from '@/components/avatar/person-avatar'
 import { AvatarPicker } from './avatar-picker'
 import type { Avatar } from '@/lib/avatar/options'
+import { PASSWORD_MIN } from '@/lib/auth/password-rules'
 
 interface Device { id: string; label: string; createdAt: string; lastUsedAt: string | null }
 interface Person { id: string; name: string; hasPassword: boolean; passkeys: Device[]; avatar: Avatar | null }
@@ -182,7 +183,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">אנשים ומכשירים</h1>
-        <p className="text-sm text-muted-foreground text-pretty">כל מי שכאן רואה ועורך את אותם נתונים. נכנסים עם מפתח (passkey), ומי שרוצה גם עם סיסמה.</p>
+        <p className="text-sm text-muted-foreground text-pretty">כל מי שכאן רואה ועורך את אותם נתונים. נכנסים עם שם וסיסמה, ומי שרוצה גם עם מפתח (Face ID, Touch ID).</p>
       </div>
       {recovered && info?.thisDevice === null && (
         <p className="rounded-xl bg-muted px-3 py-2 text-sm text-pretty">
@@ -254,11 +255,11 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-medium">סיסמה</span>
                       <span className="block text-[13px] text-muted-foreground text-pretty">
-                        {p.hasPassword ? 'מוגדרת. לכניסה ממכשיר בלי מפתח' : 'לא מוגדרת. אפשר להוסיף, לכניסה ממכשיר בלי מפתח'}
+                        {p.hasPassword ? 'מוגדרת. לכניסה ממכשיר בלי מפתח' : 'עוד אין. כדאי להוסיף: כך נכנסים מכל מכשיר, גם בלי מפתח'}
                       </span>
                     </span>
                     <button type="button" onClick={() => setEditingPassword(true)} className={cn(TEXT_BUTTON, 'text-primary hover:bg-primary/10')}>
-                      {p.hasPassword ? 'שינוי' : 'הגדרה'}
+                      {p.hasPassword ? 'שינוי' : 'הוספה'}
                     </button>
                     {p.hasPassword && (
                       <button type="button" onClick={() => setRemovingPassword(true)} className={cn(TEXT_BUTTON, QUIET_DANGER)}>
@@ -357,7 +358,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
       <AppDialog open={editingPassword} onOpenChange={o => !o && closePassword()} title="סיסמה">
         <form onSubmit={savePassword} className="mt-4 space-y-3">
           <p className="text-sm text-muted-foreground text-pretty">
-            לכניסה ממכשיר בלי מפתח: בעמוד הכניסה ← כניסה עם סיסמה, עם השם שלך והסיסמה. לפחות 10 תווים. כניסות אחרות עם סיסמה ייסגרו.
+            לכניסה ממכשיר בלי מפתח: בעמוד הכניסה ← כניסה עם סיסמה, עם השם שלך והסיסמה. לפחות {PASSWORD_MIN} תווים. כניסות אחרות עם סיסמה ייסגרו.
           </p>
           {passwordError && <p className={errorText} role="alert">{passwordError}</p>}
           <label className="block space-y-1.5">
