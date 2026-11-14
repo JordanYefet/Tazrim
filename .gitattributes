@@ -1,0 +1,3 @@
+*.command text eol=lf
+installer/*.bat text eol=crlf
+installer/*.ps1 text eol=crlf
