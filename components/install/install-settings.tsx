@@ -34,9 +34,18 @@ export function InstallSettings({ initial }: { initial: InstallView }) {
           </div>
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <dt className="text-muted-foreground">בטלפונים ובטאבלטים</dt>
-            <dd dir="ltr" className="font-mono tabular-nums">
-              {values.TAZRIM_LAN_IP ? `http://${values.TAZRIM_LAN_IP}:${values.TAZRIM_PHONE_PORT}` : `פורט ${values.TAZRIM_PHONE_PORT}`}
-            </dd>
+            {values.TAZRIM_LAN_IP ? (
+              <dd dir="ltr" className="font-mono tabular-nums">
+                http://{values.TAZRIM_LAN_IP}:{values.TAZRIM_PHONE_PORT}
+              </dd>
+            ) : (
+              <dd>
+                הכתובת של המחשב, פורט{' '}
+                <bdi dir="ltr" className="font-mono tabular-nums">
+                  {values.TAZRIM_PHONE_PORT}
+                </bdi>
+              </dd>
+            )}
           </div>
         </dl>
       </section>
