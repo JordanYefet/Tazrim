@@ -25,6 +25,8 @@ import { listAccounts } from '@/lib/db/accounts'
 import { BRAND } from '@/lib/brand/colors'
 import { BackgroundProvider } from '@/components/background/background-provider'
 import { BACKGROUND_COOKIE, backgroundHtmlAttributes, backgroundHtmlStyle, parseBackgroundCookie } from '@/lib/background/setting'
+import { getStoredBackground } from '@/lib/preferences/background'
+import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
 import {
   SECTIONS_COOKIE,
@@ -77,11 +79,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // The sidebar mode comes from a cookie so the first paint already has the right width
   // The remembered period too (ENG-63): links carry it from the first paint
-  const [jar, accounts, remembered, me] = await Promise.all([cookies(), listAccounts(), getPeriod(null), signedInPerson()])
+  const [jar, accounts, remembered, me, owner] = await Promise.all([cookies(), listAccounts(), getPeriod(null), signedInPerson(), preferenceOwner()])
   const sections = buildNavSections(accounts)
   const initialPeriod = remembered.month ? { year: remembered.year, month: remembered.month } : { year: remembered.year }
-  // The page background (ENG-72), also from a cookie: the first paint has the right one
-  const background = parseBackgroundCookie(jar.get(BACKGROUND_COOKIE)?.value)
+  // The page background (ENG-72): the one stored for whoever is signed in, the same on all
+  // their devices; else (nothing stored yet, the demo) this device's cookie
+  const stored = owner === undefined ? null : await getStoredBackground(owner).catch(() => null)
+  const background = stored ?? parseBackgroundCookie(jar.get(BACKGROUND_COOKIE)?.value)
 
   // The public demo (lib/read-only.ts): the app as usual, nothing saved
   const readOnly = isReadOnly()
@@ -97,7 +101,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <body>
         <Providers>
-          <BackgroundProvider initial={background}>
+          <BackgroundProvider initial={background} synced={owner !== undefined}>
           <PeriodProvider initial={initialPeriod} today={currentMonth()}>
             <MeProvider me={me}>
             <NavSectionsProvider sections={sections}>
