@@ -20,15 +20,17 @@ const displayDate = (key: string) => key.split('-').reverse().join('.')
  * The transaction tables on phones: one row per transaction, edge to edge in the table's
  * card, every row the same height and every part in the same place on every row and page:
  *
- *   description ……………………… amount
- *   [● category]  date · account · note · badges …… foreign amount
+ *   description [badges] ……………… amount
+ *   date  [● category]  account · note …… foreign amount
  *   the columns picked in "עמודות" (only when some are; then on every row)
  *
- * The category is always the first thing on the second line, in its own colour ("ללא
- * קטגוריה" holds its place when there is none). A row's note (bank and card) joins
- * that line after the date and the account, in the same muted text, and is cut with
- * them: it never adds a line, so a row with a note is as tall as one without; the
- * whole note is read in the row's window, under its title. Nothing wraps: what
+ * The amount is red for money out and green with a plus for money in, as in the tables.
+ * Badges (a card payment's cards) sit on the first line, right after the description.
+ * The second line starts with the date (always the same width, so the category lines up
+ * on every row), then the category in its own colour ("ללא קטגוריה" holds its place
+ * when there is none), then the account and the note, muted and cut together: a note
+ * never adds a line, so a row with one is as tall as one without; the whole note is
+ * read in the row's window, under its title. Nothing wraps: what
  * doesn't fit is cut. Tapping a row opens its window, which carries the row's
  * actions on phones (`PhoneRowActions`). Shown below `md` only (the table is
  * `hidden md:block`).
@@ -59,7 +61,7 @@ export function PhoneTransactionRows({
   showAccount: boolean
   /** The category's colour (the same as its dot in the charts) */
   categoryColor?: (row: SearchResult) => string | undefined
-  /** Badges at the end of the second line (a card payment's cards) */
+  /** Badges on the first line, after the description (a card payment's cards) */
   meta?: (row: SearchResult) => ReactNode
   /** A small note under the amount */
   amountNote?: (row: SearchResult) => string | undefined
@@ -105,14 +107,20 @@ export function PhoneTransactionRows({
                 className="absolute inset-0 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               />
               <div className={cn('pointer-events-none relative min-w-0 flex-1 py-2.5 pe-4', !selectable && 'ps-4', r.ignored && 'opacity-60')}>
-                <div className="flex h-5 min-w-0 items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{r.description}</span>
-                  <span className={cn('shrink-0 text-sm font-semibold tabular-nums', income && 'text-[hsl(var(--income))]')}>
+                <div className="flex h-[22px] min-w-0 items-center gap-2">
+                  <span className="min-w-0 truncate text-sm font-medium">{r.description}</span>
+                  {/* Links inside a row that is a button sit above its stretched hit area. They are
+                      confined to their 22px line: a tap above or below them is the row's */}
+                  {badges && <span className="pointer-events-auto relative shrink-0">{badges}</span>}
+                  <span className="min-w-2 flex-1" aria-hidden />
+                  <span className={cn('shrink-0 text-sm font-semibold tabular-nums', income ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
                     {/* positive = money out; money in is shown green with a plus */}
                     {`${income ? '+' : ''}${formatCurrency(Math.abs(r.amount))}`}
                   </span>
                 </div>
                 <div className="mt-1 flex h-[22px] min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-muted-foreground">
+                  {/* The date first: always the same width, so the category below lines up on every row */}
+                  <span className="shrink-0 tabular-nums">{displayDate(r.date)}</span>
                   <span
                     className={cn(
                       'inline-flex h-[22px] max-w-[45%] shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium',
@@ -124,16 +132,12 @@ export function PhoneTransactionRows({
                     <span className="truncate">{r.category ?? 'ללא קטגוריה'}</span>
                   </span>
                   <span className="min-w-0 flex-1 truncate">
-                    <span className="tabular-nums">{displayDate(r.date)}</span>
-                    {showAccount && r.accountName && <> · {r.accountName}</>}
-                    {r.note && <> · <bdi>{r.note}</bdi></>}
+                    {showAccount && r.accountName && <>{r.accountName}</>}
+                    {showAccount && r.accountName && r.note && ' · '}
+                    {r.note && <bdi>{r.note}</bdi>}
                   </span>
                   {r.recurringLabel && <Repeat className="h-3.5 w-3.5 shrink-0 text-primary" aria-label={`חיוב קבוע: ${r.recurringLabel}`} />}
                   {r.ignored && <EyeOff className="h-3.5 w-3.5 shrink-0" aria-label="מוסתרת" />}
-                  {/* Links inside a row that is a button sit above its stretched hit area. They are
-                      confined to their 22px line (the line clips overflow): a tap above or below them
-                      is the row's and opens its window, never a neighbour */}
-                  {badges && <span className="pointer-events-auto relative shrink-0">{badges}</span>}
                   {note && (
                     <span className="shrink-0 text-[11px] tabular-nums" dir="ltr">
                       {note}

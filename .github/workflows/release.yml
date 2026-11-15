@@ -1,4 +1,6 @@
-# A release, on demand: Actions -> Release -> Run workflow (on main). Nothing to fill in:
+# A release, every morning at 06:00 Israel time when something was merged into main since
+# the last one (a morning with nothing new stops at the first step), or on demand:
+# Actions -> Release -> Run workflow (on main). Nothing to fill in:
 # the version follows the newest release tag, bumped by the biggest change among the PRs
 # merged since then, read from their title prefixes (.github/scripts/release-bump.sh):
 # only fix: PRs 1.4.2 -> 1.4.3, any feat: or unprefixed one -> 1.5.0, any <type>!: -> 2.0.0.
@@ -21,6 +23,12 @@ name: Release
 
 on:
   workflow_dispatch:
+  # 06:00 in Israel is 04:00 UTC in winter (UTC+2) and 03:00 UTC in summer (UTC+3). Both
+  # are scheduled; each run checks which one today's offset needs and the other stops, so
+  # exactly one goes on, even when GitHub starts it late
+  schedule:
+    - cron: '0 3 * * *'
+    - cron: '0 4 * * *'
 
 permissions:
   contents: read
@@ -46,11 +54,26 @@ jobs:
         name: Version and branch
         env:
           GH_TOKEN: ${{ github.token }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Releases are made from main (this run is on $GITHUB_REF)"; exit 1
           fi
           prs=$(bash .github/scripts/release-prs.sh)
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            # The morning run: only the cron that is 06:00 in Israel today, and only with new merges
+            offset=$(TZ=Asia/Jerusalem date +%z)
+            want=$([ "$offset" = "+0300" ] && echo '0 3 * * *' || echo '0 4 * * *')
+            if [ "$SCHEDULE" != "$want" ]; then
+              echo "Not 06:00 in Israel on this schedule (UTC$offset today); the other run makes the release." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [ -z "$prs" ]; then
+              echo "### No release this morning" >> "$GITHUB_STEP_SUMMARY"
+              echo "Nothing was merged into main since the last release." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
           BUMP=$(cut -f2- <<< "$prs" | bash .github/scripts/release-bump.sh)
           VERSION=$(bash .github/scripts/next-version.sh "$BUMP")
           echo "::notice::Releasing v$VERSION ($BUMP)"
@@ -75,9 +98,12 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+  # Everything after this waits on a version: a morning run that found nothing new has none,
+  # so CI is skipped and with it the image, the release commit and the release
   check:
     name: CI
     needs: validate
+    if: needs.validate.outputs.version != ''
     uses: ./.github/workflows/ci.yml
 
   # One image per chip, each on a machine of that chip (no emulation), side by side.

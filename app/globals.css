@@ -2032,3 +2032,25 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 @keyframes face-in { from { opacity: 0; transform: scale(0.86); } }
 .face-in { animation: face-in var(--motion-fast) var(--ease-ui); }
 @media (prefers-reduced-motion: reduce) { .face-in { animation: none; } }
+
+/* The header avatar while a sync runs (components/layout/profile-card.tsx): a faint
+   outline 4px outside the avatar, following its shape (a rounded square, or a circle with
+   the login off), with a bright arc travelling around it. The arc is a conic gradient whose
+   start angle turns (a registered property, so it animates); the mask keeps only the
+   2.5px band. Reduced motion: the whole outline, still. */
+@property --sync-arc { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.sync-ring {
+  position: absolute;
+  inset: -4px;
+  padding: 2.5px;
+  pointer-events: none;
+  background: conic-gradient(from var(--sync-arc), hsl(var(--primary)) 0 24%, hsl(var(--primary) / 0.2) 24% 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: sync-arc 1.1s linear infinite;
+}
+@keyframes sync-arc { to { --sync-arc: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .sync-ring { animation: none; background: hsl(var(--primary)); }
+}
