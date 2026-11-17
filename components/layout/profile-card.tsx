@@ -92,6 +92,8 @@ export function ProfileButton() {
   const [seenFailure, setSeenFailure] = useState<string | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const openingSync = useRef(false)
+  // The privacy row closes the card; showing amounts then opens a confirmation, which keeps the focus
+  const togglingPrivacy = useRef(false)
 
   // Ticks "לפני 3 דקות" along, and ends the "עודכן" moment
   useEffect(() => {
@@ -161,8 +163,9 @@ export function ProfileButton() {
             collisionPadding={12}
             onCloseAutoFocus={e => {
               // The sync panel takes the focus when it opens in the card's place
-              if (openingSync.current) {
+              if (openingSync.current || togglingPrivacy.current) {
                 openingSync.current = false
+                togglingPrivacy.current = false
                 e.preventDefault()
               }
             }}
@@ -204,13 +207,15 @@ export function ProfileButton() {
                 </span>
               </DropdownMenu.Item>
             )}
-            {/* Privacy mode (ENG-127) on phones, where the header has no room for the eye. The card
-                stays open, so the switch is seen moving while the amounts blur behind it */}
+            {/* Privacy mode (ENG-127) on phones, where the header has no room for the eye. Choosing
+                it closes the card; showing the amounts again asks for the passkey or password first */}
             {phone && (
               <DropdownMenu.CheckboxItem
                 checked={privacy.on}
-                onCheckedChange={privacy.toggle}
-                onSelect={e => e.preventDefault()}
+                onSelect={() => {
+                  togglingPrivacy.current = true
+                  privacy.toggle()
+                }}
                 className={MENU_ITEM}
               >
                 <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden />

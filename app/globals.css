@@ -241,24 +241,43 @@
   body::before { background: hsl(var(--background)); }
 }
 
-/* Privacy mode (ENG-127, lib/privacy.ts): every amount carries data-money and is blurred in
-   place, keeping its size and colour, so nothing moves. The blur grows with the font, so big
-   totals and small table figures are equally unreadable. A tap on the eye eases it in or out
-   (data-privacy-switch, components/layout/privacy.tsx); a load, the shortcut and
-   reduced motion switch at once. */
-html[data-privacy='on'] [data-money] {
-  /* at least 5px: a 0.32em blur leaves 12px figures half readable */
-  filter: blur(max(0.32em, 5px));
+/* Privacy mode (ENG-127, lib/privacy.ts): every amount carries data-money (always an inline
+   element) and becomes a soft bar in its own colour, exactly the width of its text, so nothing
+   moves and income still reads green. The digits are made transparent, not removed. The side
+   shadows pad the bar without taking room. A tap fades it in or out (data-privacy-switch,
+   components/layout/privacy.tsx); a load, the shortcut and reduced motion switch at once.
+   Chart axes draw their own bars (hooks/use-chart-axes.ts). */
+html[data-privacy='on'] [data-money]:not(:empty) {
+  -webkit-text-fill-color: transparent;
+  background-color: color-mix(in srgb, currentColor 22%, transparent);
+  /* sideways only, so amounts on stacked lines stay separate bars */
+  box-shadow:
+    0.15em 0 0 0 color-mix(in srgb, currentColor 22%, transparent),
+    -0.15em 0 0 0 color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.3em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
   -webkit-user-select: none;
   user-select: none;
 }
+/* Engraved figures (the card wallet, account faces) draw their digits again in text-shadow */
+html[data-privacy='on'] [data-money]:not(:empty),
+html[data-privacy='on'] [data-money] * {
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
 /* An amount field shows its value while it is being edited */
-html[data-privacy='on'] input[data-money]:focus { filter: none; }
-html[data-privacy-switch] [data-money] { transition: filter var(--motion-fast) var(--ease-ui); }
-/* Chart text is SVG, which Safari does not blur with CSS filter functions: the amount axes
-   (hooks/use-chart-axes.ts) and SVG labels use the SVG filter in app/layout.tsx instead */
-html[data-privacy='on'] .money-axis .recharts-cartesian-axis-tick-value,
-html[data-privacy='on'] svg [data-money] { filter: url(#privacy-blur); }
+html[data-privacy='on'] input[data-money]:focus {
+  -webkit-text-fill-color: currentColor;
+  background-color: transparent;
+  box-shadow: none;
+}
+html[data-privacy-switch] [data-money] {
+  transition:
+    -webkit-text-fill-color var(--motion-fast) var(--ease-ui),
+    background-color var(--motion-fast) var(--ease-ui),
+    box-shadow var(--motion-fast) var(--ease-ui);
+}
 
 /* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
    While it runs the elements' own colour transitions are held, so the new snapshot is final. */

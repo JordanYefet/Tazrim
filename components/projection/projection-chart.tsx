@@ -21,11 +21,11 @@ export function ChartTooltip({ active, payload, label }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="mb-0.5 text-xs text-muted-foreground">{label}</p>
-      {row.actual !== undefined && <p data-money className="font-semibold tabular-nums">{formatCurrencyWhole(row.actual)}</p>}
+      {row.actual !== undefined && <p className="font-semibold tabular-nums"><span data-money>{formatCurrencyWhole(row.actual)}</span></p>}
       {expected !== undefined && band && (
         <>
-          <p data-money className="font-semibold tabular-nums">{formatCurrencyWhole(expected)}</p>
-          <p data-money className="text-xs tabular-nums text-muted-foreground">{formatCurrencyWhole(band[0])} – {formatCurrencyWhole(band[1])}</p>
+          <p className="font-semibold tabular-nums"><span data-money>{formatCurrencyWhole(expected)}</span></p>
+          <p className="text-xs tabular-nums text-muted-foreground"><span data-money>{formatCurrencyWhole(band[0])} – {formatCurrencyWhole(band[1])}</span></p>
         </>
       )}
     </div>

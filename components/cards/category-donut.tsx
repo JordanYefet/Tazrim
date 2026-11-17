@@ -26,7 +26,7 @@ function CustomTooltip({ active, payload, tone = 'expense' }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{payload[0].name}</p>
-      <p data-money className={`${TONE_TEXT[tone as Tone]} font-medium`}>{formatCurrencyWhole(payload[0].value)}</p>
+      <p className={`${TONE_TEXT[tone as Tone]} font-medium`}><span data-money>{formatCurrencyWhole(payload[0].value)}</span></p>
     </div>
   )
 }

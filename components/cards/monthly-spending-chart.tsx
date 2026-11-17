@@ -44,7 +44,7 @@ function CustomTooltip({ active, payload, label }: any) {
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       {payload.length === 1 ? (
-        <p data-money className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrencyWhole(payload[0].value)}</p>
+        <p className="text-[hsl(var(--cc))] font-medium tabular-nums"><span data-money>{formatCurrencyWhole(payload[0].value)}</span></p>
       ) : (
         <>
           {rows.map((p: any) => (

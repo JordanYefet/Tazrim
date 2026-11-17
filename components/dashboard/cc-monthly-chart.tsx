@@ -29,8 +29,8 @@ function CustomTooltip({ active, payload, label, series }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
-      <p data-money className="text-[hsl(var(--cc))] font-medium tabular-nums">
-        {payload[0].value == null ? 'אין נתונים' : formatCurrencyWhole(payload[0].value)}
+      <p className="text-[hsl(var(--cc))] font-medium tabular-nums">
+        <span data-money>{payload[0].value == null ? 'אין נתונים' : formatCurrencyWhole(payload[0].value)}</span>
       </p>
       {payload[0].value != null && split && split.length > 0 && (
         <ul className="mt-1 space-y-0.5 border-t pt-1 text-xs">

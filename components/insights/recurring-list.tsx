@@ -103,9 +103,9 @@ function Row({ s, actions, wrapRow, accountNames }: {
         </p>
       </div>
       <div className="shrink-0 text-end tabular-nums">
-        <div data-money className="font-semibold">{formatCurrencyWhole(s.latestAmount)}</div>
+        <div className="font-semibold"><span data-money>{formatCurrencyWhole(s.latestAmount)}</span></div>
         {s.priceIncrease && (
-          <div data-money className="text-xs text-muted-foreground line-through">{formatCurrencyWhole(s.priceIncrease.from)}</div>
+          <div className="text-xs text-muted-foreground line-through"><span data-money>{formatCurrencyWhole(s.priceIncrease.from)}</span></div>
         )}
       </div>
     </>

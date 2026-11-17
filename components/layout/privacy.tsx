@@ -1,43 +1,187 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { cookieAssignment } from '@/lib/nav/state'
-import { PRIVACY_COOKIE, formatPrivacyCookie, isPrivacyShortcut } from '@/lib/privacy'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { inputClass } from '@/components/accounts/add-account-form'
+import { answerChallenge } from '@/components/auth/passkey-client'
+import { formatPrivacyCookie, isPrivacyShortcut } from '@/lib/privacy'
 
-// How long <html data-privacy-switch> stays on, so the blur eases in or out (globals.css)
+// How long <html data-privacy-switch> stays on, so the bars fade in or out (globals.css)
 const SWITCH_MS = 400
 
 type Privacy = { on: boolean; toggle: () => void }
 const PrivacyContext = createContext<Privacy>({ on: false, toggle: () => {} })
 
 /**
- * Privacy mode (ENG-127, lib/privacy.ts): whether amounts are blurred, shared by the header
+ * Privacy mode (ENG-127, lib/privacy.ts): whether amounts are hidden, shared by the header
  * eye (desktop), the avatar card's row and the avatar's badge (phones, where the header has
- * no room for the eye). Also listens for the keyboard shortcut. A tap eases the blur in or
- * out; the shortcut and reduced motion switch at once.
+ * no room for the eye). Also listens for the keyboard shortcut.
+ *
+ * Hiding is immediate. Showing again asks the signed-in person to confirm with their
+ * passkey or password first (`confirmIdentity`, the login on), so someone else holding the
+ * device can't simply turn it off. The cookie is httpOnly, so only /api/privacy changes it.
  */
-export function PrivacyProvider({ initial, children }: { initial: boolean; children: React.ReactNode }) {
+export function PrivacyProvider({
+  initial,
+  confirmIdentity,
+  hasPassword,
+  children,
+}: {
+  initial: boolean
+  confirmIdentity: boolean
+  hasPassword: boolean
+  children: React.ReactNode
+}) {
   const [on, setOn] = useState(initial)
-  const toggle = useCallback(() => setOn(o => apply(!o, true)), [])
+  const [unlocking, setUnlocking] = useState(false)
+  const onRef = useRef(on)
+  onRef.current = on
+
+  /** The page and the cookie agree on `next`; animate for a tap, not for the shortcut */
+  const set = useCallback(async (next: boolean, animate: boolean, proof: object = {}) => {
+    const res = await fetch('/api/privacy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ on: next, ...proof }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(body.error ?? 'לא הצלחנו לשנות את מצב הפרטיות')
+    paint(next, animate)
+    setOn(next)
+  }, [])
+
+  const request = useCallback(
+    (animate: boolean) => {
+      if (!onRef.current) {
+        // Hiding never waits: the page hides at once, the cookie follows
+        paint(true, animate)
+        setOn(true)
+        void set(true, false).catch(() => {})
+      } else if (confirmIdentity) {
+        setUnlocking(true)
+      } else {
+        void set(false, animate).catch(() => {})
+      }
+    },
+    [confirmIdentity, set]
+  )
+
+  const toggle = useCallback(() => request(true), [request])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!isPrivacyShortcut(e)) return
       e.preventDefault()
-      setOn(o => apply(!o, false))
+      request(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [request])
 
-  return <PrivacyContext.Provider value={{ on, toggle }}>{children}</PrivacyContext.Provider>
+  return (
+    <PrivacyContext.Provider value={{ on, toggle }}>
+      {children}
+      <UnlockDialog open={unlocking} onOpenChange={setUnlocking} hasPassword={hasPassword} show={proof => set(false, true, proof)} />
+    </PrivacyContext.Provider>
+  )
 }
 
 export const usePrivacy = () => useContext(PrivacyContext)
 
 export const PRIVACY_LABEL = { on: 'הצגת הסכומים', off: 'הסתרת הסכומים' } as const
+
+/**
+ * Showing the amounts again: the person's password if they type it, else their passkey
+ * (Face ID / Touch ID), the same as deleting all data (danger-zone.tsx). The server checks again.
+ */
+function UnlockDialog({
+  open,
+  onOpenChange,
+  hasPassword,
+  show,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  hasPassword: boolean
+  show: (proof: object) => Promise<void>
+}) {
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  function change(next: boolean) {
+    if (busy) return
+    if (!next) {
+      setPassword('')
+      setError(null)
+    }
+    onOpenChange(next)
+  }
+
+  async function proof(): Promise<object> {
+    if (password) return { password }
+    const res = await fetch('/api/privacy/options', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error ?? 'האישור נכשל')
+    if (!data.passkey) throw new Error('אין לך מפתח. הקלידו את הסיסמה שלך כדי לאשר')
+    return { flowId: data.passkey.flowId, response: await answerChallenge(data.passkey.options) }
+  }
+
+  async function confirm() {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await show(await proof())
+      setBusy(false)
+      setPassword('')
+      onOpenChange(false)
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'האישור נכשל')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={change}
+      onConfirm={confirm}
+      title="להציג את הסכומים?"
+      description="כדי להציג את הסכומים, אשרו עם הסיסמה או המפתח שלכם."
+      confirmLabel="הצגה"
+      destructive={false}
+      busy={busy}
+      busyLabel="מאשר…"
+      error={error}
+    >
+      {hasPassword ? (
+        <div className="space-y-1.5">
+          <label htmlFor="privacy-password" className="text-sm font-medium">
+            הסיסמה שלך
+          </label>
+          <input
+            id="privacy-password"
+            type="password"
+            className={inputClass}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') void confirm()
+            }}
+            autoComplete="current-password"
+            disabled={busy}
+          />
+          <p className="text-xs text-muted-foreground">או השאירו ריק ואשרו עם Face ID, Touch ID או קוד המכשיר.</p>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">אחרי הלחיצה תתבקשו לאשר עם Face ID, Touch ID או קוד המכשיר.</p>
+      )}
+    </ConfirmDialog>
+  )
+}
 
 /** The header's eye, from md up. While on it is tinted, which is also the sign that amounts are hidden. */
 export function PrivacyButton({ className }: { className?: string }) {
@@ -85,8 +229,8 @@ export function usePhoneLayout(): boolean {
   )
 }
 
-/** Sets the mode on the page and in the cookie; returns it, for the state. */
-function apply(on: boolean, animate: boolean): boolean {
+/** Shows or hides the amounts on the page */
+function paint(on: boolean, animate: boolean) {
   const html = document.documentElement
   if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     html.dataset.privacySwitch = ''
@@ -94,8 +238,6 @@ function apply(on: boolean, animate: boolean): boolean {
     switchTimer = window.setTimeout(() => delete html.dataset.privacySwitch, SWITCH_MS)
   }
   html.dataset.privacy = formatPrivacyCookie(on)
-  document.cookie = cookieAssignment(PRIVACY_COOKIE, formatPrivacyCookie(on))
-  return on
 }
 
 let switchTimer = 0

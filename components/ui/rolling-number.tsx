@@ -144,19 +144,26 @@ function RollingDigit({ digit, duration, delay, spin }: { digit: number; duratio
 
 export function RollingNumber({ value, duration = ROLL.duration, format: kind = 'currency', className }: RollingNumberProps) {
   const text = format(value, kind)
-  // Amounts blur in privacy mode (ENG-127); counts and percentages stay readable
+  // Amounts are hidden in privacy mode (ENG-127); counts and percentages stay readable. The
+  // mark goes on an inner inline span: callers may make the outer one a block, and the
+  // privacy bar is the marked element's background
   const money = kind === 'currency' || kind === 'currencyExact' || kind === 'decimal' || undefined
   const match = text.match(NUMERIC_CORE)
-  if (!match || match.index === undefined) return <span data-money={money} className={className}>{text}</span>
+  if (!match || match.index === undefined)
+    return (
+      <span className={className}>
+        <span data-money={money}>{text}</span>
+      </span>
+    )
 
   const before = text.slice(0, match.index)
   const after = text.slice(match.index + match[0].length)
   const chars = [...match[0]]
 
   return (
-    <span data-rolling data-money={money} className={cn('tabular-nums', className)}>
+    <span data-rolling className={cn('tabular-nums', className)}>
       <span className="sr-only">{text}</span>
-      <span aria-hidden>
+      <span aria-hidden data-money={money}>
         {before}
         {/* LTR so the characters keep their order inside the RTL page; the
             symbol and suffix stay in normal text flow around it */}
