@@ -316,7 +316,9 @@ html[data-privacy-switch='out'] [data-money],
 html[data-privacy-switch='out'] [data-money] * {
   transition: -webkit-text-fill-color var(--privacy-wipe) var(--privacy-ease);
 }
-html[data-privacy-switch='out'] [data-money],
+/* :not(:empty) to outrank the hidden rule above, which has it: without it the amount's own text
+   (the ₪, a table amount) stayed hidden through the fade and popped in at the end */
+html[data-privacy-switch='out'] [data-money]:not(:empty),
 html[data-privacy-switch='out'] [data-money] * {
   -webkit-text-fill-color: currentColor;
 }
