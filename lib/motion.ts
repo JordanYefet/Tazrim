@@ -42,7 +42,8 @@ export const CHART_ANIMATION = {
 
 /**
  * Rolling digits: a cascade from the highest digit to the lowest, each starting `stagger`
- * after the one before it, the last landing on the page beat (a digit never rolls shorter
- * than `minDuration`). `blur` is the motion blur at full speed, SwiftUI's numericText.
+ * after the one before it, the last landing at `duration` (a digit never rolls shorter
+ * than `minDuration`). Slower than the page beat, by the owner's choice, so the roll and
+ * its blur read. `blur` is the motion blur at full speed, SwiftUI's numericText.
  */
-export const ROLL = { duration: MOTION.page, stagger: 45, minDuration: 340, blur: '0.07em' } as const
+export const ROLL = { duration: 950, stagger: 70, minDuration: 560, blur: '0.07em' } as const
