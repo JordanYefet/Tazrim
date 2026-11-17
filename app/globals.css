@@ -241,43 +241,52 @@
   body::before { background: hsl(var(--background)); }
 }
 
-/* Privacy mode (ENG-127, lib/privacy.ts): every amount carries data-money (always an inline
-   element) and becomes a soft bar in its own colour, exactly the width of its text, so nothing
-   moves and income still reads green. The digits are made transparent, not removed. The side
-   shadows pad the bar without taking room. A tap fades it in or out (data-privacy-switch,
+/* Privacy mode (ENG-127, lib/privacy.ts): every amount carries data-money and becomes a soft bar
+   in its own colour, exactly as wide as its text and as tall as its digits (Heebo's figures stand
+   0.72em on the baseline), so nothing moves and income still reads green. The digits are made
+   transparent, not removed. While on, the amount is an inline-block, so its box is one line tall
+   and the bar can be placed from the line's height (1lh): the font's content area (1.05em above
+   the baseline, 0.42em below) sits centred in it. A tap fades the bar in (data-privacy-switch,
    components/layout/privacy.tsx); a load, the shortcut and reduced motion switch at once.
    Chart axes draw their own bars (hooks/use-chart-axes.ts). */
-html[data-privacy='on'] [data-money]:not(:empty) {
-  -webkit-text-fill-color: transparent;
-  background-color: color-mix(in srgb, currentColor 22%, transparent);
-  /* sideways only, so amounts on stacked lines stay separate bars */
-  box-shadow:
-    0.15em 0 0 0 color-mix(in srgb, currentColor 22%, transparent),
-    -0.15em 0 0 0 color-mix(in srgb, currentColor 22%, transparent);
-  border-radius: 0.3em;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  -webkit-user-select: none;
-  user-select: none;
+:root {
+  --money-ascent: 1.05em;
+  --money-content: 1.47em;
+  --money-digits: 0.72em;
+}
+html[data-privacy='on'] [data-money]:not(:empty):not(input) {
+  display: inline-block;
+  position: relative;
+}
+html[data-privacy='on'] [data-money]:not(:empty):not(input)::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  /* the digits' top: half the leading, then the ascent above the figures */
+  top: calc((1lh - var(--money-content)) / 2 + var(--money-ascent) - var(--money-digits));
+  height: var(--money-digits);
+  border-radius: 0.12em;
+  background-color: color-mix(in srgb, currentColor 24%, transparent);
+  pointer-events: none;
 }
 /* Engraved figures (the card wallet, account faces) draw their digits again in text-shadow */
 html[data-privacy='on'] [data-money]:not(:empty),
 html[data-privacy='on'] [data-money] * {
   -webkit-text-fill-color: transparent;
   text-shadow: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-/* An amount field shows its value while it is being edited */
-html[data-privacy='on'] input[data-money]:focus {
-  -webkit-text-fill-color: currentColor;
-  background-color: transparent;
-  box-shadow: none;
+/* An amount field: a tinted field while hidden, its value while it is being edited */
+html[data-privacy='on'] input[data-money]:not(:focus) {
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
 }
-html[data-privacy-switch] [data-money] {
-  transition:
-    -webkit-text-fill-color var(--motion-fast) var(--ease-ui),
-    background-color var(--motion-fast) var(--ease-ui),
-    box-shadow var(--motion-fast) var(--ease-ui);
+html[data-privacy='on'] input[data-money]:focus { -webkit-text-fill-color: currentColor; }
+html[data-privacy-switch] [data-money]:not(:empty)::after { transition: opacity var(--motion-fast) var(--ease-ui); }
+@starting-style {
+  html[data-privacy-switch] [data-money]:not(:empty)::after { opacity: 0; }
 }
+html[data-privacy-switch] [data-money] { transition: -webkit-text-fill-color var(--motion-fast) var(--ease-ui); }
 
 /* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
    While it runs the elements' own colour transitions are held, so the new snapshot is final. */

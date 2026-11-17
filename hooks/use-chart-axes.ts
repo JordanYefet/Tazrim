@@ -41,10 +41,12 @@ interface TickProps {
  */
 function privacyTick(fontSize: number, fill: string, compact: boolean) {
   function PrivacyTick({ x, y, payload, textAnchor }: TickProps): ReactElement<SVGElement> {
-    const width = formatAxisCurrency(payload.value, compact).length * fontSize * 0.58
-    const height = fontSize * 1.05
+    // As tall as the digits (Heebo's figures: 0.72em, globals.css) and about as wide as the label;
+    // a tick's label is centred on y
+    const width = formatAxisCurrency(payload.value, compact).length * fontSize * 0.56
+    const height = fontSize * 0.72
     const left = textAnchor === 'end' ? x - width : textAnchor === 'middle' ? x - width / 2 : x
-    return createElement('rect', { x: left, y: y - height / 2, width, height, rx: height * 0.3, fill, fillOpacity: 0.22 }) as unknown as ReactElement<SVGElement> // recharts types a tick's result as ReactElement<SVGElement>
+    return createElement('rect', { x: left, y: y - height / 2, width, height, rx: fontSize * 0.12, fill, fillOpacity: 0.24 }) as unknown as ReactElement<SVGElement> // recharts types a tick's result as ReactElement<SVGElement>
   }
   return PrivacyTick
 }
