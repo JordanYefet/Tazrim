@@ -38,12 +38,36 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 const LINE_HEIGHT = 'round(1.15em, 1px)'
 // Strong ease-out: fast start, long settle, reads as "rolling into place" (motion tokens, ENG-67)
 const EASE = MOTION_EASE.ui
-// Lower digits start a hair earlier, odometer-style, but every digit lands on the same beat
-const STAGGER_MS = ROLL.stagger
 // Soft top/bottom edges so passing digits fade instead of being cut off
 const EDGE_MASK = 'linear-gradient(to bottom, transparent 0, #000 18%, #000 82%, transparent 100%)'
-// One turn of the 0–9 strip while a period loads, per digit from the right
-const SPIN_MS = [520, 610, 470, 580, 660, 500, 630]
+const BLUR_ID = 'digit-blur'
+
+/**
+ * Motion blur while a strip rolls (SwiftUI's numericText): the strongest at the start, where
+ * the ease-out is fastest, and gone well before it settles, so the digit lands sharp.
+ * `fromSpin`: the strip was spinning (blurred already, globals.css), so it starts blurred.
+ */
+function blurRoll(strip: HTMLElement, duration: number, delay: number, fromSpin = false) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  for (const a of strip.getAnimations()) if (a.id === BLUR_ID) a.cancel()
+  const blur = `blur(${ROLL.blur})`
+  const a = strip.animate(
+    [
+      { filter: fromSpin ? blur : 'blur(0)' },
+      { filter: blur, offset: 0.12 },
+      { filter: 'blur(0)', offset: 0.7 },
+      { filter: 'blur(0)' },
+    ],
+    { duration, delay, easing: 'linear', fill: fromSpin ? 'backwards' : 'none' }
+  )
+  a.id = BLUR_ID
+}
+
+/** A digit's place in a cascade from the highest digit (`index` 0) to the lowest */
+export function cascade(index: number, count: number, total: number = ROLL.duration) {
+  const duration = Math.max(ROLL.minDuration, total - (count - 1) * ROLL.stagger)
+  return { delay: index * ROLL.stagger, duration }
+}
 // Sign, digits and separators: the part that is laid out character by character
 const NUMERIC_CORE = /[-−]?\d(?:[\d.,]*\d)?/
 
@@ -67,12 +91,14 @@ function useSpinLanding(duration: number, delay: number) {
       if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
       const target = strip.style.transform
       for (const a of strip.getAnimations()) if ('transitionProperty' in a) a.cancel()
+      const { duration, delay } = timing.current
       strip.animate([{ transform: 'translateY(0%)' }, { transform: target }], {
-        duration: timing.current.duration,
-        delay: timing.current.delay,
+        duration,
+        delay,
         easing: EASE,
         fill: 'backwards',
       })
+      blurRoll(strip, duration, delay, true)
     }
     strip.addEventListener('animationcancel', land)
     return () => strip.removeEventListener('animationcancel', land)
@@ -83,6 +109,13 @@ function useSpinLanding(duration: number, delay: number) {
 /** One rolling digit; also used for the card digits as they are typed (ENG-56). */
 export function DigitStrip({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
   const strip = useSpinLanding(duration, delay)
+  const shown = useRef(digit)
+  // A new digit rolls with the blur, on the transform transition's own timing
+  useLayoutEffect(() => {
+    if (shown.current === digit) return
+    shown.current = digit
+    if (strip.current) blurRoll(strip.current, duration, delay)
+  }, [digit, duration, delay, strip])
   return (
     <span
       className="relative block overflow-hidden"
@@ -128,7 +161,7 @@ interface RollingNumberProps {
  * with the page, ENG-67), and also when a number gains a digit later
  * (0.00 → 12,345.67 rolls the new leading digits too, not only the last three).
  */
-function RollingDigit({ digit, duration, delay, spin }: { digit: number; duration: number; delay: number; spin: number }) {
+function RollingDigit({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [mounted, setMounted] = useState(false)
   useLayoutEffect(() => {
@@ -136,7 +169,8 @@ function RollingDigit({ digit, duration, delay, spin }: { digit: number; duratio
     setMounted(true)
   }, [])
   return (
-    <span ref={ref} className="contents" style={{ '--digit-spin': `${spin}ms` } as React.CSSProperties}>
+    // The loading spin follows the same cascade: a wave from the highest digit (globals.css)
+    <span ref={ref} className="contents" style={{ '--digit-lag': `${delay}ms` } as React.CSSProperties}>
       <DigitStrip digit={mounted ? digit : 0} duration={duration} delay={delay} />
     </span>
   )
@@ -159,6 +193,8 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
   const before = text.slice(0, match.index)
   const after = text.slice(match.index + match[0].length)
   const chars = [...match[0]]
+  const count = chars.filter(ch => /\d/.test(ch)).length
+  let place = 0
 
   return (
     <span data-rolling className={cn('tabular-nums', className)}>
@@ -173,15 +209,8 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
             // number of digits changes; unchanged digits don't move
             const fromEnd = chars.length - 1 - i
             return /\d/.test(ch) ? (
-              <RollingDigit
-                key={`d${fromEnd}`}
-                digit={Number(ch)}
-                // Shorter by its delay, so all digits land together
-                duration={Math.max(duration / 2, duration - fromEnd * STAGGER_MS)}
-                delay={fromEnd * STAGGER_MS}
-                // Each digit spins at its own speed while a period loads, so the number scrambles
-                spin={SPIN_MS[fromEnd % SPIN_MS.length]}
-              />
+              // From the highest digit to the lowest, each a beat after the one before
+              <RollingDigit key={`d${fromEnd}`} digit={Number(ch)} {...cascade(place++, count, duration)} />
             ) : (
               <span key={`s${fromEnd}`}>{ch}</span>
             )
