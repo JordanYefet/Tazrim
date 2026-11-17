@@ -167,7 +167,7 @@ export function PhoneSection({ settings, network, inSetup = false }: { settings:
         <div className="min-w-0 flex-1 space-y-2">
           {address ? (
             <>
-              <AddressLine url={address} className={inSetup ? 'text-xl' : 'text-xl sm:text-2xl'} />
+              <AddressLine url={address} className={inSetup ? 'text-[17px] sm:text-xl' : 'text-[17px] sm:text-[26px]'} />
               <p className="text-sm text-muted-foreground text-pretty">
                 <span className="hidden sm:inline">בטלפון או בטאבלט, באותה רשת Wi-Fi: סורקים את הקוד במצלמה, או מקלידים את הכתובת בדפדפן.</span>
                 <span className="sm:hidden">בטלפון או בטאבלט, באותה רשת Wi-Fi: פותחים את הכתובת בדפדפן.</span>

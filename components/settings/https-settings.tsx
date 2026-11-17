@@ -258,7 +258,7 @@ export function HttpsSection({
 
       <div className={cn('space-y-1 transition-opacity duration-200', !on && 'opacity-50')}>
         <p className="text-xs text-muted-foreground">{on ? 'הכתובת המוצפנת' : 'הכתובת המוצפנת, אחרי ההפעלה'}</p>
-        <AddressLine url={url} className={inSetup ? 'text-lg' : 'text-lg sm:text-xl'} disabled={!on} />
+        <AddressLine url={url} className={inSetup ? 'text-[15px] sm:text-lg' : 'text-[15px] sm:text-xl'} disabled={!on} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
