@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import plugin from 'tailwindcss/plugin'
 
 const config: Config = {
   darkMode: ['class'],
@@ -82,6 +83,9 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // `hover-fine:` hover only where there is a real pointer, so a tap on a phone leaves no stuck hover
+    plugin(({ addVariant }) => addVariant('hover-fine', '@media (hover: hover) and (pointer: fine) { &:hover }')),
+  ],
 }
 export default config

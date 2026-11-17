@@ -1,28 +1,43 @@
 'use client'
 
 /**
- * Settings → HTTPS and passkeys on the phone (ENG-123): one switch turns on Caddy (HTTPS) and
- * AdGuard Home (the .internal names) through the helper; a second opens AdGuard's plain DNS to the
- * home network for Android and other computers. The certificate files come from Tazrim itself
- * (/tazrim.mobileconfig, /tazrim-root.crt), each with a QR code a phone scans on the Wi-Fi.
- * Guides: iPhone/iPad, Android (certificate, then names), other computers.
+ * Encrypted connection (ENG-123): one switch turns on Caddy (HTTPS) and AdGuard Home (the
+ * .internal names) through the helper; a second opens AdGuard's plain DNS to the home network for
+ * Android and other computers. The certificate files come from Tazrim itself (/tazrim.mobileconfig,
+ * /tazrim-root.crt), each with a QR code a phone scans on the Wi-Fi. Guides: iPhone/iPad, Android
+ * (certificate, then names), other computers.
  *
- * /settings/https passes `initial` and `network`; /setup (ENG-125) renders <HttpsSettings inSetup />
- * and the data loads from /api/install and /api/install/network.
+ * Settings → Phones and network renders <HttpsSection> as its second section, with the page's one
+ * settings object. /setup (ENG-125) renders <HttpsSettings inSetup />, which loads its data from
+ * /api/install and /api/install/network and shows only the essentials: the switch, the address and
+ * the two files.
  */
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Laptop, Monitor, Network, Smartphone, TabletSmartphone } from 'lucide-react'
-import type { InstallView, NetworkInfo } from '@/lib/install/types'
+import { Download, Monitor, Network, Smartphone, TabletSmartphone } from 'lucide-react'
+import type { ConfigValues, InstallView, NetworkInfo } from '@/lib/install/types'
 import { httpsAddress, isHttpsOn, phoneAddress, withHttps } from '@/lib/install/addresses'
 import { cn } from '@/lib/utils/cn'
 import { SegmentedTabs } from '@/components/ui/segmented-tabs'
 import { ContainerApplyStatus, ManualEnvSteps, SwitchButton, useContainerSettings, type ContainerSettings } from '@/components/install/container-settings'
-import { Address, CopyLine, GuideList, InstallLoading, Note, QrImage, Steps, Ui, sectionClass, type GuideItem } from '@/components/install/guide'
+import {
+  AddressLine,
+  CopyLine,
+  GuideList,
+  GuideWindow,
+  InstallLoading,
+  Note,
+  QrImage,
+  SectionHeading,
+  Steps,
+  Ui,
+  sectionClass,
+  useOpenGuide,
+  type GuideItem,
+} from '@/components/install/guide'
 import { fetchNetwork, useInstallData } from '@/components/install/use-install-data'
-import { TEXT_BUTTON } from '@/components/updates/manual-commands'
+import { LINK, NETWORK_PAGE } from '@/components/settings/phones-settings'
 
-const LINK = 'font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded'
 export const PROFILE_FILE = '/tazrim.mobileconfig'
 export const CERT_FILE = '/tazrim-root.crt'
 
@@ -32,7 +47,22 @@ export function HttpsSettings({ inSetup, initial, network }: { inSetup?: boolean
   return <Https inSetup={!!inSetup} initial={data.view} network={data.network} />
 }
 
-/** A switch row: label and line on one side, the switch on the other; manual steps without the helper */
+/** On its own (/setup, tests): the section; outside /setup its guides too */
+function Https({ inSetup, initial, network }: { inSetup: boolean; initial: InstallView; network: NetworkInfo }) {
+  const settings = useContainerSettings(initial)
+  const { values } = settings
+  const guides = httpsGuides({ url: httpsAddress(values.TAZRIM_HOST, network.httpsPort), base: phoneAddress(values), ip: values.TAZRIM_LAN_IP, values })
+  const [open, setOpen] = useOpenGuide(guides)
+  return (
+    <div className="space-y-4">
+      <HttpsSection settings={settings} network={network} inSetup={inSetup} />
+      {!inSetup && <GuideList title="מדריכים" groups={[{ title: 'HTTPS', guides }]} onOpen={setOpen} />}
+      <GuideWindow guides={guides} open={open} onClose={() => setOpen(null)} />
+    </div>
+  )
+}
+
+/** A switch row: label and line on one side, the switch on the other */
 function SwitchRow({
   id,
   label,
@@ -41,8 +71,8 @@ function SwitchRow({
   disabled,
   busy,
   onToggle,
-  manualLine,
   settings,
+  secondary = false,
 }: {
   id: string
   label: string
@@ -51,28 +81,26 @@ function SwitchRow({
   disabled: boolean
   busy: boolean
   onToggle: () => void
-  manualLine: string
   settings: ContainerSettings
+  secondary?: boolean
 }) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex min-h-11 items-center justify-between gap-3">
-        <span className="space-y-0.5">
-          <span id={`${id}-label`} className="block text-sm font-medium">
-            {label}
-          </span>
-          <span className="block text-xs text-muted-foreground text-pretty">{description}</span>
+    <div className="flex min-h-11 items-center justify-between gap-4">
+      <span className="space-y-0.5">
+        <span id={`${id}-label`} className={cn('block font-medium', secondary ? 'text-sm' : 'text-[15px]')}>
+          {label}
         </span>
-        <SwitchButton on={on} labelledBy={`${id}-label`} busy={busy} disabled={!settings.canApply || settings.busy || disabled} onClick={onToggle} />
-      </div>
-      {!settings.canApply && <ManualEnvSteps lines={[manualLine]} installDir={settings.view.installDir} />}
+        <span className="block text-xs text-muted-foreground text-pretty">{description}</span>
+      </span>
+      <SwitchButton on={on} labelledBy={`${id}-label`} busy={busy} disabled={!settings.canApply || settings.busy || disabled} onClick={onToggle} />
     </div>
   )
 }
 
 /**
- * One downloadable file: its QR code (for a phone on the Wi-Fi) and a link (for this browser).
- * A card on the Settings page; in /setup's narrow card (`row`) a row: the text and link, the code beside.
+ * One downloadable file: its QR code (for a phone looking at this screen) and a download button
+ * (for this browser). Two of them side by side, the same size; while HTTPS is off they stay where
+ * they are, dimmed, and say what comes first.
  */
 function DeviceFile({
   title,
@@ -81,7 +109,7 @@ function DeviceFile({
   base,
   state,
   onRecheck,
-  row = false,
+  small,
 }: {
   title: string
   line: string
@@ -90,66 +118,66 @@ function DeviceFile({
   base: string | null
   state: 'off' | 'waiting' | 'ready'
   onRecheck: () => void
-  row?: boolean
+  small: boolean
 }) {
   const ready = state === 'ready'
-  const info = (
-    <span className="space-y-0.5">
-      <span className="block text-sm font-semibold">{title}</span>
-      <span className="block text-xs text-muted-foreground">{line}</span>
-    </span>
-  )
-  // On a phone the link is the way; the code is for a phone looking at a computer's screen
-  const qr = (
-    <span className="hidden shrink-0 sm:block" aria-hidden={!ready || undefined}>
-      <QrImage url={ready && base ? base + file : null} size={row ? 88 : 128} label={`קוד QR להורדת ${file.slice(1)}`} />
-    </span>
-  )
-  const action = (
-    <span className={cn('flex min-h-11 flex-col justify-center text-xs text-muted-foreground', row ? 'items-start' : 'items-center')}>
-      {state === 'ready' ? (
-        <>
-          <a href={file} download className={cn(TEXT_BUTTON, '-my-1', row && '-ms-3')}>
-            הורדה
-          </a>
-          <bdi dir="ltr" className="break-all font-mono text-[11px]">
-            {file.slice(1)}
-          </bdi>
-        </>
-      ) : state === 'waiting' ? (
-        <span className="flex items-center gap-1">
-          האישור עוד נוצר.
-          <button type="button" onClick={onRecheck} className={cn(TEXT_BUTTON, '-my-2 px-2')}>
-            בדיקה שוב
-          </button>
-        </span>
-      ) : (
-        'זמין אחרי שמפעילים HTTPS'
-      )}
-    </span>
-  )
-  if (row) {
-    return (
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          {info}
-          {action}
-        </div>
-        {qr}
-      </div>
-    )
-  }
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl surface px-3 py-4 text-center sm:p-5">
-      {info}
-      {qr}
-      {action}
+    <div className="pop-in flex flex-col items-center gap-3 rounded-xl bg-muted/60 px-3 py-4 text-center dark:bg-muted/40">
+      <span className={cn('space-y-0.5 transition-opacity duration-200', state === 'off' && 'opacity-50')}>
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="block text-xs text-muted-foreground">{line}</span>
+      </span>
+      {/* On a phone the button is the way; the code is for a phone looking at a computer's screen */}
+      <span className={cn('hidden transition-opacity duration-200 sm:block', state === 'off' && 'opacity-50')} aria-hidden={!ready || undefined}>
+        <QrImage url={ready && base ? base + file : null} size={small ? 96 : 112} label={`קוד QR להורדת ${file.slice(1)}`} />
+      </span>
+      <span className="flex min-h-11 flex-col items-center justify-center gap-0.5 text-xs text-muted-foreground">
+        {state === 'ready' ? (
+          <>
+            <a
+              href={file}
+              download
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium text-foreground transition-[background-color,transform] duration-[120ms] ease-out hover-fine:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              הורדה
+            </a>
+            <bdi dir="ltr" className="break-all font-mono text-[11px]">
+              {file.slice(1)}
+            </bdi>
+          </>
+        ) : state === 'waiting' ? (
+          <span className="flex flex-col items-center">
+            האישור עוד נוצר.
+            <button type="button" onClick={onRecheck} className={cn(LINK, 'px-1 py-1')}>
+              בדיקה שוב
+            </button>
+          </span>
+        ) : (
+          <span className="font-medium">קודם מפעילים HTTPS</span>
+        )}
+      </span>
     </div>
   )
 }
 
-function Https({ inSetup, initial, network }: { inSetup: boolean; initial: InstallView; network: NetworkInfo }) {
-  const settings = useContainerSettings(initial)
+/**
+ * The section: what comes first, the switch, the address it gives, the two files, and (on the
+ * Settings page) the names for Android and other computers as a quieter row. Without the helper,
+ * one "הצגת שלבים ידניים" for both switches.
+ */
+export function HttpsSection({
+  settings,
+  network,
+  inSetup = false,
+  onGuide,
+}: {
+  settings: ContainerSettings
+  network: NetworkInfo
+  inSetup?: boolean
+  /** Opens a guide on the page (the one to keep the address); without it, a link to the page */
+  onGuide?: (id: string) => void
+}) {
   const { values } = settings
   const [net, setNet] = useState(network)
   const on = isHttpsOn(values.COMPOSE_PROFILES)
@@ -175,8 +203,111 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
   const portBusy =
     settings.phase === 'failed' && job?.code === 'PORT_BUSY' && job.keys.some(k => k === 'COMPOSE_PROFILES' || k === 'TAZRIM_DNS_BIND')
 
+  const prerequisite = inSetup ? (
+    ip ? null : 'עוד לא ידוע מה הכתובת של המחשב. קובעים אותה בשלב הקודם.'
+  ) : (
+    <>
+      צריך קודם כתובת קבועה למחשב, אחרת זה יפסיק לעבוד כשהנתב יחליף אותה.{' '}
+      {onGuide ? (
+        <button type="button" onClick={() => onGuide('reserve')} className={LINK}>
+          איך שומרים כתובת קבועה
+        </button>
+      ) : (
+        <Link href={`${NETWORK_PAGE}?guide=reserve`} className={LINK}>
+          איך שומרים כתובת קבועה
+        </Link>
+      )}
+      {!ip && (
+        <>
+          <br />
+          עוד לא ידוע מה הכתובת של המחשב. קובעים אותה ב
+          <Link href={`${NETWORK_PAGE}#advanced`} className={LINK}>
+            מתקדם
+          </Link>
+          .
+        </>
+      )}
+    </>
+  )
+
+  return (
+    <section
+      id={inSetup ? undefined : 'https'}
+      aria-labelledby={inSetup ? undefined : 'https-title'}
+      aria-label={inSetup ? 'חיבור מוצפן' : undefined}
+      className={cn('scroll-mt-6 space-y-4', sectionClass(inSetup))}
+    >
+      {inSetup ? (
+        prerequisite && <p className="text-sm text-pretty">{prerequisite}</p>
+      ) : (
+        <SectionHeading id="https-title" line={prerequisite}>
+          חיבור מוצפן (HTTPS)
+        </SectionHeading>
+      )}
+
+      <SwitchRow
+        id="https-switch"
+        label="HTTPS ושמות מקומיים"
+        description="מפעיל במחשב הזה את Caddy (חיבור מוצפן) ואת AdGuard Home (השמות). משתמש בפורטים 80, 443 ו-53."
+        on={on}
+        disabled={!on && !ip}
+        busy={profilesBusy}
+        onToggle={() => void settings.apply({ COMPOSE_PROFILES: nextProfiles })}
+        settings={settings}
+      />
+
+      <div className={cn('space-y-1 transition-opacity duration-200', !on && 'opacity-50')}>
+        <p className="text-xs text-muted-foreground">{on ? 'הכתובת המוצפנת' : 'הכתובת המוצפנת, אחרי ההפעלה'}</p>
+        <AddressLine url={url} className={inSetup ? 'text-lg' : 'text-lg sm:text-xl'} disabled={!on} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <DeviceFile small={inSetup} title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
+        <DeviceFile small={inSetup} title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
+      </div>
+
+      {!inSetup && (
+        <div className={cn('border-t pt-3 transition-opacity duration-200', !on && 'opacity-50')}>
+          <SwitchRow
+            secondary
+            id="https-lan-dns"
+            label="שמות גם ל-Android ולמחשבים אחרים"
+            description="פותח את ה-DNS של המחשב (פורט 53) לרשת הביתית. ל-iPhone ו-iPad לא צריך."
+            on={on && lanDns}
+            disabled={!on}
+            busy={lanBusy}
+            onToggle={() => void settings.apply({ TAZRIM_DNS_BIND: lanDns ? null : '0.0.0.0' })}
+            settings={settings}
+          />
+        </div>
+      )}
+
+      {!settings.canApply && (
+        <ManualEnvSteps
+          lines={inSetup ? [`COMPOSE_PROFILES=${nextProfiles}`] : [`COMPOSE_PROFILES=${nextProfiles}`, `TAZRIM_DNS_BIND=${lanDns ? '127.0.0.1' : '0.0.0.0'}`]}
+          installDir={settings.view.installDir}
+        />
+      )}
+
+      {settings.canApply &&
+        (portBusy ? (
+          <p aria-live="polite" className="min-h-5 text-xs text-destructive text-pretty">
+            פורט 80, 443 או 53 תפוס בתוכנה אחרת במחשב, וההגדרה הקודמת חזרה. סוגרים את התוכנה, או קובעים ב-<bdi dir="ltr">.env</bdi> פורטים אחרים:{' '}
+            <bdi dir="ltr" className="font-mono">
+              TAZRIM_HTTP_PORT, TAZRIM_HTTPS_PORT, TAZRIM_DNS_PORT
+            </bdi>
+          </p>
+        ) : (
+          <ContainerApplyStatus settings={settings} only={['COMPOSE_PROFILES', 'TAZRIM_DNS_BIND']} />
+        ))}
+    </section>
+  )
+}
+
+/** The HTTPS guides: iPhone and iPad, the Android certificate, the Android names, other computers */
+export function httpsGuides({ url, base, ip, values }: { url: string; base: string | null; ip: string; values: ConfigValues }): GuideItem[] {
   const tazrimIp = ip || '192.168.1.20'
-  const guides: GuideItem[] = [
+  return [
     {
       id: 'iphone',
       icon: TabletSmartphone,
@@ -272,101 +403,6 @@ function Https({ inSetup, initial, network }: { inSetup: boolean; initial: Insta
       body: <OtherComputers ip={tazrimIp} port={values.TAZRIM_PORT} />,
     },
   ]
-
-  return (
-    <div className="space-y-4">
-      <section aria-labelledby="https-main" className={cn('space-y-4', sectionClass(inSetup))}>
-        <div className="space-y-1">
-          <h2 id="https-main" className="text-base font-semibold">
-            הפעלה
-          </h2>
-          <p className="text-sm text-muted-foreground text-pretty">
-            צריך קודם כתובת קבועה למחשב, אחרת זה יפסיק לעבוד כשהנתב יחליף אותה.{' '}
-            <Link href="/settings/phones?guide=reserve" className={LINK}>
-              איך שומרים כתובת קבועה
-            </Link>
-          </p>
-          {!ip && (
-            <p className="text-sm text-pretty">
-              עוד לא ידוע מה הכתובת של המחשב. קובעים אותה ב
-              <Link href="/settings/phones" className={LINK}>
-                טלפונים וטאבלטים
-              </Link>
-              .
-            </p>
-          )}
-        </div>
-
-        <SwitchRow
-          id="https-switch"
-          label="HTTPS ושמות מקומיים"
-          description="מפעיל במחשב הזה את Caddy (חיבור מוצפן) ואת AdGuard Home (השמות). משתמש בפורטים 80, 443 ו-53."
-          on={on}
-          disabled={!on && !ip}
-          busy={profilesBusy}
-          onToggle={() => void settings.apply({ COMPOSE_PROFILES: nextProfiles })}
-          manualLine={`COMPOSE_PROFILES=${nextProfiles}`}
-          settings={settings}
-        />
-
-        <div className={cn('space-y-0.5 rounded-xl bg-muted px-4 py-3 transition-opacity duration-fast', !on && 'opacity-50')}>
-          <p className="text-xs text-muted-foreground">{on ? 'הכתובת המוצפנת' : 'הכתובת המוצפנת, אחרי ההפעלה'}</p>
-          <Address url={url} className={inSetup ? 'text-base' : 'text-base sm:text-xl'} />
-        </div>
-
-        <SwitchRow
-          id="https-lan-dns"
-          label="שמות גם ל-Android ולמחשבים אחרים"
-          description="פותח את ה-DNS של המחשב (פורט 53) לרשת הביתית. ל-iPhone ו-iPad לא צריך."
-          on={on && lanDns}
-          disabled={!on}
-          busy={lanBusy}
-          onToggle={() => void settings.apply({ TAZRIM_DNS_BIND: lanDns ? null : '0.0.0.0' })}
-          manualLine={`TAZRIM_DNS_BIND=${lanDns ? '127.0.0.1' : '0.0.0.0'}`}
-          settings={settings}
-        />
-
-        {settings.canApply &&
-          (portBusy ? (
-            <p aria-live="polite" className="min-h-5 text-xs text-destructive text-pretty">
-              פורט 80, 443 או 53 תפוס בתוכנה אחרת במחשב, וההגדרה הקודמת חזרה. סוגרים את התוכנה, או קובעים ב-<bdi dir="ltr">.env</bdi> פורטים אחרים:{' '}
-              <bdi dir="ltr" className="font-mono">
-                TAZRIM_HTTP_PORT, TAZRIM_HTTPS_PORT, TAZRIM_DNS_PORT
-              </bdi>
-            </p>
-          ) : (
-            <ContainerApplyStatus settings={settings} />
-          ))}
-      </section>
-
-      {inSetup ? (
-        <section aria-label="קבצים להתקנה" className={cn('space-y-3', sectionClass(true))}>
-          <DeviceFile row title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
-          <DeviceFile row title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
-        </section>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <DeviceFile title="iPhone ו-iPad" line="פרופיל: האישור והשמות" file={PROFILE_FILE} base={base} state={fileState} onRecheck={recheck} />
-          <DeviceFile title="Android ומחשבים" line="האישור לבדו" file={CERT_FILE} base={base} state={fileState} onRecheck={recheck} />
-        </div>
-      )}
-
-      <GuideList title="מדריכים" guides={guides} plain={inSetup} />
-
-      {!inSetup && (
-        <p className="flex items-start gap-2 px-1 text-xs text-muted-foreground text-pretty">
-          <Laptop className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span>
-            במחשב הזה לא צריך כלום: ב-
-            <bdi dir="ltr" className="font-mono">
-              http://localhost:{values.TAZRIM_PORT}
-            </bdi>{' '}
-            גם מפתחות עובדים.
-          </span>
-        </p>
-      )}
-    </div>
-  )
 }
 
 /** Mac and Windows: trust the certificate, then send .internal to this computer */

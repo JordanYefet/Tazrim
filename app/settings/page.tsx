@@ -107,15 +107,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             : `${/^\d+\.\d+\.\d+$/.test(CURRENT_VERSION) ? `גרסה ${CURRENT_VERSION}. ` : ''}בדיקה אם יצאה גרסה חדשה ועדכון אליה.`,
           dot: !!latest,
         }]),
-    // Container-level settings (ENG-121); never in the read-only demo
-    ...(readOnly ? [] : [{ href: '/settings/install', icon: 'install' as const, title: 'התקנה', summary: 'הכתובת במחשב הזה והפורטים של תזרים.' }]),
-    // Phones and HTTPS (ENG-122/123); never in the read-only demo
+    // Phones, HTTPS and the container's address and ports (ENG-121/122/123), one page; never in the read-only demo
     ...(readOnly
       ? []
-      : [
-          { href: '/settings/phones', icon: 'phones' as const, title: 'טלפונים וטאבלטים', summary: 'הכתובת לפתיחה מהטלפון ברשת הביתית, וקוד QR אליה.' },
-          { href: '/settings/https', icon: 'https' as const, title: 'HTTPS ומפתחות בטלפון', summary: 'חיבור מוצפן ושם קבוע, לכניסה מהטלפון עם מפתח.' },
-        ]),
+      : [{ href: '/settings/network', icon: 'network' as const, title: 'טלפונים ורשת', summary: 'הכתובת לפתיחה מהטלפון עם קוד QR, חיבור מוצפן, והפורטים.' }]),
     { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 

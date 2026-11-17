@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { SETUP_STEP_COOKIE, SETUP_STEP_COUNT, nextStep, previousStep, setupHref, stepNumber, type SetupStep } from '@/lib/setup/steps'
+import { EASE } from '@/lib/motion'
+import { SETUP_STEPS, SETUP_STEP_COOKIE, SETUP_STEP_COUNT, nextStep, previousStep, setupHref, stepNumber, type SetupStep } from '@/lib/setup/steps'
 import type { SettingView } from '@/lib/settings/app-settings'
 import { PlainSettingCards, SettingCard } from '@/components/settings/app-setting-controls'
 import { TimeZoneSetting } from '@/components/settings/time-zone-setting'
@@ -34,14 +35,26 @@ export interface SetupWizardProps {
   summary: SetupSummaryRow[] | null
 }
 
-/** "שלב 3 מתוך 6", with a quiet dot per step */
+/**
+ * "שלב 3 מתוך 6", with a quiet dot per step and the current one a short pill. Each dot has a
+ * slot of its own, so nothing moves along the row: the pill is two caps that part and a middle
+ * that scales (transforms only, app/globals.css .step-dot).
+ */
 export function StepCounter({ n }: { n: number }) {
   return (
-    <div className="flex items-center gap-2.5 text-xs font-medium text-muted-foreground" aria-label={`שלב ${n} מתוך ${SETUP_STEP_COUNT}`}>
-      <span aria-hidden className="flex items-center gap-1">
-        {Array.from({ length: SETUP_STEP_COUNT }, (_, i) => (
-          <span key={i} className={cn('h-1.5 w-1.5 rounded-full', i < n ? 'bg-primary' : 'bg-muted-foreground/25')} />
-        ))}
+    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground" aria-label={`שלב ${n} מתוך ${SETUP_STEP_COUNT}`}>
+      <span aria-hidden className="flex items-center">
+        {Array.from({ length: SETUP_STEP_COUNT }, (_, i) => {
+          const tone = i < n ? 'bg-primary' : 'bg-muted-foreground/25'
+          const current = i === n - 1
+          return (
+            <span key={i} className="step-dot relative h-1.5 w-4">
+              <span className={cn('absolute inset-y-0 left-[5px] w-1.5 rounded-full', tone)} style={{ transform: current ? 'translateX(-4px)' : 'none' }} />
+              <span className={cn('absolute inset-y-0 left-[5px] w-1.5 rounded-full', tone)} style={{ transform: current ? 'translateX(4px)' : 'none' }} />
+              <span className={cn('absolute inset-y-0 left-1 w-2', tone)} style={{ transform: current ? 'scaleX(1)' : 'scaleX(0)' }} />
+            </span>
+          )
+        })}
       </span>
       <span aria-hidden className="tabular-nums">
         שלב {n} מתוך {SETUP_STEP_COUNT}
@@ -113,7 +126,7 @@ export function SetupWizard({ step, account, basics, summary }: SetupWizardProps
             aria-hidden={!back || undefined}
             tabIndex={back ? undefined : -1}
             className={cn(
-              '-me-2 inline-flex h-8 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground transition-colors duration-quick hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              '-me-2 inline-flex h-8 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground transition-[color,transform] duration-[120ms] ease-out hover-fine:text-foreground active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               !back && 'invisible'
             )}
           >
@@ -122,55 +135,116 @@ export function SetupWizard({ step, account, basics, summary }: SetupWizardProps
           </button>
         </div>
 
-        <div key={step} className="auth-swap flex flex-1 flex-col gap-5">
-          {step === 'recovery' && <RecoveryScreen pending={pending} onDone={forward} />}
-          {step === 'passkey' && <PasskeyScreen pending={pending} onDone={forward} />}
-          {step === 'basics' && basics && (
-            <OptionalScreen
-              title="הבסיס"
-              intro={
-                <>
-                  אזור הזמן ובדיקת העדכונים. מה שמשנים כאן נשמר מיד, ונמצא גם ב<Where>הגדרות ← כללי</Where> וב<Where>עדכונים</Where>.
-                </>
-              }
-              pending={pending}
-              onNext={forward}
-            >
-              <TimeZoneSetting setting={basics.timeZone} />
-              <SettingCard
-                title="עדכונים"
-                help="פעם ביום תזרים שואל את GitHub אם יצאה גרסה חדשה, ואם כן מציג הודעה בהגדרות. זו שאלה אחת, בלי שום מידע מהחשבונות. העדכון עצמו רק בלחיצה."
-                locked={false}
-              >
-                <AutoCheckSwitch initial={basics.autoCheck} />
-              </SettingCard>
-            </OptionalScreen>
-          )}
-          {step === 'phones' && (
-            <OptionalScreen
-              title="טלפונים וטאבלטים"
-              intro="לפתוח את תזרים גם מהטלפון או מהטאבלט, ברשת הביתית. לא חובה, ואפשר לחזור לזה בכל זמן."
-              pending={pending}
-              onNext={forward}
-            >
-              <PhonesSettings inSetup />
-            </OptionalScreen>
-          )}
-          {step === 'https' && (
-            <OptionalScreen
-              title="HTTPS ומפתחות בטלפון"
-              tag="מתקדם"
-              intro="צריך את זה רק כדי להיכנס מהטלפון עם Face ID במקום סיסמה. זה החלק הטכני של ההתקנה. אפשר לדלג בלי לאבד כלום."
-              pending={pending}
-              onNext={forward}
-            >
-              <HttpsSettings inSetup />
-            </OptionalScreen>
-          )}
-          {step === 'done' && <DoneScreen rows={summary ?? []} />}
-        </div>
+        <StepSwap step={step}>
+          <StepBody step={step} basics={basics} summary={summary} pending={pending} forward={forward} />
+        </StepSwap>
       </div>
     </div>
+  )
+}
+
+/**
+ * A step arriving: forward, from the end of the reading direction (in Hebrew, the left) by 12px;
+ * back, from the other side; 220ms, with opacity. WAAPI on the new step's own element, so a quick
+ * second step starts afresh from where things are. Reduced motion: opacity only. The first paint
+ * (from the server) does not move.
+ */
+function StepSwap({ step, children }: { step: SetupStep; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const order = SETUP_STEPS.indexOf(step)
+  const last = useRef(order)
+  useLayoutEffect(() => {
+    const dir = Math.sign(order - last.current)
+    last.current = order
+    const el = ref.current
+    if (!el || dir === 0 || typeof el.animate !== 'function') return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const dx = dir > 0 ? -12 : 12
+    el.animate(
+      reduce
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: `translate3d(${dx}px, 0, 0)` },
+            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+          ],
+      { duration: 220, easing: EASE.ui }
+    )
+  }, [order])
+  return (
+    <div key={step} ref={ref} className="flex flex-1 flex-col gap-5">
+      {children}
+    </div>
+  )
+}
+
+/** "כל המדריכים בהגדרות ← טלפונים ורשת": the one line under steps 4 and 5 */
+function AllGuides() {
+  return <p className="text-xs text-muted-foreground">כל המדריכים ב<Where>הגדרות ← טלפונים ורשת</Where></p>
+}
+
+function StepBody({
+  step,
+  basics,
+  summary,
+  pending,
+  forward,
+}: {
+  step: SetupStep
+  basics: SetupWizardProps['basics']
+  summary: SetupWizardProps['summary']
+  pending: boolean
+  forward: () => void
+}) {
+  return (
+    <>
+      {step === 'recovery' && <RecoveryScreen pending={pending} onDone={forward} />}
+      {step === 'passkey' && <PasskeyScreen pending={pending} onDone={forward} />}
+      {step === 'basics' && basics && (
+        <OptionalScreen
+          title="הבסיס"
+          intro={
+            <>
+              אזור הזמן ובדיקת העדכונים. מה שמשנים כאן נשמר מיד, ונמצא גם ב<Where>הגדרות ← כללי</Where> וב<Where>עדכונים</Where>.
+            </>
+          }
+          pending={pending}
+          onNext={forward}
+        >
+          <TimeZoneSetting setting={basics.timeZone} />
+          <SettingCard
+            title="עדכונים"
+            help="פעם ביום תזרים שואל את GitHub אם יצאה גרסה חדשה, ואם כן מציג הודעה בהגדרות. זו שאלה אחת, בלי שום מידע מהחשבונות. העדכון עצמו רק בלחיצה."
+            locked={false}
+          >
+            <AutoCheckSwitch initial={basics.autoCheck} />
+          </SettingCard>
+        </OptionalScreen>
+      )}
+      {step === 'phones' && (
+        <OptionalScreen
+          title="טלפונים וטאבלטים"
+          intro="לפתוח את תזרים גם מהטלפון או מהטאבלט, ברשת הביתית. לא חובה, ואפשר לחזור לזה בכל זמן."
+          pending={pending}
+          onNext={forward}
+          foot={<AllGuides />}
+        >
+          <PhonesSettings inSetup />
+        </OptionalScreen>
+      )}
+      {step === 'https' && (
+        <OptionalScreen
+          title="HTTPS ומפתחות בטלפון"
+          tag="מתקדם"
+          intro="צריך את זה רק כדי להיכנס מהטלפון עם Face ID במקום סיסמה. זה החלק הטכני של ההתקנה. אפשר לדלג בלי לאבד כלום."
+          pending={pending}
+          onNext={forward}
+          foot={<AllGuides />}
+        >
+          <HttpsSettings inSetup />
+        </OptionalScreen>
+      )}
+      {step === 'done' && <DoneScreen rows={summary ?? []} />}
+    </>
   )
 }
 
@@ -210,6 +284,7 @@ function OptionalScreen({
   intro,
   pending,
   onNext,
+  foot,
   children,
 }: {
   title: string
@@ -217,6 +292,8 @@ function OptionalScreen({
   intro: React.ReactNode
   pending: boolean
   onNext: () => void
+  /** A quiet line under the step's content */
+  foot?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -225,6 +302,7 @@ function OptionalScreen({
       <PlainSettingCards>
         <div className="space-y-4">{children}</div>
       </PlainSettingCards>
+      {foot}
       <Actions>
         <button type="button" onClick={onNext} disabled={pending} className={primaryButton}>המשך</button>
         <button type="button" onClick={onNext} disabled={pending} className={ghostButton}>דילוג</button>

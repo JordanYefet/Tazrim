@@ -1,25 +1,42 @@
 'use client'
 
 /**
- * Settings → Phones and tablets (ENG-122): the address a phone opens on the home Wi-Fi, with a
- * QR code; this computer's address, corrected through the helper; signing in from the phone;
- * and short guides (keep the address, find it, install as an app).
+ * Opening Tazrim from a phone (ENG-122): the address a phone opens on the home Wi-Fi and its QR
+ * code, as one block; a quiet line on passwords over http; the phone guides (keep the address,
+ * find it, install as an app).
  *
- * /settings/phones passes `initial` and `network` from the server. /setup (ENG-125) renders
- * <PhonesSettings inSetup /> alone: the data then loads from /api/install and
- * /api/install/network (both need a session, which /setup has by then).
+ * Settings → Phones and network (/settings/network) renders <PhoneSection> as its first section,
+ * with the page's one settings object. /setup (ENG-125) renders <PhonesSettings inSetup /> alone:
+ * the data then loads from /api/install and /api/install/network (both need a session, which
+ * /setup has by then), and it shows only the essentials: the block and the guide to keep the address.
  */
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { Laptop, Lock, MapPin, Search, Smartphone } from 'lucide-react'
+import { MapPin, Search, Smartphone } from 'lucide-react'
 import type { InstallView, NetworkInfo } from '@/lib/install/types'
 import { phoneAddress } from '@/lib/install/addresses'
 import { cn } from '@/lib/utils/cn'
-import { ContainerApplyStatus, ContainerSettingField, useContainerSettings } from '@/components/install/container-settings'
-import { Address, GuideList, InstallLoading, Note, QrImage, Steps, Ui, sectionClass, type GuideItem } from '@/components/install/guide'
+import { ContainerApplyStatus, ContainerSettingField, useContainerSettings, type ContainerSettings } from '@/components/install/container-settings'
+import {
+  AddressLine,
+  GuideList,
+  GuideWindow,
+  InstallLoading,
+  Note,
+  QrImage,
+  SectionHeading,
+  Steps,
+  Ui,
+  sectionClass,
+  useOpenGuide,
+  type GuideItem,
+} from '@/components/install/guide'
 import { useInstallData } from '@/components/install/use-install-data'
 
-const LINK = 'font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded'
+export const LINK =
+  'font-medium text-primary underline-offset-4 hover-fine:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded'
+
+/** The page these sections live on, and its anchors */
+export const NETWORK_PAGE = '/settings/network'
 
 export function PhonesSettings({ inSetup, initial, network }: { inSetup?: boolean; initial?: InstallView; network?: NetworkInfo }) {
   const data = useInstallData(initial, network)
@@ -27,11 +44,22 @@ export function PhonesSettings({ inSetup, initial, network }: { inSetup?: boolea
   return <Phones inSetup={!!inSetup} initial={data.view} network={data.network} />
 }
 
-/** ?guide=reserve (from the HTTPS page) opens that guide */
-function useGuideParam() {
-  const [id, setId] = useState<string | null>(null)
-  useEffect(() => setId(new URLSearchParams(window.location.search).get('guide')), [])
-  return id
+/** On its own (/setup, tests): the section, then its guides (in /setup only the one to keep the address) */
+function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: InstallView; network: NetworkInfo }) {
+  const settings = useContainerSettings(initial)
+  const guides = phoneGuides(settings.values.TAZRIM_LAN_IP)
+  const [open, setOpen] = useOpenGuide(guides)
+  return (
+    <div className="space-y-4">
+      <PhoneSection settings={settings} network={network} inSetup={inSetup} />
+      {inSetup ? (
+        <GuideList plain groups={[{ title: 'מדריך', guides: guides.filter(g => g.id === 'reserve') }]} onOpen={setOpen} />
+      ) : (
+        <GuideList title="מדריכים" groups={[{ title: 'הטלפון', guides }]} onOpen={setOpen} />
+      )}
+      <GuideWindow guides={guides} open={open} onClose={() => setOpen(null)} />
+    </div>
+  )
 }
 
 /** Mac and Windows: where this computer's address is */
@@ -48,14 +76,9 @@ function FindAddressSteps() {
   )
 }
 
-function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: InstallView; network: NetworkInfo }) {
-  const settings = useContainerSettings(initial)
-  const { values } = settings
-  const address = phoneAddress(values)
-  const guideParam = useGuideParam()
-  const ip = values.TAZRIM_LAN_IP
-
-  const guides: GuideItem[] = [
+/** The phone guides: keep the address, find it, install as an app */
+export function phoneGuides(ip: string): GuideItem[] {
+  return [
     {
       id: 'reserve',
       icon: MapPin,
@@ -83,7 +106,7 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
           </Steps>
           <Note>
             בדיקה: מפעילים מחדש את הנתב או את המחשב, ובודקים שלמחשב יש אותה כתובת (איך מוצאים אותה: במדריך &quot;איפה הכתובת של המחשב&quot;).
-            {ip ? ' אם היא השתנתה, מתקנים אותה כאן.' : ''}
+            {ip ? ' אם היא השתנתה, מתקנים אותה בהגדרות ← טלפונים ורשת ← מתקדם.' : ''}
           </Note>
         </>
       ),
@@ -97,7 +120,9 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
         <>
           <p className="text-pretty">הכתובת של המחשב ברשת הביתית נמצאת בהגדרות הרשת שלו:</p>
           <FindAddressSteps />
-          <Note>כתובת ברשת ביתית מתחילה בדרך כלל ב-<bdi dir="ltr">192.168</bdi>, ב-<bdi dir="ltr">10.</bdi> או ב-<bdi dir="ltr">172.</bdi>. מקלידים אותה בשדה &quot;הכתובת של המחשב&quot; ושומרים.</Note>
+          <Note>
+            כתובת ברשת ביתית מתחילה בדרך כלל ב-<bdi dir="ltr">192.168</bdi>, ב-<bdi dir="ltr">10.</bdi> או ב-<bdi dir="ltr">172.</bdi>. מקלידים אותה בשדה &quot;הכתובת של המחשב&quot; ושומרים.
+          </Note>
         </>
       ),
     },
@@ -117,111 +142,112 @@ function Phones({ inSetup, initial, network }: { inSetup: boolean; initial: Inst
             </li>
           </ul>
           <Note>
-            ב-Android, בכתובת <bdi dir="ltr">http</bdi> מתקבל רק קיצור דרך שנפתח בדפדפן. אפליקציה מלאה צריכה{' '}
-            <Link href="/settings/https" className={LINK}>
-              HTTPS
-            </Link>
-            . ב-iPhone ההוספה למסך הבית עובדת גם בכתובת <bdi dir="ltr">http</bdi>.
+            ב-Android, בכתובת <bdi dir="ltr">http</bdi> מתקבל רק קיצור דרך שנפתח בדפדפן. אפליקציה מלאה צריכה חיבור מוצפן (HTTPS). ב-iPhone ההוספה למסך הבית עובדת גם בכתובת <bdi dir="ltr">http</bdi>.
           </Note>
         </>
       ),
     },
   ]
+}
+
+/**
+ * The address and its QR code as one block: on one side the address with its copy button and a
+ * line on what to do, on the other the code, both centred; stacked on a narrow screen (where the
+ * code would be scanned by the very phone showing it, so it is left out). Then one quiet line on
+ * passwords over http, with the way to HTTPS.
+ */
+export function PhoneSection({ settings, network, inSetup = false }: { settings: ContainerSettings; network: NetworkInfo; inSetup?: boolean }) {
+  const { values } = settings
+  const address = phoneAddress(values)
 
   return (
-    <div className="space-y-4">
-      <section aria-labelledby="phones-address" className={cn('space-y-4', sectionClass(inSetup))}>
-        <h2 id="phones-address" className="text-base font-semibold">
-          הכתובת לטלפון
-        </h2>
-        <div className={cn('flex flex-col items-center gap-4', !inSetup && 'sm:flex-row sm:items-start')}>
-          <div className={cn('w-full min-w-0 flex-1 space-y-2', !inSetup && 'sm:min-h-[164px]')}>
-            {address ? (
-              <>
-                <Address url={address} className={inSetup ? 'text-lg' : 'text-xl sm:text-[28px]'} />
-                <p className="text-sm text-muted-foreground text-pretty">בטלפון או בטאבלט, באותה רשת Wi-Fi: פותחים את הכתובת בדפדפן, או סורקים את הקוד במצלמה.</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium">עוד לא ידוע מה הכתובת של המחשב ברשת הביתית.</p>
-                <p className="text-sm text-muted-foreground">מוצאים אותה בהגדרות הרשת של המחשב, ומקלידים אותה כאן למטה:</p>
-                <div className="text-sm">
-                  <FindAddressSteps />
-                </div>
-                {network.lanHints.length > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    כתובות שנמצאו במחשב הזה:{' '}
-                    {network.lanHints.map((h, i) => (
-                      <span key={h}>
-                        {i > 0 && ', '}
-                        <bdi dir="ltr" className="select-all font-mono text-foreground">
-                          {h}
-                        </bdi>
-                      </span>
-                    ))}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-          {/* The code's square stays whether or not there's an address */}
-          <span className="hidden sm:block" aria-hidden={!address || undefined}>
-            <QrImage url={address} size={148} label={`קוד QR לכתובת ${address ?? ''}`} />
-          </span>
+    <section id={inSetup ? undefined : 'phones'} aria-labelledby={inSetup ? undefined : 'phones-title'} aria-label={inSetup ? 'הכתובת לטלפון' : undefined} className={cn('scroll-mt-6 space-y-4', sectionClass(inSetup))}>
+      {!inSetup && <SectionHeading id="phones-title">פתיחה מהטלפון</SectionHeading>}
+      <div className="flex items-center gap-5">
+        <div className="min-w-0 flex-1 space-y-2">
+          {address ? (
+            <>
+              <AddressLine url={address} className={inSetup ? 'text-xl' : 'text-xl sm:text-2xl'} />
+              <p className="text-sm text-muted-foreground text-pretty">
+                <span className="hidden sm:inline">בטלפון או בטאבלט, באותה רשת Wi-Fi: סורקים את הקוד במצלמה, או מקלידים את הכתובת בדפדפן.</span>
+                <span className="sm:hidden">בטלפון או בטאבלט, באותה רשת Wi-Fi: פותחים את הכתובת בדפדפן.</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium">עוד לא ידוע מה הכתובת של המחשב ברשת הביתית.</p>
+              <div className="text-sm text-muted-foreground">
+                <FindAddressSteps />
+              </div>
+              {network.lanHints.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  כתובות שנמצאו במחשב הזה:{' '}
+                  {network.lanHints.map((h, i) => (
+                    <span key={h}>
+                      {i > 0 && ', '}
+                      <bdi dir="ltr" className="select-all font-mono text-foreground">
+                        {h}
+                      </bdi>
+                    </span>
+                  ))}
+                </p>
+              )}
+              {!inSetup && (
+                <p className="text-sm text-pretty">
+                  מקלידים אותה ב
+                  <Link href={`${NETWORK_PAGE}#advanced`} className={LINK}>
+                    מתקדם
+                  </Link>
+                  , למטה.
+                </p>
+              )}
+            </>
+          )}
         </div>
-        <ContainerSettingField
-          settings={settings}
-          name="TAZRIM_LAN_IP"
-          label="הכתובת של המחשב ברשת הביתית"
-          hint={address ? 'משתנה? שומרים לו כתובת קבועה בנתב (במדריך למטה), ומתקנים כאן.' : 'למשל 192.168.1.20'}
-          placeholder="192.168.1.20"
-          inputMode="decimal"
-        />
-        {settings.canApply && <ContainerApplyStatus settings={settings} />}
-      </section>
+        {/* The code's square stays whether or not there's an address */}
+        <span className="hidden sm:block" aria-hidden={!address || undefined}>
+          <QrImage url={address} size={inSetup ? 120 : 136} label={`קוד QR לכתובת ${address ?? ''}`} />
+        </span>
+      </div>
 
-      <section aria-labelledby="phones-signin" className={cn('space-y-2', sectionClass(inSetup))}>
-        <h2 id="phones-signin" className="flex items-center gap-2 text-base font-semibold">
-          <Lock className="h-4 w-4 text-muted-foreground" aria-hidden />
-          כניסה מהטלפון
-        </h2>
-        {network.requireHttps ? (
-          <p className="text-sm text-pretty">
-            כרגע סיסמאות עובדות רק ב-HTTPS או במחשב הזה (
-            <Link href="/settings/general" className={LINK}>
-              כללי
-            </Link>{' '}
-            ← מתקדם). בכתובת שלמעלה הטלפון לא יוכל להיכנס עד שמפעילים{' '}
-            <Link href="/settings/https" className={LINK}>
-              HTTPS
-            </Link>
-            .
-          </p>
-        ) : (
-          <p className="text-sm text-pretty">
-            נכנסים עם שם וסיסמה. הכתובת היא <bdi dir="ltr">http</bdi>, אז הסיסמה עוברת ב-Wi-Fi בלי הצפנה. ברשת ביתית עם סיסמה זה בדרך כלל בסדר.
-          </p>
-        )}
-        <p className="text-sm text-muted-foreground text-pretty">
-          כניסה עם מפתח (Face ID או טביעת אצבע) עובדת בטלפון רק בחיבור מוצפן:{' '}
-          <Link href="/settings/https" className={LINK}>
-            HTTPS ומפתחות בטלפון
-          </Link>
-          .
-        </p>
-      </section>
-
-      <GuideList title="מדריכים" guides={guides} openId={guideParam} plain={inSetup} />
-
-      {!inSetup && (
-        <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-          <Laptop className="h-3.5 w-3.5" aria-hidden />
-          במחשב הזה תזרים פתוח בכתובת{' '}
-          <bdi dir="ltr" className="font-mono">
-            http://localhost:{values.TAZRIM_PORT}
-          </bdi>
-        </p>
+      {inSetup && !values.TAZRIM_LAN_IP && (
+        <>
+          <ContainerSettingField
+            settings={settings}
+            name="TAZRIM_LAN_IP"
+            label="הכתובת של המחשב ברשת הביתית"
+            hint="למשל 192.168.1.20"
+            placeholder="192.168.1.20"
+            inputMode="decimal"
+          />
+          {settings.canApply && <ContainerApplyStatus settings={settings} only={['TAZRIM_LAN_IP']} />}
+        </>
       )}
-    </div>
+
+      <p className="border-t pt-3 text-[13px] text-muted-foreground text-pretty">
+        {network.requireHttps ? (
+          <>
+            כרגע סיסמאות עובדות רק ב-HTTPS או במחשב הזה (כללי ← מתקדם), אז בכתובת הזו הטלפון לא ייכנס עד שמפעילים{' '}
+            {inSetup ? 'חיבור מוצפן, בשלב הבא.' : <HttpsLink />}
+          </>
+        ) : (
+          <>
+            הכתובת היא <bdi dir="ltr">http</bdi>, אז הסיסמה עוברת ב-Wi-Fi בלי הצפנה. בבית זה בדרך כלל בסדר. לכניסה עם Face ID צריך{' '}
+            {inSetup ? 'חיבור מוצפן, בשלב הבא.' : <HttpsLink />}
+          </>
+        )}
+      </p>
+    </section>
+  )
+}
+
+function HttpsLink() {
+  return (
+    <>
+      <Link href={`${NETWORK_PAGE}#https`} className={LINK}>
+        חיבור מוצפן
+      </Link>
+      .
+    </>
   )
 }

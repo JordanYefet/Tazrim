@@ -6,6 +6,8 @@ vi.mock('next/link', () => ({ default: ({ href, children, ...p }: { href: string
 
 import { PhonesSettings } from '../phones-settings'
 import { HttpsSettings } from '../https-settings'
+import { NetworkSettings } from '../network-settings'
+import { networkHref } from '@/lib/settings/network-redirect'
 
 // Made-up values only.
 const view = (values: Partial<InstallView['values']> = {}, extra: Partial<InstallView> = {}): InstallView => ({
@@ -25,7 +27,7 @@ describe('PhonesSettings', () => {
     const html = text(renderToStaticMarkup(<PhonesSettings initial={view()} network={net()} />))
     expect(html).toContain('http://192.168.1.20:3006')
     expect(html).toContain('בלי הצפנה')
-    expect(html).toContain('href="/settings/https"')
+    expect(html).toContain('href="/settings/network#https"')
     for (const g of ['שהכתובת לא תשתנה', 'איפה הכתובת של המחשב', 'התקנה כאפליקציה בטלפון']) expect(html).toContain(g)
   })
 
@@ -46,12 +48,12 @@ describe('PhonesSettings', () => {
 })
 
 describe('HttpsSettings', () => {
-  it('off: the switch is off, files wait for it, the prerequisite links to the guide', () => {
+  it('off: the switch is off, files stay and wait for it, the prerequisite links to the guide', () => {
     const html = text(renderToStaticMarkup(<HttpsSettings initial={view()} network={net()} />))
     expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="https-switch-label"/)
-    expect(html).toContain('href="/settings/phones?guide=reserve"')
+    expect(html).toContain('href="/settings/network?guide=reserve"')
     expect(html).toContain('https://tazrim.internal')
-    expect(html.match(/זמין אחרי שמפעילים HTTPS/g)).toHaveLength(2)
+    expect(html.match(/קודם מפעילים HTTPS/g)).toHaveLength(2)
   })
 
   it('on with the certificate: both download links', () => {
@@ -68,13 +70,64 @@ describe('HttpsSettings', () => {
     expect(html).toContain('עוד לא ידוע מה הכתובת של המחשב')
   })
 
-  it('without the helper: the .env lines to change by hand', () => {
+  it('without the helper: one set of manual steps for both switches', () => {
     const html = renderToStaticMarkup(<HttpsSettings initial={view({}, { helper: 'none' })} network={net()} />)
+    expect(html.match(/הצגת שלבים ידניים/g)).toHaveLength(1)
+    expect(html).toContain('COMPOSE_PROFILES=updater,https,dns')
+    expect(html).toContain('TAZRIM_DNS_BIND=0.0.0.0')
+  })
+})
+
+describe('NetworkSettings', () => {
+  it('one page in the order people need it: phones, HTTPS, the guides, then advanced', () => {
+    const html = text(renderToStaticMarkup(<NetworkSettings initial={view()} network={net()} />))
+    const at = (s: string) => html.indexOf(s)
+    for (const id of ['id="phones"', 'id="https"', 'id="guides"', 'id="advanced"']) expect(at(id)).toBeGreaterThan(-1)
+    expect(at('id="phones"')).toBeLessThan(at('id="https"'))
+    expect(at('id="https"')).toBeLessThan(at('id="guides"'))
+    expect(at('id="guides"')).toBeLessThan(at('id="advanced"'))
+  })
+
+  it('every guide once, in two groups', () => {
+    const html = text(renderToStaticMarkup(<NetworkSettings initial={view()} network={net()} />))
+    for (const g of ['שהכתובת לא תשתנה', 'איפה הכתובת של המחשב', 'התקנה כאפליקציה בטלפון', 'iPhone ו-iPad', 'האישור ב-Android', 'השמות ב-Android', 'מחשבים אחרים']) {
+      expect(html).toContain(g)
+    }
+    const raw = renderToStaticMarkup(<NetworkSettings initial={view()} network={net()} />)
+    expect(raw.match(/font-medium">שהכתובת לא תשתנה</g)).toHaveLength(1)
+    expect(raw).toContain('>הטלפון</h3>')
+    expect(raw).toContain('>HTTPS</h3>')
+  })
+
+  it('without the helper: one manual disclosure per section with controls', () => {
+    const html = renderToStaticMarkup(<NetworkSettings initial={view({}, { helper: 'none' })} network={net()} />)
+    // HTTPS (both switches) and advanced (the address and both ports)
     expect(html.match(/הצגת שלבים ידניים/g)).toHaveLength(2)
+    expect(html).toContain('TAZRIM_LAN_IP=192.168.1.20\nTAZRIM_PORT=3005\nTAZRIM_PHONE_PORT=3006')
+  })
+
+  it('the old addresses open their section, keeping ?guide=', () => {
+    expect(networkHref('phones', {})).toBe('/settings/network#phones')
+    expect(networkHref('phones', { guide: 'reserve' })).toBe('/settings/network?guide=reserve#phones')
+    expect(networkHref('https', {})).toBe('/settings/network#https')
+    expect(networkHref('advanced', { guide: '"><x' })).toBe('/settings/network#advanced')
   })
 })
 
 describe('inside /setup', () => {
+  it('only the essentials: no full guide list, no Android names switch', () => {
+    const phones = text(renderToStaticMarkup(<PhonesSettings inSetup initial={view()} network={net()} />))
+    expect(phones).toContain('שהכתובת לא תשתנה')
+    expect(phones).not.toContain('איפה הכתובת של המחשב')
+    const https = text(renderToStaticMarkup(<HttpsSettings inSetup initial={view()} network={net()} />))
+    expect(https).not.toContain('שמות גם ל-Android')
+    expect(https).not.toContain('מחשבים אחרים')
+  })
+
+  it('no address yet: the field to type it is right there', () => {
+    expect(renderToStaticMarkup(<PhonesSettings inSetup initial={view({ TAZRIM_LAN_IP: '' })} network={net()} />)).toContain('container-setting-TAZRIM_LAN_IP')
+  })
+
   it('no card inside the setup card: sections split by hairlines', () => {
     for (const html of [
       renderToStaticMarkup(<PhonesSettings inSetup initial={view()} network={net()} />),

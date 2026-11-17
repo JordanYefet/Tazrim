@@ -16,18 +16,17 @@ const view = (extra: Partial<InstallView> = {}): InstallView => ({
 })
 
 describe('InstallSettings', () => {
-  it('shows both addresses and save buttons with the helper', () => {
+  it('shows this computer’s address and a save button per field with the helper', () => {
     const html = renderToStaticMarkup(<InstallSettings initial={view()} />)
-    expect(html).toContain('http://localhost:3005')
-    expect(html.replace(/<!-- -->/g, '')).toContain('http://192.168.1.20:3006')
-    expect(html.match(/>שמירה</g)).toHaveLength(2)
+    expect(html.replace(/<!-- -->/g, '')).toContain('http://localhost:3005')
+    expect(html.match(/>שמירה</g)).toHaveLength(3)
     expect(html).not.toContain('הצגת שלבים ידניים')
   })
 
-  it('without the helper: no save buttons, manual steps per field, and why', () => {
+  it('without the helper: no save buttons, one set of manual steps, and why', () => {
     const html = renderToStaticMarkup(<InstallSettings initial={view({ helper: 'none', installDir: null })} />)
     expect(html).not.toContain('>שמירה<')
-    expect(html.match(/הצגת שלבים ידניים/g)).toHaveLength(2)
+    expect(html.match(/הצגת שלבים ידניים/g)).toHaveLength(1)
     expect(html).toContain('רכיב העדכון לא פועל')
   })
 
@@ -37,9 +36,9 @@ describe('InstallSettings', () => {
 })
 
 describe('ManualEnvSteps', () => {
-  it('starts closed', () => {
+  it('starts closed, its content out of reach', () => {
     const html = renderToStaticMarkup(<ManualEnvSteps lines={['TAZRIM_PORT=3005']} />)
     expect(html).toContain('aria-expanded="false"')
-    expect(html).not.toContain('TAZRIM_PORT=3005')
+    expect(html).toMatch(/<div inert="" aria-hidden="true">.*TAZRIM_PORT=3005/)
   })
 })

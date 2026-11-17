@@ -1848,6 +1848,34 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
   .auth-gradient, .auth-swap { animation: none; }
 }
 
+/* The setup counter (components/auth/setup-wizard.tsx): each step a dot; the current one a short
+   pill, made of two caps that part and a middle that scales, so only transforms move */
+.step-dot > span { transition: transform 220ms var(--ease-ui), background-color 150ms var(--ease-ui); }
+@media (prefers-reduced-motion: reduce) {
+  .step-dot > span { transition: background-color 150ms var(--ease-ui); }
+}
+
+/* Settings → phones and network, and the setup steps that show it (components/install/guide.tsx) */
+/* A QR code or a file card arriving: from a hair smaller, never from nothing */
+.pop-in { animation: pop-in var(--motion-fast) var(--ease-ui) backwards; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.97); } }
+/* A disclosure opening: its height through the grid row, with opacity */
+.disclosure { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 220ms var(--ease-ui), opacity 220ms var(--ease-ui); }
+.disclosure[data-open] { grid-template-rows: 1fr; opacity: 1; }
+.disclosure > * { min-height: 0; overflow: hidden; }
+.disclosure-chevron { transition: transform 220ms var(--ease-ui); }
+[aria-expanded='true'] > .disclosure-chevron { transform: rotate(180deg); }
+/* The copy button: copy and check cross-fade through a short blur */
+.copy-icon { transition: opacity 150ms var(--ease-ui), filter 150ms var(--ease-ui), transform 150ms var(--ease-ui); }
+.copy-icon[data-hidden] { opacity: 0; filter: blur(2px); transform: scale(0.8); }
+@media (prefers-reduced-motion: reduce) {
+  .pop-in { animation-name: fade-in; }
+  .disclosure { transition: opacity 220ms var(--ease-ui); }
+  .disclosure-chevron { transition: none; }
+  .copy-icon { transition: opacity 150ms var(--ease-ui); }
+  .copy-icon[data-hidden] { filter: none; transform: none; }
+}
+
 /* The update page (components/updates/updating-screen.tsx, ENG-98): the sign-in drift, whose
    colour follows the update. Three stacked layers cross-fade (opacity only): working is the
    sign-in gradient, done a calm teal-green, failed a soft red that stops drifting. */

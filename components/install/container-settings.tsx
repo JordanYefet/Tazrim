@@ -2,7 +2,7 @@
 
 /**
  * Container-level settings from the app (ENG-121): the hook and the controls every page with
- * such a setting uses (/settings/install, /settings/phones, /settings/https).
+ * such a setting uses (/settings/network, and the setup steps that show part of it).
  *
  *   const settings = useContainerSettings(initialView)   // initialView from getInstallView()
  *   <ContainerSettingField settings={settings} name="TAZRIM_PORT" label="…" />
@@ -11,7 +11,8 @@
  *
  * With the helper, a change is saved to .env and applied (Tazrim restarts, and when the port the
  * browser is on changes, the browser moves to the new address). Without it, each control shows
- * the .env line and the command, behind "הצגת שלבים ידניים".
+ * the .env line and the command, behind "הצגת שלבים ידניים" (one per section where a section has
+ * several controls: `manual={false}` on each, and one <ManualEnvSteps> with all their lines).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
@@ -19,7 +20,7 @@ import { cn } from '@/lib/utils/cn'
 import { parseProfiles, validateChanges } from '@/updater/env-file.mjs'
 import { INSTALL_MESSAGES, INVALID_VALUE_BY_KEY } from '@/lib/install/messages'
 import type { ConfigChanges, ConfigKey, ConfigValues, InstallView, Profile } from '@/lib/install/types'
-import { TEXT_BUTTON } from '@/components/updates/manual-commands'
+import { CopyLine, Disclosure } from '@/components/install/guide'
 
 /** The command that applies .env by hand, in the Tazrim folder */
 export const MANUAL_APPLY_COMMAND = 'docker compose up -d'
@@ -215,11 +216,16 @@ const STATUS: Partial<Record<ApplyPhase, string>> = {
   done: 'השינוי נשמר והופעל',
 }
 
-/** One line under the controls: what the change is doing, or why it failed. Its height is kept. */
-export function ContainerApplyStatus({ settings, className }: { settings: ContainerSettings; className?: string }) {
-  const { phase, message, busy, errorKey } = settings
+/**
+ * One line under the controls: what the change is doing, or why it failed. Its height is kept.
+ * `only`: on a page with several sections, the line under a section speaks only of its own keys.
+ */
+export function ContainerApplyStatus({ settings, className, only }: { settings: ContainerSettings; className?: string; only?: ConfigKey[] }) {
+  const { phase, message, errorKey } = settings
+  const mine = !only || settings.changingKeys.some(k => only.includes(k))
+  const busy = settings.busy && mine
   // A refusal about one field shows under that field instead
-  const text = phase === 'failed' ? (errorKey ? '' : message) : (STATUS[phase] ?? '')
+  const text = !mine ? '' : phase === 'failed' ? (errorKey ? '' : message) : (STATUS[phase] ?? '')
   return (
     <p aria-live="polite" className={cn('flex min-h-5 items-center gap-1.5 text-xs', phase === 'failed' ? 'text-destructive' : 'text-muted-foreground', className)}>
       {busy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />}
@@ -228,63 +234,32 @@ export function ContainerApplyStatus({ settings, className }: { settings: Contai
   )
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // No clipboard (plain http): the text is selectable
-    }
-  }
-  return (
-    <button type="button" onClick={copy} className={TEXT_BUTTON}>
-      {copied ? 'הועתק' : 'העתקה'}
-    </button>
-  )
-}
-
 /** The manual way: the .env lines, then the command, in the Tazrim folder. Behind "הצגת שלבים ידניים". */
-export function ManualEnvSteps({ lines, installDir }: { lines: string[]; installDir?: string | null }) {
-  const [open, setOpen] = useState(false)
-  const envText = lines.join('\n')
+export function ManualEnvSteps({ lines, installDir, className }: { lines: string[]; installDir?: string | null; className?: string }) {
   return (
-    <div>
-      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} className={`${TEXT_BUTTON} -ms-3`}>
-        הצגת שלבים ידניים
-      </button>
-      {open && (
-        <div className="mt-1 space-y-2 rounded-xl bg-muted p-3">
-          <p className="text-sm text-muted-foreground">
-            בקובץ <bdi dir="ltr">.env</bdi> שבתיקייה של תזרים
-            {installDir ? (
-              <>
-                {' '}(<bdi dir="ltr" className="font-mono">{installDir}</bdi>)
-              </>
-            ) : null}
-            , משנים או מוסיפים:
-          </p>
-          <p dir="ltr" className="select-all whitespace-pre-wrap break-words font-mono text-sm">
-            {envText}
-          </p>
-          <CopyButton text={envText} />
-          <p className="text-sm text-muted-foreground">ואז, באותה תיקייה:</p>
-          <p dir="ltr" className="select-all break-words font-mono text-sm">
-            {MANUAL_APPLY_COMMAND}
-          </p>
-          <CopyButton text={MANUAL_APPLY_COMMAND} />
-        </div>
-      )}
-    </div>
+    <Disclosure label="הצגת שלבים ידניים" className={className}>
+      <div className="mt-1 space-y-2 rounded-xl bg-muted/60 p-3">
+        <p className="text-sm text-muted-foreground">
+          בקובץ <bdi dir="ltr">.env</bdi> שבתיקייה של תזרים
+          {installDir ? (
+            <>
+              {' '}(<bdi dir="ltr" className="font-mono">{installDir}</bdi>)
+            </>
+          ) : null}
+          , משנים או מוסיפים:
+        </p>
+        <CopyLine text={lines.join('\n')} className="bg-background" />
+        <p className="text-sm text-muted-foreground">ואז, באותה תיקייה:</p>
+        <CopyLine text={MANUAL_APPLY_COMMAND} className="bg-background" />
+      </div>
+    </Disclosure>
   )
 }
 
 const INPUT =
   'h-10 w-full rounded-lg border bg-background px-3 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60'
 const SAVE =
-  'relative inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick ease-ui hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50'
+  'relative inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-[120ms] ease-out hover-fine:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50'
 
 /**
  * A text setting (port, address, host name): the field and a save button; without the helper,
@@ -297,6 +272,8 @@ export function ContainerSettingField({
   hint,
   placeholder,
   inputMode = 'text',
+  manual = true,
+  onDraftChange,
 }: {
   settings: ContainerSettings
   name: Exclude<ConfigKey, 'COMPOSE_PROFILES'>
@@ -304,9 +281,17 @@ export function ContainerSettingField({
   hint?: React.ReactNode
   placeholder?: string
   inputMode?: 'numeric' | 'decimal' | 'text' | 'url'
+  /** Its own manual steps without the helper; false where the section shows one set for all */
+  manual?: boolean
+  /** The value being typed, for a section's one set of manual steps */
+  onDraftChange?: (draft: string) => void
 }) {
   const value = settings.values[name]
-  const [draft, setDraft] = useState(value)
+  const [draft, setDraftState] = useState(value)
+  const setDraft = (v: string) => {
+    setDraftState(v)
+    onDraftChange?.(v.trim())
+  }
   const dirty = draft.trim() !== value
   // A saved (or restored) value replaces an untouched field
   const last = useRef(value)
@@ -358,7 +343,7 @@ export function ContainerSettingField({
       <p id={`${id}-note`} className={cn('min-h-5 text-xs', mine ? 'text-destructive' : 'text-muted-foreground')}>
         {mine ? settings.message : hint}
       </p>
-      {!settings.canApply && <ManualEnvSteps lines={[`${name}=${draft.trim()}`]} installDir={settings.view.installDir} />}
+      {manual && !settings.canApply && <ManualEnvSteps lines={[`${name}=${draft.trim()}`]} installDir={settings.view.installDir} />}
     </form>
   )
 }
@@ -391,13 +376,13 @@ export function SwitchButton({
       <span
         aria-hidden
         className={cn(
-          'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-fast ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
+          'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-150 ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
           on ? 'bg-primary' : 'bg-muted-foreground/30'
         )}
       >
         <span
           className={cn(
-            'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
+            'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-ui motion-reduce:transition-none',
             // RTL: "on" moves the knob toward the end (left)
             on && '-translate-x-4'
           )}

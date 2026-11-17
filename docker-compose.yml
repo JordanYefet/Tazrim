@@ -111,7 +111,7 @@ services:
   # Off unless .env turns them on:
   #   COMPOSE_PROFILES=https        Caddy: https://tazrim.internal, certificates from its own CA
   #   COMPOSE_PROFILES=https,dns    + AdGuard Home: answers *.internal for your own devices only
-  # Or from the app: Settings -> "HTTPS ומפתחות בטלפון" (with the updater helper on).
+  # Or from the app: Settings -> "טלפונים ורשת" -> HTTPS (with the updater helper on).
   # Already running a reverse proxy or local DNS? Leave these off and use yours.
   # ---------------------------------------------------------------------------
 

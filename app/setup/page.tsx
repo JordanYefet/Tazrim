@@ -67,7 +67,7 @@ async function summaryRows(personId: string, timeZone: string, autoCheck: boolea
     { label: 'Face ID / Touch ID', value: passkeys > 0 ? 'נוסף' : 'לא נוסף', where: 'הגדרות ← אנשים ומכשירים' },
     { label: 'אזור זמן', value: timeZoneLabel(timeZone).replace(/ \(.*\)$/, ''), where: 'הגדרות ← כללי' },
     { label: 'בדיקת עדכונים יומית', value: autoCheck ? 'פועלת' : 'כבויה', where: 'הגדרות ← עדכונים' },
-    { label: 'טלפונים וטאבלטים', value: lanIp || 'לא הוגדר', where: 'הגדרות ← טלפונים וטאבלטים' },
-    { label: 'HTTPS ומפתחות בטלפון', value: https ? 'פועל' : 'כבוי', where: 'הגדרות ← HTTPS ומפתחות בטלפון' },
+    { label: 'טלפונים וטאבלטים', value: lanIp || 'לא הוגדר', where: 'הגדרות ← טלפונים ורשת' },
+    { label: 'HTTPS ומפתחות בטלפון', value: https ? 'פועל' : 'כבוי', where: 'הגדרות ← טלפונים ורשת' },
   ]
 }

@@ -1,7 +1,10 @@
 'use client'
 
-import type { InstallView } from '@/lib/install/types'
-import { ContainerApplyStatus, ContainerSettingField, useContainerSettings } from './container-settings'
+import { useState } from 'react'
+import type { ConfigKey, InstallView } from '@/lib/install/types'
+import { cn } from '@/lib/utils/cn'
+import { ContainerApplyStatus, ContainerSettingField, ManualEnvSteps, useContainerSettings, type ContainerSettings } from './container-settings'
+import { SectionHeading, sectionClass } from './guide'
 
 /** Why the app can't change these itself (the controls then show manual steps) */
 const WHY_MANUAL: Record<Exclude<InstallView['helper'], 'ready'>, string> = {
@@ -10,57 +13,57 @@ const WHY_MANUAL: Record<Exclude<InstallView['helper'], 'ready'>, string> = {
   unavailable: 'רכיב העדכון לא מחובר לתיקייה של תזרים, אז משנים את ההגדרות האלה ידנית.',
 }
 
-/**
- * Settings → Installation (ENG-121): this computer's address and the phones' port, and changing
- * both. Rendered by /settings/install; /setup can render it as a step too.
- */
+const KEYS = ['TAZRIM_LAN_IP', 'TAZRIM_PORT', 'TAZRIM_PHONE_PORT'] as const satisfies readonly ConfigKey[]
+
+/** On its own (tests, or a page of its own): the advanced section with its own settings */
 export function InstallSettings({ initial }: { initial: InstallView }) {
   const settings = useContainerSettings(initial)
+  return <AdvancedSection settings={settings} />
+}
+
+/**
+ * Settings → Phones and network → "מתקדם" (ENG-121/122): this computer's address on the home
+ * network and the two ports, each saved through the helper. Without it, one "הצגת שלבים ידניים"
+ * for the three, with the values as typed.
+ */
+export function AdvancedSection({ settings }: { settings: ContainerSettings }) {
   const { values, view } = settings
-  const computer = `http://localhost:${values.TAZRIM_PORT}`
+  const [drafts, setDrafts] = useState<Record<(typeof KEYS)[number], string>>({
+    TAZRIM_LAN_IP: values.TAZRIM_LAN_IP,
+    TAZRIM_PORT: values.TAZRIM_PORT,
+    TAZRIM_PHONE_PORT: values.TAZRIM_PHONE_PORT,
+  })
+  const draft = (key: (typeof KEYS)[number]) => (value: string) => setDrafts(d => ({ ...d, [key]: value }))
 
   return (
-    <div className="space-y-4">
-      <section aria-labelledby="install-addresses" className="space-y-3 rounded-xl surface p-5">
-        <h2 id="install-addresses" className="text-base font-semibold">
-          כתובות
-        </h2>
-        <dl className="space-y-2 text-sm">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-            <dt className="text-muted-foreground">במחשב הזה</dt>
-            <dd dir="ltr" className="font-mono tabular-nums">
-              {computer}
-            </dd>
-          </div>
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-            <dt className="text-muted-foreground">בטלפונים ובטאבלטים</dt>
-            {values.TAZRIM_LAN_IP ? (
-              <dd dir="ltr" className="font-mono tabular-nums">
-                http://{values.TAZRIM_LAN_IP}:{values.TAZRIM_PHONE_PORT}
-              </dd>
-            ) : (
-              <dd>
-                הכתובת של המחשב, פורט{' '}
-                <bdi dir="ltr" className="font-mono tabular-nums">
-                  {values.TAZRIM_PHONE_PORT}
-                </bdi>
-              </dd>
-            )}
-          </div>
-        </dl>
-      </section>
-
-      <section aria-labelledby="install-ports" className="space-y-4 rounded-xl surface p-5">
-        <div className="space-y-1">
-          <h2 id="install-ports" className="text-base font-semibold">
-            פורטים
-          </h2>
-          <p className="text-sm text-muted-foreground text-pretty">
-            {settings.canApply
-              ? 'אחרי שמירה תזרים מופעל מחדש על הפורט החדש, והדף עובר אליו לבד.'
-              : WHY_MANUAL[view.helper as Exclude<InstallView['helper'], 'ready'>]}
-          </p>
-        </div>
+    <section id="advanced" aria-labelledby="advanced-title" className={cn('scroll-mt-6 space-y-4', sectionClass(false))}>
+      <SectionHeading
+        id="advanced-title"
+        line={
+          settings.canApply
+            ? 'הכתובת של המחשב והפורטים. אחרי שמירה תזרים מופעל מחדש, והדף עובר לכתובת החדשה לבד.'
+            : WHY_MANUAL[view.helper as Exclude<InstallView['helper'], 'ready'>]
+        }
+      >
+        מתקדם
+      </SectionHeading>
+      <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm">
+        <span className="text-muted-foreground">במחשב הזה תזרים פתוח בכתובת</span>
+        <bdi dir="ltr" className="font-mono tabular-nums">
+          http://localhost:{values.TAZRIM_PORT}
+        </bdi>
+      </p>
+      <ContainerSettingField
+        settings={settings}
+        name="TAZRIM_LAN_IP"
+        label="הכתובת של המחשב ברשת הביתית"
+        hint={values.TAZRIM_LAN_IP ? 'משתנה? שומרים לו כתובת קבועה בנתב (במדריך "שהכתובת לא תשתנה"), ומתקנים כאן.' : 'למשל 192.168.1.20'}
+        placeholder="192.168.1.20"
+        inputMode="decimal"
+        manual={false}
+        onDraftChange={draft('TAZRIM_LAN_IP')}
+      />
+      <div className="grid gap-x-4 sm:grid-cols-2">
         <ContainerSettingField
           settings={settings}
           name="TAZRIM_PORT"
@@ -68,6 +71,8 @@ export function InstallSettings({ initial }: { initial: InstallView }) {
           hint="נפתח רק מהמחשב שתזרים רץ עליו."
           inputMode="numeric"
           placeholder="3000"
+          manual={false}
+          onDraftChange={draft('TAZRIM_PORT')}
         />
         <ContainerSettingField
           settings={settings}
@@ -76,9 +81,15 @@ export function InstallSettings({ initial }: { initial: InstallView }) {
           hint="נפתח מכל מכשיר ברשת הביתית."
           inputMode="numeric"
           placeholder="3001"
+          manual={false}
+          onDraftChange={draft('TAZRIM_PHONE_PORT')}
         />
-        {settings.canApply && <ContainerApplyStatus settings={settings} />}
-      </section>
-    </div>
+      </div>
+      {settings.canApply ? (
+        <ContainerApplyStatus settings={settings} only={[...KEYS]} />
+      ) : (
+        <ManualEnvSteps lines={KEYS.map(k => `${k}=${drafts[k]}`)} installDir={view.installDir} />
+      )}
+    </section>
   )
 }
