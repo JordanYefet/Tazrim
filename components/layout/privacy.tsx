@@ -8,8 +8,8 @@ import { inputClass } from '@/components/accounts/add-account-form'
 import { answerChallenge } from '@/components/auth/passkey-client'
 import { formatPrivacyCookie, isPrivacyShortcut } from '@/lib/privacy'
 
-// The marker's draw or wipe (globals.css, --motion-base), and a little room for it to settle
-const SWITCH_MS = 420
+// The marker's draw or wipe (globals.css, --privacy-wipe), and a little room for it to settle
+const SWITCH_MS = 540
 
 type Privacy = { on: boolean; toggle: () => void }
 const PrivacyContext = createContext<Privacy>({ on: false, toggle: () => {} })
