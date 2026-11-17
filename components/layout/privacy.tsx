@@ -8,7 +8,7 @@ import { inputClass } from '@/components/accounts/add-account-form'
 import { answerChallenge } from '@/components/auth/passkey-client'
 import { formatPrivacyCookie, isPrivacyShortcut } from '@/lib/privacy'
 
-// The marker's draw or wipe (globals.css, --privacy-wipe), and a little room for it to settle
+// The bars' fade (globals.css, --privacy-wipe), and a little room for it to settle
 const SWITCH_MS = 540
 
 type Privacy = { on: boolean; toggle: () => void }
@@ -42,7 +42,7 @@ export function PrivacyProvider({
   /** After the server agreed (and checked the proof): the page follows; animate for a tap, not the shortcut */
   const set = useCallback(async (next: boolean, animate: boolean, proof: object = {}) => {
     await save(next, proof)
-    // Showing: the bars wipe off first, then the charts' axes change with the state
+    // Showing: the bars fade out first, then the charts' axes change with the state
     await paint(next, animate)
     setOn(next)
   }, [])
@@ -57,7 +57,7 @@ export function PrivacyProvider({
       } else if (confirmIdentity) {
         setUnlocking(true)
       } else {
-        // Nothing to confirm (the login off): the bars wipe off while the cookie is saved
+        // Nothing to confirm (the login off): the bars fade out while the cookie is saved
         void Promise.all([paint(false, animate), save(false)])
           .then(() => setOn(false))
           .catch(() => {})
@@ -239,8 +239,8 @@ async function save(on: boolean, proof: object = {}): Promise<void> {
 }
 
 /**
- * Shows or hides the amounts on the page. Animated (a tap, motion allowed): hiding draws the bars
- * at once; showing keeps the mode on while the bars wipe off, and resolves when they are gone.
+ * Shows or hides the amounts on the page. Animated (a tap, motion allowed): hiding fades the bars
+ * in at once; showing keeps the mode on while the bars fade out, and resolves when they are gone.
  */
 function paint(on: boolean, animate: boolean): Promise<void> {
   const html = document.documentElement

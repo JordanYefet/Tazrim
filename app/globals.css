@@ -246,13 +246,13 @@
    0.72em on the baseline), so nothing moves and income still reads green. The digits are made
    transparent, not removed. While on, the amount is an inline-block, so its box is one line tall
    and the bar can be placed from the line's height (1lh): the font's content area (1.05em above
-   the baseline, 0.42em below) sits centred in it. A tap draws the bars like a marker
+   the baseline, 0.42em below) sits centred in it. A tap fades the bars in or out
    (data-privacy-switch, components/layout/privacy.tsx); a load, the shortcut and reduced motion
    switch at once.
    Chart axes draw their own bars (hooks/use-chart-axes.ts). */
 :root {
-  /* The marker's draw and wipe: slow enough to be seen, gentle at both ends (a fast ease-out
-     made the wipe-off read as the bars just vanishing). components/layout/privacy.tsx waits for it */
+  /* The bars' fade in and out: slow enough to be seen, gentle at both ends.
+     components/layout/privacy.tsx waits for it */
   --privacy-wipe: 480ms;
   --privacy-ease: cubic-bezier(0.65, 0, 0.35, 1);
   --money-ascent: 1.05em;
@@ -287,44 +287,38 @@ html[data-privacy='on'] input[data-money]:not(:focus) {
   background-color: color-mix(in srgb, currentColor 14%, transparent);
 }
 html[data-privacy='on'] input[data-money]:focus { -webkit-text-fill-color: currentColor; }
-/* The switch, like a marker: hiding draws each bar across its number in reading order (right
-   to left) while the digits fade under it; showing plays the same motion backwards, the bar
-   drawing back to the right as the digits return (owner, 2026-11-17). While "out" runs the mode
-   is still on, so the bars are there to draw back. */
+/* The switch is a fade, nothing slides: hiding fades each bar in over its number while the digits
+   fade out under it; showing is the same fade backwards, the bar fading out as the digits return
+   (owner, 2026-11-17). While "out" runs the mode is still on, so the bars are there to fade out. */
 html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after {
-  transform-origin: right;
-  transition: transform var(--privacy-wipe) var(--privacy-ease);
+  transition: opacity var(--privacy-wipe) var(--privacy-ease);
 }
 @starting-style {
-  html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after { transform: scaleX(0); }
+  html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after { opacity: 0; }
 }
 html[data-privacy-switch='out'] [data-money]:not(:empty):not(input)::after {
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform var(--privacy-wipe) var(--privacy-ease);
+  opacity: 0;
+  transition: opacity var(--privacy-wipe) var(--privacy-ease);
 }
-/* Chart axes' bars (hooks/use-chart-axes.ts) draw and wipe the same way */
-.privacy-tick { transform-box: fill-box; }
+/* Chart axes' bars (hooks/use-chart-axes.ts) fade the same way */
 html[data-privacy-switch='in'] .privacy-tick {
-  transform-origin: right;
   animation: privacy-tick-in var(--privacy-wipe) var(--privacy-ease) backwards;
 }
-@keyframes privacy-tick-in { from { transform: scaleX(0); } }
+@keyframes privacy-tick-in { from { opacity: 0; } }
 html[data-privacy-switch='out'] .privacy-tick {
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform var(--privacy-wipe) var(--privacy-ease);
+  opacity: 0;
+  transition: opacity var(--privacy-wipe) var(--privacy-ease);
 }
-/* The digits fade under the arriving marker in its first 60%, and come back in the last 60% of
-   the wipe-off: the same motion played backwards */
+/* The digits fade out as the bar fades in, and back in as it fades out: the same length and curve */
 html[data-privacy-switch='in'] [data-money],
-html[data-privacy-switch='in'] [data-money] * {
-  transition: -webkit-text-fill-color calc(var(--privacy-wipe) * 0.6) var(--privacy-ease);
+html[data-privacy-switch='in'] [data-money] *,
+html[data-privacy-switch='out'] [data-money],
+html[data-privacy-switch='out'] [data-money] * {
+  transition: -webkit-text-fill-color var(--privacy-wipe) var(--privacy-ease);
 }
 html[data-privacy-switch='out'] [data-money],
 html[data-privacy-switch='out'] [data-money] * {
   -webkit-text-fill-color: currentColor;
-  transition: -webkit-text-fill-color calc(var(--privacy-wipe) * 0.6) var(--privacy-ease) calc(var(--privacy-wipe) * 0.4);
 }
 
 /* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
