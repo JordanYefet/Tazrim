@@ -55,7 +55,7 @@ export function CardPayerChip({
         <span aria-hidden>· </span>
         <span dir="ltr" className="tabular-nums">{date}</span>
         <span aria-hidden> · </span>
-        <span className="tabular-nums">{amount}</span>
+        <span data-money className="tabular-nums">{amount}</span>
       </span>
       <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
     </Link>

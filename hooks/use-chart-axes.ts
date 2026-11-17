@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useState, type ReactElement } from 'react'
+import { usePrivacy } from '@/components/layout/privacy'
 import { monthName, monthNameShort } from '@/lib/utils/date'
 import { showMonthLabel } from '@/lib/insights/chart-months'
 
@@ -27,12 +28,36 @@ export function formatAxisCurrency(value: number, compact = false): string {
   return `${value < 0 ? '-' : ''}${compact ? '' : '₪'}${body}`
 }
 
+interface TickProps {
+  x: number
+  y: number
+  payload: { value: number }
+  textAnchor?: string
+}
+
+/**
+ * Privacy mode (ENG-127): an amount tick as a soft bar the width its label would have, like
+ * the bars that hide amounts in the page (globals.css). SVG text can't take a background.
+ */
+function privacyTick(fontSize: number, fill: string, compact: boolean) {
+  function PrivacyTick({ x, y, payload, textAnchor }: TickProps): ReactElement<SVGElement> {
+    // As tall as the digits (Heebo's figures: 0.72em, globals.css) and about as wide as the label;
+    // a tick's label is centred on y
+    const width = formatAxisCurrency(payload.value, compact).length * fontSize * 0.56
+    const height = fontSize * 0.72
+    const left = textAnchor === 'end' ? x - width : textAnchor === 'middle' ? x - width / 2 : x
+    return createElement('rect', { x: left, y: y - height / 2, width, height, rx: fontSize * 0.12, fill, fillOpacity: 0.24, className: 'privacy-tick' }) as unknown as ReactElement<SVGElement> // recharts types a tick's result as ReactElement<SVGElement>
+  }
+  return PrivacyTick
+}
+
 /**
  * Shared spacing for every Recharts cartesian chart, so axes keep a gap from
  * the plot and stay readable on phones. Spread `xAxis` / `yAxis` onto the axes.
  */
 export function useChartAxes(textColor: string) {
   const small = useIsSmallScreen()
+  const { on: hidden } = usePrivacy()
   // No fontFamily: tick text inherits the page's self-hosted Heebo (font-sans)
   const tick = { fontSize: small ? 10 : 11, fill: textColor }
 
@@ -53,6 +78,8 @@ export function useChartAxes(textColor: string) {
       axisLine: false,
       tickLine: false,
       tickFormatter: (v: number) => formatAxisCurrency(v, small),
+      // Amounts: bars in privacy mode (ENG-127)
+      ...(hidden ? { tick: privacyTick(tick.fontSize, textColor, small) } : {}),
     },
     /**
      * X-axis props for a January-December chart (ENG-70): short names, and on

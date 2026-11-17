@@ -16,6 +16,7 @@ import {
   toName,
   type PayerEvidence,
 } from '@/lib/accounts/payer-suggestion'
+import { MoneyText } from '@/components/ui/money-text'
 
 /** A bank account a card can be paid from */
 export interface PayerBank {
@@ -160,7 +161,7 @@ export function PayerTiles({
         </button>
       </div>
       <Reveal open={!!suggestion}>
-        <InfoNote>{shownReason}</InfoNote>
+        <InfoNote><MoneyText>{shownReason}</MoneyText></InfoNote>
       </Reveal>
     </div>
   )
@@ -283,7 +284,7 @@ export function PayerPicker({
       </PayerMenu>
       {hint && (
         <p id={`${labelId}-hint`} className="text-xs text-muted-foreground">
-          {hint}
+          <MoneyText>{hint}</MoneyText>
         </p>
       )}
     </div>

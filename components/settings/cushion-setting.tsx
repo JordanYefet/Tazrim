@@ -44,6 +44,7 @@ export function CushionSetting({ initial }: { initial: number }) {
         <span className="text-sm text-muted-foreground" aria-hidden>₪</span>
         <input
           id="cushion"
+          data-money
           inputMode="decimal"
           dir="ltr"
           value={value}

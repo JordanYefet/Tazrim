@@ -241,6 +241,88 @@
   body::before { background: hsl(var(--background)); }
 }
 
+/* Privacy mode (ENG-127, lib/privacy.ts): every amount carries data-money and becomes a soft bar
+   in its own colour, exactly as wide as its text and as tall as its digits (Heebo's figures stand
+   0.72em on the baseline), so nothing moves and income still reads green. The digits are made
+   transparent, not removed. While on, the amount is an inline-block, so its box is one line tall
+   and the bar can be placed from the line's height (1lh): the font's content area (1.05em above
+   the baseline, 0.42em below) sits centred in it. A tap fades the bars in or out
+   (data-privacy-switch, components/layout/privacy.tsx); a load, the shortcut and reduced motion
+   switch at once.
+   Chart axes draw their own bars (hooks/use-chart-axes.ts). */
+:root {
+  /* The bars' fade in and out: slow enough to be seen, gentle at both ends.
+     components/layout/privacy.tsx waits for it */
+  --privacy-wipe: 480ms;
+  --privacy-ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --money-ascent: 1.05em;
+  --money-content: 1.47em;
+  --money-digits: 0.72em;
+}
+html[data-privacy='on'] [data-money]:not(:empty):not(input) {
+  display: inline-block;
+  position: relative;
+}
+html[data-privacy='on'] [data-money]:not(:empty):not(input)::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  /* the digits' top: half the leading, then the ascent above the figures */
+  top: calc((1lh - var(--money-content)) / 2 + var(--money-ascent) - var(--money-digits));
+  height: var(--money-digits);
+  border-radius: 0.12em;
+  background-color: color-mix(in srgb, currentColor 24%, transparent);
+  pointer-events: none;
+}
+/* Engraved figures (the card wallet, account faces) draw their digits again in text-shadow */
+html[data-privacy='on'] [data-money]:not(:empty),
+html[data-privacy='on'] [data-money] * {
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* An amount field: a tinted field while hidden, its value while it is being edited */
+html[data-privacy='on'] input[data-money]:not(:focus) {
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
+}
+html[data-privacy='on'] input[data-money]:focus { -webkit-text-fill-color: currentColor; }
+/* The switch is a fade, nothing slides: hiding fades each bar in over its number while the digits
+   fade out under it; showing is the same fade backwards, the bar fading out as the digits return
+   (owner, 2026-11-17). While "out" runs the mode is still on, so the bars are there to fade out. */
+html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after {
+  transition: opacity var(--privacy-wipe) var(--privacy-ease);
+}
+@starting-style {
+  html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after { opacity: 0; }
+}
+html[data-privacy-switch='out'] [data-money]:not(:empty):not(input)::after {
+  opacity: 0;
+  transition: opacity var(--privacy-wipe) var(--privacy-ease);
+}
+/* Chart axes' bars (hooks/use-chart-axes.ts) fade the same way */
+html[data-privacy-switch='in'] .privacy-tick {
+  animation: privacy-tick-in var(--privacy-wipe) var(--privacy-ease) backwards;
+}
+@keyframes privacy-tick-in { from { opacity: 0; } }
+html[data-privacy-switch='out'] .privacy-tick {
+  opacity: 0;
+  transition: opacity var(--privacy-wipe) var(--privacy-ease);
+}
+/* The digits fade out as the bar fades in, and back in as it fades out: the same length and curve */
+html[data-privacy-switch='in'] [data-money],
+html[data-privacy-switch='in'] [data-money] *,
+html[data-privacy-switch='out'] [data-money],
+html[data-privacy-switch='out'] [data-money] * {
+  transition: -webkit-text-fill-color var(--privacy-wipe) var(--privacy-ease);
+}
+/* :not(:empty) to outrank the hidden rule above, which has it: without it the amount's own text
+   (the ₪, a table amount) stayed hidden through the fade and popped in at the end */
+html[data-privacy-switch='out'] [data-money]:not(:empty),
+html[data-privacy-switch='out'] [data-money] * {
+  -webkit-text-fill-color: currentColor;
+}
+
 /* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
    While it runs the elements' own colour transitions are held, so the new snapshot is final. */
 ::view-transition-group(root) { animation-duration: var(--motion-fast); animation-timing-function: var(--ease-ui); }

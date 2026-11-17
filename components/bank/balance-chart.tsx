@@ -16,7 +16,7 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="text-muted-foreground text-xs mb-0.5">{label}</p>
-      <p className="font-semibold tabular-nums text-foreground">{formatCurrencyWhole(payload[0].value)}</p>
+      <p className="font-semibold tabular-nums text-foreground"><span data-money>{formatCurrencyWhole(payload[0].value)}</span></p>
     </div>
   )
 }
