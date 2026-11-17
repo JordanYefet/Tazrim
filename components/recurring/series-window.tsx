@@ -92,7 +92,7 @@ function SeriesWindow({ series, onClose }: { series: AppliedSeries; onClose: () 
           {series.occurrences > 0 && <> · {series.occurrences} חיובים · אחרון {formatDate(series.lastDate)}</>}
           {series.active && series.occurrences > 0 && <> · הבא בערך {formatDate(series.nextDate)}</>}
         </p>
-        <span className="shrink-0 text-lg font-semibold tabular-nums">{formatCurrency(series.latestAmount)}</span>
+        <span data-money className="shrink-0 text-lg font-semibold tabular-nums">{formatCurrency(series.latestAmount)}</span>
       </div>
       {status === 'confirmed' && (
         <p className="flex items-center gap-1.5 text-sm text-[hsl(var(--income))]">

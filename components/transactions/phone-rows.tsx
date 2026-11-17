@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils/cn'
 import { MarkRecurringButton } from '@/components/recurring/mark-recurring'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { SearchResult } from '@/lib/search/query'
+import { MoneyText } from '@/components/ui/money-text'
 
 /** An ISO timestamp as the local calendar day (YYYY-MM-DD), the way the tables' dates are read */
 export function dayKey(iso: string): string {
@@ -113,7 +114,7 @@ export function PhoneTransactionRows({
                       confined to their 22px line: a tap above or below them is the row's */}
                   {badges && <span className="pointer-events-auto relative shrink-0">{badges}</span>}
                   <span className="min-w-2 flex-1" aria-hidden />
-                  <span className={cn('shrink-0 text-sm font-semibold tabular-nums', income ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
+                  <span data-money className={cn('shrink-0 text-sm font-semibold tabular-nums', income ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
                     {/* positive = money out; money in is shown green with a plus */}
                     {`${income ? '+' : ''}${formatCurrency(Math.abs(r.amount))}`}
                   </span>
@@ -140,12 +141,12 @@ export function PhoneTransactionRows({
                   {r.ignored && <EyeOff className="h-3.5 w-3.5 shrink-0" aria-label="מוסתרת" />}
                   {note && (
                     <span className="shrink-0 text-[11px] tabular-nums" dir="ltr">
-                      {note}
+                      <MoneyText>{note}</MoneyText>
                     </span>
                   )}
                 </div>
                 {extraText !== undefined && (
-                  <p className="mt-1 h-4 truncate text-[11px] leading-4 text-muted-foreground">{extraText || '—'}</p>
+                  <p className="mt-1 h-4 truncate text-[11px] leading-4 text-muted-foreground"><MoneyText>{extraText || '—'}</MoneyText></p>
                 )}
               </div>
             </li>

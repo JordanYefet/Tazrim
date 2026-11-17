@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { MoneyText } from '@/components/ui/money-text'
 
 export interface SettingsTile {
   href: string
@@ -59,7 +60,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
                     </span>
                   )}
                 </span>
-                <span className="block text-sm leading-relaxed text-muted-foreground text-pretty">{t.summary}</span>
+                <span className="block text-sm leading-relaxed text-muted-foreground text-pretty"><MoneyText>{t.summary}</MoneyText></span>
               </span>
             </Link>
           )

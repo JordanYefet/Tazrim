@@ -523,7 +523,7 @@ function Advanced({
 
 type Col<T> = { field: MappingField; label: string; value: (t: T) => React.ReactNode; num?: boolean }
 
-const money = (n: number) => <span dir="ltr" className="tabular-nums">{nf.format(n)}</span>
+const money = (n: number) => <span data-money dir="ltr" className="tabular-nums">{nf.format(n)}</span>
 
 const CARD_COLS: Col<ParsedCCTransaction>[] = [
   { field: 'transactionDate', label: 'תאריך עסקה', value: t => <span dir="ltr" className="tabular-nums">{formatDay(t.transactionDate)}</span> },

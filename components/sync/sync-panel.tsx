@@ -10,6 +10,7 @@ import { FAILURE_TEXT, STEP_TEXT, monthsBackDay, shortDay, timeAgo } from '@/lib
 import type { QueueItemView, QueueView, RunView } from '@/lib/sync/runs'
 import type { LinkAction, UnknownAccount, Candidate } from '@/lib/sync/store'
 import type { CompanyInfo, LoginInput, SyncApi } from './use-sync'
+import { MoneyText } from '@/components/ui/money-text'
 
 const ROW =
   'flex min-h-14 w-full items-center gap-3 px-4 py-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
@@ -537,7 +538,7 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
         r =>
           r.balanceMismatch && (
             <p key={`b-${r.accountId}`} role="alert" className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-              {`${r.displayName}: היתרה המחושבת לא תואמת את הקובץ שהועלה ב-${shortDay(r.balanceMismatch.day)} (הפרש ₪${Math.abs(r.balanceMismatch.difference).toLocaleString('he-IL')}). התנועות נשמרו; כדאי לבדוק את היתרה מול האתר.`}
+              <MoneyText>{`${r.displayName}: היתרה המחושבת לא תואמת את הקובץ שהועלה ב-${shortDay(r.balanceMismatch.day)} (הפרש ₪${Math.abs(r.balanceMismatch.difference).toLocaleString('he-IL')}). התנועות נשמרו; כדאי לבדוק את היתרה מול האתר.`}</MoneyText>
             </p>
           )
       )}

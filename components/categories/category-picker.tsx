@@ -8,6 +8,7 @@ import { AppDialog } from '@/components/ui/app-dialog'
 import { UNCATEGORIZED } from '@/lib/insights/bank-categories'
 import { normalizeKeyword, validKeyword, MIN_KEYWORD_LENGTH } from '@/lib/insights/keyword-rules'
 import { MerchantYearToggle, type MerchantAll, type MerchantYearRef } from '@/components/transactions/merchant-year'
+import { MoneyText } from '@/components/ui/money-text'
 
 export interface PickerCategory {
   name: string
@@ -144,7 +145,7 @@ export function CategoryPicker({
           <span className="text-xs font-normal text-muted-foreground">{context}</span>
           <span>
             <bdi>{title}</bdi>{' '}
-            <span className={cn('font-medium tabular-nums', amountTone === 'income' ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
+            <span data-money className={cn('font-medium tabular-nums', amountTone === 'income' ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
               {amount}
             </span>
           </span>
@@ -255,7 +256,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colorOf(suggestion.category) ?? NO_COLOR }} aria-hidden />
           <span className="min-w-0 flex-1">
             <span className="font-semibold"><bdi>{suggestion.category}</bdi>?</span>{' '}
-            <span className="text-muted-foreground">{suggestion.reason}</span>
+            <span className="text-muted-foreground"><MoneyText>{suggestion.reason}</MoneyText></span>
           </span>
           <span className="font-semibold text-primary">בחר</span>
         </button>

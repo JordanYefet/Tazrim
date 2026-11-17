@@ -29,6 +29,9 @@ import { getAvatars } from '@/lib/preferences/avatar'
 import { getStoredBackground } from '@/lib/preferences/background'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
+import { PRIVACY_COOKIE, parsePrivacyCookie } from '@/lib/privacy'
+import { PrivacyProvider } from '@/components/layout/privacy'
+import { hasOwnPassword } from '@/lib/auth/household'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -80,7 +83,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // The sidebar mode comes from a cookie so the first paint already has the right width
   // The remembered period too (ENG-63): links carry it from the first paint
-  const [jar, accounts, remembered, me, owner] = await Promise.all([cookies(), listAccounts(), getPeriod(null), signedInPerson(), preferenceOwner()])
+  const [jar, accounts, remembered, me, owner, hasPassword] = await Promise.all([cookies(), listAccounts(), getPeriod(null), signedInPerson(), preferenceOwner(), ownPassword()])
   const sections = buildNavSections(accounts)
   const initialPeriod = remembered.month ? { year: remembered.year, month: remembered.month } : { year: remembered.year }
   // The page background (ENG-72): the one stored for whoever is signed in, the same on all
@@ -90,12 +93,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // The public demo (lib/read-only.ts): the app as usual, nothing saved
   const readOnly = isReadOnly()
+  // Privacy mode (ENG-127): rendered hidden from the first paint, so amounts never flash
+  const privacy = parsePrivacyCookie(jar.get(PRIVACY_COOKIE)?.value)
 
   return (
     <html
       lang="he"
       dir="rtl"
       className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
+      data-privacy={privacy ? 'on' : undefined}
       {...backgroundHtmlAttributes(background)}
       style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
       suppressHydrationWarning
@@ -105,6 +111,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <BackgroundProvider initial={background} synced={owner !== undefined}>
           <PeriodProvider initial={initialPeriod} today={currentMonth()}>
             <MeProvider me={me}>
+            <PrivacyProvider initial={privacy} confirmIdentity={isAuthRequired()} hasPassword={hasPassword}>
             <NavSectionsProvider sections={sections}>
               <div className="flex min-h-screen">
                 <Sidebar
@@ -124,6 +131,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <PullToRefresh />
               <ReadOnlyGuard readOnly={readOnly} />
             </NavSectionsProvider>
+            </PrivacyProvider>
             </MeProvider>
           </PeriodProvider>
           </BackgroundProvider>
@@ -131,6 +139,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </body>
     </html>
   )
+}
+
+/** Whether the signed-in person has a password, to confirm showing amounts with it (ENG-127) */
+async function ownPassword(): Promise<boolean> {
+  if (!isAuthRequired()) return false
+  const session = await currentSession()
+  return session ? hasOwnPassword(session.personId).catch(() => false) : false
 }
 
 /** Who is signed in, for the profile menu (ENG-89); null with the login off */

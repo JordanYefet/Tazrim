@@ -339,6 +339,7 @@ export function ManualSeriesForm({
               <span className="flex items-center gap-2 text-sm">
                 <input
                   aria-label="מסכום"
+                  data-money
                   inputMode="decimal"
                   placeholder="ללא"
                   className={cn(input, 'h-9 w-24 text-center tabular-nums', rangeInvalid && 'border-destructive')}
@@ -348,6 +349,7 @@ export function ManualSeriesForm({
                 <span className="text-muted-foreground">עד</span>
                 <input
                   aria-label="עד סכום"
+                  data-money
                   inputMode="decimal"
                   placeholder="ללא"
                   className={cn(input, 'h-9 w-24 text-center tabular-nums', rangeInvalid && 'border-destructive')}
@@ -361,7 +363,7 @@ export function ManualSeriesForm({
           {amountHint ? (
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
               <span className="text-muted-foreground">
-                סביב <span className="tabular-nums">{formatCurrency(amountHint)}</span>:
+                סביב <span data-money className="tabular-nums">{formatCurrency(amountHint)}</span>:
               </span>
               {[10, 25, 50].map(pct => {
                 const r = rangeAround(amountHint, pct)
@@ -403,10 +405,10 @@ export function ManualSeriesForm({
                   title={`עלה מ-${formatCurrency(preview.priceIncrease.from)} החל מ-${formatDate(preview.priceIncrease.since)}`}
                 >
                   <ArrowUp className="h-3 w-3" aria-hidden />
-                  התייקר מ-{formatCurrency(preview.priceIncrease.from)}
+                  התייקר מ-<span data-money>{formatCurrency(preview.priceIncrease.from)}</span>
                 </span>
               )}
-              <span className="font-semibold">{formatCurrency(preview.latestAmount)}</span>
+              <span data-money className="font-semibold">{formatCurrency(preview.latestAmount)}</span>
               <span className="text-muted-foreground">{per}</span>
             </div>
           )}
@@ -451,7 +453,7 @@ export function ManualSeriesForm({
                       </span>
                     )}
                   </span>
-                  <span className={cn('shrink-0 font-medium tabular-nums', out && 'text-muted-foreground')}>{formatCurrency(row.amount)}</span>
+                  <span data-money className={cn('shrink-0 font-medium tabular-nums', out && 'text-muted-foreground')}>{formatCurrency(row.amount)}</span>
                   <button
                     type="button"
                     onClick={() => toggleRow(row)}

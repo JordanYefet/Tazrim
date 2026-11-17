@@ -50,7 +50,7 @@ function CustomTooltip({ active, payload, label }: any) {
         <div key={p.name} className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.fill }} />
           <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
+          <span data-money className="font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
         </div>
       ))}
     </div>

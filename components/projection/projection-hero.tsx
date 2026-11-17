@@ -8,6 +8,7 @@ import { monthLabel, tightLine } from '@/lib/insights/projection-format'
 import type { ProjectedMonth } from '@/lib/insights/projection'
 import { cn } from '@/lib/utils/cn'
 import { useSelectedMonth } from './selected-month'
+import { MoneyText } from '@/components/ui/money-text'
 
 /** One fact row: the label (and any note or link) at the start, the number alone at the end, so the numbers line up */
 function Fact({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
@@ -61,7 +62,7 @@ export function ProjectionHero({ months, start, end, tight, cushion }: {
         className={cn('mt-3 flex min-h-5 items-center gap-1.5 text-sm text-[hsl(var(--expense))]', !line && 'invisible')}
       >
         <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
-        {line ?? '—'}
+        <MoneyText>{line ?? '—'}</MoneyText>
       </p>
       <div className="mt-auto pt-4">
         {picked ? (

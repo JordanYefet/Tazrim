@@ -811,7 +811,7 @@ function Wallet({
                 {/* The bank pocket: the period's net in the mark's place (a bank account's face has it at its foot too) */}
                 {kind === 'banks' && stackNet ? (
                   <span className="wallet-pocket__net">
-                    {stackNet.label} <bdi dir="ltr" className="wallet-pocket__netvalue">{formatNet(stackNet.value)}</bdi>
+                    {stackNet.label} <bdi data-money dir="ltr" className="wallet-pocket__netvalue">{formatNet(stackNet.value)}</bdi>
                   </span>
                 ) : (
                   <span className="wallet-pocket__mark" aria-hidden>

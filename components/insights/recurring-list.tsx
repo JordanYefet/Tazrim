@@ -7,6 +7,7 @@ import { dayMonth } from '@/lib/accounts/card-payment-row'
 import { cn } from '@/lib/utils/cn'
 import type { Cadence, RecurringSeries } from '@/lib/insights/recurring'
 import type { ManualInfo } from '@/lib/insights/manual-recurring'
+import { MoneyText } from '@/components/ui/money-text'
 
 export type RecurringListItem = RecurringSeries & {
   status?: 'confirmed' | 'dismissed' | null
@@ -102,9 +103,9 @@ function Row({ s, actions, wrapRow, accountNames }: {
         </p>
       </div>
       <div className="shrink-0 text-end tabular-nums">
-        <div className="font-semibold">{formatCurrencyWhole(s.latestAmount)}</div>
+        <div className="font-semibold"><span data-money>{formatCurrencyWhole(s.latestAmount)}</span></div>
         {s.priceIncrease && (
-          <div className="text-xs text-muted-foreground line-through">{formatCurrencyWhole(s.priceIncrease.from)}</div>
+          <div className="text-xs text-muted-foreground line-through"><span data-money>{formatCurrencyWhole(s.priceIncrease.from)}</span></div>
         )}
       </div>
     </>
@@ -141,7 +142,7 @@ export function RecurringList({
             <Repeat className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             {title}
           </h3>
-          {subtitle && <p className="text-sm text-muted-foreground text-pretty">{subtitle}</p>}
+          {subtitle && <p className="text-sm text-muted-foreground text-pretty"><MoneyText>{subtitle}</MoneyText></p>}
         </div>
         {total !== undefined && (
           <div className="shrink-0 text-end">
