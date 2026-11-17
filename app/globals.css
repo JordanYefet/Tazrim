@@ -2066,7 +2066,9 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
    cascade), so a wave runs from the highest digit to the lowest; blurred as it spins
    (the motion blur of the roll, rolling-number.tsx) */
 :is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest)) .digit-strip {
-  animation: digit-spin 560ms linear calc(400ms + var(--digit-lag, 0ms)) infinite;
+  /* One turn in the regular roll's time (ROLL.duration, lib/motion.ts), so the spin and the
+     roll it hands over to move at the same pace */
+  animation: digit-spin 950ms linear calc(400ms + var(--digit-lag, 0ms)) infinite;
 }
 :is(main[data-pending], .wallet-shell[data-pending] :is(.wallet-shell__beside, .wallet-shell__rest))
   :is(.tabular-nums, [data-amount]):not([data-steady], [data-rolling], :has([data-rolling])) {
