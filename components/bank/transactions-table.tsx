@@ -543,14 +543,14 @@ export function BankTransactionsTable({
                       onSuggest={category => acceptSuggestion(tx, category)}
                     />
                   </td>
-                  <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
+                  <td data-money className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
                     {tx.debit > 0 ? formatCurrency(tx.debit) : ''}
                   </td>
-                  <td className="py-2.5 px-4 text-[hsl(var(--income))] font-medium tabular-nums">
+                  <td data-money className="py-2.5 px-4 text-[hsl(var(--income))] font-medium tabular-nums">
                     {tx.credit > 0 ? formatCurrency(tx.credit) : ''}
                   </td>
                   {!scope.several && (
-                    <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
+                    <td data-money className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
                   )}
                   <td className="py-2.5 px-4 min-w-[120px]">
                     {editing?.id === tx.id && editing.field === 'note' ? (

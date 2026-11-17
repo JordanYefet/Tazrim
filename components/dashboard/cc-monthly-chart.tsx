@@ -29,7 +29,7 @@ function CustomTooltip({ active, payload, label, series }: any) {
   return (
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
-      <p className="text-[hsl(var(--cc))] font-medium tabular-nums">
+      <p data-money className="text-[hsl(var(--cc))] font-medium tabular-nums">
         {payload[0].value == null ? 'אין נתונים' : formatCurrencyWhole(payload[0].value)}
       </p>
       {payload[0].value != null && split && split.length > 0 && (
@@ -37,7 +37,7 @@ function CustomTooltip({ active, payload, label, series }: any) {
           {split.map(s => (
             <li key={s.label} className="flex justify-between gap-3">
               <span className="text-muted-foreground">{s.label}</span>
-              <span className="font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.monthly[month])}</span>
+              <span data-money className="font-medium tabular-nums text-foreground">{formatCurrencyWhole(s.monthly[month])}</span>
             </li>
           ))}
         </ul>

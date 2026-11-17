@@ -53,6 +53,8 @@ export function useChartAxes(textColor: string) {
       axisLine: false,
       tickLine: false,
       tickFormatter: (v: number) => formatAxisCurrency(v, small),
+      // Amounts: blurred in privacy mode (ENG-127, globals.css)
+      className: 'money-axis',
     },
     /**
      * X-axis props for a January-December chart (ENG-70): short names, and on

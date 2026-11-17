@@ -44,19 +44,19 @@ function CustomTooltip({ active, payload, label }: any) {
     <div className="rounded-lg surface-overlay px-3 py-2 text-sm">
       <p className="font-semibold text-foreground mb-0.5">{label}</p>
       {payload.length === 1 ? (
-        <p className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrencyWhole(payload[0].value)}</p>
+        <p data-money className="text-[hsl(var(--cc))] font-medium tabular-nums">{formatCurrencyWhole(payload[0].value)}</p>
       ) : (
         <>
           {rows.map((p: any) => (
             <div key={p.dataKey} className="flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
               <span className="text-muted-foreground">{p.name}:</span>
-              <span className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
+              <span data-money className="ms-auto ps-3 font-medium text-foreground tabular-nums">{formatCurrencyWhole(p.value)}</span>
             </div>
           ))}
           <div className="mt-1 flex border-t pt-1 font-semibold">
             <span>סה״כ</span>
-            <span className="ms-auto ps-3 tabular-nums">{formatCurrencyWhole(total)}</span>
+            <span data-money className="ms-auto ps-3 tabular-nums">{formatCurrencyWhole(total)}</span>
           </div>
         </>
       )}

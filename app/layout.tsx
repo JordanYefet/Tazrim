@@ -29,6 +29,7 @@ import { getAvatars } from '@/lib/preferences/avatar'
 import { getStoredBackground } from '@/lib/preferences/background'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
+import { PRIVACY_COOKIE, parsePrivacyCookie } from '@/lib/privacy'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -90,12 +91,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // The public demo (lib/read-only.ts): the app as usual, nothing saved
   const readOnly = isReadOnly()
+  // Privacy mode (ENG-127): rendered hidden from the first paint, so amounts never flash
+  const privacy = parsePrivacyCookie(jar.get(PRIVACY_COOKIE)?.value)
 
   return (
     <html
       lang="he"
       dir="rtl"
       className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
+      data-privacy={privacy ? 'on' : undefined}
       {...backgroundHtmlAttributes(background)}
       style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
       suppressHydrationWarning
@@ -112,13 +116,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   initialClosed={parseClosedSections(jar.get(SECTIONS_COOKIE)?.value)}
                 />
                 <div className="flex flex-col flex-1 min-w-0">
-                  <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header readOnly={readOnly} /></Suspense>
+                  <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header readOnly={readOnly} privacy={privacy} /></Suspense>
                   {/* Dims in place while the period changes (components/layout/period-context.tsx) */}
                   <PageMain className="flex-1 p-4 md:p-6 pb-[calc(5.75rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-6">
                     {children}
                   </PageMain>
                 </div>
               </div>
+              {/* The blur for amounts drawn in SVG (charts) in privacy mode (ENG-127, globals.css) */}
+              <svg aria-hidden width="0" height="0" className="absolute">
+                <filter id="privacy-blur" x="-20%" y="-50%" width="140%" height="200%">
+                  <feGaussianBlur stdDeviation="3" />
+                </filter>
+              </svg>
               <BottomNav />
               <FreshData />
               <PullToRefresh />

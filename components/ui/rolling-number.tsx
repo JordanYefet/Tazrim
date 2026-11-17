@@ -144,15 +144,17 @@ function RollingDigit({ digit, duration, delay, spin }: { digit: number; duratio
 
 export function RollingNumber({ value, duration = ROLL.duration, format: kind = 'currency', className }: RollingNumberProps) {
   const text = format(value, kind)
+  // Amounts blur in privacy mode (ENG-127); counts and percentages stay readable
+  const money = kind === 'currency' || kind === 'currencyExact' || kind === 'decimal' || undefined
   const match = text.match(NUMERIC_CORE)
-  if (!match || match.index === undefined) return <span className={className}>{text}</span>
+  if (!match || match.index === undefined) return <span data-money={money} className={className}>{text}</span>
 
   const before = text.slice(0, match.index)
   const after = text.slice(match.index + match[0].length)
   const chars = [...match[0]]
 
   return (
-    <span data-rolling className={cn('tabular-nums', className)}>
+    <span data-rolling data-money={money} className={cn('tabular-nums', className)}>
       <span className="sr-only">{text}</span>
       <span aria-hidden>
         {before}

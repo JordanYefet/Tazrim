@@ -486,7 +486,7 @@ export function BankElement({
         )}
         {net && (
           <p className="acct-bank__net">
-            {net.label} <bdi dir="ltr" data-amount className="acct-bank__netvalue">{formatNet(net.value)}</bdi>
+            {net.label} <bdi data-money dir="ltr" data-amount className="acct-bank__netvalue">{formatNet(net.value)}</bdi>
           </p>
         )}
         {children}

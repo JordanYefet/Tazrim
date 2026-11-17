@@ -112,7 +112,7 @@ export function SkippedRows({
                     <td className="hidden truncate px-3 py-2 text-xs text-muted-foreground sm:table-cell" dir="auto" title={r.matchedFile}>
                       {r.matchedFile || 'ייבוא קודם'}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-end tabular-nums sm:px-3">{formatCurrency(r.amount)}</td>
+                    <td data-money className="whitespace-nowrap px-2 py-2 text-end tabular-nums sm:px-3">{formatCurrency(r.amount)}</td>
                   </tr>
                 ))}
               </tbody>

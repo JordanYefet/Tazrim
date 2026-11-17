@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils/cn'
 import { monthName } from '@/lib/utils/date'
 import { monthBars } from '@/lib/insights/month-bars'
+import { MoneyText } from '@/components/ui/money-text'
 
 /**
  * A stat tile's mini chart: twelve thin bars, January to December (January on
@@ -32,7 +33,7 @@ export function MonthBarsChart({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <p className="text-xs text-muted-foreground">{caption}</p>
+      <p className="text-xs text-muted-foreground"><MoneyText>{caption}</MoneyText></p>
       {/* Left to right like every other chart in the app (January on the left), though the page is RTL */}
       <div aria-hidden dir="ltr" className="flex min-h-14 flex-1 flex-col gap-1">
         <div className="relative flex flex-1 items-end gap-[3px]">
