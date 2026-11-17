@@ -11,7 +11,7 @@ import { useCurrentPeriod, usePeriodPending, usePeriodTransition, useRememberPer
 import { PeriodPicker } from './period-picker'
 import { ReadOnlyBadge } from './read-only-guard'
 import { ProfileButton } from './profile-card'
-import { PrivacyButton } from './privacy-button'
+import { PrivacyButton } from './privacy'
 
 /**
  * A period chosen in the picker. Pages without a period (settings, upload...) only remember it,
@@ -54,7 +54,7 @@ export function changePeriod(
  * (transform only). It stays put while focus is inside it and under
  * reduced motion.
  */
-export function Header({ readOnly = false, privacy = false }: { readOnly?: boolean; privacy?: boolean }) {
+export function Header({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -95,8 +95,9 @@ export function Header({ readOnly = false, privacy = false }: { readOnly?: boole
         </div>
 
         <div className="flex items-center justify-end gap-2">
-          {/* Privacy mode (ENG-127): blurs every amount */}
-          <PrivacyButton initial={privacy} />
+          {/* Privacy mode (ENG-127): blurs every amount. Phones have no room for it here:
+              it is a row in the avatar card there (profile-card.tsx) */}
+          <PrivacyButton className="hidden md:flex" />
           <SearchButton />
         </div>
         {/* A period loading: a thin line runs along the bottom edge (globals.css, .period-loading) */}

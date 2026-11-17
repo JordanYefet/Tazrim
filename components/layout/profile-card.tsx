@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { AlertCircle, ChevronLeft, Check, LogOut, MessageSquare, RefreshCw, Settings, Upload, User } from 'lucide-react'
+import { AlertCircle, ChevronLeft, Check, EyeOff, LogOut, MessageSquare, RefreshCw, Settings, Upload, User } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { avatarMark, profileRows, type AvatarMark } from '@/lib/nav/profile-card'
 import { face, needsCodeNow, type Tone } from '@/components/sync/sync-face'
@@ -11,6 +11,22 @@ import { SyncDialog } from '@/components/sync/sync-dialog'
 import { useSync } from '@/components/sync/use-sync'
 import { Avatar, MENU_ITEM, signOut, signedInWith, useMe } from './profile-menu'
 import { usePeriodHref } from './period-context'
+import { usePhoneLayout, usePrivacy } from './privacy'
+
+/**
+ * Privacy mode on, on a phone (ENG-127): the header has no eye there, so the avatar says it,
+ * at the corner opposite the sync badge so the two never cover each other
+ */
+function PrivacyBadge() {
+  return (
+    <span
+      aria-hidden
+      className="absolute -bottom-[3px] -end-[3px] flex h-4 w-4 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground"
+    >
+      <EyeOff className="h-[9px] w-[9px]" strokeWidth={3} />
+    </span>
+  )
+}
 
 /** The corner badge: amber for a code or something to look at, green for done, red for a failure */
 function Badge({ mark }: { mark: AvatarMark }) {
@@ -108,13 +124,15 @@ export function ProfileButton() {
   const has = (r: (typeof rows)[number]) => rows.includes(r)
   const TileIcon = tone === 'attention' ? (needsCode ? MessageSquare : AlertCircle) : tone === 'failed' ? AlertCircle : RefreshCw
   const goLabel = tone === 'attention' ? (needsCode ? 'הזנה' : 'פתיחה') : 'סנכרון'
+  const privacy = usePrivacy()
+  const phone = usePhoneLayout()
 
   return (
     <>
       <DropdownMenu.Root dir="rtl" modal={false} open={open} onOpenChange={onOpenChange}>
         <DropdownMenu.Trigger
           ref={trigger}
-          aria-label={`${me?.name ?? 'תפריט'}: ${title}, ${sub}`}
+          aria-label={`${me?.name ?? 'תפריט'}: ${title}, ${sub}${phone && privacy.on ? ', הסכומים מוסתרים' : ''}`}
           className={cn(
             // A fixed 36px box in every state; the ring and badge hang outside it
             'relative flex h-9 w-9 shrink-0 items-center justify-center text-primary transition-shadow duration-quick ease-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
@@ -133,6 +151,7 @@ export function ProfileButton() {
             <span aria-hidden className={cn('sync-ring', me ? 'rounded-[34%]' : 'rounded-full')} />
           )}
           <Badge mark={mark} />
+          {phone && privacy.on && <PrivacyBadge />}
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content
@@ -184,6 +203,34 @@ export function ProfileButton() {
                   {goLabel}
                 </span>
               </DropdownMenu.Item>
+            )}
+            {/* Privacy mode (ENG-127) on phones, where the header has no room for the eye. The card
+                stays open, so the switch is seen moving while the amounts blur behind it */}
+            {phone && (
+              <DropdownMenu.CheckboxItem
+                checked={privacy.on}
+                onCheckedChange={privacy.toggle}
+                onSelect={e => e.preventDefault()}
+                className={MENU_ITEM}
+              >
+                <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden />
+                <span className="flex-1">הסתרת סכומים</span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-fast ease-ui',
+                    privacy.on ? 'bg-primary' : 'bg-muted-foreground/30'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
+                      // RTL: "on" moves the knob toward the end (left)
+                      privacy.on && '-translate-x-4'
+                    )}
+                  />
+                </span>
+              </DropdownMenu.CheckboxItem>
             )}
             {has('upload') && (
               <DropdownMenu.Item asChild className={MENU_ITEM}>

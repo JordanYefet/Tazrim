@@ -30,6 +30,7 @@ import { getStoredBackground } from '@/lib/preferences/background'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
 import { PRIVACY_COOKIE, parsePrivacyCookie } from '@/lib/privacy'
+import { PrivacyProvider } from '@/components/layout/privacy'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -109,6 +110,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <BackgroundProvider initial={background} synced={owner !== undefined}>
           <PeriodProvider initial={initialPeriod} today={currentMonth()}>
             <MeProvider me={me}>
+            <PrivacyProvider initial={privacy}>
             <NavSectionsProvider sections={sections}>
               <div className="flex min-h-screen">
                 <Sidebar
@@ -116,7 +118,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   initialClosed={parseClosedSections(jar.get(SECTIONS_COOKIE)?.value)}
                 />
                 <div className="flex flex-col flex-1 min-w-0">
-                  <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header readOnly={readOnly} privacy={privacy} /></Suspense>
+                  <Suspense fallback={<div className="h-14 border-b bg-card" />}><Header readOnly={readOnly} /></Suspense>
                   {/* Dims in place while the period changes (components/layout/period-context.tsx) */}
                   <PageMain className="flex-1 p-4 md:p-6 pb-[calc(5.75rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-6">
                     {children}
@@ -134,6 +136,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <PullToRefresh />
               <ReadOnlyGuard readOnly={readOnly} />
             </NavSectionsProvider>
+            </PrivacyProvider>
             </MeProvider>
           </PeriodProvider>
           </BackgroundProvider>

@@ -244,7 +244,7 @@
 /* Privacy mode (ENG-127, lib/privacy.ts): every amount carries data-money and is blurred in
    place, keeping its size and colour, so nothing moves. The blur grows with the font, so big
    totals and small table figures are equally unreadable. A tap on the eye eases it in or out
-   (data-privacy-switch, components/layout/privacy-button.tsx); a load, the shortcut and
+   (data-privacy-switch, components/layout/privacy.tsx); a load, the shortcut and
    reduced motion switch at once. */
 html[data-privacy='on'] [data-money] {
   /* at least 5px: a 0.32em blur leaves 12px figures half readable */
