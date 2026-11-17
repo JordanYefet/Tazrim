@@ -288,8 +288,9 @@ html[data-privacy='on'] input[data-money]:not(:focus) {
 }
 html[data-privacy='on'] input[data-money]:focus { -webkit-text-fill-color: currentColor; }
 /* The switch, like a marker: hiding draws each bar across its number in reading order (right
-   to left) while the digits fade under it; showing wipes the bar off the same way, and the digits
-   come back as it leaves. While "out" runs the mode is still on, so the bars are there to wipe off. */
+   to left) while the digits fade under it; showing plays the same motion backwards, the bar
+   drawing back to the right as the digits return (owner, 2026-11-17). While "out" runs the mode
+   is still on, so the bars are there to draw back. */
 html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after {
   transform-origin: right;
   transition: transform var(--privacy-wipe) var(--privacy-ease);
@@ -299,7 +300,7 @@ html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after {
 }
 html[data-privacy-switch='out'] [data-money]:not(:empty):not(input)::after {
   transform: scaleX(0);
-  transform-origin: left;
+  transform-origin: right;
   transition: transform var(--privacy-wipe) var(--privacy-ease);
 }
 /* Chart axes' bars (hooks/use-chart-axes.ts) draw and wipe the same way */
@@ -311,10 +312,11 @@ html[data-privacy-switch='in'] .privacy-tick {
 @keyframes privacy-tick-in { from { transform: scaleX(0); } }
 html[data-privacy-switch='out'] .privacy-tick {
   transform: scaleX(0);
-  transform-origin: left;
+  transform-origin: right;
   transition: transform var(--privacy-wipe) var(--privacy-ease);
 }
-/* The digits fade under the arriving marker, and come back behind the leaving one */
+/* The digits fade under the arriving marker in its first 60%, and come back in the last 60% of
+   the wipe-off: the same motion played backwards */
 html[data-privacy-switch='in'] [data-money],
 html[data-privacy-switch='in'] [data-money] * {
   transition: -webkit-text-fill-color calc(var(--privacy-wipe) * 0.6) var(--privacy-ease);
@@ -322,7 +324,7 @@ html[data-privacy-switch='in'] [data-money] * {
 html[data-privacy-switch='out'] [data-money],
 html[data-privacy-switch='out'] [data-money] * {
   -webkit-text-fill-color: currentColor;
-  transition: -webkit-text-fill-color calc(var(--privacy-wipe) * 0.7) var(--privacy-ease) calc(var(--privacy-wipe) * 0.3);
+  transition: -webkit-text-fill-color calc(var(--privacy-wipe) * 0.6) var(--privacy-ease) calc(var(--privacy-wipe) * 0.4);
 }
 
 /* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
