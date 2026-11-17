@@ -40,5 +40,11 @@ export const CHART_ANIMATION = {
   animationEasing: 'ease-out',
 } as const
 
-/** Rolling digits: they start together (lowest first by a hair) and all land on the page beat. */
-export const ROLL = { duration: MOTION.page, stagger: 12 } as const
+/**
+ * Rolling digits: a cascade from the highest digit to the lowest, each starting `stagger`
+ * after the one before it, the last landing at `duration` (a digit never rolls shorter
+ * than `minDuration`). Slower than the page beat, by the owner's choice, so the roll and
+ * its blur read. `blur` is the motion blur at full speed, SwiftUI's numericText.
+ * The loading spin (globals.css, digit-spin) turns once per `duration`: keep them in step.
+ */
+export const ROLL = { duration: 950, stagger: 70, minDuration: 560, blur: '0.07em' } as const
