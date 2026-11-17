@@ -246,8 +246,9 @@
    0.72em on the baseline), so nothing moves and income still reads green. The digits are made
    transparent, not removed. While on, the amount is an inline-block, so its box is one line tall
    and the bar can be placed from the line's height (1lh): the font's content area (1.05em above
-   the baseline, 0.42em below) sits centred in it. A tap fades the bar in (data-privacy-switch,
-   components/layout/privacy.tsx); a load, the shortcut and reduced motion switch at once.
+   the baseline, 0.42em below) sits centred in it. A tap draws the bars like a marker
+   (data-privacy-switch, components/layout/privacy.tsx); a load, the shortcut and reduced motion
+   switch at once.
    Chart axes draw their own bars (hooks/use-chart-axes.ts). */
 :root {
   --money-ascent: 1.05em;
@@ -282,11 +283,42 @@ html[data-privacy='on'] input[data-money]:not(:focus) {
   background-color: color-mix(in srgb, currentColor 14%, transparent);
 }
 html[data-privacy='on'] input[data-money]:focus { -webkit-text-fill-color: currentColor; }
-html[data-privacy-switch] [data-money]:not(:empty)::after { transition: opacity var(--motion-fast) var(--ease-ui); }
-@starting-style {
-  html[data-privacy-switch] [data-money]:not(:empty)::after { opacity: 0; }
+/* The switch, like a marker: hiding draws each bar across its number in reading order (right
+   to left) while the digits fade under it; showing wipes the bar off the same way, and the digits
+   come back as it leaves. While "out" runs the mode is still on, so the bars are there to wipe off. */
+html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after {
+  transform-origin: right;
+  transition: transform var(--motion-base) var(--ease-ui);
 }
-html[data-privacy-switch] [data-money] { transition: -webkit-text-fill-color var(--motion-fast) var(--ease-ui); }
+@starting-style {
+  html[data-privacy-switch='in'] [data-money]:not(:empty):not(input)::after { transform: scaleX(0); }
+}
+html[data-privacy-switch='out'] [data-money]:not(:empty):not(input)::after {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--motion-base) var(--ease-ui);
+}
+/* Chart axes' bars (hooks/use-chart-axes.ts) draw and wipe the same way */
+.privacy-tick { transform-box: fill-box; }
+html[data-privacy-switch='in'] .privacy-tick {
+  transform-origin: right;
+  animation: privacy-tick-in var(--motion-base) var(--ease-ui) backwards;
+}
+@keyframes privacy-tick-in { from { transform: scaleX(0); } }
+html[data-privacy-switch='out'] .privacy-tick {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--motion-base) var(--ease-ui);
+}
+html[data-privacy-switch='in'] [data-money],
+html[data-privacy-switch='in'] [data-money] * {
+  transition: -webkit-text-fill-color var(--motion-fast) var(--ease-ui);
+}
+html[data-privacy-switch='out'] [data-money],
+html[data-privacy-switch='out'] [data-money] * {
+  -webkit-text-fill-color: currentColor;
+  transition: -webkit-text-fill-color var(--motion-fast) var(--ease-ui) 60ms;
+}
 
 /* A theme change cross-fades the page (lib/utils/theme-fade.ts): the root only, no movement.
    While it runs the elements' own colour transitions are held, so the new snapshot is final. */

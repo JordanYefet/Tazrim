@@ -46,7 +46,7 @@ function privacyTick(fontSize: number, fill: string, compact: boolean) {
     const width = formatAxisCurrency(payload.value, compact).length * fontSize * 0.56
     const height = fontSize * 0.72
     const left = textAnchor === 'end' ? x - width : textAnchor === 'middle' ? x - width / 2 : x
-    return createElement('rect', { x: left, y: y - height / 2, width, height, rx: fontSize * 0.12, fill, fillOpacity: 0.24 }) as unknown as ReactElement<SVGElement> // recharts types a tick's result as ReactElement<SVGElement>
+    return createElement('rect', { x: left, y: y - height / 2, width, height, rx: fontSize * 0.12, fill, fillOpacity: 0.24, className: 'privacy-tick' }) as unknown as ReactElement<SVGElement> // recharts types a tick's result as ReactElement<SVGElement>
   }
   return PrivacyTick
 }

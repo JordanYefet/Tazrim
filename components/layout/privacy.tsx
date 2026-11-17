@@ -8,8 +8,8 @@ import { inputClass } from '@/components/accounts/add-account-form'
 import { answerChallenge } from '@/components/auth/passkey-client'
 import { formatPrivacyCookie, isPrivacyShortcut } from '@/lib/privacy'
 
-// How long <html data-privacy-switch> stays on, so the bars fade in or out (globals.css)
-const SWITCH_MS = 400
+// The marker's draw or wipe (globals.css, --motion-base), and a little room for it to settle
+const SWITCH_MS = 420
 
 type Privacy = { on: boolean; toggle: () => void }
 const PrivacyContext = createContext<Privacy>({ on: false, toggle: () => {} })
@@ -39,16 +39,11 @@ export function PrivacyProvider({
   const onRef = useRef(on)
   onRef.current = on
 
-  /** The page and the cookie agree on `next`; animate for a tap, not for the shortcut */
+  /** After the server agreed (and checked the proof): the page follows; animate for a tap, not the shortcut */
   const set = useCallback(async (next: boolean, animate: boolean, proof: object = {}) => {
-    const res = await fetch('/api/privacy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ on: next, ...proof }),
-    })
-    const body = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(body.error ?? 'לא הצלחנו לשנות את מצב הפרטיות')
-    paint(next, animate)
+    await save(next, proof)
+    // Showing: the bars wipe off first, then the charts' axes change with the state
+    await paint(next, animate)
     setOn(next)
   }, [])
 
@@ -56,13 +51,16 @@ export function PrivacyProvider({
     (animate: boolean) => {
       if (!onRef.current) {
         // Hiding never waits: the page hides at once, the cookie follows
-        paint(true, animate)
+        void paint(true, animate)
         setOn(true)
-        void set(true, false).catch(() => {})
+        void save(true).catch(() => {})
       } else if (confirmIdentity) {
         setUnlocking(true)
       } else {
-        void set(false, animate).catch(() => {})
+        // Nothing to confirm (the login off): the bars wipe off while the cookie is saved
+        void Promise.all([paint(false, animate), save(false)])
+          .then(() => setOn(false))
+          .catch(() => {})
       }
     },
     [confirmIdentity, set]
@@ -229,15 +227,38 @@ export function usePhoneLayout(): boolean {
   )
 }
 
-/** Shows or hides the amounts on the page */
-function paint(on: boolean, animate: boolean) {
+/** The cookie, through /api/privacy (httpOnly: the page can't write it). Throws the server's refusal. */
+async function save(on: boolean, proof: object = {}): Promise<void> {
+  const res = await fetch('/api/privacy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ on, ...proof }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? 'לא הצלחנו לשנות את מצב הפרטיות')
+}
+
+/**
+ * Shows or hides the amounts on the page. Animated (a tap, motion allowed): hiding draws the bars
+ * at once; showing keeps the mode on while the bars wipe off, and resolves when they are gone.
+ */
+function paint(on: boolean, animate: boolean): Promise<void> {
   const html = document.documentElement
-  if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    html.dataset.privacySwitch = ''
-    window.clearTimeout(switchTimer)
-    switchTimer = window.setTimeout(() => delete html.dataset.privacySwitch, SWITCH_MS)
+  window.clearTimeout(switchTimer)
+  if (!animate || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    delete html.dataset.privacySwitch
+    html.dataset.privacy = formatPrivacyCookie(on)
+    return Promise.resolve()
   }
-  html.dataset.privacy = formatPrivacyCookie(on)
+  html.dataset.privacySwitch = on ? 'in' : 'out'
+  if (on) html.dataset.privacy = formatPrivacyCookie(true)
+  return new Promise(done => {
+    switchTimer = window.setTimeout(() => {
+      html.dataset.privacy = formatPrivacyCookie(on)
+      delete html.dataset.privacySwitch
+      done()
+    }, SWITCH_MS)
+  })
 }
 
 let switchTimer = 0
