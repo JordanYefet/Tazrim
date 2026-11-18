@@ -50,7 +50,7 @@ async function withVault(send: () => Promise<{ ok: boolean; data: { error?: stri
   if (!res.ok) throw new Error(res.data.error ?? 'משהו השתבש. נסו שוב')
 }
 
-const rowButton = 'flex min-h-12 w-full items-center px-3.5 py-2 text-start text-[15px] transition-colors hover:bg-muted disabled:opacity-50'
+const rowButton = 'flex min-h-12 w-full items-center px-3.5 py-2 text-start text-[0.9375rem] transition-colors hover:bg-muted disabled:opacity-50'
 
 /**
  * "מקור הנתונים" in an account's window: synced (the sign-in sealed in the
@@ -132,7 +132,7 @@ export function DataSource({
 
   return (
     <section aria-labelledby={`source-${account.id}`} className="space-y-2">
-      <h3 id={`source-${account.id}`} className="px-1 text-[13px] font-semibold text-muted-foreground">מקור הנתונים</h3>
+      <h3 id={`source-${account.id}`} className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">מקור הנתונים</h3>
       <div className="overflow-hidden rounded-xl border divide-y">
         <div className="flex min-h-14 items-center gap-3 px-3.5 py-2.5">
           <span
@@ -145,8 +145,8 @@ export function DataSource({
             {source ? <RefreshCw className="h-[18px] w-[18px]" /> : <Upload className="h-[18px] w-[18px]" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-medium">{source ? 'סנכרון אוטומטי' : 'העלאת קבצים'}</span>
-            <span className="block text-[13px] text-muted-foreground text-pretty">
+            <span className="block text-[0.9375rem] font-medium">{source ? 'סנכרון אוטומטי' : 'העלאת קבצים'}</span>
+            <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
               {source
                 ? `נשמר בכספת · ${source.lastSyncedAt ? `סונכרן ${timeAgo(source.lastSyncedAt)}` : 'עוד לא סונכרן'}`
                 : 'מורידים פירוט מהאתר ומעלים בהעלאת קבצים'}
@@ -156,10 +156,10 @@ export function DataSource({
 
         {others.length > 0 && (
           <div className="space-y-2 px-3.5 py-2.5">
-            <p className="text-[13px] text-muted-foreground">אותה כניסה מביאה גם את</p>
+            <p className="text-[0.8125rem] text-muted-foreground">אותה כניסה מביאה גם את</p>
             <ul className="flex flex-wrap gap-2">
               {others.map(o => (
-                <li key={o.id} className="inline-flex items-center gap-2 rounded-full bg-muted py-1 pe-3 ps-1.5 text-[13px]">
+                <li key={o.id} className="inline-flex items-center gap-2 rounded-full bg-muted py-1 pe-3 ps-1.5 text-[0.8125rem]">
                   <AccountMini kind={o.kind} provider={o.provider} color={o.positionColor} colorChoice={o.color} className="w-7" />
                   {o.displayName}
                   {o.cardLastFour && <span dir="ltr" className="text-muted-foreground">•••• {o.cardLastFour}</span>}

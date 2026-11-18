@@ -85,7 +85,7 @@ export function MerchantMappings({ initial, categories, colors = {} }: {
               className="flex min-w-0 flex-1 items-center gap-2 py-2 ps-3.5 text-start transition-colors hover:bg-muted/60"
             >
               <span className="min-w-0 flex-1">
-                <bdi className="block truncate text-[15px] font-medium">{alias.displayName}</bdi>
+                <bdi className="block truncate text-[0.9375rem] font-medium">{alias.displayName}</bdi>
                 <span className="block truncate text-xs text-muted-foreground">
                   {alias.originalName !== alias.displayName && <><bdi>{alias.originalName}</bdi> · </>}
                   {providerLabel(alias.provider)}
@@ -175,13 +175,13 @@ function RenameForm({ alias, onSave, onDelete }: { alias: Alias; onSave: (name: 
         <button
           onClick={() => onSave(name.trim())}
           disabled={!changed}
-          className="h-11 flex-1 rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
+          className="h-11 flex-1 rounded-xl bg-primary text-[0.9375rem] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
         >
           שמירה
         </button>
         <button
           onClick={onDelete}
-          className="h-11 flex-1 rounded-xl bg-destructive/10 text-[15px] text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
+          className="h-11 flex-1 rounded-xl bg-destructive/10 text-[0.9375rem] text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
         >
           מחיקת המיפוי
         </button>

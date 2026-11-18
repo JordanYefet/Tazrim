@@ -407,7 +407,7 @@ function AccountText({ account, netLabel }: { account: ManagedAccount; netLabel:
           <p className="flex items-center gap-2 text-sm font-medium">
             <span className="truncate">{account.displayName}</span>
             {!account.importSupported && (
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[0.6875rem] font-normal text-muted-foreground">
                 ייבוא עדיין לא נתמך
               </span>
             )}

@@ -61,7 +61,7 @@ export function AccountSwitcher() {
               href={withPeriod(p.href, period)}
               aria-current={p.current ? 'page' : undefined}
               className={cn(
-                'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+                'flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[0.8125rem] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 // Opaque like the app's cards (ENG-72): the page background never shows through
                 'surface',
@@ -75,7 +75,7 @@ export function AccountSwitcher() {
               )}
               {p.label}
               {p.account?.lastFour && (
-                <span dir="ltr" data-steady className="text-[11px] tabular-nums opacity-70">·{p.account.lastFour}</span>
+                <span dir="ltr" data-steady className="text-[0.6875rem] tabular-nums opacity-70">·{p.account.lastFour}</span>
               )}
             </WalletLink>
           </li>

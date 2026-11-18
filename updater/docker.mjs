@@ -120,6 +120,7 @@ export function createDocker({
   const callMs = timeouts.callMs ?? CALL_TIMEOUT_MS
   const pullIdleMs = timeouts.pullIdleMs ?? PULL_IDLE_MS
   const pullTotalMs = timeouts.pullTotalMs ?? PULL_TOTAL_MS
+  const pollMs = timeouts.pollMs ?? POLL_MS
 
   /**
    * One request; `onLine` gets each line of a streamed (2xx) answer. Fails when no bytes arrive
@@ -326,5 +327,97 @@ export function createDocker({
     remove: id => call('DELETE', `/containers/${enc(id)}?force=true&v=false`),
 
     tag: (imageId, repo, tag) => call('POST', `/images/${encName(imageId)}/tag?repo=${enc(repo)}&tag=${enc(tag)}`),
+
+    /**
+     * What applying `.env` needs (ENG-121), from the helper's own container and the app's:
+     * the compose project, its folder on the host and its files, where the host's folder and
+     * socket are mounted here. Throws with a fixed `code` when this install can't do it.
+     */
+    async composeContext(installMount = '/install') {
+      const self = await inspect(selfId)
+      const labels = self?.Config?.Labels ?? {}
+      const project = labels['com.docker.compose.project']
+      const selfService = labels['com.docker.compose.service']
+      const mounts = self?.Mounts ?? []
+      const install = mounts.find(m => m.Destination === installMount && m.Type === 'bind')
+      if (!install) throw Object.assign(new Error(`${installMount} is not mounted`), { code: 'NO_INSTALL_MOUNT' })
+      if (!project || !selfService) throw Object.assign(new Error('the updater is not running under docker compose'), { code: 'NOT_COMPOSE' })
+      const t = await this.findTarget()
+      const appLabels = (await inspect(t.id))?.Config?.Labels ?? {}
+      const workingDir = appLabels['com.docker.compose.project.working_dir']
+      const configFiles = (appLabels['com.docker.compose.project.config_files'] ?? '').split(',').filter(Boolean)
+      if (!workingDir || !configFiles.length) throw Object.assign(new Error('the app container has no compose labels'), { code: 'NOT_COMPOSE' })
+      const trim = p => p.replace(/\/+$/, '') || '/'
+      // Docker Desktop (macOS) reports a host folder as /host_mnt/<path>
+      const source = install.Source.replace(/^\/host_mnt(?=\/)/, '')
+      if (trim(source) !== trim(workingDir)) {
+        throw Object.assign(new Error(`${installMount} is ${install.Source}, but compose runs from ${workingDir}`), { code: 'FOLDER_MISMATCH' })
+      }
+      // `--env-file` elsewhere: the .env we write is not the one compose reads
+      const envFile = appLabels['com.docker.compose.project.environment_file']
+      if (envFile && envFile.split(',').some(f => trim(f) !== `${trim(workingDir)}/.env`)) {
+        throw Object.assign(new Error(`compose reads its settings from ${envFile}`), { code: 'ENV_ELSEWHERE' })
+      }
+      const socket = mounts.find(m => m.Destination === socketPath)?.Source ?? '/var/run/docker.sock'
+      return { project, selfService, workingDir: trim(workingDir), configFiles, socket }
+    },
+
+    /**
+     * Runs `docker compose` for `ctx` in a short-lived container from `cliImage` (pulled when
+     * missing): the host's folder mounted read-only at its own path, the socket, no network.
+     * Resolves { exitCode, output } (output: the last 4 KB); the container is removed after.
+     */
+    async runCli(ctx, cliImage, script, { timeoutMs = 10 * 60 * 1000 } = {}) {
+      if (!(await inspectImage(cliImage).catch(() => null))) {
+        const colon = cliImage.lastIndexOf(':')
+        await this.pull(cliImage.slice(0, colon), cliImage.slice(colon + 1), () => {})
+      }
+      const dirs = [ctx.workingDir, ...ctx.configFiles.map(f => f.slice(0, f.lastIndexOf('/')) || '/')]
+      const binds = [...new Set(dirs)]
+        .filter((d, _, all) => !all.some(o => o !== d && d.startsWith(`${o}/`)))
+        .map(d => `${d}:${d}:ro`)
+      const created = await call('POST', '/containers/create', {
+        body: {
+          Image: cliImage,
+          Entrypoint: ['sh', '-c', script],
+          Cmd: [],
+          Env: [
+            `COMPOSE_PROJECT_NAME=${ctx.project}`,
+            `COMPOSE_FILE=${ctx.configFiles.join(':')}`,
+            `COMPOSE_PATH_SEPARATOR=:`,
+            // Plain lines in the log, no colours or progress bars
+            'COMPOSE_ANSI=never',
+            'COMPOSE_PROGRESS=plain',
+            `TAZRIM_WD=${ctx.workingDir}`,
+            `TAZRIM_SELF=${ctx.selfService}`,
+          ],
+          WorkingDir: ctx.workingDir,
+          Tty: true,
+          Labels: { 'tazrim.updater': 'compose' },
+          HostConfig: { Binds: [`${ctx.socket}:/var/run/docker.sock`, ...binds], NetworkMode: 'none' },
+        },
+      })
+      const id = created.Id
+      try {
+        await call('POST', `/containers/${enc(id)}/start`)
+        const deadline = Date.now() + timeoutMs
+        let state
+        for (;;) {
+          state = (await inspect(id))?.State ?? {}
+          if (!state.Running && state.Status !== 'created') break
+          if (Date.now() >= deadline) {
+            await call('POST', `/containers/${enc(id)}/kill`, { fine: [409] }).catch(() => {})
+            throw new Error(`docker compose did not finish in ${Math.round(timeoutMs / 60000)} minutes`)
+          }
+          await new Promise(r => setTimeout(r, pollMs))
+        }
+        // Tty: the log is the plain text the commands printed
+        const logs = await request('GET', `${await apiPrefix()}/containers/${enc(id)}/logs?stdout=1&stderr=1&tail=200`)
+        const output = logs.text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\r/g, '').slice(-4096)
+        return { exitCode: state.ExitCode ?? 1, output }
+      } finally {
+        await call('DELETE', `/containers/${enc(id)}?force=true&v=true`).catch(() => {})
+      }
+    },
   }
 }

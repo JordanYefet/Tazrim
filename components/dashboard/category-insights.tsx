@@ -65,7 +65,7 @@ export function CategoryInsights({
 }: Props) {
   return (
     <section className="flex flex-col rounded-xl surface p-4 sm:p-6">
-      <h3 className="font-semibold text-base">שינויים בהוצאות לפי קטגוריה</h3>
+      <h2 className="font-semibold text-base">שינויים בהוצאות לפי קטגוריה</h2>
       <p className="text-sm text-muted-foreground mb-4">
         {insights
           ? `${monthName(insights.month)} מול הממוצע של ${baselineLabel(insights.baselineMonths)}`

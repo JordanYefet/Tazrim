@@ -136,7 +136,7 @@ export function CategoriesView({
                 className="flex h-[52px] w-full items-center gap-3.5 px-4 text-start transition-colors hover:bg-muted/40 active:bg-muted/60"
               >
                 <Swatch color={c.color} />
-                <span className="min-w-0 flex-1 truncate text-[15px]">{c.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[0.9375rem]">{c.name}</span>
                 {c.sources.length > 0 && (
                   <span
                     className={cn(
@@ -282,10 +282,10 @@ function RowButton({ icon, title, sub, value, onClick }: {
     <button onClick={onClick} className="flex min-h-[56px] w-full items-center gap-3.5 px-4 py-2 text-start transition-colors hover:bg-muted/40 active:bg-muted/60">
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px]">{title}</span>
+        <span className="block text-[0.9375rem]">{title}</span>
         <span className="block truncate text-xs text-muted-foreground">{sub}</span>
       </span>
-      <span className="text-[15px] tabular-nums text-muted-foreground">{value}</span>
+      <span className="text-[0.9375rem] tabular-nums text-muted-foreground">{value}</span>
       <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
     </button>
   )
@@ -294,7 +294,7 @@ function RowButton({ icon, title, sub, value, onClick }: {
 /** The list's last row: opens the new-category window */
 function NewCategoryRow({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex h-[52px] w-full items-center gap-3.5 px-4 text-start text-[15px] text-primary transition-colors hover:bg-muted/40">
+    <button onClick={onClick} className="flex h-[52px] w-full items-center gap-3.5 px-4 text-start text-[0.9375rem] text-primary transition-colors hover:bg-muted/40">
       <span className="flex h-3.5 w-3.5 items-center justify-center" aria-hidden><Plus className="h-4 w-4" /></span>
       קטגוריה חדשה
     </button>
@@ -733,24 +733,24 @@ function CategoryDetails({ category, kind, choices, onChanged, onDeleted }: {
           <input
             autoFocus
             aria-label="שם חדש"
-            className="min-w-0 flex-1 rounded-xl border bg-background px-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+            className="min-w-0 flex-1 rounded-xl border bg-background px-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
             value={renaming}
             onChange={e => setRenaming(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') rename(); if (e.key === 'Escape') setRenaming(null) }}
           />
-          <button onClick={rename} className="h-11 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-transform active:scale-[0.97]">שמירה</button>
+          <button onClick={rename} className="h-11 rounded-xl bg-primary px-4 text-[0.9375rem] font-medium text-primary-foreground transition-transform active:scale-[0.97]">שמירה</button>
         </div>
       ) : (
         <div className="flex gap-2">
           <button
             onClick={() => setRenaming(category.name)}
-            className="h-11 flex-1 rounded-xl bg-muted text-[15px] transition-[background-color,transform] hover:bg-muted/70 active:scale-[0.97]"
+            className="h-11 flex-1 rounded-xl bg-muted text-[0.9375rem] transition-[background-color,transform] hover:bg-muted/70 active:scale-[0.97]"
           >
             שינוי שם
           </button>
           <button
             onClick={deleteCategory}
-            className="h-11 flex-1 rounded-xl bg-destructive/10 text-[15px] text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
+            className="h-11 flex-1 rounded-xl bg-destructive/10 text-[0.9375rem] text-destructive transition-[background-color,transform] hover:bg-destructive/15 active:scale-[0.97]"
           >
             מחיקה
           </button>
@@ -823,7 +823,7 @@ function NewCategoryForm({ initialKind, choices, onCreated }: {
       <button
         onClick={create}
         disabled={saving}
-        className="h-11 w-full rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-50"
+        className="h-11 w-full rounded-xl bg-primary text-[0.9375rem] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-50"
       >
         צור קטגוריה
       </button>

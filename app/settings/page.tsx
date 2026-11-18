@@ -51,6 +51,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const tiles: SettingsTile[] = [
     { href: '/settings/appearance', icon: 'appearance', title: 'מראה', summary: 'ערכת נושא, בהירה או כהה, והרקע מאחורי הדפים.' },
+    { href: '/settings/accessibility', icon: 'accessibility', title: 'נגישות', summary: 'גודל טקסט, ניגודיות, תנועה וגופן קריא.' },
     {
       href: '/settings/projection',
       icon: 'projection',
@@ -72,6 +73,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       title: 'מיפויי ייבוא',
       summary: profiles.length ? `${count(profiles.length, 'מיפוי שמור אחד', 'מיפויים שמורים')} לקבצים שהאפליקציה לא מכירה.` : 'אין מיפויים שמורים. הם נוצרים בהעלאת קובץ שהאפליקציה לא מכירה.',
     },
+    ...(readOnly
+      ? []
+      : [{
+          href: '/settings/general',
+          icon: 'general' as const,
+          title: 'כללי',
+          summary: 'אזור הזמן, כמה בנקים מסתנכרנים יחד וכתובות הכניסה.',
+        }]),
     ...(auth
       ? [{
           href: '/settings/people',
@@ -99,6 +108,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             : `${/^\d+\.\d+\.\d+$/.test(CURRENT_VERSION) ? `גרסה ${CURRENT_VERSION}. ` : ''}בדיקה אם יצאה גרסה חדשה ועדכון אליה.`,
           dot: !!latest,
         }]),
+    // Phones, HTTPS and the container's address and ports (ENG-121/122/123), one page; never in the read-only demo
+    ...(readOnly
+      ? []
+      : [{ href: '/settings/network', icon: 'network' as const, title: 'טלפונים ורשת', summary: 'הכתובת לפתיחה מהטלפון עם קוד QR, חיבור מוצפן, והפורטים.' }]),
     { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 

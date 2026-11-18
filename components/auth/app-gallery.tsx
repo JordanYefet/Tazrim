@@ -7,6 +7,7 @@ import analysis from './gallery/analysis.jpg'
 import projection from './gallery/projection.jpg'
 import cards from './gallery/cards.jpg'
 import { cn } from '@/lib/utils/cn'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /** Screenshots of the demo data (fake values), one per feature */
 const SLIDES: { image: StaticImageData; title: string }[] = [
@@ -32,7 +33,7 @@ const POSES = [
 export function AppGallery() {
   const [front, setFront] = useState(0)
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (prefersReducedMotion()) return
     const t = window.setInterval(() => {
       if (!document.hidden) setFront(i => (i + 1) % SLIDES.length)
     }, 4500)

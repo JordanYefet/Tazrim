@@ -8,19 +8,22 @@
     --foreground: 214 35% 10%;
     --card: 0 0% 100%;
     --card-foreground: 214 35% 10%;
-    --primary: 199 72% 38%;
+    --primary: 199 72% 35%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 20% 93%;
     --secondary-foreground: 214 30% 20%;
     --muted: 210 20% 93%;
-    --muted-foreground: 214 20% 45%;
+    --muted-foreground: 214 20% 38%;
     --accent: 210 20% 93%;
     --accent-foreground: 214 30% 20%;
     --destructive: 3 72% 50%;
     --destructive-foreground: 0 0% 98%;
     --border: 210 18% 88%;
     --input: 210 18% 88%;
-    --ring: 199 72% 38%;
+    --ring: 199 72% 35%;
+    /* A text field's edge: 3:1 against the card and the field (WCAG 1.4.11). --border stays the quiet
+       separator for cards and rows */
+    --control-border: 214 14% 50%;
     --radius: 0.625rem;
 
     /* Motion tokens (ENG-67): one clock for the app. Mirrored for JavaScript in
@@ -39,12 +42,12 @@
     --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 
     /* Semantic color tokens */
-    --income: 158 55% 32%;
-    --income-foreground: 158 55% 32%;
-    --expense: 3 72% 50%;
-    --expense-foreground: 3 72% 50%;
-    --cc: 31 60% 45%;
-    --cc-foreground: 31 60% 45%;
+    --income: 158 55% 29%;
+    --income-foreground: 158 55% 29%;
+    --expense: 3 72% 46%;
+    --expense-foreground: 3 72% 46%;
+    --cc: 31 65% 36%;
+    --cc-foreground: 31 65% 36%;
 
     /* Chart colors (CSS vars for use in JS) */
     --chart-income: #2e8a5e;
@@ -86,7 +89,7 @@
     --secondary: 220 20% 18%;
     --secondary-foreground: 210 20% 94%;
     --muted: 220 20% 18%;
-    --muted-foreground: 214 15% 55%;
+    --muted-foreground: 214 15% 60%;
     --accent: 220 20% 18%;
     --accent-foreground: 210 20% 94%;
     --destructive: 3 60% 42%;
@@ -94,11 +97,12 @@
     --border: 220 18% 22%;
     --input: 220 18% 22%;
     --ring: 196 65% 48%;
+    --control-border: 218 12% 52%;
 
-    --income: 158 50% 42%;
-    --income-foreground: 158 50% 42%;
-    --expense: 3 65% 55%;
-    --expense-foreground: 3 65% 55%;
+    --income: 158 50% 45%;
+    --income-foreground: 158 50% 45%;
+    --expense: 3 65% 66%;
+    --expense-foreground: 3 65% 66%;
     --cc: 31 60% 55%;
     --cc-foreground: 31 60% 55%;
 
@@ -282,6 +286,24 @@ html[data-privacy='on'] [data-money] * {
   -webkit-user-select: none;
   user-select: none;
 }
+/* Hidden from assistive technology too, not only from the eye. At rest (no switch running, so the
+   fade above still shows the digits going) the amount's content is visibility:hidden, which keeps its box
+   and drops it from the accessibility tree; the bar is the one thing left visible, and it carries
+   the spoken word instead ("סכום מוסתר", as the pseudo-element's alt text; browsers without it
+   just stay silent). RollingNumber's screen-reader copy (data-money-sr) is handled the same way. */
+html[data-privacy='on']:not([data-privacy-switch]) [data-money]:not(:empty):not(input) {
+  visibility: hidden;
+}
+html[data-privacy='on']:not([data-privacy-switch]) [data-money]:not(:empty):not(input)::after {
+  visibility: visible;
+  content: '';
+  content: '' / 'סכום מוסתר';
+}
+html[data-privacy='on']:not([data-privacy-switch]) [data-money-sr] { visibility: hidden; }
+html[data-privacy='on']:not([data-privacy-switch]) [data-money-sr]::after {
+  visibility: visible;
+  content: 'סכום מוסתר';
+}
 /* An amount field: a tinted field while hidden, its value while it is being edited */
 html[data-privacy='on'] input[data-money]:not(:focus) {
   background-color: color-mix(in srgb, currentColor 14%, transparent);
@@ -372,7 +394,28 @@ html[data-theme-fade] *, html[data-theme-fade] *::before, html[data-theme-fade] 
 /* Anchors (#accounts, scrollIntoView) land below the sticky header */
 html {
   scroll-padding-top: 4.5rem;
+  /* A focused control is never left under the floating tab bar (WCAG 2.4.11): its 4rem, the gap
+     under it and the home indicator, plus a little air. Wide screens have no tab bar */
+  scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
+@media (min-width: 768px) {
+  html { scroll-padding-bottom: 1.5rem; }
+}
+
+/* The skip link: out of sight until the keyboard reaches it, then the first thing on screen */
+.skip-link {
+  position: fixed;
+  inset-block-start: 0.5rem;
+  inset-inline-start: 0.5rem;
+  z-index: 100;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; outline: 3px solid hsl(var(--foreground)); outline-offset: 2px; }
 
 /* Popups, one motion language (components/ui/open-origin.ts):
    - windows (.app-window: AppDialog, ConfirmDialog, the ⌘K search) grow out
@@ -747,6 +790,15 @@ html {
   }
 }
 
+/* Text fields, selects and textareas draw their edge in --control-border (3:1, WCAG 1.4.11): the
+   edge is what says "type here". Unlayered so it outranks the utilities' border-border; a field
+   that sets its own focus colour keeps it, and one with a transparent border stays transparent. */
+input:not([type='checkbox'], [type='radio'], [type='file'], [type='range'], [type='color'], [class*='border-transparent']):not(:focus):not(:focus-within),
+textarea:not([class*='border-transparent']):not(:focus),
+select:not(:focus) {
+  border-color: hsl(var(--control-border));
+}
+
 /* Horizontal pill rows scroll without a visible scrollbar */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -1075,7 +1127,7 @@ html {
 .acct-bank__net {
   margin-top: auto;
   text-align: end;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: hsl(var(--muted-foreground));
   white-space: nowrap;
@@ -1373,7 +1425,7 @@ html {
   justify-content: center;
 }
 /* A shade darker than the rest of the ink: the label sits a little lower on the leather, where it is darker (4.3:1 or more) */
-.wallet-pocket__label { font-size: 16px; font-weight: 700; line-height: 1.3; color: #47230a; }
+.wallet-pocket__label { font-size: 1rem; font-weight: 700; line-height: 1.3; color: #47230a; }
 .wallet-pocket__total {
   display: flex;
   justify-content: flex-end;
@@ -1401,18 +1453,18 @@ html {
   border-radius: 999px;
   background: rgb(79 40 13 / 0.08);
   box-shadow: inset 0 1px 2px rgb(40 16 2 / 0.14), 0 1px 0 rgb(255 238 214 / 0.5);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
 }
 .wallet-pocket__mark {
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   color: rgb(79 40 13 / 0.4);
   text-shadow: 0 1px 0 rgb(255 238 214 / 0.5);
 }
 /* The bank pocket's net, where the mark is on the card pocket: legible, still debossed */
-.wallet-pocket__net { font-size: 13px; font-weight: 600; color: rgb(227 236 248 / 0.72); white-space: nowrap; }
+.wallet-pocket__net { font-size: 0.8125rem; font-weight: 600; color: rgb(227 236 248 / 0.72); white-space: nowrap; }
 .wallet-pocket__netvalue { font-weight: 800; color: #e3ecf8; font-variant-numeric: tabular-nums; }
 .wallet-pocket__totalwrap {
   transition: opacity var(--motion-fast) var(--ease-ui);
@@ -1930,6 +1982,34 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
   .auth-gradient, .auth-swap { animation: none; }
 }
 
+/* The setup counter (components/auth/setup-wizard.tsx): each step a dot; the current one a short
+   pill, made of two caps that part and a middle that scales, so only transforms move */
+.step-dot > span { transition: transform 220ms var(--ease-ui), background-color 150ms var(--ease-ui); }
+@media (prefers-reduced-motion: reduce) {
+  .step-dot > span { transition: background-color 150ms var(--ease-ui); }
+}
+
+/* Settings → phones and network, and the setup steps that show it (components/install/guide.tsx) */
+/* A QR code or a file card arriving: from a hair smaller, never from nothing */
+.pop-in { animation: pop-in var(--motion-fast) var(--ease-ui) backwards; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.97); } }
+/* A disclosure opening: its height through the grid row, with opacity */
+.disclosure { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 220ms var(--ease-ui), opacity 220ms var(--ease-ui); }
+.disclosure[data-open] { grid-template-rows: 1fr; opacity: 1; }
+.disclosure > * { min-height: 0; overflow: hidden; }
+.disclosure-chevron { transition: transform 220ms var(--ease-ui); }
+[aria-expanded='true'] > .disclosure-chevron { transform: rotate(180deg); }
+/* The copy button: copy and check cross-fade through a short blur */
+.copy-icon { transition: opacity 150ms var(--ease-ui), filter 150ms var(--ease-ui), transform 150ms var(--ease-ui); }
+.copy-icon[data-hidden] { opacity: 0; filter: blur(2px); transform: scale(0.8); }
+@media (prefers-reduced-motion: reduce) {
+  .pop-in { animation-name: fade-in; }
+  .disclosure { transition: opacity 220ms var(--ease-ui); }
+  .disclosure-chevron { transition: none; }
+  .copy-icon { transition: opacity 150ms var(--ease-ui); }
+  .copy-icon[data-hidden] { filter: none; transform: none; }
+}
+
 /* The update page (components/updates/updating-screen.tsx, ENG-98): the sign-in drift, whose
    colour follows the update. Three stacked layers cross-fade (opacity only): working is the
    sign-in gradient, done a calm teal-green, failed a soft red that stops drifting. */
@@ -2007,11 +2087,11 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
   gap: 10px;
   align-items: center;
   min-height: 22px;
-  font-size: 14px;
+  font-size: 0.875rem;
   transition: color 200ms ease;
 }
 .update-step[data-s='waiting'] { color: hsl(var(--muted-foreground)); }
-.update-note { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.update-note { font-size: 0.75rem; color: hsl(var(--muted-foreground)); }
 .update-step[data-s='failed'] .update-note { color: hsl(var(--expense)); }
 .update-ic { position: relative; width: 20px; height: 20px; }
 .update-ic > span {
@@ -2139,3 +2219,140 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 @media (prefers-reduced-motion: reduce) {
   .sync-ring { animation: none; background: hsl(var(--primary)); }
 }
+
+/* ── Accessibility options (ENG-128, Settings → Accessibility) ───────────────────────────────
+   Each option is a class on <html> (lib/a11y/settings.ts; the layout renders them, so nothing
+   flashes). "Stop animations" and "High contrast" are the system settings' twins: the PostCSS
+   plugin (postcss/a11y-media.cjs) copies every prefers-reduced-motion / prefers-contrast /
+   prefers-reduced-transparency block, Tailwind's variants included, under [data-a11y~=still] /
+   [data-a11y~=contrast], and lib/a11y/media.ts answers the same for JavaScript. */
+
+/* Readable font: Tailwind's `sans` is var(--font-app) */
+:root { --font-app: var(--font-heebo-hebrew), var(--font-heebo-latin), system-ui, sans-serif; }
+:root[data-a11y~='font'] { --font-app: var(--font-assistant-hebrew), var(--font-assistant-latin), system-ui, sans-serif; }
+
+/* Text size: the root scales, every size in the app is rem (or em) */
+html[data-a11y~='text-115'] { font-size: 115%; }
+html[data-a11y~='text-130'] { font-size: 130%; }
+html[data-a11y~='text-150'] { font-size: 150%; }
+
+/* Bold: every weight one step heavier */
+html[data-a11y~='bold'] body { font-weight: 500; }
+html[data-a11y~='bold'] .font-light { font-weight: 400; }
+html[data-a11y~='bold'] .font-normal { font-weight: 500; }
+html[data-a11y~='bold'] .font-medium { font-weight: 600; }
+html[data-a11y~='bold'] .font-semibold { font-weight: 700; }
+html[data-a11y~='bold'] .font-bold { font-weight: 800; }
+html[data-a11y~='bold'] .font-extrabold { font-weight: 900; }
+html[data-a11y~='bold'] strong, html[data-a11y~='bold'] b { font-weight: 800; }
+
+/* Text spacing (WCAG 1.4.12): letter 0.05em, word 0.16em, lines at least 1.7. Not the rolling
+   digits (their windows are exactly one line, one digit wide) and not the account faces and
+   wallet, whose lettering is part of their drawing. */
+html[data-a11y~='spacing'] body :not([data-rolling], [data-rolling] *, :is(.acct-card, .acct-bank, .acct-mini, .wallet-shell, .wallet-card, .wallet-pocket) *) {
+  letter-spacing: 0.05em;
+  word-spacing: 0.16em;
+}
+html[data-a11y~='spacing'] body :is(p, li, dd, dt, label, td, th, h1, h2, h3, h4, h5, h6, a, button, div, span):not([data-rolling], [data-rolling] *, [class*='leading-none'], .sr-only, :is(.acct-card, .acct-bank, .acct-mini, .wallet-shell, .wallet-card, .wallet-pocket, svg, .recharts-wrapper) *) {
+  line-height: 1.7;
+}
+
+/* High contrast, besides what the copied media blocks do: secondary text and lines that stand out */
+:root[data-a11y~='contrast'] {
+  --muted-foreground: 214 28% 27%;
+  --border: 214 16% 48%;
+  --input: 214 16% 48%;
+  --surface-edge: 214 20% 30%;
+}
+:root[data-a11y~='contrast'].dark {
+  --muted-foreground: 214 22% 80%;
+  --border: 214 14% 58%;
+  --input: 214 14% 58%;
+  --surface-edge: 214 16% 72%;
+}
+
+/* Colour-blind colours: blue for income, orange for expense (the tokens every amount uses), and an
+   arrow on each amount, so colour is never the only sign */
+:root[data-a11y~='cb'] {
+  --income: 212 72% 40%;
+  --income-foreground: 212 72% 40%;
+  --expense: 28 90% 38%;
+  --expense-foreground: 28 90% 38%;
+  --chart-income: hsl(212 72% 40%);
+  --chart-expense: hsl(28 90% 38%);
+}
+:root[data-a11y~='cb'].dark {
+  --income: 212 80% 62%;
+  --income-foreground: 212 80% 62%;
+  --expense: 30 90% 58%;
+  --expense-foreground: 30 90% 58%;
+  --chart-income: hsl(212 80% 62%);
+  --chart-expense: hsl(30 90% 58%);
+}
+html[data-a11y~='cb'] [data-flow]:not(:empty)::before {
+  content: '\2191';
+  margin-inline-end: 0.25em;
+  font-weight: 800;
+}
+html[data-a11y~='cb'] [data-flow='out']:not(:empty)::before { content: '\2193'; }
+
+/* Strong focus ring: 3px amber, everywhere, over the app's own ring utilities */
+html[data-a11y~='focus'] :focus-visible,
+html[data-a11y~='focus'] [data-focus-demo] {
+  outline: 3px solid #f59e0b !important;
+  outline-offset: 3px !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+/* Underline links and buttons: links underlined; buttons with no border or fill get a shape.
+   The shape is an inset line (no size change, so nothing moves) kept in the button's own
+   box-shadow stack, which Tailwind's focus rings share. */
+html[data-a11y~='underline'] a[href]:not([class*='surface'], [data-no-underline], :has(div, p, h1, h2, h3, h4, ul, ol, dl, dt, dd, li, table, [data-money], [data-rolling])) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3.5px;
+}
+html[data-a11y~='underline'] button:not(
+  [class^='bg-'], [class*=' bg-'], [class^='border'], [class*=' border'],
+  [class*='inset-0'], [class*='w-full'], [role='switch'], [role='radio'], [role='tab'], [role='menuitem'], [role='option'], [role='combobox'], [disabled], .sr-only
+) {
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, currentColor 55%, transparent),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+}
+/* The sample card's filled button: a dark edge, as the mockup shows */
+html[data-a11y~='underline'] .a11y-sample-btn { box-shadow: inset 0 0 0 2px hsl(var(--foreground) / 0.85); }
+
+/* The sample card on Settings → Accessibility: pinned under the app header (which slides away on scroll) */
+.a11y-sample-pin { top: var(--pin-top, 3.5rem); transition: top var(--motion-fast) var(--ease-ui); }
+body:has(header[data-hidden]) .a11y-sample-pin { top: 0; }
+@keyframes a11y-sample-slide { from { transform: translateX(110%); } to { transform: translateX(-110%); } }
+.a11y-sample-line { animation: a11y-sample-slide 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  /* The header never slides away under reduced motion, so the card stays below it */
+  .a11y-sample-pin { transition: none; top: var(--pin-top, 3.5rem) !important; }
+  .a11y-sample-line { animation: none; transform: none; }
+}
+
+/* Bigger text on a phone: nothing is cut off. Truncated lines wrap instead, and the header's
+   three columns give the period picker what the two buttons leave */
+html[data-a11y*='text-'] .truncate {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+html[data-a11y*='text-'] header { grid-template-columns: auto minmax(0, 1fr) auto; }
+html[data-a11y*='text-'] header .min-w-\[7\.5rem\] { min-width: 0; }
+/* The app's chrome (header, tab bar) never grows past the 130% size: at 150% it is scaled back to
+   it, and the period label stays on one line. The pinned sample card sits under the smaller header. */
+html[data-a11y~='text-150'] { --pin-top: calc(3.5rem * 0.8667); }
+html[data-a11y~='text-150'] header,
+html[data-a11y~='text-150'] .tab-bar { zoom: 0.8667; }
+html[data-a11y*='text-'] header .min-w-\[7\.5rem\] { white-space: nowrap; }
+/* Summary rows (label + amount) stack when the amount no longer fits beside the label */
+html[data-a11y*='text-'] dl a { flex-wrap: wrap; row-gap: 0.25rem; }
+html[data-a11y*='text-'] dl a > dt { flex-basis: 7rem; }
+
+/* Keyboard focus in a menu is the highlighted row; a tint alone is faint on a card, so keys also draw an edge */
+[role^='menuitem'][data-highlighted]:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }

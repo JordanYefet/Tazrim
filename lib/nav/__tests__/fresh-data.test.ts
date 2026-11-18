@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { AWAY_MS, isDataWrite, staleOnReturn } from '../fresh-data'
 
 describe('isDataWrite', () => {
+  it('leaves out the install settings, which restart the app (ENG-121)', () => {
+    expect(isDataWrite('POST', '/api/install')).toBe(false)
+  })
+
   it('counts writes to the API', () => {
     expect(isDataWrite('POST', '/api/upload')).toBe(true)
     expect(isDataWrite('PATCH', '/api/cards/transactions/tx_test')).toBe(true)

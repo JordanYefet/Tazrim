@@ -5,6 +5,8 @@ import { useMemo } from 'react'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeSeriesSet, pointsOf } from '@/lib/a11y/chart-summary'
 import { buildChartRows, chartDomain, type ChartRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth } from '@/lib/insights/projection'
 import { useSelectedMonth } from './selected-month'
@@ -59,7 +61,18 @@ export function ProjectionChart({ past, months, start, cushion }: {
   }
 
   return (
-    <div dir="ltr" className="h-64 sm:h-72">
+    <ChartFigure
+      dir="ltr"
+      label="יתרת החשבון והתחזית"
+      summary={describeSeriesSet(
+        [
+          { name: 'בפועל', points: pointsOf(data, 'actual', 'label') },
+          { name: 'תחזית', points: pointsOf(data, 'expected', 'label') },
+        ],
+        formatCurrencyWhole
+      )}
+      className="h-64 sm:h-72"
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={axes.margin} onClick={pick} style={{ cursor: 'pointer' }}>
           <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 4" />
@@ -78,6 +91,6 @@ export function ProjectionChart({ past, months, start, cushion }: {
           ))}
         </ComposedChart>
       </ResponsiveContainer>
-    </div>
+    </ChartFigure>
   )
 }

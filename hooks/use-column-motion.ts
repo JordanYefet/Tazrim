@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { MOTION } from '@/lib/motion'
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /**
  * Optional table columns that come and go with motion (the "עמודות" picker):

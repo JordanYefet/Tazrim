@@ -5,7 +5,7 @@ import { useState } from 'react'
 /** The one command that updates an install by hand (ENG-98); Docker words stay behind "הצגת פקודות ידניות" */
 export const MANUAL_COMMAND = 'docker compose pull && docker compose up -d'
 
-const TEXT_BUTTON =
+export const TEXT_BUTTON =
   'inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-primary transition-colors duration-quick hover:bg-primary/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** The command, selectable, with a copy button */

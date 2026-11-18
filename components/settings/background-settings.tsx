@@ -98,8 +98,8 @@ export function BackgroundSettings() {
   return (
     <div className="flex flex-col gap-4 rounded-[20px] surface px-4 py-[18px] md:p-6">
       <div className="flex flex-col gap-0.5">
-        <h3 id="background-title" className="text-[17px] font-bold">רקע</h3>
-        <p className="text-[13px] text-muted-foreground">דוגמה עדינה מאחורי כל הדפים. חשבונות עם צבע &quot;זכוכית&quot; נראים דרכה.</p>
+        <h2 id="background-title" className="text-[1.0625rem] font-bold">רקע</h2>
+        <p className="text-[0.8125rem] text-muted-foreground">דוגמה עדינה מאחורי כל הדפים. חשבונות עם צבע &quot;זכוכית&quot; נראים דרכה.</p>
       </div>
 
       {/* No gap between the tiles and the line options: their spacing is inside the Reveal, so it closes too */}
@@ -122,7 +122,7 @@ export function BackgroundSettings() {
                 className="pattern-choice flex flex-col gap-1.5 rounded-[14px] p-1.5"
               >
                 <Thumb kind={k.value} colors={palette.light} />
-                <span className="text-center text-[13px] font-semibold">{k.label}</span>
+                <span className="text-center text-[0.8125rem] font-semibold">{k.label}</span>
               </button>
             )
           })}
@@ -164,7 +164,7 @@ export function BackgroundSettings() {
                     aria-checked={selected}
                     tabIndex={selected ? 0 : -1}
                     onClick={() => update({ palette: p.value })}
-                    className="pattern-choice inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-[13px]"
+                    className="pattern-choice inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-[0.8125rem]"
                   >
                     <span className="inline-flex" aria-hidden>
                       <span className="h-3.5 w-3.5 rounded-full" style={{ background: p.light[0] }} />

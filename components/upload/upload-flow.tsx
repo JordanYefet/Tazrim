@@ -35,6 +35,7 @@ import {
   type ImportOutcome,
   type PreviewOutcome,
 } from '@/lib/upload/batch'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 type PreviewResponse = RawWorkbookPreview & {
   fileName: string
@@ -355,7 +356,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
       requestAnimationFrame(() => {
         const target = document.getElementById(MAPPER_ANCHORS[shownFix])
         if (!target) return
-        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        const reduce = prefersReducedMotion()
         target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
         const field =
           target.querySelector<HTMLElement>('[aria-invalid="true"]') ?? target.querySelector<HTMLElement>('select, input')
@@ -392,7 +393,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
           )}
         >
           <div className={cn('w-11 h-11 shrink-0 rounded-xl flex items-center justify-center', dragging ? 'bg-primary/15' : 'bg-muted')}>
-            <Upload className={cn('h-5 w-5', dragging ? 'text-primary' : 'text-muted-foreground')} />
+            <Upload aria-hidden className={cn('h-5 w-5', dragging ? 'text-primary' : 'text-muted-foreground')} />
           </div>
           <div className="flex-1 text-center sm:text-start min-w-0">
             <p className="text-sm font-medium">

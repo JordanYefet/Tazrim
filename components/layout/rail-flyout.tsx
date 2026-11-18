@@ -102,7 +102,7 @@ export function RailFlyout({
       aria-current={current ? 'page' : undefined}
       onClick={() => setPos(null)}
       className={cn(
-        'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         current ? 'bg-primary/10 font-medium text-primary' : muted ? 'text-muted-foreground hover:bg-muted hover:text-foreground' : 'hover:bg-muted'
       )}
     >

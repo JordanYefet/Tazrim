@@ -54,7 +54,7 @@ export function UnusualList({ items, onDismiss, title = 'תנועות חריגו
                     </p>
                   ))}
                 </div>
-                <span data-money className="shrink-0 text-sm font-semibold tabular-nums text-[hsl(var(--expense))]">
+                <span data-money data-flow="out" className="shrink-0 text-sm font-semibold tabular-nums text-[hsl(var(--expense))]">
                   {formatCurrency(item.amount)}
                 </span>
                 {onDismiss && (

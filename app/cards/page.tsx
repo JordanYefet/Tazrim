@@ -215,7 +215,7 @@ export default async function CardsPage({ searchParams }: { searchParams: Promis
           <>
             {/* The same pair as on a card's page: the months, and the categories (every card's
                 together) with the category analysis link; a category filters the table below */}
-            <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
+            <div data-view="trends" className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
               <MonthlySpendingChart
                 series={perCard.map(c => ({ key: c.account.id, label: c.account.displayName, color: c.color, data: c.monthly }))}
                 selectedMonth={month}

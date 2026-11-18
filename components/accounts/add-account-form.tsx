@@ -286,14 +286,14 @@ export function AccountForm(props: CreateProps | EditProps) {
           </div>
           <div>
             <ColorPicker kind={kind} provider={provider} value={color} onChange={setColor} fallbackColor={fallbackColor} />
-            {fieldError('color') && <p className="text-xs text-destructive">{fieldError('color')}</p>}
+            {fieldError('color') && <p role="alert" className="text-xs text-destructive">{fieldError('color')}</p>}
           </div>
         </div>
 
         <div className="min-w-0 space-y-4">
           {/* One block, so the collapsed payer fields leave no gap of their own */}
           <div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'חברת האשראי'}</label>
                 <select
@@ -302,6 +302,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                   value={providerChoice}
                   onChange={e => (e.target.value === NEW_OTHER ? setOtherDraft(otherProvider) : chooseProvider(e.target.value))}
                   aria-invalid={!!fieldError('provider')}
+                  aria-describedby={`${id}-provider-msg`}
                 >
                   {KNOWN_PROVIDERS.filter(p => p.kind === kind).map(p => (
                     <option key={p.key} value={p.key}>{p.label}</option>
@@ -309,7 +310,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                   {otherProvider.trim() && <option value={OTHER}>{otherProvider.trim()}</option>}
                   <option value={NEW_OTHER}>{kind === 'BANK' ? 'בנק אחר…' : 'חברה אחרת…'}</option>
                 </select>
-                <p className={cn('text-xs', fieldError('provider') ? 'text-destructive' : 'text-muted-foreground')}>
+                <p id={`${id}-provider-msg`} role={fieldError('provider') ? 'alert' : undefined} className={cn('text-xs', fieldError('provider') ? 'text-destructive' : 'text-muted-foreground')}>
                   {fieldError('provider') ?? providerHint(kind, providerChoice)}
                 </p>
               </div>
@@ -335,9 +336,10 @@ export function AccountForm(props: CreateProps | EditProps) {
                   placeholder={kind === 'BANK' ? 'לדוגמה: חשבון משותף' : 'לדוגמה: כרטיס עבודה'}
                   maxLength={60}
                   aria-invalid={!!fieldError('displayName')}
+                  aria-describedby={fieldError('displayName') ? `${id}-name-error` : undefined}
                 />
                 {fieldError('displayName') ? (
-                  <p className="text-xs text-destructive">{fieldError('displayName')}</p>
+                  <p id={`${id}-name-error`} role="alert" className="text-xs text-destructive">{fieldError('displayName')}</p>
                 ) : (
                   kind === 'CREDIT_CARD' && <p className="text-xs text-muted-foreground">כרטיס מועדון? כאן שמים את שם המועדון</p>
                 )}
@@ -360,7 +362,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                     aria-invalid={lastFourInvalid || !!fieldError('cardLastFour')}
                     aria-describedby={`${id}-last4-hint`}
                   />
-                  <p id={`${id}-last4-hint`} className={cn('text-xs', lastFourInvalid || fieldError('cardLastFour') ? 'text-destructive' : 'text-muted-foreground')}>
+                  <p id={`${id}-last4-hint`} role={fieldError('cardLastFour') ? 'alert' : undefined} className={cn('text-xs', lastFourInvalid || fieldError('cardLastFour') ? 'text-destructive' : 'text-muted-foreground')}>
                     {fieldError('cardLastFour') ?? (lastFourInvalid ? 'יש להזין בדיוק 4 ספרות' : 'כדי להבדיל בין כרטיסים')}
                   </p>
                 </div>
@@ -377,13 +379,14 @@ export function AccountForm(props: CreateProps | EditProps) {
                     value={network}
                     onChange={e => { setNetwork(e.target.value); setNetworkTouched(true) }}
                     aria-invalid={!!fieldError('cardNetwork')}
+                    aria-describedby={fieldError('cardNetwork') ? `${id}-network-error` : undefined}
                   >
                     {CARD_NETWORKS.map(nw => (
                       <option key={nw.key} value={nw.key}>{nw.label}</option>
                     ))}
                     <option value="">אחר / לא ידוע</option>
                   </select>
-                  {fieldError('cardNetwork') && <p className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
+                  {fieldError('cardNetwork') && <p id={`${id}-network-error`} role="alert" className="text-xs text-destructive">{fieldError('cardNetwork')}</p>}
                 </div>
               )}
 
@@ -399,7 +402,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                   ) : (
                     <PayerTiles ctx={payerCtx} provider={provider} value={payer} onChange={setPayerChoice} labelId={`${id}-payer`} />
                   ))}
-                {fieldError('payerAccountId') && <p className="text-xs text-destructive">{fieldError('payerAccountId')}</p>}
+                {fieldError('payerAccountId') && <p role="alert" className="text-xs text-destructive">{fieldError('payerAccountId')}</p>}
               </div>
             </Reveal>
 
@@ -410,7 +413,7 @@ export function AccountForm(props: CreateProps | EditProps) {
                   כרטיסים שמשולמים מהחשבון <span className="font-normal text-muted-foreground">(לא חובה)</span>
                 </p>
                 {payerCtx && <PaidCardsField ctx={payerCtx} value={paidCards} onChange={setPaidCards} labelId={`${id}-paid`} />}
-                {fieldError('paidCardIds') && <p className="text-xs text-destructive">{fieldError('paidCardIds')}</p>}
+                {fieldError('paidCardIds') && <p role="alert" className="text-xs text-destructive">{fieldError('paidCardIds')}</p>}
               </div>
             </Reveal>
           </div>

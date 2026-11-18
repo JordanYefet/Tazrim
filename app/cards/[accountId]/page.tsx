@@ -196,7 +196,7 @@ export default async function CardAccountPage({
       <div className="wallet-shell__rest space-y-6">
         {hasData && (
           /* Monthly bar chart + category donut side by side on large screens */
-          <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
+          <div data-view="trends" className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <MonthlySpendingChart
               accountId={account.id}
               // A category filter narrows the bars too, like the tiles and the table

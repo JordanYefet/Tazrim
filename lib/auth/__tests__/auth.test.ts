@@ -45,10 +45,10 @@ describe('codes', () => {
 })
 
 describe('isPublicPath', () => {
-  it.each(['/login', '/setup', '/invite/abc', '/api/auth/login', '/api/health', '/manifest.webmanifest', '/_next/static/x.js'])('%s is public', p =>
+  it.each(['/login', '/setup', '/invite/abc', '/api/auth/login', '/api/health', '/manifest.webmanifest', '/_next/static/x.js', '/tazrim.mobileconfig', '/tazrim-root.crt'])('%s is public', p =>
     expect(isPublicPath(p)).toBe(true)
   )
-  it.each(['/', '/settings', '/api/people', '/api/sync', '/api/data/delete-all', '/loginx', '/api/healthz', '/updating'])('%s needs a session', p =>
+  it.each(['/', '/settings', '/api/people', '/api/sync', '/api/data/delete-all', '/loginx', '/api/healthz', '/updating', '/tazrim.mobileconfigx', '/tazrim-root.crt/x', '/api/install', '/api/install/network', '/settings/https'])('%s needs a session', p =>
     expect(isPublicPath(p)).toBe(false)
   )
 })

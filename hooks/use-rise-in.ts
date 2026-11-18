@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { EASE, MOTION } from '@/lib/motion'
 import { SWAP_KEYFRAMES } from './use-data-swap'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /**
  * Rows that arrive on a table ("טען עוד") rise in with the same short fade a
@@ -20,7 +21,7 @@ export function useRiseIn(ref: RefObject<HTMLElement | null>) {
     const ids = pending.current
     pending.current = []
     const el = ref.current
-    if (!ids.length || !el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!ids.length || !el || prefersReducedMotion()) return
     for (const id of ids) {
       el.querySelectorAll<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`).forEach(row => {
         row.animate(SWAP_KEYFRAMES, { duration: MOTION.base, easing: EASE.ui })

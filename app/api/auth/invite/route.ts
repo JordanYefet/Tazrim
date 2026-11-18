@@ -7,10 +7,11 @@ import { createSession } from '@/lib/auth/session'
 export const dynamic = 'force-dynamic'
 
 /**
- * POST { token, name, password }: joins the household from an invite link
- * with a password instead of a passkey (the passkey way is
- * /api/auth/register/options with mode 'invite'). New-person links only: a
- * link for another device of someone signs in with their password instead.
+ * POST { token, name, password }: joins the household from an invite link, with
+ * a name and a password, always (ENG-119); a passkey can be added after
+ * (/api/people/devices). New-person links only: a link for another device of
+ * someone makes a passkey (/api/auth/register/options), or they sign in with
+ * their password.
  */
 export async function POST(req: Request) {
   if (!allow(req, 'register', 10)) return TOO_MANY()

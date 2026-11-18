@@ -466,7 +466,7 @@ export function CardTransactionsTable({
                 {shownColumns.map(c => (
                   <th key={c} className={cn(TH, columnClass(c))}>{LABEL[c]}</th>
                 ))}
-                <th className={TH} />
+                <th className={TH}><span className="sr-only">פעולות</span></th>
               </tr>
             </thead>
             <tbody>
@@ -539,7 +539,7 @@ export function CardTransactionsTable({
                     )}
                   </td>
                   <td className="py-2.5 px-4 whitespace-nowrap">
-                    <span data-money className={cn(
+                    <span data-money data-flow={tx.ignored ? undefined : 'out'} className={cn(
                       'tabular-nums font-medium',
                       tx.ignored ? 'line-through text-muted-foreground' : 'text-[hsl(var(--expense))]'
                     )}>
