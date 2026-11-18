@@ -193,8 +193,10 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
               </div>
             ))}
           </div>
-          {/* The dots turn the page too (a tap instead of a swipe); each is a 24px target around its dot */}
-          <div className="mt-1 flex justify-center">
+          {/* The dots turn the page too (a tap instead of a swipe); each is a 24px target around its dot.
+              The row keeps the dots' own 6px height so the pane still fits its fixed 206px; the targets
+              reach past it into the empty gap above the רקע row */}
+          <div className="mt-2 flex h-1.5 items-center justify-center">
             {AVATAR_SETS.map((s, i) => (
               <button
                 key={s}
@@ -202,7 +204,7 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
                 aria-label={`קבוצת איורים ${i + 1} מתוך ${AVATAR_SETS.length}`}
                 aria-current={page === i || undefined}
                 onClick={() => goToPage(i)}
-                className="flex h-6 w-6 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className={cn('h-1.5 rounded-full transition-[width,background-color] duration-fast ease-ui motion-reduce:transition-none', page === i ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/50')} />
               </button>
