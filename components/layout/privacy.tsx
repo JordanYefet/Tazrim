@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, us
 import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatPrivacyCookie, isPrivacyShortcut } from '@/lib/privacy'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 // The bars' fade (globals.css, --privacy-wipe), and a little room for it to settle
 const SWITCH_MS = 540
@@ -121,7 +122,7 @@ async function save(on: boolean): Promise<void> {
 function paint(on: boolean, animate: boolean): Promise<void> {
   const html = document.documentElement
   window.clearTimeout(switchTimer)
-  if (!animate || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!animate || prefersReducedMotion()) {
     delete html.dataset.privacySwitch
     html.dataset.privacy = formatPrivacyCookie(on)
     return Promise.resolve()

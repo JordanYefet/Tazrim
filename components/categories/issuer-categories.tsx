@@ -63,7 +63,7 @@ export function IssuerCategories({ initial, categories, colors = {} }: {
         {rows.map(row => (
           <li key={`${row.provider}\u0000${row.sourceCategory}`} className="flex min-h-[56px] items-center gap-3 px-3.5 py-2">
             <span className="min-w-0 flex-1">
-              <bdi className="block truncate text-[15px] font-medium">{row.sourceCategory}</bdi>
+              <bdi className="block truncate text-[0.9375rem] font-medium">{row.sourceCategory}</bdi>
               <span className="block text-xs text-muted-foreground">
                 {providerLabel(row.provider)} · {nf.format(row.count)} עסקאות
               </span>

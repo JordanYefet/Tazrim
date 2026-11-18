@@ -243,7 +243,7 @@ export default async function BanksPage({ searchParams }: { searchParams: Promis
         {/* The same pair as on an account's page: income vs. expenses, and the balance
             (every account's together) with the category analysis link */}
         {hasData && (
-          <div data-view="trends" className="grid gap-4 lg:grid-cols-2">
+          <div data-view="trends" className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <IncomeExpenseChart
               data={chartData}
               selectedMonth={month}

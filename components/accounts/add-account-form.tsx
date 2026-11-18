@@ -293,7 +293,7 @@ export function AccountForm(props: CreateProps | EditProps) {
         <div className="min-w-0 space-y-4">
           {/* One block, so the collapsed payer fields leave no gap of their own */}
           <div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label htmlFor={`${id}-provider`} className="text-sm font-medium">{kind === 'BANK' ? 'בנק' : 'חברת האשראי'}</label>
                 <select

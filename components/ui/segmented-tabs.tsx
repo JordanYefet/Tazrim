@@ -38,7 +38,7 @@ export function SegmentedTabs<K extends string>({
           aria-selected={value === o.key}
           onClick={() => onChange(o.key)}
           className={cn(
-            'flex h-9 items-center justify-center gap-2 rounded-[9px] text-[15px] transition-colors duration-base',
+            'flex h-9 items-center justify-center gap-2 rounded-[9px] text-[0.9375rem] transition-colors duration-base',
             value === o.key ? 'bg-card font-semibold text-foreground shadow-sm' : 'font-medium text-muted-foreground hover:text-foreground'
           )}
         >

@@ -214,7 +214,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                 <PersonAvatar avatar={p.avatar} name={p.name} size={44} />
               )}
               <span className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="truncate text-[17px] font-semibold">{p.name}</span>
+                <span className="truncate text-[1.0625rem] font-semibold">{p.name}</span>
                 {p.id === info.me && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">את/ה</span>}
               </span>
               <button type="button" onClick={() => makeInvite(p)} aria-label={`מכשיר נוסף עבור ${p.name}`} className={secondaryButton}>
@@ -228,11 +228,11 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                 <li key={d.id} className={ROW}>
                   <RowIcon icon={isComputer(d.label) ? Laptop : Smartphone} />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-[15px] font-medium">
+                    <span className="flex items-center gap-2 text-[0.9375rem] font-medium">
                       <span className="truncate">{d.label}</span>
                       {d.id === info.thisDevice && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">המכשיר הזה</span>}
                     </span>
-                    <span className="block text-[13px] text-muted-foreground text-pretty">
+                    <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
                       מפתח. נוסף ב-{date(d.createdAt)}, {d.lastUsedAt ? `שימוש אחרון ${date(d.lastUsedAt)}` : 'עוד לא בשימוש'}
                     </span>
                   </span>
@@ -244,7 +244,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
               {p.passkeys.length === 0 && (
                 <li className={ROW}>
                   <RowIcon icon={Smartphone} muted />
-                  <span className="flex-1 text-[15px] text-muted-foreground">אין מכשירים</span>
+                  <span className="flex-1 text-[0.9375rem] text-muted-foreground">אין מכשירים</span>
                 </li>
               )}
               <li className={ROW}>
@@ -252,8 +252,8 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                 {p.id === info.me ? (
                   <>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-medium">סיסמה</span>
-                      <span className="block text-[13px] text-muted-foreground text-pretty">
+                      <span className="block text-[0.9375rem] font-medium">סיסמה</span>
+                      <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
                         {p.hasPassword ? 'מוגדרת. לכניסה ממכשיר בלי מפתח' : 'לא מוגדרת. אפשר להוסיף, לכניסה ממכשיר בלי מפתח'}
                       </span>
                     </span>
@@ -267,7 +267,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                     )}
                   </>
                 ) : (
-                  <span className={cn('flex-1 text-[15px]', p.hasPassword ? 'font-medium' : 'text-muted-foreground')}>{p.hasPassword ? 'יש סיסמה' : 'אין סיסמה'}</span>
+                  <span className={cn('flex-1 text-[0.9375rem]', p.hasPassword ? 'font-medium' : 'text-muted-foreground')}>{p.hasPassword ? 'יש סיסמה' : 'אין סיסמה'}</span>
                 )}
               </li>
             </ul>
@@ -276,14 +276,14 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
       )}
 
       <section aria-labelledby="household-title" className="space-y-2">
-        <h2 id="household-title" className="px-1 text-[13px] font-semibold text-muted-foreground">משק הבית</h2>
+        <h2 id="household-title" className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">משק הבית</h2>
         <ul className="overflow-hidden rounded-2xl surface">
           <li className="border-b">
             <button type="button" onClick={() => makeInvite(null)} className={ROW_BUTTON}>
               <RowIcon icon={UserPlus} />
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-medium">הזמנת אדם</span>
-                <span className="block text-[13px] text-muted-foreground">קישור או QR, עובד פעם אחת, לכ-15 דקות</span>
+                <span className="block text-[0.9375rem] font-medium">הזמנת אדם</span>
+                <span className="block text-[0.8125rem] text-muted-foreground">קישור או QR, עובד פעם אחת, לכ-15 דקות</span>
               </span>
               <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70" aria-hidden />
             </button>
@@ -292,8 +292,8 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
             <button type="button" onClick={addHere} disabled={busy} className={ROW_BUTTON}>
               <RowIcon icon={KeyRound} />
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-medium">מפתח במכשיר הזה</span>
-                <span className="block text-[13px] text-muted-foreground">Face ID, Touch ID או קוד המכשיר</span>
+                <span className="block text-[0.9375rem] font-medium">מפתח במכשיר הזה</span>
+                <span className="block text-[0.8125rem] text-muted-foreground">Face ID, Touch ID או קוד המכשיר</span>
               </span>
               <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70" aria-hidden />
             </button>
@@ -301,8 +301,8 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
           <li className={ROW}>
             <RowIcon icon={ShieldCheck} muted={!!info && !info.hasRecoveryCode} />
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-medium">קוד שחזור</span>
-              <span className="block text-[13px] text-muted-foreground text-pretty">
+              <span className="block text-[0.9375rem] font-medium">קוד שחזור</span>
+              <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
                 {info && !info.hasRecoveryCode ? 'אין קוד בתוקף. כדאי ליצור אחד' : 'בתוקף. כניסה אחת אם אין גישה לאף מכשיר'}
               </span>
             </span>

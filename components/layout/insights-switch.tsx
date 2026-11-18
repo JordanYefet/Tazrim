@@ -41,7 +41,7 @@ export function InsightsSwitch() {
             aria-current={on ? 'page' : undefined}
             onClick={() => saveInsightsChoice(p.href)}
             className={cn(
-              'flex items-center justify-center rounded-[9px] text-[15px] transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'flex items-center justify-center rounded-[9px] text-[0.9375rem] transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               on ? 'bg-card font-semibold text-foreground shadow-sm' : 'font-medium text-muted-foreground'
             )}
           >

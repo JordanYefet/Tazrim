@@ -1,14 +1,26 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 
 /**
  * A Settings section page (/settings/<section>): the way back to the Settings
  * home, then the section. Sections whose component has its own heading pass
  * no title.
  */
-export function SettingsSection({ title, description, children }: { title?: string; description?: string; children: React.ReactNode }) {
+export function SettingsSection({
+  title,
+  description,
+  wide,
+  children,
+}: {
+  title?: string
+  description?: string
+  /** As wide as the account pages (/banks, /cards) instead of the reading column */
+  wide?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <div className="page-in mx-auto max-w-3xl min-w-0 space-y-6">
+    <div className={cn('page-in mx-auto min-w-0 space-y-6', wide ? 'max-w-7xl' : 'max-w-3xl')}>
       <Link
         href="/settings"
         className="-ms-2 inline-flex min-h-11 items-center gap-0.5 rounded-lg pe-3 ps-1 text-sm font-medium text-primary transition-colors duration-quick hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -117,8 +117,8 @@ export function VaultSettings() {
             {open ? <LockKeyholeOpen className="h-6 w-6" /> : <LockKeyhole className="h-6 w-6" />}
           </span>
           <span className="min-w-0 flex-1 space-y-0.5">
-            <span className="block text-[17px] font-bold">{!vault.exists ? 'עוד אין כספת' : open ? 'פתוחה' : 'נעולה'}</span>
-            <span className="block text-[13px] text-muted-foreground text-pretty">
+            <span className="block text-[1.0625rem] font-bold">{!vault.exists ? 'עוד אין כספת' : open ? 'פתוחה' : 'נעולה'}</span>
+            <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
               {!vault.exists
                 ? 'יוצרים אותה עם Face ID או Touch ID, ומקבלים מפתח שחזור לשמור.'
                 : open
@@ -152,26 +152,26 @@ export function VaultSettings() {
           <Link href="/settings/accounts" className="flex min-h-14 items-center gap-3.5 rounded-2xl surface px-4 py-2.5 transition-colors hover:bg-muted/40 md:px-5">
             <RowIcon icon={CreditCard} />
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-medium">
+              <span className="block text-[0.9375rem] font-medium">
                 {credentials.length === 0 ? 'עוד אין בה פרטי כניסה' : credentials.length === 1 ? 'פרטי כניסה אחד שמור בה' : `${credentials.length} פרטי כניסה שמורים בה`}
               </span>
-              <span className="block text-[13px] text-muted-foreground">מוסיפים, משנים ומסירים בחלון של כל חשבון</span>
+              <span className="block text-[0.8125rem] text-muted-foreground">מוסיפים, משנים ומסירים בחלון של כל חשבון</span>
             </span>
             <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden />
           </Link>
 
           <section aria-labelledby="openers-title" className="space-y-2">
-            <h2 id="openers-title" className="px-1 text-[13px] font-semibold text-muted-foreground">מי יכול לפתוח</h2>
+            <h2 id="openers-title" className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">מי יכול לפתוח</h2>
             <ul className="overflow-hidden rounded-2xl surface">
               {passkeys.map(p => (
                 <li key={p.id} className={ROW}>
                   <RowIcon icon={isComputer(p.label) ? Laptop : Smartphone} muted={!p.opens} />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-[15px] font-medium">
+                    <span className="flex items-center gap-2 text-[0.9375rem] font-medium">
                       <span className="truncate">{p.label} של {p.personName}</span>
                       {p.thisDevice && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">המכשיר הזה</span>}
                     </span>
-                    <span className="block text-[13px] text-muted-foreground text-pretty">
+                    <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
                       {p.opens ? 'המפתח הזה פותח את הכספת' : p.mine ? 'עוד לא. מוסיפים כשהכספת פתוחה' : 'עוד לא. נוסף כשבעליו מוסיפים אותו, כשהכספת פתוחה'}
                     </span>
                   </span>
@@ -186,26 +186,26 @@ export function VaultSettings() {
           </section>
 
           <section aria-labelledby="recovery-title" className="space-y-2">
-            <h2 id="recovery-title" className="px-1 text-[13px] font-semibold text-muted-foreground">אם כל המפתחות אבדו</h2>
+            <h2 id="recovery-title" className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">אם כל המפתחות אבדו</h2>
             <div className="overflow-hidden rounded-2xl surface">
               <div className={ROW}>
                 <RowIcon icon={ShieldCheck} muted={!vault.hasRecoveryKey} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-medium">מפתח שחזור לכספת</span>
-                  <span className="block text-[13px] text-muted-foreground text-pretty">פותח את הכספת בלי מפתח, כדי להוסיף מפתח חדש.</span>
+                  <span className="block text-[0.9375rem] font-medium">מפתח שחזור לכספת</span>
+                  <span className="block text-[0.8125rem] text-muted-foreground text-pretty">פותח את הכספת בלי מפתח, כדי להוסיף מפתח חדש.</span>
                 </span>
                 <button type="button" disabled={!open} onClick={() => setRenewing(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>מפתח חדש</button>
               </div>
               <div className={ROW}>
                 <RowIcon icon={RotateCcw} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-medium">התחלה מחדש</span>
-                  <span className="block text-[13px] text-muted-foreground text-pretty">מוחק את הכספת ואת פרטי הכניסה שבה. החשבונות והתנועות נשארים.</span>
+                  <span className="block text-[0.9375rem] font-medium">התחלה מחדש</span>
+                  <span className="block text-[0.8125rem] text-muted-foreground text-pretty">מוחק את הכספת ואת פרטי הכניסה שבה. החשבונות והתנועות נשארים.</span>
                 </span>
                 <button type="button" disabled={busy} onClick={() => setResetting(true)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
               </div>
             </div>
-            <p className="px-1 text-[12.5px] leading-relaxed text-muted-foreground text-pretty">
+            <p className="px-1 text-[0.78125rem] leading-relaxed text-muted-foreground text-pretty">
               בלי מפתח ובלי מפתח השחזור אי אפשר לפתוח את הכספת, גם לא מהשרת. אז מתחילים מחדש ומקלידים את פרטי הכניסה שוב: התנועות לא נפגעות.
             </p>
           </section>

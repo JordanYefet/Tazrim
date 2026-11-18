@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { EASE, MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /** How long the highlight takes to fade out, after appearing */
 const FADE_OUT = 1200
@@ -37,7 +38,7 @@ export function useTargetRow(container: React.RefObject<HTMLElement | null>, row
       .find(el => el.getClientRects().length > 0)
     if (!row) return
 
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduce = prefersReducedMotion()
     let timer = 0
     let anim: Animation[] = []
 

@@ -115,12 +115,12 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 maxLength={80}
-                className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3.5 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <button
                 type="submit"
                 disabled={pending === shownProfile.id || !draft.trim() || draft.trim() === shownProfile.name}
-                className="h-11 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
+                className="h-11 rounded-xl bg-primary px-4 text-[0.9375rem] font-medium text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
               >
                 שמירה
               </button>
@@ -137,7 +137,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                       <Columns3 className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px]">עריכת המיפוי</span>
+                      <span className="block text-[0.9375rem]">עריכת המיפוי</span>
                       <span className="block text-xs text-muted-foreground">אילו עמודות בקובץ הן התאריך, התיאור והסכום</span>
                     </span>
                   </button>
@@ -153,7 +153,7 @@ export function ImportProfilesManager({ profiles }: { profiles: ProfileView[] })
                     <Trash2 className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] text-destructive">מחיקת המיפוי</span>
+                    <span className="block text-[0.9375rem] text-destructive">מחיקת המיפוי</span>
                     <span className="block text-xs text-muted-foreground">תנועות שכבר יובאו לא ישתנו</span>
                   </span>
                 </button>

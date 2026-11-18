@@ -145,7 +145,7 @@ export function CategoryPicker({
           <span className="text-xs font-normal text-muted-foreground">{context}</span>
           <span>
             <bdi>{title}</bdi>{' '}
-            <span data-money className={cn('font-medium tabular-nums', amountTone === 'income' ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
+            <span data-money data-flow={amountTone === 'income' ? 'in' : 'out'} className={cn('font-medium tabular-nums', amountTone === 'income' ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
               {amount}
             </span>
           </span>
@@ -270,7 +270,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
               autoFocus
               aria-label="שם הקטגוריה החדשה"
               placeholder={createKind === 'INCOME' ? 'שם קטגוריית הכנסה חדשה' : 'שם קטגוריית הוצאה חדשה'}
-              className="h-10 min-w-0 flex-1 rounded-xl border bg-background px-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 min-w-0 flex-1 rounded-xl border bg-background px-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
               value={newName}
               onChange={e => setNewName(e.target.value)}
               onKeyDown={e => {
@@ -300,7 +300,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
             <span className="sr-only">חיפוש קטגוריה</span>
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <input
-              className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="חיפוש קטגוריה"
               value={query}
               onChange={e => setQuery(e.target.value)}
@@ -347,7 +347,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
                   className={cn('h-[18px] w-[18px] shrink-0 rounded-full transition-[border-width]', on ? 'border-[6px] border-primary' : 'border-2 border-border')}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px]"><bdi>{s.title}</bdi></span>
+                  <span className="block text-[0.9375rem]"><bdi>{s.title}</bdi></span>
                   <span className="block text-xs text-muted-foreground">{s.sub}</span>
                 </span>
               </button>
@@ -362,7 +362,7 @@ function PickerBody({ categories: given, current, allowNone, scopes, defaultScop
         <button
           onClick={save}
           disabled={!changed || saving}
-          className="h-11 flex-1 rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
+          className="h-11 flex-1 rounded-xl bg-primary text-[0.9375rem] font-semibold text-primary-foreground transition-[opacity,transform] active:scale-[0.97] disabled:opacity-40"
         >
           שמירה
         </button>
@@ -446,7 +446,7 @@ function ContainsField({ pattern, onChange, kind }: { pattern: string; onChange:
         <input
           dir="auto"
           autoFocus
-          className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-10 w-full rounded-xl border bg-background ps-9 pe-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
           value={pattern}
           onChange={e => onChange(e.target.value)}
         />

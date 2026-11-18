@@ -41,7 +41,7 @@ function Badge({ mark }: { mark: AvatarMark }) {
     <span
       aria-hidden
       className={cn(
-        'absolute -end-[3px] -top-[3px] flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-background px-1 text-[9.5px] font-bold leading-none text-white',
+        'absolute -end-[3px] -top-[3px] flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-background px-1 text-[0.59375rem] font-bold leading-none text-white',
         tone
       )}
     >
@@ -202,7 +202,7 @@ export function ProfileButton() {
                   <span className="truncate text-xs text-muted-foreground">{sub}</span>
                 </span>
                 {/* Stays in place while busy, dimmed; the row as a whole opens the panel */}
-                <span aria-hidden className={cn('flex h-8 shrink-0 items-center rounded-[10px] px-3 text-[13px] font-semibold', GO[tone], tone === 'busy' && 'opacity-40')}>
+                <span aria-hidden className={cn('flex h-8 shrink-0 items-center rounded-[10px] px-3 text-[0.8125rem] font-semibold', GO[tone], tone === 'busy' && 'opacity-40')}>
                   {goLabel}
                 </span>
               </DropdownMenu.Item>

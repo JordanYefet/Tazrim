@@ -51,6 +51,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const tiles: SettingsTile[] = [
     { href: '/settings/appearance', icon: 'appearance', title: 'מראה', summary: 'ערכת נושא, בהירה או כהה, והרקע מאחורי הדפים.' },
+    { href: '/settings/accessibility', icon: 'accessibility', title: 'נגישות', summary: 'גודל טקסט, ניגודיות, תנועה וגופן קריא.' },
     {
       href: '/settings/projection',
       icon: 'projection',

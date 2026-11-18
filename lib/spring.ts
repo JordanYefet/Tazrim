@@ -61,8 +61,9 @@ export function atRest(s: SpringState, target: number): boolean {
   return Math.abs(s.v) < 3 && Math.abs(s.x - target) < 0.3
 }
 
-export const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+// The reduced-motion check lives in lib/a11y/media.ts (system setting or the Settings switch)
+import { prefersReducedMotion } from '@/lib/a11y/media'
+export { prefersReducedMotion }
 
 /**
  * Run a spring on animation frames from `from` (with velocity `v`) to `to`,

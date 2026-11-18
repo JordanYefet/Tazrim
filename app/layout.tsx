@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
 import { cookies, headers } from 'next/headers'
 import './globals.css'
-import { heeboHebrew, heeboLatin } from './fonts'
+import { assistantHebrew, assistantLatin, heeboHebrew, heeboLatin } from './fonts'
 import { Providers } from './providers'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
@@ -27,6 +27,9 @@ import { BackgroundProvider } from '@/components/background/background-provider'
 import { BACKGROUND_COOKIE, backgroundHtmlAttributes, backgroundHtmlStyle, parseBackgroundCookie } from '@/lib/background/setting'
 import { getAvatars } from '@/lib/preferences/avatar'
 import { getStoredBackground } from '@/lib/preferences/background'
+import { getStoredA11y } from '@/lib/preferences/accessibility'
+import { A11Y_COOKIE, a11yAttribute, parseA11y } from '@/lib/a11y/settings'
+import { A11yProvider } from '@/components/a11y/a11y-provider'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
 import { PRIVACY_COOKIE, parsePrivacyCookie } from '@/lib/privacy'
@@ -59,15 +62,20 @@ export const viewport: Viewport = {
   ],
 }
 
+const fontVars = `${heeboHebrew.variable} ${heeboLatin.variable} ${assistantHebrew.variable} ${assistantLatin.variable}`
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Sign-in, first run and invites (ENG-89): the page alone, with no sidebar, header or account data
   if ((await headers()).get(BARE_HEADER) === '1') {
-    const background = parseBackgroundCookie((await cookies()).get(BACKGROUND_COOKIE)?.value)
+    const bareJar = await cookies()
+    const background = parseBackgroundCookie(bareJar.get(BACKGROUND_COOKIE)?.value)
+    const bareA11y = parseA11y(bareJar.get(A11Y_COOKIE)?.value)
     return (
       <html
         lang="he"
         dir="rtl"
-        className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
+        className={fontVars}
+        data-a11y={a11yAttribute(bareA11y) || undefined}
         {...backgroundHtmlAttributes(background)}
         style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
         suppressHydrationWarning
@@ -91,6 +99,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // their devices; else (nothing stored yet, the demo) this device's cookie
   const stored = owner === undefined ? null : await getStoredBackground(owner).catch(() => null)
   const background = stored ?? parseBackgroundCookie(jar.get(BACKGROUND_COOKIE)?.value)
+  // The accessibility options (ENG-128): the same way, so their classes are on <html> from the first paint
+  const storedA11y = owner === undefined ? null : await getStoredA11y(owner).catch(() => null)
+  const a11y = storedA11y ?? parseA11y(jar.get(A11Y_COOKIE)?.value)
 
   // The public demo (lib/read-only.ts): the app as usual, nothing saved
   const readOnly = isReadOnly()
@@ -101,7 +112,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang="he"
       dir="rtl"
-      className={`${heeboHebrew.variable} ${heeboLatin.variable}`}
+      className={fontVars}
+      data-a11y={a11yAttribute(a11y) || undefined}
       data-privacy={privacy ? 'on' : undefined}
       {...backgroundHtmlAttributes(background)}
       style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
@@ -111,6 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <RollBlurDefs />
         <Providers>
           <BackgroundProvider initial={background} synced={owner !== undefined}>
+          <A11yProvider initial={a11y} synced={owner !== undefined}>
           <PeriodProvider initial={initialPeriod} today={currentMonth()}>
             <MeProvider me={me}>
             <PrivacyProvider initial={privacy}>
@@ -136,6 +149,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </PrivacyProvider>
             </MeProvider>
           </PeriodProvider>
+          </A11yProvider>
           </BackgroundProvider>
         </Providers>
       </body>

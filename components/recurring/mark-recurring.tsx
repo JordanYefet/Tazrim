@@ -86,7 +86,7 @@ export function MarkRecurringButton({
           onClick={start}
           title={label}
           className={cn(
-            'inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 align-middle text-[11px] font-medium leading-4 text-primary',
+            'inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 align-middle text-[0.6875rem] font-medium leading-4 text-primary',
             'transition-[background-color,transform] duration-quick ease-ui hover:bg-primary/15 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             'dark:bg-primary/15 dark:hover:bg-primary/25',
             className

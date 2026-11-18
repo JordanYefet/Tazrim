@@ -40,7 +40,7 @@ export function CardPaymentBadges({
             aria-label={`פירוט ${label} לחודש ${monthName(month)} ${year}`}
             title={`פירוט החיובים ב${monthName(month)} ${year}`}
             className={cn(
-              'inline-flex h-[22px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border bg-background/60 ps-[3px] pe-2 text-[11px] text-muted-foreground',
+              'inline-flex h-[22px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border bg-background/60 ps-[3px] pe-2 text-[0.6875rem] text-muted-foreground',
               'transition-[background-color,color,border-color,transform] duration-fast ease-ui',
               'hover:border-primary/40 hover:bg-primary/5 hover:text-foreground active:scale-[0.97]',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'

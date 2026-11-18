@@ -24,3 +24,23 @@ export const heeboLatin = localFont({
   variable: '--font-heebo-latin',
   declarations: [{ prop: 'unicode-range', value: 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD' }],
 })
+
+// Assistant (SIL OFL), the "readable font" option of Settings → Accessibility (ENG-128): the same
+// per-script setup as Heebo, from @fontsource-variable/assistant. The browser only fetches it once
+// text uses it, i.e. under html.a11y-font.
+export const assistantHebrew = localFont({
+  src: '../node_modules/@fontsource-variable/assistant/files/assistant-hebrew-wght-normal.woff2',
+  weight: '200 800',
+  display: 'swap',
+  variable: '--font-assistant-hebrew',
+  adjustFontFallback: false,
+  declarations: [{ prop: 'unicode-range', value: 'U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F' }],
+})
+
+export const assistantLatin = localFont({
+  src: '../node_modules/@fontsource-variable/assistant/files/assistant-latin-wght-normal.woff2',
+  weight: '200 800',
+  display: 'swap',
+  variable: '--font-assistant-latin',
+  declarations: [{ prop: 'unicode-range', value: 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD' }],
+})

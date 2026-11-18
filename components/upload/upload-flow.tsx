@@ -35,6 +35,7 @@ import {
   type ImportOutcome,
   type PreviewOutcome,
 } from '@/lib/upload/batch'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 type PreviewResponse = RawWorkbookPreview & {
   fileName: string
@@ -355,7 +356,7 @@ export function UploadFlow({ accounts, onImported }: { accounts: UploadAccount[]
       requestAnimationFrame(() => {
         const target = document.getElementById(MAPPER_ANCHORS[shownFix])
         if (!target) return
-        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        const reduce = prefersReducedMotion()
         target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
         const field =
           target.querySelector<HTMLElement>('[aria-invalid="true"]') ?? target.querySelector<HTMLElement>('select, input')
