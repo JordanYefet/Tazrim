@@ -243,7 +243,7 @@ export function Steps({ children }: { children: React.ReactNode }) {
 
 /** A quieter line under the steps */
 export function Note({ children, tone = 'muted' }: { children: React.ReactNode; tone?: 'muted' | 'warn' }) {
-  return <p className={cn('text-pretty text-[13px]', tone === 'warn' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>{children}</p>
+  return <p className={cn('text-pretty text-[0.8125rem]', tone === 'warn' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>{children}</p>
 }
 
 /** A menu path or a name as the device shows it: kept left-to-right where it's English */
@@ -259,7 +259,7 @@ export function Ui({ children, ltr }: { children: React.ReactNode; ltr?: boolean
 export function CopyLine({ text, className }: { text: string; className?: string }) {
   return (
     <span className={cn('flex items-center justify-between gap-2 rounded-lg bg-muted py-0.5 pe-0.5 ps-3', className)}>
-      <span dir="ltr" className="min-w-0 select-all whitespace-pre-wrap break-all font-mono text-[13px]">
+      <span dir="ltr" className="min-w-0 select-all whitespace-pre-wrap break-all font-mono text-[0.8125rem]">
         {text}
       </span>
       <CopyButton text={text} className="h-9 w-9" />

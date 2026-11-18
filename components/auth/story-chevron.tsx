@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /**
  * Under the sign-in card on phones (components/auth/auth-shell.tsx): a small
@@ -11,7 +12,7 @@ export function StoryChevron({ targetId }: { targetId: string }) {
   const go = () => {
     const target = document.getElementById(targetId)
     if (!target) return
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduced = prefersReducedMotion()
     // scrollTo, not scrollIntoView: the page's scroll-padding (room for the sticky header) does not apply here
     window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 16, behavior: reduced ? 'auto' : 'smooth' })
     // Keyboard and screen reader users land there too, without a second jump

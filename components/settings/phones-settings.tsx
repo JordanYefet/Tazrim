@@ -167,7 +167,7 @@ export function PhoneSection({ settings, network, inSetup = false }: { settings:
         <div className="min-w-0 flex-1 space-y-2">
           {address ? (
             <>
-              <AddressLine url={address} className={inSetup ? 'text-[17px] sm:text-xl' : 'text-[17px] sm:text-[26px]'} />
+              <AddressLine url={address} className={inSetup ? 'text-[1.0625rem] sm:text-xl' : 'text-[1.0625rem] sm:text-[1.625rem]'} />
               <p className="text-sm text-muted-foreground text-pretty">
                 <span className="hidden sm:inline">בטלפון או בטאבלט, באותה רשת Wi-Fi: סורקים את הקוד במצלמה, או מקלידים את הכתובת בדפדפן.</span>
                 <span className="sm:hidden">בטלפון או בטאבלט, באותה רשת Wi-Fi: פותחים את הכתובת בדפדפן.</span>
@@ -224,7 +224,7 @@ export function PhoneSection({ settings, network, inSetup = false }: { settings:
         </>
       )}
 
-      <p className="border-t pt-3 text-[13px] text-muted-foreground text-pretty">
+      <p className="border-t pt-3 text-[0.8125rem] text-muted-foreground text-pretty">
         {network.requireHttps ? (
           <>
             כרגע סיסמאות עובדות רק ב-HTTPS או במחשב הזה (כללי ← מתקדם), אז בכתובת הזו הטלפון לא ייכנס עד שמפעילים{' '}

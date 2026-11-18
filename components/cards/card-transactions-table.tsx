@@ -24,6 +24,7 @@ import { PhoneTransactionRows, PhoneRowActions, dayKey } from '@/components/tran
 import { useOptimisticRows } from '@/hooks/use-optimistic-rows'
 import { cardChangeHits, idsChange, type CardScope } from '@/lib/tables/category-change'
 import type { SearchResult } from '@/lib/search/query'
+import { MoneyText } from '@/components/ui/money-text'
 
 interface CCTx {
   id: string
@@ -56,7 +57,7 @@ function optionalCell(tx: CCTx, key: CardColumn) {
       return tx.chargedCurrency || '₪'
     case 'originalAmount':
       return (
-        <span className="tabular-nums" dir="ltr">
+        <span data-money className="tabular-nums" dir="ltr">
           {tx.originalAmount} {tx.originalCurrency}
         </span>
       )
@@ -538,14 +539,14 @@ export function CardTransactionsTable({
                     )}
                   </td>
                   <td className="py-2.5 px-4 whitespace-nowrap">
-                    <span className={cn(
+                    <span data-money data-flow={tx.ignored ? undefined : 'out'} className={cn(
                       'tabular-nums font-medium',
                       tx.ignored ? 'line-through text-muted-foreground' : 'text-[hsl(var(--expense))]'
                     )}>
                       {formatCurrency(tx.chargedAmount)}
                     </span>
                     {!tx.ignored && tx.originalCurrency !== '₪' && !columns.includes('originalAmount') && (
-                      <span className="text-xs text-muted-foreground me-1.5">
+                      <span data-money className="text-xs text-muted-foreground me-1.5">
                         ({tx.originalAmount} {tx.originalCurrency})
                       </span>
                     )}

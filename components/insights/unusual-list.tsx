@@ -4,6 +4,7 @@ import type { UnusualTransaction } from '@/lib/insights/unusual'
 import { formatCurrency } from '@/lib/utils/currency'
 import { UnusualBadge } from './unusual-badge'
 import { unusualFlagDetail } from './unusual-copy'
+import { MoneyText } from '@/components/ui/money-text'
 
 interface Props {
   items: UnusualTransaction[]
@@ -27,7 +28,7 @@ export function UnusualList({ items, onDismiss, title = 'תנועות חריגו
   return (
     <section dir="rtl" className="flex flex-col rounded-xl surface p-4 sm:p-6">
       <h3 className="text-base font-semibold">{title}</h3>
-      {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+      {subtitle && <p className="text-sm text-muted-foreground"><MoneyText>{subtitle}</MoneyText></p>}
       {/* data-swap: the rows ease in when the dashboard swaps the period (components/ui/data-swap.tsx) */}
       <div data-swap className="mt-4">
         {shown.length === 0 ? (
@@ -49,11 +50,11 @@ export function UnusualList({ items, onDismiss, title = 'תנועות חריגו
                   </p>
                   {item.flags.map(f => (
                     <p key={f.reason} className="text-xs text-muted-foreground text-pretty">
-                      {unusualFlagDetail(f)}
+                      <MoneyText>{unusualFlagDetail(f)}</MoneyText>
                     </p>
                   ))}
                 </div>
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-[hsl(var(--expense))]">
+                <span data-money data-flow="out" className="shrink-0 text-sm font-semibold tabular-nums text-[hsl(var(--expense))]">
                   {formatCurrency(item.amount)}
                 </span>
                 {onDismiss && (

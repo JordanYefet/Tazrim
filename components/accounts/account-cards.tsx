@@ -147,7 +147,7 @@ export function CardSummaryRow({
         // The card's face, its last four right under it (a fixed slot, so rows stay aligned without them)
         <>
           <AccountMini kind="CREDIT_CARD" provider={provider} network={network} color={color} colorChoice={colorChoice} className="w-12" />
-          <span dir="ltr" className="h-4 text-[11px] leading-4 tabular-nums text-muted-foreground">
+          <span dir="ltr" className="h-4 text-[0.6875rem] leading-4 tabular-nums text-muted-foreground">
             {lastFour}
           </span>
         </>

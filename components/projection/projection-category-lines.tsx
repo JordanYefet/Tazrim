@@ -35,7 +35,7 @@ function LinesTooltip({ active, payload, label, colors }: any) {
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colors[p.name] }} aria-hidden />
             {p.name}
           </span>
-          <span className="tabular-nums">{formatCurrencyWhole(p.value)}</span>
+          <span data-money className="tabular-nums">{formatCurrencyWhole(p.value)}</span>
         </p>
       ))}
     </div>
@@ -149,7 +149,7 @@ export function ProjectionCategoryLines({ actual, months, recurring }: {
 
       {recurring.count > 0 && (
         <Link href="/recurring" className="mt-4 inline-block text-sm text-primary hover:underline">
-          {recurring.count} חיובים קבועים בתחזית, {formatCurrencyWhole(recurring.monthly)} בחודש. חיוב שהסתיים מסמנים בחיובים קבועים
+          {recurring.count} חיובים קבועים בתחזית, <span data-money>{formatCurrencyWhole(recurring.monthly)}</span> בחודש. חיוב שהסתיים מסמנים בחיובים קבועים
         </Link>
       )}
     </section>

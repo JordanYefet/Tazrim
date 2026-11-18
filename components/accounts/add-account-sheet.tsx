@@ -423,7 +423,7 @@ export function AddAccountSheet({
         {step === 'pick' && (
           <>
             <SegmentedTabs ariaLabel="סוג החשבון" value={kind} onChange={k => { setKind(k); setCompany(null); setKindSwitched(true) }} options={KIND_OPTIONS} />
-            <p className="px-1 text-[13px] font-semibold text-muted-foreground">באיזו חברה?</p>
+            <p className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">באיזו חברה?</p>
             <ul
               key={kind}
               className={cn(
@@ -435,7 +435,7 @@ export function AddAccountSheet({
                 <li key={c.id}>
                   <button type="button" onClick={() => pickCompany(c)} className="flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-start transition-colors hover:bg-muted/40 active:bg-muted/60">
                     <AccountMini kind={kind} provider={c.provider} className="w-11" />
-                    <span className="flex-1 text-[15px] font-medium">{c.label}</span>
+                    <span className="flex-1 text-[0.9375rem] font-medium">{c.label}</span>
                     <ChevronLeft className="h-4 w-4 text-muted-foreground/70" aria-hidden />
                   </button>
                 </li>
@@ -450,7 +450,7 @@ export function AddAccountSheet({
         {step === 'how' && syncCo && (
           <>
             <BackLink onClick={back('pick')} />
-            <p className="px-1 text-[13px] font-semibold text-muted-foreground">איך הנתונים מגיעים?</p>
+            <p className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">איך הנתונים מגיעים?</p>
             <div role="radiogroup" aria-label="איך הנתונים מגיעים" className="flex flex-col gap-3">
               <Choice
                 on={method === 'sync'}
@@ -468,7 +468,7 @@ export function AddAccountSheet({
                 text={`מורידים פירוט מהאתר של ${syncCo.label} ומעלים כאן. את העמודות מתאימים פעם אחת.`}
               />
             </div>
-            <p className="px-1 text-[13px] text-muted-foreground">אפשר לעבור בין השניים אחר כך, בחלון החשבון.</p>
+            <p className="px-1 text-[0.8125rem] text-muted-foreground">אפשר לעבור בין השניים אחר כך, בחלון החשבון.</p>
             <div className="mt-auto">
               <button type="button" onClick={() => setStep(method === 'sync' ? 'signin' : 'upload')} className={primary}>המשך</button>
             </div>
@@ -492,7 +492,7 @@ export function AddAccountSheet({
                 />
               </label>
             ))}
-            <p className="flex gap-2.5 rounded-xl bg-muted/60 p-3.5 text-[13px] leading-relaxed text-muted-foreground">
+            <p className="flex gap-2.5 rounded-xl bg-muted/60 p-3.5 text-[0.8125rem] leading-relaxed text-muted-foreground">
               <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>נשמרים מוצפנים בכספת, ורק Face ID או Touch ID של מישהו בבית פותח אותה. אם עוד אין כספת, היא נוצרת עכשיו ומקבלים מפתח שחזור לשמור.</span>
             </p>
@@ -517,7 +517,7 @@ export function AddAccountSheet({
 
         {step === 'syncing' && syncCo && (
           <div className="flex flex-1 flex-col gap-4">
-            <p className="flex items-center gap-2.5 rounded-xl bg-muted/60 p-4 text-[15px]">
+            <p className="flex items-center gap-2.5 rounded-xl bg-muted/60 p-4 text-[0.9375rem]">
               <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden />
               {run?.status.state === 'running' ? STEP_TEXT[run.status.step] ?? 'מסנכרן…' : run?.status.state === 'needs-code' ? `מחכה לקוד מ${syncCo.label}` : 'מסנכרן…'}
             </p>
@@ -559,17 +559,17 @@ export function AddAccountSheet({
                   <AccountMini kind={kind} provider={syncCo.provider} className={cn('w-11', !f.include && 'opacity-50 grayscale')} />
                   <span className={cn('min-w-0 flex-1', !f.include && 'opacity-60')}>
                     {f.existing ? (
-                      <span className="block truncate text-[15px] font-medium">{f.existing.name}</span>
+                      <span className="block truncate text-[0.9375rem] font-medium">{f.existing.name}</span>
                     ) : (
                       <input
                         aria-label={`השם של ${f.label}`}
                         value={f.name}
                         disabled={!f.include}
                         onChange={e => setFound(found.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))}
-                        className="block w-full rounded-md bg-transparent text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="block w-full rounded-md bg-transparent text-[0.9375rem] font-medium focus:outline-none focus:ring-2 focus:ring-ring"
                       />
                     )}
-                    <span className="block text-[13px] text-muted-foreground">
+                    <span className="block text-[0.8125rem] text-muted-foreground">
                       <span dir="ltr">{isCard ? `•••• ${fourDigits(f.label)}` : f.label}</span>
                       {' · '}
                       {f.rows.toLocaleString('he-IL')} תנועות
@@ -579,7 +579,7 @@ export function AddAccountSheet({
                 </li>
               ))}
             </ul>
-            <p className="px-1 text-[13px] text-muted-foreground">
+            <p className="px-1 text-[0.8125rem] text-muted-foreground">
               {isCard ? 'כרטיס שכבר קיים בתזרים (לפי 4 הספרות) מתחבר אליו, בלי כפילות.' : 'חשבון שכבר קיים בתזרים מתחבר אליו, בלי כפילות.'}
             </p>
             <div className="mt-auto">
@@ -656,7 +656,7 @@ function Choice({ on, disabled, onClick, title, text }: { on: boolean; disabled?
       <span className={cn('mt-0.5 h-5 w-5 shrink-0 rounded-full border-[1.5px]', on ? 'border-[6px] border-primary' : 'border-border')} aria-hidden />
       <span className="space-y-1">
         <span className="block text-base font-semibold">{title}</span>
-        <span className="block text-[13.5px] leading-relaxed text-muted-foreground text-pretty">{text}</span>
+        <span className="block text-[0.84375rem] leading-relaxed text-muted-foreground text-pretty">{text}</span>
       </span>
     </button>
   )

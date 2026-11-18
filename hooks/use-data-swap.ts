@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { EASE, MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /*
  * Data swapping in place (a filter, another month, the next page): the rows
@@ -43,7 +44,7 @@ function unclip(el: HTMLElement, clipped: { current: string | null }) {
 }
 
 function reducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return typeof window !== 'undefined' && prefersReducedMotion()
 }
 
 export function useDataSwap(ref: RefObject<HTMLElement | null>, key: DataSwapKey, { height = false, targets }: DataSwapOptions = {}) {

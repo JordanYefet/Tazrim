@@ -109,7 +109,7 @@ export function LoginForm() {
               />
             </label>
             {passwordError && (
-              <p id="password-error" role="alert" className="flex items-center gap-1.5 text-[13px] text-destructive dark:text-red-400">
+              <p id="password-error" role="alert" className="flex items-center gap-1.5 text-[0.8125rem] text-destructive dark:text-red-400">
                 <CircleAlert className="h-4 w-4 shrink-0" aria-hidden />
                 {passwordError}
               </p>
@@ -119,7 +119,7 @@ export function LoginForm() {
             </button>
           </form>
 
-          <div className="flex items-center gap-3 text-[13px] text-muted-foreground" aria-hidden>
+          <div className="flex items-center gap-3 text-[0.8125rem] text-muted-foreground" aria-hidden>
             <span className="h-px flex-1 bg-border" />
             או
             <span className="h-px flex-1 bg-border" />
@@ -148,7 +148,7 @@ export function LoginForm() {
           {/* There is no open sign-up: people join the household by invite */}
           <div className="space-y-1 border-t pt-4 text-center">
             <p className="text-sm font-semibold">חדשים כאן?</p>
-            <p className="text-[13px] leading-relaxed text-muted-foreground text-pretty">
+            <p className="text-[0.8125rem] leading-relaxed text-muted-foreground text-pretty">
               מצטרפים עם קישור הזמנה ממי שכבר בפנים: הגדרות ← אנשים ומכשירים ← הזמנת אדם.
             </p>
           </div>

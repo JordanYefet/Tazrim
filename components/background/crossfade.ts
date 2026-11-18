@@ -1,4 +1,5 @@
 import { EASE, MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /*
  * Cross-fades the page background when the setting changes (browser only).
@@ -13,7 +14,7 @@ import { EASE, MOTION } from '@/lib/motion'
  * cards switch to the new backdrop partway through the fade.
  */
 export function crossfadeBackground(apply: () => void) {
-  if (typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (typeof window === 'undefined' || prefersReducedMotion()) {
     apply()
     return
   }

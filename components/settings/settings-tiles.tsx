@@ -1,18 +1,20 @@
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, SlidersHorizontal, Smartphone, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, SlidersHorizontal, Smartphone, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { MoneyText } from '@/components/ui/money-text'
 
 export interface SettingsTile {
   href: string
   title: string
   summary: string
-  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'network' | 'about' | 'general'
+  icon: 'appearance' | 'accessibility' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'network' | 'about' | 'general'
   /** A small primary dot beside the title: a new version is out (ENG-98). Takes no room of its own. */
   dot?: boolean
 }
 
 const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
   appearance: Palette,
+  accessibility: Accessibility,
   projection: TrendingUp,
   accounts: CreditCard,
   'import-profiles': FileText,
@@ -53,7 +55,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
                 <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui [@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
               </span>
               <span className="space-y-1">
-                <span className="flex items-center gap-2 text-[17px] font-semibold">
+                <span className="flex items-center gap-2 text-[1.0625rem] font-semibold">
                   {t.title}
                   {t.dot && (
                     <span data-dot className="h-2 w-2 shrink-0 rounded-full bg-primary">
@@ -61,7 +63,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
                     </span>
                   )}
                 </span>
-                <span className="block text-sm leading-relaxed text-muted-foreground text-pretty">{t.summary}</span>
+                <span className="block text-sm leading-relaxed text-muted-foreground text-pretty"><MoneyText>{t.summary}</MoneyText></span>
               </span>
             </Link>
           )
@@ -79,7 +81,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
           <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui [@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
         </span>
         <span className="space-y-1">
-          <span className="block text-[17px] font-semibold text-destructive dark:text-red-400">אזור מסוכן</span>
+          <span className="block text-[1.0625rem] font-semibold text-destructive dark:text-red-400">אזור מסוכן</span>
           <span className="block text-sm leading-relaxed text-muted-foreground text-pretty">מחיקת כל הנתונים מהאפליקציה, בלי דרך חזרה.</span>
         </span>
       </Link>

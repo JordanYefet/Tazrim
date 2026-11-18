@@ -185,7 +185,7 @@ function ManageSection({ manage }: { manage: AccountManage }) {
             {manage.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px]">{manage.archived ? 'שחזור מהארכיון' : 'העברה לארכיון'}</span>
+            <span className="block text-[0.9375rem]">{manage.archived ? 'שחזור מהארכיון' : 'העברה לארכיון'}</span>
             <span className="block text-xs text-muted-foreground">
               {manage.archived ? 'יחזור להופיע בהעלאת קבצים ובסיכומים' : 'לא יופיע בהעלאת קבצים ובסיכומים; הנתונים נשמרים'}
             </span>
@@ -203,7 +203,7 @@ function ManageSection({ manage }: { manage: AccountManage }) {
             <Trash2 className="h-4 w-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] text-destructive">מחיקת החשבון</span>
+            <span className="block text-[0.9375rem] text-destructive">מחיקת החשבון</span>
             <span className="block text-xs text-muted-foreground">
               {manage.lastOfKind ? 'אי אפשר למחוק את החשבון האחרון מסוגו' : 'מוחק גם את כל התנועות שלו'}
             </span>

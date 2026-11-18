@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils/cn'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { monthAverageDelta } from '@/lib/insights/account-overview'
 import type { MonthProgress } from '@/lib/insights/month-progress'
+import { MoneyText } from '@/components/ui/money-text'
 
 export type Tone = 'income' | 'expense' | 'cc' | 'neutral'
 
@@ -168,7 +169,7 @@ export function StatTile({
         <span className={cn('h-2 w-2 rounded-full shrink-0', DOT[tone])} aria-hidden />
         <span className={cn('font-medium', bare && 'whitespace-nowrap')}>{label}</span>
         {/* A panel cell keeps one line of label: its hint follows it where there is room */}
-        {bare && hint && <span className="hidden truncate text-xs xl:inline">· {hint}</span>}
+        {bare && hint && <span className="hidden truncate text-xs xl:inline">· <MoneyText>{hint}</MoneyText></span>}
         {href && (
           <ChevronLeft
             className="ms-auto h-4 w-4 opacity-0 transition-all duration-fast group-hover:opacity-100 group-hover:-translate-x-0.5"
@@ -192,7 +193,7 @@ export function StatTile({
           </p>
           {compare && <DeltaChip {...compare} />}
         </div>
-        {hint && !bare && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+        {hint && !bare && <p className="mt-0.5 text-xs text-muted-foreground"><MoneyText>{hint}</MoneyText></p>}
         {split && split.length > 1 && (
           <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground" aria-label="פירוט לפי כרטיס">
             {split.map(s => (
@@ -318,6 +319,7 @@ export function NetBalance({
           )}
         </p>
         <p
+          data-flow={positive ? 'in' : 'out'}
           className={cn(
             'mt-1 font-semibold tracking-tight tabular-nums',
             compact ? 'text-3xl leading-none' : 'text-4xl sm:text-[2.75rem] sm:leading-none',
@@ -429,7 +431,7 @@ function HeroRow({
         <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT[tone])} aria-hidden />
         <dt className="min-w-0 flex-1 text-sm">
           <span className="font-medium">{label}</span>
-          {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
+          {hint && <span className="block truncate text-xs text-muted-foreground"><MoneyText>{hint}</MoneyText></span>}
         </dt>
         {chip}
         <dd className="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-foreground">
@@ -494,10 +496,11 @@ export function DashboardSummaryCards({
   )
 
   return (
-    <section aria-label={label} className="grid gap-x-10 gap-y-5 rounded-xl surface-hero p-4 sm:p-6 lg:grid-cols-2">
+    <section aria-label={label} className="grid gap-x-10 gap-y-5 rounded-xl surface-hero p-4 sm:p-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-2">
       <div className="flex flex-col justify-center">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <p
+          data-flow={verdict ? (positive ? 'in' : 'out') : undefined}
           className={cn(
             'mt-1 text-4xl font-semibold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none',
             !verdict

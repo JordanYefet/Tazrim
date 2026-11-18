@@ -544,13 +544,13 @@ export function BankTransactionsTable({
                     />
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
-                    {tx.debit > 0 ? formatCurrency(tx.debit) : ''}
+                    <span data-money data-flow="out">{tx.debit > 0 ? formatCurrency(tx.debit) : ''}</span>
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--income))] font-medium tabular-nums">
-                    {tx.credit > 0 ? formatCurrency(tx.credit) : ''}
+                    <span data-money data-flow="in">{tx.credit > 0 ? formatCurrency(tx.credit) : ''}</span>
                   </td>
                   {!scope.several && (
-                    <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums">{formatCurrency(tx.balance)}</td>
+                    <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums"><span data-money>{formatCurrency(tx.balance)}</span></td>
                   )}
                   <td className="py-2.5 px-4 min-w-[120px]">
                     {editing?.id === tx.id && editing.field === 'note' ? (

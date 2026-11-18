@@ -86,7 +86,7 @@ export function MarkRecurringButton({
           onClick={start}
           title={label}
           className={cn(
-            'inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 align-middle text-[11px] font-medium leading-4 text-primary',
+            'inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 align-middle text-[0.6875rem] font-medium leading-4 text-primary',
             'transition-[background-color,transform] duration-quick ease-ui hover:bg-primary/15 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             'dark:bg-primary/15 dark:hover:bg-primary/25',
             className
@@ -206,7 +206,7 @@ function SheetBody({ view, setView, close }: { view: View; setView: (v: View) =>
   const others = info.manualSeries.filter(m => m.id !== s?.manualId)
   const txLine = (
     <p className="text-sm text-muted-foreground">
-      <span className="text-foreground">{t.description}</span> · {formatDate(t.date)} · <span className="tabular-nums">{formatCurrency(t.amount)}</span>
+      <span className="text-foreground">{t.description}</span> · {formatDate(t.date)} · <span data-money className="tabular-nums">{formatCurrency(t.amount)}</span>
     </p>
   )
 
@@ -223,7 +223,7 @@ function SheetBody({ view, setView, close }: { view: View; setView: (v: View) =>
             {s.status === 'confirmed' && <BadgeCheck className="h-4 w-4 text-[hsl(var(--income))]" aria-label="מאושר" />}
           </p>
           <p className="text-xs tabular-nums text-muted-foreground">
-            {CADENCE_WORD[s.cadence]} · {s.occurrences} חיובים · {formatCurrency(s.latestAmount)}
+            {CADENCE_WORD[s.cadence]} · {s.occurrences} חיובים · <span data-money>{formatCurrency(s.latestAmount)}</span>
           </p>
         </div>
       )}
@@ -243,7 +243,7 @@ function SheetBody({ view, setView, close }: { view: View; setView: (v: View) =>
                   <Plus className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                   <span className="min-w-0 flex-1 truncate font-medium">{m.name}</span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {CADENCE_OPTIONS.find(c => c.value === m.cadence)?.label} · {formatCurrency(m.latestAmount)}
+                    {CADENCE_OPTIONS.find(c => c.value === m.cadence)?.label} · <span data-money>{formatCurrency(m.latestAmount)}</span>
                   </span>
                 </button>
               </li>

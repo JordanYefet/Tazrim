@@ -10,15 +10,16 @@ import { FAILURE_TEXT, STEP_TEXT, monthsBackDay, shortDay, timeAgo } from '@/lib
 import type { QueueItemView, QueueView, RunView } from '@/lib/sync/runs'
 import type { LinkAction, UnknownAccount, Candidate } from '@/lib/sync/store'
 import type { CompanyInfo, LoginInput, SyncApi } from './use-sync'
+import { MoneyText } from '@/components/ui/money-text'
 
 const ROW =
   'flex min-h-14 w-full items-center gap-3 px-4 py-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
 const INPUT =
   'h-11 w-full rounded-xl border border-border bg-muted px-3 text-base focus:outline-none focus:ring-2 focus:ring-ring md:h-10 md:text-sm'
 const PRIMARY =
-  'inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-[opacity,transform] duration-quick ease-ui active:scale-[0.97] disabled:opacity-40 md:h-10 md:text-sm'
+  'inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-[0.9375rem] font-medium text-primary-foreground transition-[opacity,transform] duration-quick ease-ui active:scale-[0.97] disabled:opacity-40 md:h-10 md:text-sm'
 const SECONDARY =
-  'inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-4 text-[15px] font-medium transition-colors hover:bg-muted md:h-10 md:text-sm'
+  'inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-4 text-[0.9375rem] font-medium transition-colors hover:bg-muted md:h-10 md:text-sm'
 
 /** "עו״ש משותף", "2 כרטיסים": what a company's row fills */
 function accountsLabel(c: CompanyInfo): string {
@@ -52,9 +53,9 @@ function BackHeader({ company, onBack, back = true }: { company: CompanyInfo; on
         </button>
       )}
       <Swatch company={company} />
-      <span className="min-w-0 flex-1 truncate text-[17px] font-semibold">{company.label}</span>
+      <span className="min-w-0 flex-1 truncate text-[1.0625rem] font-semibold">{company.label}</span>
       {!company.verified && (
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground" title="עוד לא נוסה מול חשבון אמיתי">
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[0.6875rem] text-muted-foreground" title="עוד לא נוסה מול חשבון אמיתי">
           לא נבדק עדיין
         </span>
       )}
@@ -86,7 +87,7 @@ function CompanyList({
   return (
     <div className="pb-2">
       <div className="px-4 pb-2 pt-3">
-        <div className="text-[17px] font-semibold">סנכרון</div>
+        <div className="text-[1.0625rem] font-semibold">סנכרון</div>
         <div className="text-xs text-muted-foreground">{last ? `סנכרון אחרון ${timeAgo(last)}` : 'משיכת תנועות ישירות מאתר הבנק או חברת האשראי'}</div>
       </div>
       {disabled && own.length > 0 && (
@@ -110,7 +111,7 @@ function CompanyList({
               <button type="button" disabled={disabled} onClick={() => onPick(c.id)} className={cn(ROW, 'hover:bg-muted active:bg-muted')}>
                 <Swatch company={c} />
                 <span className="flex min-w-0 flex-1 flex-col leading-snug">
-                  <span className="text-[15px] font-medium md:text-sm">{c.label}</span>
+                  <span className="text-[0.9375rem] font-medium md:text-sm">{c.label}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {accountsLabel(c)} · {c.lastSyncedAt ? timeAgo(c.lastSyncedAt) : 'טרם סונכרן'}
                   </span>
@@ -151,7 +152,7 @@ function CompanyList({
               {error}
             </p>
           )}
-          <p id="sync-all-hint" className="mt-1.5 text-center text-[11px] leading-relaxed text-muted-foreground text-pretty">
+          <p id="sync-all-hint" className="mt-1.5 text-center text-[0.6875rem] leading-relaxed text-muted-foreground text-pretty">
             {saved.length === 0
               ? info.vault.exists
                 ? 'שומרים את פרטי הכניסה בכספת בסנכרון של חשבון, ואז הכול מסתנכרן בלחיצה אחת.'
@@ -239,7 +240,7 @@ function LoginForm({
         {!typing && (
           <div className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5">
             <LockKeyhole className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="min-w-0 flex-1 text-[13px]">
+            <span className="min-w-0 flex-1 text-[0.8125rem]">
               <span className="block font-medium">פרטי הכניסה שמורים בכספת</span>
               <span className="block text-xs text-muted-foreground">
                 {vault.open ? 'הם נקראים בשרת ולא מגיעים לדפדפן.' : 'Face ID או Touch ID יפתח את הכספת.'}
@@ -251,7 +252,7 @@ function LoginForm({
           </div>
         )}
         {typing && company.fields.map((f: LoginField, i) => (
-          <label key={f} className="flex flex-col gap-1.5 text-[13px] font-medium">
+          <label key={f} className="flex flex-col gap-1.5 text-[0.8125rem] font-medium">
             {FIELD_LABELS[f]}
             <input
               type={f === 'password' ? 'password' : f === 'email' ? 'email' : 'text'}
@@ -266,7 +267,7 @@ function LoginForm({
             />
           </label>
         ))}
-        <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+        <label className="flex flex-col gap-1.5 text-[0.8125rem] font-medium">
           מתאריך
           <select value={range} onChange={e => setRange(e.target.value)} className={INPUT}>
             {options.map(o => (
@@ -277,7 +278,7 @@ function LoginForm({
           </select>
         </label>
         {range === 'custom' && (
-          <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+          <label className="flex flex-col gap-1.5 text-[0.8125rem] font-medium">
             <span className="sr-only">תאריך התחלה</span>
             <input type="date" min={earliest} max={today} value={custom} onChange={e => setCustom(e.target.value)} className={INPUT} />
             <span className="text-xs font-normal text-muted-foreground">
@@ -288,7 +289,7 @@ function LoginForm({
           </label>
         )}
         {typing && vault.exists && (
-          <label className="flex items-center gap-2.5 text-[13px]">
+          <label className="flex items-center gap-2.5 text-[0.8125rem]">
             <input type="checkbox" checked={save} onChange={e => setSave(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
             {company.savedLogin ? 'לעדכן בכספת, במקום הפרטים השמורים' : 'לשמור בכספת, לסנכרונים הבאים'}
           </label>
@@ -318,7 +319,7 @@ type StepState = 'done' | 'active' | 'waiting' | 'todo' | 'failed'
 
 function StepRow({ label, state, end }: { label: string; state: StepState; end?: React.ReactNode }) {
   return (
-    <li className="flex items-center gap-2.5 text-[13px]">
+    <li className="flex items-center gap-2.5 text-[0.8125rem]">
       {state === 'done' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />}
       {state === 'active' && <Loader2 className="h-4 w-4 animate-spin text-primary motion-reduce:animate-none" aria-hidden />}
       {state === 'waiting' && <Circle className="h-4 w-4 fill-amber-400 text-amber-500" aria-hidden />}
@@ -392,7 +393,7 @@ function CodeEntry({
       }}
       className="flex flex-col gap-3"
     >
-      <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+      <label className="flex flex-col gap-1.5 text-[0.8125rem] font-medium">
         הקוד שקיבלת ב-SMS
         <input
           inputMode="numeric"
@@ -455,11 +456,11 @@ function LinkAccounts({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-[0.8125rem] text-muted-foreground">
         {unknown.length > 1 ? 'נמצאו חשבונות' : card ? 'נמצא כרטיס' : 'נמצא חשבון'} שעוד לא מוכרים ל-Tazrim. התשובה נשמרת, כך שבפעם הבאה זה יקרה לבד.
       </p>
       {unknown.map(u => (
-        <label key={u.externalAccount} className="flex flex-col gap-1.5 rounded-xl border border-border p-3 text-[13px]">
+        <label key={u.externalAccount} className="flex flex-col gap-1.5 rounded-xl border border-border p-3 text-[0.8125rem]">
           <span className="font-medium">
             {card ? `כרטיס שמסתיים ב-${u.label}` : `חשבון ${u.label}`}
             <span className="font-normal text-muted-foreground"> · {u.rows} תנועות</span>
@@ -516,7 +517,7 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
       {s.results.length ? (
         <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
           {s.results.map(r => (
-            <li key={r.accountId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-[13px]">
+            <li key={r.accountId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-[0.8125rem]">
               <span className="min-w-0 truncate font-medium">{r.displayName}</span>
               <span className="flex shrink-0 flex-col items-end tabular-nums text-muted-foreground">
                 <span>
@@ -525,7 +526,7 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
                   {r.skippedByAmount > 0 && ` (${r.skippedByAmount} לפי סכום ותאריך)`}
                 </span>
                 {/* Uploaded rows the site gave a missing אסמכתא or note (ENG-103) */}
-                {r.filled > 0 && <span className="text-[12px]">הושלמו אסמכתא או הערות ב-{r.filled}</span>}
+                {r.filled > 0 && <span className="text-[0.75rem]">הושלמו אסמכתא או הערות ב-{r.filled}</span>}
               </span>
             </li>
           ))}
@@ -537,7 +538,7 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
         r =>
           r.balanceMismatch && (
             <p key={`b-${r.accountId}`} role="alert" className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-              {`${r.displayName}: היתרה המחושבת לא תואמת את הקובץ שהועלה ב-${shortDay(r.balanceMismatch.day)} (הפרש ₪${Math.abs(r.balanceMismatch.difference).toLocaleString('he-IL')}). התנועות נשמרו; כדאי לבדוק את היתרה מול האתר.`}
+              <MoneyText>{`${r.displayName}: היתרה המחושבת לא תואמת את הקובץ שהועלה ב-${shortDay(r.balanceMismatch.day)} (הפרש ₪${Math.abs(r.balanceMismatch.difference).toLocaleString('he-IL')}). התנועות נשמרו; כדאי לבדוק את היתרה מול האתר.`}</MoneyText>
             </p>
           )
       )}
@@ -588,7 +589,7 @@ function QueueList({ queue, companies }: { queue: QueueView; companies: CompanyI
         const c = companies.find(x => x.id === item.company)
         const { tone, text } = rowState(item)
         return (
-          <li key={item.company} className="flex min-h-11 items-center gap-3 px-3 py-2 text-[13px]">
+          <li key={item.company} className="flex min-h-11 items-center gap-3 px-3 py-2 text-[0.8125rem]">
             {tone === 'running' ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden />
             ) : tone === 'done' ? (
@@ -683,7 +684,7 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
     return (
       <div className="pb-4">
         <div className="px-4 pb-3 pt-3">
-          <div className="text-[17px] font-semibold">סנכרון הכול</div>
+          <div className="text-[1.0625rem] font-semibold">סנכרון הכול</div>
           <div className="text-xs tabular-nums text-muted-foreground">
             {going ? `${finished} מתוך ${queue.items.length} הסתיימו` : 'הסתיים'}
           </div>

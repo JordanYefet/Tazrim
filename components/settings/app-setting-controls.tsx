@@ -70,11 +70,11 @@ export function SettingCard({
   return (
     <section className={plain ? 'space-y-3 border-t pt-4 first:border-t-0 first:pt-0' : 'space-y-3 rounded-2xl surface p-4 md:p-5'}>
       <div className="space-y-1">
-        <h2 className="text-[15px] font-semibold">{title}</h2>
+        <h2 className="text-[0.9375rem] font-semibold">{title}</h2>
         <p className="text-sm text-muted-foreground text-pretty">{help}</p>
       </div>
       {children}
-      <p className={cn('min-h-5 text-[13px]', error ? 'text-destructive dark:text-red-400' : 'text-muted-foreground')} role={error ? 'alert' : undefined}>
+      <p className={cn('min-h-5 text-[0.8125rem]', error ? 'text-destructive dark:text-red-400' : 'text-muted-foreground')} role={error ? 'alert' : undefined}>
         {error ?? (locked ? 'נקבע בקובץ .env, ולכן אי אפשר לשנות כאן.' : '')}
       </p>
     </section>

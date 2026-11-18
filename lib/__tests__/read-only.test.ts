@@ -20,6 +20,11 @@ describe('isWriteBlocked', () => {
     expect(isWriteBlocked('POST', '/api/upload/preview/')).toBe(false)
   })
 
+  it('lets the accessibility options through: the route only sets a cookie in the demo', () => {
+    expect(isWriteBlocked('PUT', '/api/preferences/accessibility')).toBe(false)
+    expect(isWriteBlocked('PUT', '/api/preferences/background')).toBe(true)
+  })
+
   it('does not treat a lookalike path as a preview', () => {
     expect(isWriteBlocked('POST', '/api/upload/preview-and-save')).toBe(true)
     expect(isWriteBlocked('POST', '/api/upload/x/preview')).toBe(true)

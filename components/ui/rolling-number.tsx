@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { EASE as MOTION_EASE, ROLL } from '@/lib/motion'
+import { ROLL } from '@/lib/motion'
+import { BLUR_LEVELS, ROLL_EASE, blurFilter, landing, rollBlur, rowTransform, spinStart, spinTurn } from '@/lib/digit-motion'
 import { cn } from '@/lib/utils/cn'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /*
  * Apple-style rolling digits (SwiftUI `.contentTransition(.numericText())`).
  *
  * Each digit is a fixed-height window (overflow: hidden) over a vertical strip
- * of 0–9. Showing digit d means translating the strip up by d tenths of its
- * own height: translateY(-d * 10%). Percentages in translate() are relative
+ * of 0–9 and a second 0. Showing digit d means translating the strip up by d of its
+ * 11 rows: translateY(-d * 100/11 %). Percentages in translate() are relative
  * to the element itself, so this holds at any font size. Changing the digit
  * only changes the transform, so the browser animates it on the compositor.
  * The strip is promoted to its own layer only while it rolls (no will-change).
@@ -30,59 +32,112 @@ function format(value: number, kind: RollingFormat) {
   return FORMATTERS[kind].format(value)
 }
 
-const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+// 0–9 and a second 0, so a spin wraps from 9 to 0 without a jump (lib/digit-motion.ts)
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
 // Line box of every glyph; the window is exactly one line tall. Rounded to whole
 // pixels: digit d sits d rows down the strip, and a fractional row (1.15 × 16px =
 // 18.4px) leaves each digit at a different sub-pixel offset, which the browser
 // rounds up or down per digit, so neighbours land a pixel apart
 const LINE_HEIGHT = 'round(1.15em, 1px)'
-// Strong ease-out: fast start, long settle, reads as "rolling into place" (motion tokens, ENG-67)
-const EASE = MOTION_EASE.ui
-// Lower digits start a hair earlier, odometer-style, but every digit lands on the same beat
-const STAGGER_MS = ROLL.stagger
 // Soft top/bottom edges so passing digits fade instead of being cut off
 const EDGE_MASK = 'linear-gradient(to bottom, transparent 0, #000 18%, #000 82%, transparent 100%)'
-// One turn of the 0–9 strip while a period loads, per digit from the right
-const SPIN_MS = [520, 610, 470, 580, 660, 500, 630]
+const BLUR_ID = 'digit-blur'
+
+/** A digit's place in a cascade from the highest digit (`index` 0) to the lowest */
+export function cascade(index: number, count: number, total: number = ROLL.duration) {
+  const duration = Math.max(ROLL.minDuration, total - (count - 1) * ROLL.stagger)
+  return { delay: index * ROLL.stagger, duration }
+}
 // Sign, digits and separators: the part that is laid out character by character
 const NUMERIC_CORE = /[-−]?\d(?:[\d.,]*\d)?/
 
+const reducedMotion = () => prefersReducedMotion()
+const now = () => Number(document.timeline.currentTime ?? performance.now())
+
 /**
- * A digit that spun while a period loaded (globals.css, `.digit-strip`) lands the
- * way a page's numbers enter: the spin stops, and the strip rolls up from 0 to its
- * digit on the entrance's beat, so the load and the arrival read as one motion.
- * The spin's removal fires `animationcancel`; the plain transition the new digit
- * started is dropped for it. A spin still waiting out its delay never moved, so it
- * changes nothing.
+ * How a strip moves (option C, lib/digit-motion.ts): the blur follows the speed.
+ *  - A new digit rolls on ROLL_EASE (a CSS transition on the inline transform), blurred
+ *    as it speeds up and sharp as it settles.
+ *  - While a period loads (globals.css: `digit-pending` starts after 400 ms, a beat later
+ *    per digit), the strip spins from the digit it shows, speeding up from rest.
+ *  - When the new figures arrive (the digit changes, or the period stops loading), the
+ *    spin carries on forward at its speed and slows onto the digit after its place in
+ *    the cascade, the blur clearing as it slows.
  */
-function useSpinLanding(duration: number, delay: number) {
+function useDigitMotion(digit: number, duration: number, delay: number) {
   const ref = useRef<HTMLSpanElement>(null)
   const timing = useRef({ duration, delay })
   timing.current = { duration, delay }
+  const shown = useRef(digit)
+  const spin = useRef<{ from: number; start: number; anims: Animation[] } | null>(null)
+
+  const land = useRef((to: number) => {
+    const el = ref.current
+    const s = spin.current
+    if (!el || !s) return
+    spin.current = null
+    const spun = now() - s.start
+    for (const a of s.anims) a.cancel()
+    // getAnimations() also brings in the transition the new digit started: the landing replaces it
+    for (const a of el.getAnimations()) if ('transitionProperty' in a || a.id === BLUR_ID) a.cancel()
+    const plan = landing(s.from, spun, to, timing.current.delay, timing.current.duration)
+    el.animate(plan.transform, { duration: plan.duration, easing: 'linear' })
+    el.animate(plan.filter, { duration: plan.duration, easing: 'linear' }).id = BLUR_ID
+  })
+
+  useLayoutEffect(() => {
+    const from = shown.current
+    if (from === digit) return
+    shown.current = digit
+    const el = ref.current
+    if (!el || typeof el.animate !== 'function' || reducedMotion()) return
+    if (spin.current) return land.current(digit)
+    for (const a of el.getAnimations()) if (a.id === BLUR_ID) a.cancel()
+    el.animate(rollBlur(from, digit, duration), { duration, delay, easing: 'linear' }).id = BLUR_ID
+  }, [digit, duration, delay])
+
   useEffect(() => {
-    const strip = ref.current
-    if (!strip) return
-    function land(e: AnimationEvent) {
-      if (!strip || e.target !== strip || e.animationName !== 'digit-spin' || e.elapsedTime <= 0) return
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      const target = strip.style.transform
-      for (const a of strip.getAnimations()) if ('transitionProperty' in a) a.cancel()
-      strip.animate([{ transform: 'translateY(0%)' }, { transform: target }], {
-        duration: timing.current.duration,
-        delay: timing.current.delay,
-        easing: EASE,
-        fill: 'backwards',
-      })
+    const el = ref.current
+    if (!el || typeof el.animate !== 'function') return
+    function started(e: AnimationEvent) {
+      if (!el || e.target !== el || e.animationName !== 'digit-pending' || spin.current || reducedMotion()) return
+      const from = shown.current
+      for (const a of el.getAnimations()) if (a.id === BLUR_ID) a.cancel()
+      const ramp = spinStart(from)
+      const turn = spinTurn(from)
+      spin.current = {
+        from,
+        start: now(),
+        anims: [
+          el.animate(ramp.transform, { duration: ramp.duration, easing: 'linear', fill: 'forwards' }),
+          el.animate(ramp.filter, { duration: ramp.duration, easing: 'linear', fill: 'forwards' }),
+          el.animate(turn.transform, { duration: turn.duration, delay: ramp.duration, easing: 'linear', iterations: Infinity }),
+          el.animate([{ filter: blurFilter(BLUR_LEVELS) }, { filter: blurFilter(BLUR_LEVELS) }], {
+            duration: turn.duration,
+            delay: ramp.duration,
+            iterations: Infinity,
+          }),
+        ],
+      }
     }
-    strip.addEventListener('animationcancel', land)
-    return () => strip.removeEventListener('animationcancel', land)
+    function stopped(e: AnimationEvent) {
+      if (e.target === el && e.animationName === 'digit-pending') land.current(shown.current)
+    }
+    el.addEventListener('animationstart', started)
+    el.addEventListener('animationcancel', stopped)
+    el.addEventListener('animationend', stopped)
+    return () => {
+      el.removeEventListener('animationstart', started)
+      el.removeEventListener('animationcancel', stopped)
+      el.removeEventListener('animationend', stopped)
+    }
   }, [])
   return ref
 }
 
 /** One rolling digit; also used for the card digits as they are typed (ENG-56). */
 export function DigitStrip({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
-  const strip = useSpinLanding(duration, delay)
+  const strip = useDigitMotion(digit, duration, delay)
   return (
     <span
       className="relative block overflow-hidden"
@@ -96,19 +151,47 @@ export function DigitStrip({ digit, duration, delay }: { digit: number; duration
         // digit-strip: spins while a period loads (globals.css, main[data-pending])
         className="digit-strip flex flex-col transition-transform motion-reduce:transition-none"
         style={{
-          transform: `translateY(${-digit * 10}%)`,
+          transform: rowTransform(digit),
           transitionDuration: `${duration}ms`,
           transitionDelay: `${delay}ms`,
-          transitionTimingFunction: EASE,
+          transitionTimingFunction: ROLL_EASE,
         }}
       >
-        {DIGITS.map(d => (
-          <span key={d} style={{ height: LINE_HEIGHT }}>
+        {DIGITS.map((d, i) => (
+          <span key={i} style={{ height: LINE_HEIGHT }}>
             {d}
           </span>
         ))}
       </span>
     </span>
+  )
+}
+
+/**
+ * The vertical blur levels the digits use while they roll (lib/digit-motion.ts): a Gaussian
+ * blur along y only, so a digit's sides stay sharp. Sized by the strip itself
+ * (objectBoundingBox), so it scales with the number's font size. Rendered once, in the layout.
+ */
+export function RollBlurDefs() {
+  // At full speed: ROLL.blurEm of the digit, over a strip DIGITS.length rows of 1.15em
+  const full = ROLL.blurEm / (DIGITS.length * 1.15)
+  return (
+    <svg aria-hidden width="0" height="0" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+      {Array.from({ length: BLUR_LEVELS }, (_, k) => (
+        <filter
+          key={k}
+          id={`roll-blur-${k + 1}`}
+          primitiveUnits="objectBoundingBox"
+          x="0"
+          width="1"
+          y="-0.02"
+          height="1.04"
+          colorInterpolationFilters="sRGB"
+        >
+          <feGaussianBlur stdDeviation={`0 ${(((k + 1) / BLUR_LEVELS) * full).toFixed(5)}`} />
+        </filter>
+      ))}
+    </svg>
   )
 }
 
@@ -128,7 +211,7 @@ interface RollingNumberProps {
  * with the page, ENG-67), and also when a number gains a digit later
  * (0.00 → 12,345.67 rolls the new leading digits too, not only the last three).
  */
-function RollingDigit({ digit, duration, delay, spin }: { digit: number; duration: number; delay: number; spin: number }) {
+function RollingDigit({ digit, duration, delay }: { digit: number; duration: number; delay: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [mounted, setMounted] = useState(false)
   useLayoutEffect(() => {
@@ -136,7 +219,8 @@ function RollingDigit({ digit, duration, delay, spin }: { digit: number; duratio
     setMounted(true)
   }, [])
   return (
-    <span ref={ref} className="contents" style={{ '--digit-spin': `${spin}ms` } as React.CSSProperties}>
+    // The loading spin follows the same cascade: a wave from the highest digit (globals.css)
+    <span ref={ref} className="contents" style={{ '--digit-lag': `${delay}ms` } as React.CSSProperties}>
       <DigitStrip digit={mounted ? digit : 0} duration={duration} delay={delay} />
     </span>
   )
@@ -144,17 +228,28 @@ function RollingDigit({ digit, duration, delay, spin }: { digit: number; duratio
 
 export function RollingNumber({ value, duration = ROLL.duration, format: kind = 'currency', className }: RollingNumberProps) {
   const text = format(value, kind)
+  // Amounts are hidden in privacy mode (ENG-127); counts and percentages stay readable. The
+  // mark goes on an inner inline span: callers may make the outer one a block, and the
+  // privacy bar is the marked element's background
+  const money = kind === 'currency' || kind === 'currencyExact' || kind === 'decimal' || undefined
   const match = text.match(NUMERIC_CORE)
-  if (!match || match.index === undefined) return <span className={className}>{text}</span>
+  if (!match || match.index === undefined)
+    return (
+      <span className={className}>
+        <span data-money={money}>{text}</span>
+      </span>
+    )
 
   const before = text.slice(0, match.index)
   const after = text.slice(match.index + match[0].length)
   const chars = [...match[0]]
+  const count = chars.filter(ch => /\d/.test(ch)).length
+  let place = 0
 
   return (
     <span data-rolling className={cn('tabular-nums', className)}>
       <span className="sr-only">{text}</span>
-      <span aria-hidden>
+      <span aria-hidden data-money={money}>
         {before}
         {/* LTR so the characters keep their order inside the RTL page; the
             symbol and suffix stay in normal text flow around it */}
@@ -164,15 +259,8 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
             // number of digits changes; unchanged digits don't move
             const fromEnd = chars.length - 1 - i
             return /\d/.test(ch) ? (
-              <RollingDigit
-                key={`d${fromEnd}`}
-                digit={Number(ch)}
-                // Shorter by its delay, so all digits land together
-                duration={Math.max(duration / 2, duration - fromEnd * STAGGER_MS)}
-                delay={fromEnd * STAGGER_MS}
-                // Each digit spins at its own speed while a period loads, so the number scrambles
-                spin={SPIN_MS[fromEnd % SPIN_MS.length]}
-              />
+              // From the highest digit to the lowest, each a beat after the one before
+              <RollingDigit key={`d${fromEnd}`} digit={Number(ch)} {...cascade(place++, count, duration)} />
             ) : (
               <span key={`s${fromEnd}`}>{ch}</span>
             )

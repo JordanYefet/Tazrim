@@ -92,7 +92,7 @@ function SeriesWindow({ series, onClose }: { series: AppliedSeries; onClose: () 
           {series.occurrences > 0 && <> · {series.occurrences} חיובים · אחרון {formatDate(series.lastDate)}</>}
           {series.active && series.occurrences > 0 && <> · הבא בערך {formatDate(series.nextDate)}</>}
         </p>
-        <span className="shrink-0 text-lg font-semibold tabular-nums">{formatCurrency(series.latestAmount)}</span>
+        <span data-money className="shrink-0 text-lg font-semibold tabular-nums">{formatCurrency(series.latestAmount)}</span>
       </div>
       {status === 'confirmed' && (
         <p className="flex items-center gap-1.5 text-sm text-[hsl(var(--income))]">
@@ -106,12 +106,12 @@ function SeriesWindow({ series, onClose }: { series: AppliedSeries; onClose: () 
             autoFocus
             aria-label="שם חדש"
             placeholder={series.detectedName}
-            className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
             value={renaming}
             onChange={e => setRenaming(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') setRenaming(null) }}
           />
-          <button type="submit" className="h-11 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-transform active:scale-[0.97]">שמירה</button>
+          <button type="submit" className="h-11 rounded-xl bg-primary px-4 text-[0.9375rem] font-medium text-primary-foreground transition-transform active:scale-[0.97]">שמירה</button>
           <button type="button" aria-label="ביטול" onClick={() => setRenaming(null)} className="h-11 rounded-xl bg-muted px-3">
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -175,7 +175,7 @@ function Action({ icon, title, sub, tone, onClick }: {
           {icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn('block text-[15px]', tone === 'danger' && 'text-destructive')}>{title}</span>
+          <span className={cn('block text-[0.9375rem]', tone === 'danger' && 'text-destructive')}>{title}</span>
           <span className="block text-xs text-muted-foreground">{sub}</span>
         </span>
       </button>

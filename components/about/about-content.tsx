@@ -29,7 +29,7 @@ const PRIVACY: { icon: LucideIcon; title: string; body: string; checkLine?: stri
 ]
 
 const H2 = 'text-lg font-semibold tracking-tight'
-const PROSE = 'text-[15px] leading-7 text-foreground/85 md:text-base md:leading-8'
+const PROSE = 'text-[0.9375rem] leading-7 text-foreground/85 md:text-base md:leading-8'
 const LINK =
   'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]'
 

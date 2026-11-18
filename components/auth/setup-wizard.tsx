@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { EASE } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 import { SETUP_STEPS, SETUP_STEP_COOKIE, SETUP_STEP_COUNT, nextStep, previousStep, setupHref, stepNumber, type SetupStep } from '@/lib/setup/steps'
 import type { SettingView } from '@/lib/settings/app-settings'
 import { PlainSettingCards, SettingCard } from '@/components/settings/app-setting-controls'
@@ -158,7 +159,7 @@ function StepSwap({ step, children }: { step: SetupStep; children: React.ReactNo
     last.current = order
     const el = ref.current
     if (!el || dir === 0 || typeof el.animate !== 'function') return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduce = prefersReducedMotion()
     const dx = dir > 0 ? -12 : 12
     el.animate(
       reduce

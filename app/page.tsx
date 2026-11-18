@@ -178,7 +178,7 @@ export default async function DashboardPage({
             selectedMonth={month}
           />
           {/* Two equal halves in every row, as on /banks and /cards, so the edges line up */}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <CCMonthlyChart data={cards} series={cardSeries} selectedMonth={month} />
             <CategoryInsights
               insights={insights}
@@ -187,7 +187,7 @@ export default async function DashboardPage({
               hrefs={insightHrefs}
             />
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <CategoryBars
               title="הוצאות לפי קטגוריה · בנק וכרטיסים"
               subtitle="לחיצה על קטגוריה פותחת את השנה שלה"
@@ -199,11 +199,11 @@ export default async function DashboardPage({
             {/* What deserves a look sits beside the categories, at full height */}
             {/* The card remounts per range (its dismissals reset); the wrapper stays and eases the
                 new rows in. grid: the card still fills the row's height */}
-            <DataSwap className="grid" swapKey={`${range.since}|${range.until}`}>
+            <DataSwap className="grid grid-cols-[minmax(0,1fr)]" swapKey={`${range.since}|${range.until}`}>
               <UnusualCard key={`${range.since}|${range.until}`} items={unusual} subtitle={unusualSubtitle} />
             </DataSwap>
           </div>
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
             <RecurringCard series={recurring.subscriptions} total={recurring.total} />
             {/* Compact, not stretched to the recurring list's height */}
             <UncategorizedCard bank={uncategorized.bank} card={uncategorized.card} />

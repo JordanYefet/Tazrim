@@ -87,7 +87,7 @@ function SwitchRow({
   return (
     <div className="flex min-h-11 items-center justify-between gap-4">
       <span className="space-y-0.5">
-        <span id={`${id}-label`} className={cn('block font-medium', secondary ? 'text-sm' : 'text-[15px]')}>
+        <span id={`${id}-label`} className={cn('block font-medium', secondary ? 'text-sm' : 'text-[0.9375rem]')}>
           {label}
         </span>
         <span className="block text-xs text-muted-foreground text-pretty">{description}</span>
@@ -142,7 +142,7 @@ function DeviceFile({
               <Download className="h-4 w-4" aria-hidden />
               הורדה
             </a>
-            <bdi dir="ltr" className="break-all font-mono text-[11px]">
+            <bdi dir="ltr" className="break-all font-mono text-[0.6875rem]">
               {file.slice(1)}
             </bdi>
           </>
@@ -258,7 +258,7 @@ export function HttpsSection({
 
       <div className={cn('space-y-1 transition-opacity duration-200', !on && 'opacity-50')}>
         <p className="text-xs text-muted-foreground">{on ? 'הכתובת המוצפנת' : 'הכתובת המוצפנת, אחרי ההפעלה'}</p>
-        <AddressLine url={url} className={inSetup ? 'text-[15px] sm:text-lg' : 'text-[15px] sm:text-xl'} disabled={!on} />
+        <AddressLine url={url} className={inSetup ? 'text-[0.9375rem] sm:text-lg' : 'text-[0.9375rem] sm:text-xl'} disabled={!on} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">

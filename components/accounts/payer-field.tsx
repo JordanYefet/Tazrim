@@ -16,6 +16,7 @@ import {
   toName,
   type PayerEvidence,
 } from '@/lib/accounts/payer-suggestion'
+import { MoneyText } from '@/components/ui/money-text'
 
 /** A bank account a card can be paid from */
 export interface PayerBank {
@@ -142,7 +143,7 @@ export function PayerTiles({
   if (reason && reason !== shownReason) setShownReason(reason)
   return (
     <div className="space-y-2">
-      <div role="radiogroup" aria-labelledby={labelId} className="grid gap-2 sm:grid-cols-2">
+      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
         {banks.map(b => (
           <button key={b.id} type="button" role="radio" aria-checked={value === b.id} onClick={() => onChange(b.id)} className={tile(value === b.id)}>
             <BankFace bank={b} />
@@ -155,12 +156,12 @@ export function PayerTiles({
         ))}
         <button type="button" role="radio" aria-checked={value === null} onClick={() => onChange(null)} className={tile(value === null)}>
           <UnknownFace />
-          <span className="min-w-0 text-[13px] leading-snug">{UNKNOWN_PAYER_LABEL}</span>
+          <span className="min-w-0 text-[0.8125rem] leading-snug">{UNKNOWN_PAYER_LABEL}</span>
           <Tick on={value === null} />
         </button>
       </div>
       <Reveal open={!!suggestion}>
-        <InfoNote>{shownReason}</InfoNote>
+        <InfoNote><MoneyText>{shownReason}</MoneyText></InfoNote>
       </Reveal>
     </div>
   )
@@ -283,7 +284,7 @@ export function PayerPicker({
       </PayerMenu>
       {hint && (
         <p id={`${labelId}-hint`} className="text-xs text-muted-foreground">
-          {hint}
+          <MoneyText>{hint}</MoneyText>
         </p>
       )}
     </div>
@@ -307,7 +308,7 @@ export function PaidCardsField({
 }) {
   const bankName = (id: string | null) => (id ? ctx.banks.find(b => b.id === id)?.displayName : undefined)
   return (
-    <div role="group" aria-labelledby={labelId} className="grid gap-2 sm:grid-cols-2">
+    <div role="group" aria-labelledby={labelId} className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
       {ctx.cards.map(c => {
         const on = value.includes(c.id)
         const from = bankName(c.payerAccountId)

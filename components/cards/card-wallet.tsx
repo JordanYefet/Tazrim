@@ -44,6 +44,7 @@ import {
   type CardPlacement,
   type WalletMode,
 } from '@/lib/cards/wallet-motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /*
  * The card wallet (ENG-56). app/cards/layout.tsx mounts it once for /cards and
@@ -122,10 +123,6 @@ function whenLanding(anim: Animation | null, land: () => void, duration = SPRING
   anim.addEventListener('cancel', () => window.clearTimeout(timer))
 }
 const INTENT_EVENT = 'tazrim:wallet-route'
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 /** Tell the wallet where a navigation is going, so it can move before the page arrives. */
 export function announceWalletRoute(href: string) {
@@ -811,7 +808,7 @@ function Wallet({
                 {/* The bank pocket: the period's net in the mark's place (a bank account's face has it at its foot too) */}
                 {kind === 'banks' && stackNet ? (
                   <span className="wallet-pocket__net">
-                    {stackNet.label} <bdi dir="ltr" className="wallet-pocket__netvalue">{formatNet(stackNet.value)}</bdi>
+                    {stackNet.label} <bdi data-money dir="ltr" className="wallet-pocket__netvalue">{formatNet(stackNet.value)}</bdi>
                   </span>
                 ) : (
                   <span className="wallet-pocket__mark" aria-hidden>

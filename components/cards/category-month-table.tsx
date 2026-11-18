@@ -146,11 +146,11 @@ export function CategoryMonthTable({
                     <th scope="row" className="sr-only">{c}</th>
                     {values.map((v, i) => (
                       <td key={i} className={cn(cell, monthCol(months[i]), v === 0 && 'text-muted-foreground/50')}>
-                        {v === 0 ? '–' : fmt.format(v)}
+                        <span data-money>{v === 0 ? '–' : fmt.format(v)}</span>
                       </td>
                     ))}
-                    <td className={cn(cell, 'font-semibold')}>{fmt.format(total)}</td>
-                    <td className={cn(cell, 'text-muted-foreground')}>{fmt.format(total / activeMonths)}</td>
+                    <td className={cn(cell, 'font-semibold')}><span data-money>{fmt.format(total)}</span></td>
+                    <td className={cn(cell, 'text-muted-foreground')}><span data-money>{fmt.format(total / activeMonths)}</span></td>
                   </tr>
                 )
               })}
@@ -160,11 +160,11 @@ export function CategoryMonthTable({
                 <th scope="row" className="sr-only">סה״כ</th>
                 {monthTotals.map((v, i) => (
                   <td key={i} className={cn(cell, monthCol(months[i]))}>
-                    {v === 0 ? '–' : fmt.format(v)}
+                    <span data-money>{v === 0 ? '–' : fmt.format(v)}</span>
                   </td>
                 ))}
-                <td className={cell}>{fmt.format(grandTotal)}</td>
-                <td className={cn(cell, 'text-muted-foreground')}>{fmt.format(grandTotal / activeMonths)}</td>
+                <td className={cell}><span data-money>{fmt.format(grandTotal)}</span></td>
+                <td className={cn(cell, 'text-muted-foreground')}><span data-money>{fmt.format(grandTotal / activeMonths)}</span></td>
               </tr>
             </tfoot>
           </table>
