@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/client'
 import { NOT_LOCAL, maySync } from '@/lib/sync/access'
@@ -88,7 +89,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
  *   { all: true }                                             every company with a saved sign-in, several at once (TAZRIM_SYNC_CONCURRENCY), each from where it left off
  * 409 while another sync runs; 423 when the vault is needed and locked.
  */
-export async function POST(req: Request) {
+export const POST = logged(async function POST(req: Request) {
   if (!maySync(req.headers)) return NextResponse.json(NOT_LOCAL, { status: 403 })
   if (isUpdating()) return NextResponse.json({ error: UPDATING_MESSAGE, code: 'UPDATING' }, { status: 409 })
   const body = (await req.json().catch(() => null)) as
@@ -160,4 +161,4 @@ export async function POST(req: Request) {
   const res = startRun(company, credentials, start)
   if (!res.ok) return NextResponse.json({ error: 'סנכרון אחר עדיין רץ', code: 'BUSY' }, { status: 409 })
   return NextResponse.json({ run: res.run })
-}
+})

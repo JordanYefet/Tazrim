@@ -4,6 +4,9 @@ import { AWAY_MS, isDataWrite, staleOnReturn } from '../fresh-data'
 describe('isDataWrite', () => {
   it('leaves out the install settings, which restart the app (ENG-121)', () => {
     expect(isDataWrite('POST', '/api/install')).toBe(false)
+    // The debug log's page-change markers (ENG-104) change nothing a page shows
+    expect(isDataWrite('POST', '/api/logs')).toBe(false)
+    expect(isDataWrite('PUT', '/api/logs/browser')).toBe(false)
   })
 
   it('counts writes to the API', () => {

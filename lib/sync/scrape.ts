@@ -15,6 +15,8 @@
 import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
 import { redact } from '@/lib/log/redact'
+import { showSyncBrowser } from '@/lib/log/browser-flag'
+import { log } from '@/lib/log/logger'
 
 export type ScrapeStep = 'starting' | 'logging-in' | 'fetching' | 'done'
 
@@ -29,6 +31,8 @@ export interface ScrapeRequest {
   onStep: (step: ScrapeStep) => void
   /** Resolves with the SMS code the person types in (companies with `otp`) */
   requestOtp: () => Promise<string>
+  /** The run's short number in the debug log (lib/log), which its lines carry */
+  runNo?: number
 }
 
 /**
@@ -60,19 +64,22 @@ export function scrape(req: ScrapeRequest): Promise<ScrapeResult> {
   return process.env.TAZRIM_FAKE_SYNC === '1' ? fakeScrape(req) : realScrape(req)
 }
 
-async function realScrape({ company, credentials, startDate, onStep, requestOtp }: ScrapeRequest): Promise<ScrapeResult> {
+async function realScrape({ company, credentials, startDate, onStep, requestOtp, runNo }: ScrapeRequest): Promise<ScrapeResult> {
   // Loaded on demand: the package pulls in puppeteer, which only the server needs
   const { createScraper } = await import('israeli-bank-scrapers')
   const scraper = createScraper({
     companyId: company.id as Parameters<typeof createScraper>[0]['companyId'],
     startDate,
     combineInstallments: false,
-    showBrowser: process.env.TAZRIM_SYNC_SHOW_BROWSER === '1',
+    showBrowser: showSyncBrowser(),
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     args: chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS),
     verbose: false,
   })
   scraper.onProgress((_id, { type }) => {
+    // The library's own progress type, a fixed word (never the page's text)
+    const bad = type === 'LOGIN_FAILED' || type === 'CHANGE_PASSWORD'
+    log[bad ? 'warn' : 'info']('sync', `${company.id} · ${type}`, { run: runNo, step: type })
     if (type === 'LOGGING_IN') onStep('logging-in')
     else if (type === 'LOGIN_SUCCESS') onStep('fetching')
   })
@@ -81,14 +88,20 @@ async function realScrape({ company, credentials, startDate, onStep, requestOtp 
   try {
     const result = await scraper.scrape(login as Parameters<typeof scraper.scrape>[0])
     if (!result.success) {
-      console.warn(`[sync] ${company.id} failed: ${result.errorType ?? 'unknown'} ${safeReason(result.errorMessage)}`)
+      // The run's error line (lib/sync/runs.ts) carries the code; the library's reason, its numbers masked,
+      // is a debug line and, as before, in the server console
+      const reason = safeReason(result.errorMessage)
+      log.debug('sync', `${company.id} · library said ${result.errorType ?? 'unknown'}: ${reason}`, { run: runNo })
+      console.warn(`[sync] ${company.id} failed: ${result.errorType ?? 'unknown'} ${reason}`)
       return { ok: false, code: ERROR_CODES[result.errorType ?? ''] ?? 'GENERIC' }
     }
     return { ok: true, accounts: (result.accounts ?? []) as ScrapedAccount[] }
   } catch (e) {
     // The library's own error text can quote the page: only a code leaves this function,
     // and the log gets the reason with its numbers masked
-    console.warn(`[sync] ${company.id} threw: ${safeReason(e instanceof Error ? `${e.name}: ${e.message}` : e)}`)
+    const reason = safeReason(e instanceof Error ? `${e.name}: ${e.message}` : e)
+    log.debug('sync', `${company.id} · threw ${reason}`, { run: runNo })
+    console.warn(`[sync] ${company.id} threw: ${reason}`)
     return { ok: false, code: 'GENERIC' }
   }
 }
@@ -97,14 +110,19 @@ async function realScrape({ company, credentials, startDate, onStep, requestOtp 
 const wait = (ms: number) => new Promise(r => setTimeout(r, process.env.VITEST ? 0 : ms))
 
 /** Made-up accounts in the shape the library returns, a few days back from today. */
-async function fakeScrape({ company, credentials, onStep, requestOtp }: ScrapeRequest): Promise<ScrapeResult> {
+async function fakeScrape({ company, credentials, onStep, requestOtp, runNo }: ScrapeRequest): Promise<ScrapeResult> {
+  log.info('sync', `${company.id} · LOGGING_IN`, { run: runNo, step: 'LOGGING_IN' })
   onStep('logging-in')
   await wait(1200)
-  if (credentials.password === 'wrong') return { ok: false, code: 'INVALID_PASSWORD' }
+  if (credentials.password === 'wrong') {
+    log.warn('sync', `${company.id} · LOGIN_FAILED`, { run: runNo, step: 'LOGIN_FAILED' })
+    return { ok: false, code: 'INVALID_PASSWORD' }
+  }
   if (company.otp) {
     const code = await requestOtp()
     if (code !== '123456') return { ok: false, code: 'OTP' }
   }
+  log.info('sync', `${company.id} · LOGIN_SUCCESS`, { run: runNo, step: 'LOGIN_SUCCESS' })
   onStep('fetching')
   await wait(1500)
   const day = (back: number) => {

@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
 import { readUploadForm } from '@/lib/upload/form'
 import { reimportUpload } from '@/lib/upload/import'
@@ -8,7 +9,7 @@ import { reimportUpload } from '@/lib/upload/import'
  * transaction. Same form as /api/upload (`mapping` or `profileId`, `force`),
  * plus `dryRun=1` to only count: { existing, incoming }.
  */
-export async function POST(req: Request) {
+export const POST = logged(async function POST(req: Request) {
   const dryRun = new URL(req.url).searchParams.get('dryRun') === '1'
   const input = await readUploadForm(req)
   if ('response' in input) return input.response
@@ -33,4 +34,4 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: 'הייבוא מחדש נכשל, לא שונה דבר', code: 'REIMPORT_FAILED' }, { status: 500 })
   }
-}
+})

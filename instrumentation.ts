@@ -11,6 +11,14 @@ export async function register() {
   if (process.env.TAZRIM_TZ?.trim()) process.env.TZ = process.env.TAZRIM_TZ.trim()
   const { isReadOnly } = await import('./lib/read-only')
   const { describeError } = await import('./lib/log/redact')
+  // The debug log (ENG-104) starts with the server; nothing here is personal
+  try {
+    const { log } = await import('./lib/log/logger')
+    const { CURRENT_VERSION } = await import('./lib/updates/check')
+    log.info('app', `server started · v${CURRENT_VERSION}`, { version: CURRENT_VERSION })
+  } catch (e) {
+    console.warn('debug log: could not write the start line', describeError(e))
+  }
   try {
     const { startLocalDoor } = await import('./lib/local-door')
     startLocalDoor({ off: isReadOnly() })

@@ -54,8 +54,8 @@ describe('isPublicPath', () => {
 })
 
 describe('isBarePath', () => {
-  it.each(['/login', '/setup', '/invite/abc', '/updating'])('%s renders without the app shell', p => expect(isBarePath(p)).toBe(true))
-  it.each(['/', '/about', '/settings'])('%s keeps the app shell', p => expect(isBarePath(p)).toBe(false))
+  it.each(['/login', '/setup', '/invite/abc', '/updating', '/logs/full'])('%s renders without the app shell', p => expect(isBarePath(p)).toBe(true))
+  it.each(['/', '/about', '/settings', '/logs'])('%s keeps the app shell', p => expect(isBarePath(p)).toBe(false))
 })
 
 describe('relyingParty', () => {

@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
 import { readUploadForm } from '@/lib/upload/form'
 import { importUpload } from '@/lib/upload/import'
@@ -7,7 +8,7 @@ import { importUpload } from '@/lib/upload/import'
  * `force` (JSON list of file-row positions) imports rows that match stored ones anyway.
  * `mapping` (ImportMapping JSON) or `profileId` imports through a column mapping.
  */
-export async function POST(req: Request) {
+export const POST = logged(async function POST(req: Request) {
   const input = await readUploadForm(req)
   if ('response' in input) return input.response
   const { file, account, force, mapping, profileId } = input
@@ -22,4 +23,4 @@ export async function POST(req: Request) {
   }
   const { ok: _ok, ...body } = result
   return NextResponse.json(body)
-}
+})

@@ -1,4 +1,5 @@
 // app/api/settings/route.ts
+import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
 import { getCushion, setCushion, SettingValidationError } from '@/lib/db/settings'
 
@@ -10,7 +11,7 @@ export async function GET() {
 }
 
 /** Body: { cushion: number }. 200 with the saved value, 400 with { error } in Hebrew. */
-export async function PUT(req: Request) {
+export const PUT = logged(async function PUT(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })
   try {
@@ -19,4 +20,4 @@ export async function PUT(req: Request) {
     if (e instanceof SettingValidationError) return NextResponse.json({ error: e.message }, { status: 400 })
     throw e
   }
-}
+})

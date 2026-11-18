@@ -16,7 +16,10 @@ import { isWriteBlocked } from '@/lib/read-only'
 const NOT_DATA = new Set(['/api/install'])
 
 export function isDataWrite(method: string, pathname: string): boolean {
-  return isWriteBlocked(method, pathname) && !NOT_DATA.has(pathname.replace(/\/+$/, ''))
+  const path = pathname.replace(/\/+$/, '')
+  // The debug log (ENG-104) is written on every page change and holds no data a page shows
+  if (path === '/api/logs' || path.startsWith('/api/logs/')) return false
+  return isWriteBlocked(method, pathname) && !NOT_DATA.has(path)
 }
 
 /** Away at least this long and the pages are fetched again on return. */
