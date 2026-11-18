@@ -423,23 +423,23 @@ function HeroRow({
   extra?: ReactNode
 }) {
   return (
-    <div className="border-t">
+    <li className="border-t">
       <Link
         href={href}
         className="group flex min-h-[44px] items-center gap-2 rounded-md py-2 transition-colors duration-fast hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT[tone])} aria-hidden />
-        <dt className="min-w-0 flex-1 text-sm">
+        <span className="min-w-0 flex-1 text-sm">
           <span className="font-medium">{label}</span>
           {hint && <span className="block truncate text-xs text-muted-foreground"><MoneyText>{hint}</MoneyText></span>}
-        </dt>
+        </span>
         {chip}
-        <dd className="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-foreground">
+        <span className="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-foreground">
           <RollingNumber value={value} />
-        </dd>
+        </span>
       </Link>
       {extra}
-    </div>
+    </li>
   )
 }
 
@@ -514,7 +514,8 @@ export function DashboardSummaryCards({
         </p>
         <p className="mt-2 min-h-5 text-sm text-muted-foreground">{sub}</p>
       </div>
-      <dl className="flex flex-col justify-end">
+      {/* A list, not a dl: each row is one link, and a dt/dd inside a link is not a valid dl */}
+      <ul role="list" className="flex flex-col justify-end">
         <HeroRow label="הכנסות" hint={bankHint} href={`/banks${flowQs('in')}`} value={bankIncome} tone="income" />
         <HeroRow
           label="הוצאות"
@@ -543,7 +544,7 @@ export function DashboardSummaryCards({
             ) : null
           }
         />
-      </dl>
+      </ul>
     </section>
   )
 }

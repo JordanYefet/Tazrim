@@ -19,10 +19,10 @@ export function RecurringCard({ series, total, limit = 4 }: Props) {
     <section className="flex flex-col rounded-xl surface p-4 sm:p-6">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="flex items-center gap-1.5 text-base font-semibold">
+          <h2 className="flex items-center gap-1.5 text-base font-semibold">
             <Repeat className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             חיובים קבועים
-          </h3>
+          </h2>
           <p className="text-sm text-muted-foreground">
             {series.length} פעילים{flagged > 0 && ` · ${flagged} חדשים או שהתייקרו`}
           </p>
