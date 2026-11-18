@@ -61,6 +61,8 @@ RUN apt-get update \
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
+    TAZRIM_LOCAL_PORT=3001 \
+    TAZRIM_LOCAL_HOST=0.0.0.0 \
     TZ=Asia/Jerusalem \
     TAZRIM_DATABASE_URL=file:/data/tazrim.db \
     TAZRIM_DEMO=0 \
@@ -85,7 +87,9 @@ VOLUME /data
 # No USER here on purpose: the entrypoint starts as root only to chown /data,
 # then drops to the unprivileged "node" user (setpriv) for migrations and the
 # server. Running with --user node also works, as long as /data is writable.
-EXPOSE 3000
+# 3000: the app (phones, Caddy, the updater). 3001: the "this computer" door
+# (lib/local-door.ts): publish it on the host's 127.0.0.1 only, never wider
+EXPOSE 3000 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --start-interval=2s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"

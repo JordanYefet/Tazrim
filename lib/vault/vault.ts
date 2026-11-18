@@ -7,6 +7,7 @@
  * after TAZRIM_VAULT_IDLE_MINUTES without use (15 by default), and on restart.
  */
 import { prisma } from '@/lib/db/client'
+import { getVaultIdleMinutes } from '@/lib/settings/app-settings'
 import { keyFromPrf, keyFromRecovery, newRecoveryKey, newVaultKey, open, seal, wrapAad } from './crypto'
 
 interface Unlocked {
@@ -21,8 +22,7 @@ const g = globalThis as unknown as { __tazrimVault?: { open: Unlocked | null; ti
 const state = (g.__tazrimVault ??= { open: null })
 
 export function idleMs(): number {
-  const minutes = Number(process.env.TAZRIM_VAULT_IDLE_MINUTES)
-  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 15) * 60 * 1000
+  return getVaultIdleMinutes() * 60 * 1000
 }
 
 /** Wipes the key from memory */

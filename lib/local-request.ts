@@ -1,3 +1,21 @@
+import { timingSafeEqual } from 'node:crypto'
+
+/**
+ * Did this request come in through the "this computer" door (lib/local-door.ts)?
+ * True only while the door is on and the request carries its secret, which only
+ * the door adds. The one signal first-run setup trusts to skip its code: nothing a
+ * client can write (Host, X-Forwarded-For) counts.
+ */
+export function isThisComputer(headers: Headers): boolean {
+  const secret = process.env.TAZRIM_LOCAL_SECRET
+  if (!process.env.TAZRIM_LOCAL_PORT?.trim() || !secret || secret.length < 32) return false
+  const sent = headers.get('x-tazrim-local')
+  if (!sent) return false
+  const a = Buffer.from(sent)
+  const b = Buffer.from(secret)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 /**
  * Is this request from the machine the app runs on?
  *
@@ -16,8 +34,17 @@
  * Loopback means `localhost`, 127.0.0.0/8, ::1 or an IPv4-mapped 127.x
  * (::ffff:127.0.0.1), with or without a port, IPv6 with or without brackets.
  * A VS Code / SSH port-forward arrives as localhost and is allowed.
+ *
+ * Or it came through the "this computer" door (isThisComputer). In Docker the
+ * headers alone can't tell (every request arrives from the VM's gateway), so
+ * the header test is only as good as the publish: 127.0.0.1:port.
  */
 export function isLocalRequest(headers: Headers): boolean {
+  return isThisComputer(headers) || looksLocal(headers)
+}
+
+/** The header test above, for installs without the door (a bare `npm start`, or 127.0.0.1:port:3000) */
+function looksLocal(headers: Headers): boolean {
   if (headers.has('forwarded')) return false
 
   const host = headers.get('host')

@@ -5,6 +5,7 @@ import { ArrowUpLeft, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { REPO_URL } from '@/lib/about/content'
 import type { UpdateView } from '@/lib/updates/state'
+import { AutoCheckSwitch } from './auto-check-switch'
 import { ManualCommands } from './manual-commands'
 import { RollbackConfirmDialog, UpdateConfirmDialog, Ver, knownVersion } from './update-dialogs'
 
@@ -93,20 +94,6 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
       if (res.ok) setView((await res.json()) as UpdateView)
     } catch {
       // The dialog keeps the state it has
-    }
-  }
-
-  async function setAuto(on: boolean) {
-    setView(v => ({ ...v, auto: on }))
-    try {
-      const res = await fetch('/api/updates/auto', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ on }),
-      })
-      if (!res.ok) throw new Error(String(res.status))
-    } catch {
-      setView(v => ({ ...v, auto: !on }))
     }
   }
 
@@ -229,37 +216,7 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
         </div>
       )}
 
-      <div className="flex min-h-11 items-center justify-between gap-3 border-t pt-4">
-        <span id="auto-check-label" className="text-sm text-muted-foreground">
-          בדיקה אוטומטית פעם ביום
-        </span>
-        {/* The button is the 44 px hit area; the visual switch inside keeps its size, so the row doesn't move */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={view.auto}
-          aria-labelledby="auto-check-label"
-          onClick={() => setAuto(!view.auto)}
-          className="group -my-2.5 -me-0.5 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
-        >
-          <span
-            aria-hidden
-            className={cn(
-              'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-fast ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
-              // The off track keeps a hairline edge: a control's boundary needs 3:1 (WCAG 1.4.11)
-              view.auto ? 'bg-primary' : 'bg-muted-foreground/30 ring-1 ring-inset ring-muted-foreground/70'
-            )}
-          >
-            <span
-              className={cn(
-                'absolute start-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none',
-                // RTL: "on" moves the knob toward the end (left)
-                view.auto && '-translate-x-4'
-              )}
-            />
-          </span>
-        </button>
-      </div>
+      <AutoCheckSwitch initial={view.auto} className="border-t pt-4" />
 
       {newer && latest && canUpdate && (
         <UpdateConfirmDialog open={updateOpen} onOpenChange={setUpdateOpen} release={latest} syncRunning={view.syncRunning} />

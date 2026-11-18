@@ -46,6 +46,7 @@ describe('routes', () => {
       ok: true,
       helperVersion: '9.9.9',
       api: 1,
+      features: [],
       updatable: true,
       image: 'ghcr.io/jordanyefet/tazrim:1.0.0',
       runningVersion: '1.0.0',
@@ -121,5 +122,53 @@ describe('ensureToken', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe(token)
     expect(fs.readFileSync(victim, 'utf8')).toBe('f'.repeat(64))
     expect(fs.statSync(victim).mode & 0o777).toBe(0o644)
+  })
+})
+
+describe('config routes (ENG-121)', () => {
+  let s2, base2
+  const configCalls = []
+  const config = {
+    info: async () => ({ available: true, values: { TAZRIM_PORT: '3000' }, installDir: '/home/someone/tazrim' }),
+    current: () => ({ kind: 'config', state: 'done' }),
+    async start(changes) {
+      configCalls.push(changes)
+      return changes?.TAZRIM_PORT === 'bad' ? { status: 400, code: 'INVALID_VALUE', key: 'TAZRIM_PORT', error: 'x' } : { status: 202, job: { kind: 'config', state: 'running' } }
+    },
+  }
+  beforeEach(async () => {
+    const g = fakes()
+    s2 = createServer({ jobs: createJobs({ docker: g.docker, app: g.app, status: memStore() }), config, token: TOKEN, helperVersion: '9.9.9' })
+    await new Promise(r => s2.listen(0, '127.0.0.1', r))
+    base2 = `http://127.0.0.1:${s2.address().port}`
+  })
+  afterEach(() => new Promise(r => s2.close(r)))
+  const call2 = (p, { token = TOKEN, method = 'GET', body } = {}) =>
+    fetch(base2 + p, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+
+  it('health lists the config feature', async () => {
+    expect(await (await call2('/v1/health')).json()).toMatchObject({ api: 1, features: ['config'] })
+  })
+
+  it('needs the token', async () => {
+    expect((await call2('/v1/config', { token: null })).status).toBe(401)
+    expect((await call2('/v1/config', { token: 'b'.repeat(64), method: 'POST', body: { changes: { TAZRIM_PORT: '3005' } } })).status).toBe(401)
+    expect(configCalls).toEqual([])
+  })
+
+  it('GET /v1/config, POST /v1/config and the config status', async () => {
+    expect(await (await call2('/v1/config')).json()).toMatchObject({ available: true, installDir: '/home/someone/tazrim' })
+    const r = await call2('/v1/config', { method: 'POST', body: { changes: { TAZRIM_PORT: '3005' } } })
+    expect(r.status).toBe(202)
+    expect((await r.json()).job).toMatchObject({ kind: 'config' })
+    const bad = await call2('/v1/config', { method: 'POST', body: { changes: { TAZRIM_PORT: 'bad' } } })
+    expect(bad.status).toBe(400)
+    expect(await bad.json()).toMatchObject({ code: 'INVALID_VALUE', key: 'TAZRIM_PORT' })
+    expect(await (await call2('/v1/status?kind=config')).json()).toEqual({ kind: 'config', state: 'done' })
+    expect(await (await call2('/v1/status')).json()).toBeNull()
+  })
+
+  it('a helper without config answers 404 there', async () => {
+    expect((await call('/v1/config')).status).toBe(404)
   })
 })

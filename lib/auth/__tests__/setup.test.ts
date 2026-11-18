@@ -1,6 +1,7 @@
 /**
- * First run (ENG-89): the setup code from TAZRIM_SETUP_CODE in .env (else the
- * log's), and setting up with a password instead of a passkey.
+ * First run (ENG-89, ENG-119): the setup code from TAZRIM_SETUP_CODE in .env
+ * (else the log's), asked from another device but not on the computer itself
+ * (the "this computer" door), and always a name and a password.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
@@ -20,6 +21,8 @@ beforeAll(async () => {
 })
 afterEach(async () => {
   delete process.env.TAZRIM_SETUP_CODE
+  delete process.env.TAZRIM_LOCAL_PORT
+  delete process.env.TAZRIM_LOCAL_SECRET
   ;(await import('../rate-limit')).resetRateLimits()
 })
 afterAll(async () => {
@@ -45,6 +48,75 @@ describe('the setup code', () => {
     expect(logged).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/)
     expect(h.checkSetupCode('short')).toBe(false)
     expect(h.checkSetupCode(logged)).toBe(true)
+  })
+})
+
+const DOOR_SECRET = 'f'.repeat(64)
+const doorOn = () => {
+  process.env.TAZRIM_LOCAL_PORT = '3001'
+  process.env.TAZRIM_LOCAL_SECRET = DOOR_SECRET
+}
+const persons = () => db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "Person"')[0].n
+
+describe('the setup code, by where the request came from (ENG-119)', () => {
+  const body = { name: 'Owner', password: 'a long password' }
+
+  it('from another device, no code (or a wrong one) is refused, even dressed up as localhost', async () => {
+    doorOn()
+    process.env.TAZRIM_SETUP_CODE = 'Kitchen-Table-42'
+    const spoofs: Record<string, string>[] = [
+      { host: '192.168.1.20:3001' },
+      { host: 'localhost:3000' },
+      { host: 'localhost:3000', 'x-forwarded-for': '127.0.0.1' },
+      { host: '127.0.0.1:3000', 'x-forwarded-host': 'localhost', 'x-forwarded-for': '127.0.0.1', 'x-real-ip': '::1' },
+      { host: 'localhost:3000', 'x-tazrim-local': 'guess' },
+      { host: 'localhost:3000', 'x-tazrim-local': DOOR_SECRET.slice(0, 63) + '0' },
+      { host: 'localhost:3000', 'x-tazrim-local': '' },
+    ]
+    for (const headers of spoofs) {
+      expect((await setup(body, headers)).body.code, JSON.stringify(headers)).toBe('BAD_CODE')
+      expect((await setup({ ...body, code: 'wrong-code-00' }, headers)).body.code).toBe('BAD_CODE')
+    }
+    expect(persons()).toBe(0)
+  })
+
+  it('with the door off, nothing counts as this computer: the code is asked even with the right header', async () => {
+    process.env.TAZRIM_SETUP_CODE = 'Kitchen-Table-42'
+    process.env.TAZRIM_LOCAL_SECRET = DOOR_SECRET
+    expect((await setup(body, { host: 'localhost:3000', 'x-tazrim-local': DOOR_SECRET })).body.code).toBe('BAD_CODE')
+    expect(persons()).toBe(0)
+  })
+
+  it('on this computer (through the door) still needs a name and a password', async () => {
+    doorOn()
+    const here = { host: 'localhost:3000', 'x-tazrim-local': DOOR_SECRET }
+    expect((await setup({ name: 'Owner' }, here)).body.code).toBe('BAD_PASSWORD')
+    expect((await setup({ name: 'Owner', password: 'short' }, here)).body.code).toBe('BAD_PASSWORD')
+    expect((await setup({ name: '  ', password: 'a long password' }, here)).body.code).toBe('NO_NAME')
+    expect(persons()).toBe(0)
+  })
+
+  it('on this computer needs no code; then setup is closed', async () => {
+    doorOn()
+    const here = { host: 'localhost:3000', 'x-forwarded-for': '192.168.65.1', 'x-tazrim-local': DOOR_SECRET }
+    const done = await setup(body, here)
+    expect(done.status).toBe(200)
+    expect(done.body.recoveryCode).toBeTruthy()
+    expect(done.cookie).toMatch(/tazrim_session=[^;]+/)
+    expect((await setup({ name: 'Second', password: 'a long password' }, here)).status).toBe(409)
+    const { prisma } = await import('@/lib/db/client')
+    await prisma.person.deleteMany()
+  })
+
+  it('a passkey alone never sets up', async () => {
+    doorOn()
+    const { POST } = await import('@/app/api/auth/register/options/route')
+    const res = await POST(new Request('http://localhost:3000/api/auth/register/options', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', host: 'localhost:3000', 'x-tazrim-local': DOOR_SECRET },
+      body: JSON.stringify({ mode: 'setup', name: 'Owner' }),
+    }))
+    expect((await res.json()).code).toBe('PASSWORD_FIRST')
   })
 })
 

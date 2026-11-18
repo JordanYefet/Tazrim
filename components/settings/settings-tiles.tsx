@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Accessibility, ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, SlidersHorizontal, Smartphone, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { MoneyText } from '@/components/ui/money-text'
 
@@ -7,7 +7,7 @@ export interface SettingsTile {
   href: string
   title: string
   summary: string
-  icon: 'appearance' | 'accessibility' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'about'
+  icon: 'appearance' | 'accessibility' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'network' | 'about' | 'general'
   /** A small primary dot beside the title: a new version is out (ENG-98). Takes no room of its own. */
   dot?: boolean
 }
@@ -21,13 +21,15 @@ const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
   people: Users,
   vault: LockKeyhole,
   updates: RefreshCw,
+  network: Smartphone,
   about: Info,
+  general: SlidersHorizontal,
 }
 
 /**
  * The Settings home: a tile per section, each opening its own page. Rows split
- * evenly: six tiles are two rows of thirds; an odd number is a row of thirds,
- * then rows of halves (five: 3 + 2, seven: 3 + 2 + 2); four and eight are halves. The danger zone
+ * evenly: six and nine tiles are rows of thirds; an odd number is a row of thirds,
+ * then rows of halves (five: 3 + 2, seven: 3 + 2 + 2); four, eight and ten are halves. The danger zone
  * is a quiet link under them, apart from the everyday sections.
  */
 export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
@@ -42,7 +44,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
               key={t.href}
               href={t.href}
               className={cn(
-                'group flex flex-col gap-3.5 rounded-2xl surface p-5 transition-[transform,box-shadow] duration-fast ease-ui hover:-translate-y-0.5 hover:shadow-e2 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+                'group flex flex-col gap-3.5 rounded-2xl surface p-5 transition-[transform,box-shadow] duration-[120ms] ease-out hover-fine:-translate-y-0.5 hover-fine:shadow-e2 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover-fine:translate-y-0',
                 i < thirds ? 'md:col-span-2' : 'md:col-span-3'
               )}
             >
@@ -50,7 +52,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon className="h-[22px] w-[22px]" aria-hidden />
                 </span>
-                <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+                <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui [@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
               </span>
               <span className="space-y-1">
                 <span className="flex items-center gap-2 text-[1.0625rem] font-semibold">
@@ -70,13 +72,13 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
       {/* The danger zone: a card shaped like the tiles above, full width, in the destructive tone */}
       <Link
         href="/settings/danger"
-        className="group flex flex-col gap-3.5 rounded-2xl surface p-5 transition-[transform,box-shadow] duration-fast ease-ui hover:-translate-y-0.5 hover:shadow-e2 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+        className="group flex flex-col gap-3.5 rounded-2xl surface p-5 transition-[transform,box-shadow] duration-[120ms] ease-out hover-fine:-translate-y-0.5 hover-fine:shadow-e2 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 motion-reduce:transition-none motion-reduce:hover-fine:translate-y-0"
       >
         <span className="flex items-start justify-between gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive dark:text-red-400">
             <TriangleAlert className="h-[22px] w-[22px]" aria-hidden />
           </span>
-          <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+          <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui [@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
         </span>
         <span className="space-y-1">
           <span className="block text-[1.0625rem] font-semibold text-destructive dark:text-red-400">אזור מסוכן</span>
