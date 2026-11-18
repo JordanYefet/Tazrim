@@ -81,7 +81,7 @@ export function AccountStep({
             <span className="sr-only">קוד ההגדרה</span>
             <input dir="ltr" required autoComplete="off" autoCapitalize="characters" spellCheck={false} value={code} onChange={e => setCode(e.target.value)} className={`${inputClass} text-center font-mono tracking-wider`} />
           </label>
-          <p className="text-xs leading-relaxed text-muted-foreground text-pretty">{codeHelp}</p>
+          <div className="text-xs leading-relaxed text-muted-foreground text-pretty">{codeHelp}</div>
         </div>
       )}
 

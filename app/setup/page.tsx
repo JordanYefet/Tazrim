@@ -39,7 +39,9 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const thisComputer = isThisComputer(await headers())
   const code = people ? null : setupCode() // printed to the server log the first time, unless .env sets it
   // The door is on (Docker, or TAZRIM_LOCAL_PORT): the computer's own address shows the code
-  const localUrl = process.env.TAZRIM_LOCAL_PORT?.trim() ? `http://localhost:${process.env.TAZRIM_PORT?.trim() || '3000'}` : null
+  // (Docker passes TAZRIM_PORT, the host port; a bare run has only the door's own port)
+  const doorPort = process.env.TAZRIM_LOCAL_PORT?.trim()
+  const localUrl = doorPort ? `http://localhost:${process.env.TAZRIM_PORT?.trim() || doorPort}` : null
   const account = { thisComputer, code: thisComputer ? code : null, codeInfo: { from: setupCodeSource(), localUrl } }
 
   let basics = null
