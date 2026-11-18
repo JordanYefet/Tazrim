@@ -246,7 +246,8 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
             aria-hidden
             className={cn(
               'relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-fast ease-ui group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background',
-              view.auto ? 'bg-primary' : 'bg-muted-foreground/30'
+              // The off track keeps a hairline edge: a control's boundary needs 3:1 (WCAG 1.4.11)
+              view.auto ? 'bg-primary' : 'bg-muted-foreground/30 ring-1 ring-inset ring-muted-foreground/70'
             )}
           >
             <span

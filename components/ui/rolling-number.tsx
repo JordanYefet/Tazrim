@@ -248,7 +248,8 @@ export function RollingNumber({ value, duration = ROLL.duration, format: kind = 
 
   return (
     <span data-rolling className={cn('tabular-nums', className)}>
-      <span className="sr-only">{text}</span>
+      {/* The spoken copy; privacy mode swaps it for "סכום מוסתר" (globals.css, data-money-sr) */}
+      <span className="sr-only" data-money-sr={money}>{text}</span>
       <span aria-hidden data-money={money}>
         {before}
         {/* LTR so the characters keep their order inside the RTL page; the

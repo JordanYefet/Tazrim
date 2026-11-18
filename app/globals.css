@@ -8,19 +8,22 @@
     --foreground: 214 35% 10%;
     --card: 0 0% 100%;
     --card-foreground: 214 35% 10%;
-    --primary: 199 72% 38%;
+    --primary: 199 72% 35%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 20% 93%;
     --secondary-foreground: 214 30% 20%;
     --muted: 210 20% 93%;
-    --muted-foreground: 214 20% 45%;
+    --muted-foreground: 214 20% 42%;
     --accent: 210 20% 93%;
     --accent-foreground: 214 30% 20%;
     --destructive: 3 72% 50%;
     --destructive-foreground: 0 0% 98%;
     --border: 210 18% 88%;
     --input: 210 18% 88%;
-    --ring: 199 72% 38%;
+    --ring: 199 72% 35%;
+    /* A text field's edge: 3:1 against the card and the field (WCAG 1.4.11). --border stays the quiet
+       separator for cards and rows */
+    --control-border: 214 14% 50%;
     --radius: 0.625rem;
 
     /* Motion tokens (ENG-67): one clock for the app. Mirrored for JavaScript in
@@ -39,12 +42,12 @@
     --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 
     /* Semantic color tokens */
-    --income: 158 55% 32%;
-    --income-foreground: 158 55% 32%;
-    --expense: 3 72% 50%;
-    --expense-foreground: 3 72% 50%;
-    --cc: 31 60% 45%;
-    --cc-foreground: 31 60% 45%;
+    --income: 158 55% 29%;
+    --income-foreground: 158 55% 29%;
+    --expense: 3 72% 46%;
+    --expense-foreground: 3 72% 46%;
+    --cc: 31 65% 36%;
+    --cc-foreground: 31 65% 36%;
 
     /* Chart colors (CSS vars for use in JS) */
     --chart-income: #2e8a5e;
@@ -86,7 +89,7 @@
     --secondary: 220 20% 18%;
     --secondary-foreground: 210 20% 94%;
     --muted: 220 20% 18%;
-    --muted-foreground: 214 15% 55%;
+    --muted-foreground: 214 15% 60%;
     --accent: 220 20% 18%;
     --accent-foreground: 210 20% 94%;
     --destructive: 3 60% 42%;
@@ -94,11 +97,12 @@
     --border: 220 18% 22%;
     --input: 220 18% 22%;
     --ring: 196 65% 48%;
+    --control-border: 218 12% 52%;
 
-    --income: 158 50% 42%;
-    --income-foreground: 158 50% 42%;
-    --expense: 3 65% 55%;
-    --expense-foreground: 3 65% 55%;
+    --income: 158 50% 45%;
+    --income-foreground: 158 50% 45%;
+    --expense: 3 65% 66%;
+    --expense-foreground: 3 65% 66%;
     --cc: 31 60% 55%;
     --cc-foreground: 31 60% 55%;
 
@@ -282,6 +286,24 @@ html[data-privacy='on'] [data-money] * {
   -webkit-user-select: none;
   user-select: none;
 }
+/* Hidden from assistive technology too, not only from the eye. At rest (no switch running, so the
+   fade above still shows the digits going) the amount's content is visibility:hidden, which keeps its box
+   and drops it from the accessibility tree; the bar is the one thing left visible, and it carries
+   the spoken word instead ("סכום מוסתר", as the pseudo-element's alt text; browsers without it
+   just stay silent). RollingNumber's screen-reader copy (data-money-sr) is handled the same way. */
+html[data-privacy='on']:not([data-privacy-switch]) [data-money]:not(:empty):not(input) {
+  visibility: hidden;
+}
+html[data-privacy='on']:not([data-privacy-switch]) [data-money]:not(:empty):not(input)::after {
+  visibility: visible;
+  content: '';
+  content: '' / 'סכום מוסתר';
+}
+html[data-privacy='on']:not([data-privacy-switch]) [data-money-sr] { visibility: hidden; }
+html[data-privacy='on']:not([data-privacy-switch]) [data-money-sr]::after {
+  visibility: visible;
+  content: 'סכום מוסתר';
+}
 /* An amount field: a tinted field while hidden, its value while it is being edited */
 html[data-privacy='on'] input[data-money]:not(:focus) {
   background-color: color-mix(in srgb, currentColor 14%, transparent);
@@ -372,7 +394,28 @@ html[data-theme-fade] *, html[data-theme-fade] *::before, html[data-theme-fade] 
 /* Anchors (#accounts, scrollIntoView) land below the sticky header */
 html {
   scroll-padding-top: 4.5rem;
+  /* A focused control is never left under the floating tab bar (WCAG 2.4.11): its 4rem, the gap
+     under it and the home indicator, plus a little air. Wide screens have no tab bar */
+  scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
+@media (min-width: 768px) {
+  html { scroll-padding-bottom: 1.5rem; }
+}
+
+/* The skip link: out of sight until the keyboard reaches it, then the first thing on screen */
+.skip-link {
+  position: fixed;
+  inset-block-start: 0.5rem;
+  inset-inline-start: 0.5rem;
+  z-index: 100;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; outline: 3px solid hsl(var(--foreground)); outline-offset: 2px; }
 
 /* Popups, one motion language (components/ui/open-origin.ts):
    - windows (.app-window: AppDialog, ConfirmDialog, the ⌘K search) grow out
@@ -745,6 +788,15 @@ html {
   textarea {
     font-size: max(16px, 1em) !important;
   }
+}
+
+/* Text fields, selects and textareas draw their edge in --control-border (3:1, WCAG 1.4.11): the
+   edge is what says "type here". Unlayered so it outranks the utilities' border-border; a field
+   that sets its own focus colour keeps it, and one with a transparent border stays transparent. */
+input:not([type='checkbox'], [type='radio'], [type='file'], [type='range'], [type='color'], [class*='border-transparent']):not(:focus):not(:focus-within),
+textarea:not([class*='border-transparent']):not(:focus),
+select:not(:focus) {
+  border-color: hsl(var(--control-border));
 }
 
 /* Horizontal pill rows scroll without a visible scrollbar */
@@ -2273,3 +2325,6 @@ html[data-a11y*='text-'] header .min-w-\[7\.5rem\] { white-space: nowrap; }
 /* Summary rows (label + amount) stack when the amount no longer fits beside the label */
 html[data-a11y*='text-'] dl a { flex-wrap: wrap; row-gap: 0.25rem; }
 html[data-a11y*='text-'] dl a > dt { flex-basis: 7rem; }
+
+/* Keyboard focus in a menu is the highlighted row; a tint alone is faint on a card, so keys also draw an edge */
+[role^='menuitem'][data-highlighted]:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
