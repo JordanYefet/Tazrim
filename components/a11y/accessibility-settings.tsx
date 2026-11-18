@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils/cn'
 import { TEXT_SIZES, type A11yFlag, type A11ySettings, type TextSize } from '@/lib/a11y/settings'
 import { A11Y_DEFAULTS, sameA11y } from '@/lib/a11y/settings'
@@ -150,13 +150,18 @@ function Sample({ settings }: { settings: A11ySettings }) {
       // staying in view while they scroll
       className={cn(
         'a11y-sample-pin sticky z-20 -mx-4 border-b border-border/80 bg-[hsl(var(--background)/0.94)] px-4 pb-2.5 pt-3 md:-mx-6 md:px-6',
-        'lg:col-start-2 lg:row-start-1 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-4'
+        'lg:col-start-2 lg:row-start-1 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0'
       )}
     >
       <span aria-hidden className="mx-1 mb-2 hidden text-[0.8125rem] font-semibold text-muted-foreground lg:block">
         תצוגה מקדימה
       </span>
-      <div role="group" aria-label="תצוגה מקדימה" className="flex flex-col gap-2.5 rounded-2xl surface px-3.5 py-3">
+      <div
+        role="group"
+        aria-label="תצוגה מקדימה"
+        // Wide screens: as tall as the טקסט card beside it, its rows spread over that height
+        className="flex flex-col gap-2.5 rounded-2xl surface px-3.5 py-3 lg:min-h-[var(--a11y-text-h,auto)] lg:justify-between"
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col">
             <span className="text-xs text-muted-foreground">יתרה בסוף החודש</span>
@@ -168,7 +173,24 @@ function Sample({ settings }: { settings: A11ySettings }) {
             <div className="a11y-sample-line h-full w-1/2 rounded-sm bg-primary" />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Wide screens: two transaction rows (there's room beside the טקסט card); narrower: two chips */}
+        <div className="hidden flex-col border-y border-border/60 lg:flex">
+          {[
+            { name: 'משכורת', sub: 'הכנסה · 1 בחודש', amount: '+₪14,200', flow: 'in', color: 'text-[hsl(var(--income))]' },
+            { name: 'סופר', sub: 'מזון · כרטיס אשראי', amount: '−₪1,240', flow: 'out', color: 'text-[hsl(var(--expense))]' },
+          ].map((t, i) => (
+            <div key={t.name} className={cn('flex items-center justify-between gap-3 py-2.5', i > 0 && 'border-t border-border/60')}>
+              <div className="flex min-w-0 flex-col">
+                <span className="text-[0.9375rem] font-medium">{t.name}</span>
+                <span className="text-xs text-muted-foreground">{t.sub}</span>
+              </div>
+              <span dir="ltr" data-flow={t.flow} className={cn('whitespace-nowrap text-[0.9375rem] font-semibold tabular-nums', t.color)}>
+                {t.amount}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2 lg:hidden">
           <span
             dir="ltr"
             data-flow="in"
@@ -208,9 +230,22 @@ function Sample({ settings }: { settings: A11ySettings }) {
 export function AccessibilitySettings() {
   const { settings, update, reset, error } = useA11y()
   const atDefaults = sameA11y(settings, A11Y_DEFAULTS)
+  // The sample matches the טקסט card's height (it changes with text size, bold and spacing)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const textListRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = rootRef.current
+    const list = textListRef.current
+    if (!root || !list) return
+    const sync = () => root.style.setProperty('--a11y-text-h', `${list.offsetHeight}px`)
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(list)
+    return () => ro.disconnect()
+  }, [])
   return (
     // Wide screens: the options in the first column (right, RTL) and the sample beside them
-    <div className="flex flex-col gap-[22px] lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start lg:gap-x-8">
+    <div ref={rootRef} className="flex flex-col gap-[22px] lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start lg:gap-x-8">
       <Sample settings={settings} />
 
       <div className="flex min-w-0 flex-col gap-[22px] lg:col-start-1 lg:row-start-1">
@@ -218,7 +253,7 @@ export function AccessibilitySettings() {
           <h2 id="a11y-g-text" className={GROUP_TITLE}>
             טקסט
           </h2>
-          <div className={LIST}>
+          <div ref={textListRef} className={LIST}>
             <SizePicker />
             {TEXT_ROWS.map(r => (
               <SwitchRow key={r.flag} row={r} />
