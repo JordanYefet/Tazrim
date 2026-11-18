@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LogEntry } from '../buffer'
 import { actionLabel } from '../page-names'
-import { filterEntries, groupByAction, groupedView, recentRuns } from '../view'
+import { copyText, filterEntries, groupByAction, groupedView, recentRuns } from '../view'
 
 let id = 0
 const e = (level: LogEntry['level'], source: LogEntry['source'], msg: string, data?: LogEntry['data']): LogEntry => ({ id: ++id, ts: 1000 + id, level, source, msg, data })
@@ -83,5 +83,15 @@ describe('actionLabel', () => {
   it('skips the logs page itself', () => {
     expect(actionLabel('/logs')).toBeNull()
     expect(actionLabel('/logs/full')).toBeNull()
+  })
+})
+
+describe('copyText', () => {
+  it('writes an action as a divider, flat or grouped', () => {
+    const list = [mark('מעבר לדף בנקים'), e('info', 'app', 'hello')]
+    expect(copyText(list, null).split('\n')[0]).toBe('── מעבר לדף בנקים ──')
+    const grouped = copyText(list, groupByAction(list)).split('\n')
+    expect(grouped[0]).toBe('── מעבר לדף בנקים ──')
+    expect(grouped[1]).toContain('hello')
   })
 })

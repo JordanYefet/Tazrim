@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Ban, Check, Copy, ListTree, Maximize2, Pause, Play, Search } from 'lucide-react'
 import { syncCompany } from '@/lib/sync/providers'
-import { actionOf, countProblems, filterEntries, formatTime, groupedView, isAction, lineText, recentRuns, type Filter, type RunSummary } from '@/lib/log/view'
+import { actionOf, countProblems, filterEntries, formatTime, groupedView, copyText, recentRuns, type Filter, type RunSummary } from '@/lib/log/view'
 import { cn } from '@/lib/utils/cn'
 import { ConsoleList, DetailsPane } from './console'
 import { setLogPrefs, useLogPrefs } from './prefs'
@@ -92,7 +92,7 @@ export function LogsPage() {
   const live = status === 'live' && !paused
 
   const copy = async () => {
-    const text = (groups ? groups.flatMap(g => g.lines) : visible).filter(e => !isAction(e)).map(lineText).join('\n')
+    const text = copyText(visible, groups)
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
@@ -137,7 +137,7 @@ export function LogsPage() {
           const r = runs[i]
           if (!r) {
             return (
-              <div key={i} className="flex min-h-[4.25rem] flex-col gap-1.5 rounded-xl border border-dashed px-3.5 py-3 text-sm text-muted-foreground opacity-60">
+              <div key={`empty-${i}`} className="flex min-h-[4.25rem] flex-col gap-1.5 rounded-xl border border-dashed px-3.5 py-3 text-sm text-muted-foreground opacity-60">
                 <span className="font-semibold">אין ריצה</span>
                 <span className="text-[0.8125rem]">ריצות סנכרון יופיעו כאן.</span>
               </div>
@@ -221,6 +221,7 @@ export function LogsPage() {
           revealId={revealId}
           size="md"
           inline="phone"
+          hasAny={entries.length > 0}
           emptyText="אין שורות שמתאימות לחיפוש ולסינון."
         />
         <DetailsPane entry={selected} action={selected ? actionOf(entries, selected.id) : null} className="w-[340px] max-md:hidden" />

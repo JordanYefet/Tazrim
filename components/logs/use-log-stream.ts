@@ -33,9 +33,12 @@ export function useLogStream({ enabled = true, paused = false }: { enabled?: boo
   useEffect(() => {
     if (!enabled || paused) return
     let stopped = false
+    // The first request goes out even in a hidden tab; later background polls are skipped
+    let first = true
     const poll = async () => {
       if (stopped) return
-      if (!document.hidden) {
+      if (first || !document.hidden) {
+        first = false
         try {
           const res = await fetch(`/api/logs?after=${lastId.current}`, { cache: 'no-store' })
           if (res.status === 403 || res.status === 401) {
@@ -72,7 +75,13 @@ export function useLogStream({ enabled = true, paused = false }: { enabled?: boo
       void poll()
     }
     void poll()
+    // Back in view: catch up at once instead of waiting for the next beat
+    const onVisible = () => {
+      if (!document.hidden) wake.current()
+    }
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
+      document.removeEventListener('visibilitychange', onVisible)
       stopped = true
       clearTimeout(timer.current)
     }

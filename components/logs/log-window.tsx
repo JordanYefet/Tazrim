@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, ListTree, PanelBottom, Ban } from 'lucide-react'
 import { actionLabel } from '@/lib/log/page-names'
-import { actionOf, countProblems, filterEntries, formatTime, groupedView, isAction, lineText, type Tab } from '@/lib/log/view'
+import { actionOf, countProblems, filterEntries, formatTime, groupedView, copyText, type Tab } from '@/lib/log/view'
 import { cn } from '@/lib/utils/cn'
 import { ConsoleList, DetailsPane } from './console'
 import { setLogPrefs, useLogPrefs } from './prefs'
@@ -80,7 +80,7 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
   const dot = problems.errors ? 'bg-[hsl(var(--lc-error))]' : problems.warnings ? 'bg-[hsl(var(--lc-warn))]' : 'bg-[hsl(var(--lc-ok))]'
 
   const copy = async () => {
-    const text = (groups ? groups.flatMap(g => g.lines) : visible).filter(e => !isAction(e)).map(lineText).join('\n')
+    const text = copyText(visible, groups)
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
@@ -206,6 +206,7 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
             if (id != null && window.matchMedia('(min-width: 768px)').matches) setLogPrefs({ mode: 'max' })
           }}
           inline="phone"
+          hasAny={entries.length > 0 || status === 'denied'}
           size="sm"
           emptyText={status === 'denied' ? 'אין הרשאה לראות את הלוגים מהמכשיר הזה.' : 'אין שורות שמתאימות לסינון.'}
         />

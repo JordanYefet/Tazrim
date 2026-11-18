@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, Minimize2, Pause, Play } from 'lucide-react'
-import { countProblems, filterEntries, groupedView, isAction, lineText, type Tab } from '@/lib/log/view'
+import { countProblems, filterEntries, groupedView, copyText, type Tab } from '@/lib/log/view'
 import { cn } from '@/lib/utils/cn'
 import { ConsoleList } from './console'
 import { useLogPrefs } from './prefs'
@@ -48,7 +48,7 @@ export function LogsFullscreen() {
   const live = status === 'live' && !paused
 
   const copy = async () => {
-    const text = (groups ? groups.flatMap(g => g.lines) : visible).filter(e => !isAction(e)).map(lineText).join('\n')
+    const text = copyText(visible, groups)
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
@@ -113,6 +113,7 @@ export function LogsFullscreen() {
         onSelect={setSelectedId}
         size="md"
         inline="always"
+        hasAny={entries.length > 0}
         emptyText="אין שורות שמתאימות לחיפוש ולסינון."
         className="pt-2"
       />

@@ -131,6 +131,7 @@ export function formatTime(ts: number, ms = true): string {
 
 /** One line as plain text, for Copy */
 export function lineText(e: LogEntry): string {
+  if (isAction(e)) return `── ${e.msg} ──`
   return `${formatTime(e.ts)} ${e.level.toUpperCase().padEnd(5)} ${e.source.padEnd(4)} ${e.msg}`
 }
 
@@ -147,4 +148,10 @@ export function actionOf(entries: LogEntry[], id: number): string | null {
 /** What the details pane shows of a line: its fields as JSON */
 export function detailsJson(e: LogEntry): string {
   return JSON.stringify(e.data ?? {}, null, 2)
+}
+
+/** What Copy writes: the visible lines (flat), or each group's action then its lines */
+export function copyText(visible: LogEntry[], groups: Group[] | null): string {
+  if (!groups) return visible.map(lineText).join('\n')
+  return groups.flatMap(g => [...(g.title ? [`── ${g.title} ──`] : []), ...g.lines.map(lineText)]).join('\n')
 }

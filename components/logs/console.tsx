@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { LogEntry, LogLevel } from '@/lib/log/buffer'
-import { detailsJson, formatTime, type Group } from '@/lib/log/view'
+import { detailsJson, formatTime, isAction, type Group } from '@/lib/log/view'
 import { cn } from '@/lib/utils/cn'
 
 export const LEVEL_TEXT: Record<LogLevel, string> = {
@@ -23,6 +23,26 @@ const WORST_TEXT = { ok: 'ללא בעיות', warn: 'יש אזהרות', error: 
 
 /** One line: time, level, source, message. A real button: it selects the line for its details. */
 function Row({ e, selected, onSelect, size, indent }: { e: LogEntry; selected: boolean; onSelect: () => void; size: 'sm' | 'md'; indent: boolean }) {
+  // An action (a page change) is a quiet divider, not a log line: the app's font, muted, no level or source
+  if (isAction(e)) {
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        className={cn(
+          'flex w-full items-center gap-3 whitespace-nowrap pe-4 text-left font-sans leading-[1.85] text-[hsl(var(--lc-dim))] hover:bg-[hsl(var(--lc-hover))]',
+          size === 'sm' ? 'text-xs' : 'text-[0.78rem]',
+          indent ? 'ps-[34px]' : 'ps-3.5',
+          selected && 'bg-[hsl(var(--lc-sel))] hover:bg-[hsl(var(--lc-sel))]'
+        )}
+      >
+        <span className="font-mono tabular-nums text-[hsl(var(--lc-faint))]">{formatTime(e.ts)}</span>
+        <span aria-hidden>→</span>
+        <span dir="auto">{e.msg}</span>
+      </button>
+    )
+  }
   return (
     <button
       type="button"
@@ -55,7 +75,10 @@ export interface ConsoleListProps {
   inline?: 'none' | 'phone' | 'always'
   /** Scrolled into view when it changes (a run picked on /logs) */
   revealId?: number | null
+  /** Why the list is empty when a filter or search hides everything */
   emptyText: string
+  /** Anything has been logged at all (else the empty state says nothing happened yet) */
+  hasAny: boolean
   className?: string
 }
 
@@ -64,7 +87,7 @@ export interface ConsoleListProps {
  * line until the reader scrolls up; then it stays put and offers "N new ↓". The button is
  * always in its place, dimmed when there is nothing new (stable layout).
  */
-export function ConsoleList({ lines, groups, selectedId, onSelect, size = 'sm', inline = 'none', revealId, emptyText, className }: ConsoleListProps) {
+export function ConsoleList({ lines, groups, selectedId, onSelect, size = 'sm', inline = 'none', revealId, emptyText, hasAny, className }: ConsoleListProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const prevTail = useRef(0)
@@ -139,7 +162,7 @@ export function ConsoleList({ lines, groups, selectedId, onSelect, size = 'sm', 
         }}
         className="h-full overflow-auto pb-2 pt-1"
       >
-        {empty && <p dir="rtl" className="px-4 py-10 text-center font-sans text-sm text-[hsl(var(--lc-dim))]">{emptyText}</p>}
+        {empty && <p dir="rtl" className="px-4 py-10 text-center font-sans text-sm text-[hsl(var(--lc-dim))]">{hasAny ? emptyText : 'עוד אין לוגים. הם יופיעו כאן כשמשהו יקרה באפליקציה.'}</p>}
         {!groups && lines.map(e => line(e, false))}
         {groups?.map(g => {
           const open = !closed.has(g.id)

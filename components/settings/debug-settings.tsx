@@ -109,10 +109,10 @@ export function DebugSettings({ inDocker, initialShowBrowser }: { inDocker: bool
           <div className="min-w-0 flex-1 space-y-1">
             <h2 id={ids.browser} className={cn('text-base font-semibold', inDocker && 'text-muted-foreground')}>להציג את דפדפן הסנכרון</h2>
             <p className="text-sm text-muted-foreground text-pretty">
-              עובד רק בפיתוח, ב-<span dir="ltr" className="font-mono text-[0.8125rem]">npm run dev</span> על המחשב. ב-Docker הדפדפן רץ בלי מסך. חוזר לכבוי בכל הפעלה של השרת.
+              עובד רק בפיתוח, ב-<bdi dir="ltr" className="font-mono text-[0.8125rem]">npm run dev</bdi> על המחשב. ב-<bdi dir="ltr">Docker</bdi> הדפדפן רץ בלי מסך. חוזר לכבוי בכל הפעלה של השרת.
             </p>
             <p className={cn('min-h-5 text-[0.8125rem]', error ? 'text-destructive dark:text-red-400' : 'text-muted-foreground')} role={error ? 'alert' : undefined}>
-              {error ?? (inDocker ? 'האפליקציה רצה כאן ב-Docker, ולכן המתג כבוי.' : '')}
+              {error ?? (inDocker ? <>האפליקציה רצה כאן ב-<bdi dir="ltr">Docker</bdi>, ולכן המתג כבוי.</> : '')}
             </p>
           </div>
           <Toggle on={showBrowser} onChange={toggleBrowser} labelledBy={ids.browser} disabled={inDocker} />
