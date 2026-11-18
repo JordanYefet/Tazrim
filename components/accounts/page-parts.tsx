@@ -89,7 +89,7 @@ export function ChartHeader({
   return (
     <div className={cn('mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2', className)}>
       <div>
-        <h3 className="text-base font-semibold">{title}</h3>
+        <h2 className="text-base font-semibold">{title}</h2>
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {legend && legend.length > 0 && (

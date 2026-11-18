@@ -91,9 +91,10 @@ function DeltaChip({ label, delta, upIsGood }: MonthCompare) {
         !up && !down && 'bg-muted text-muted-foreground'
       )}
       title={`${label} ${relation}`}
-      aria-label={`${label}: ${pct.format(delta)} ${relation}`}
     >
-      <span dir="ltr">{pct.format(delta)}</span>
+      {/* A plain span can't carry an aria-label: the sentence is spoken, the figure is only seen */}
+      <span className="sr-only">{`${label}: ${pct.format(delta)} ${relation}`}</span>
+      <span aria-hidden dir="ltr">{pct.format(delta)}</span>
     </span>
   )
 }
