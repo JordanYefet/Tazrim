@@ -10,6 +10,8 @@ import { useTheme } from 'next-themes'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeSeriesSet, pointsOf } from '@/lib/a11y/chart-summary'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
 import { OTHER_COLOR } from '@/lib/utils/category-colors'
@@ -104,7 +106,11 @@ function CategoryTrendChartInner({
     <section className={SECTION}>
       <ChartHeader title={title} subtitle="לחיצה על חודש מסננת · קטגוריה פותחת את העסקאות שלה" />
 
-      <div className="h-56 sm:h-72">
+      <ChartFigure
+        label={title}
+        summary={describeSeriesSet(keys.map(k => ({ name: k, points: pointsOf(chartData, k) })), formatCurrencyWhole)}
+        className="h-56 sm:h-72"
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
@@ -137,7 +143,7 @@ function CategoryTrendChartInner({
             ))}
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFigure>
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
         {keys.map(key => {

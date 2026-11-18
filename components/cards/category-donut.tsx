@@ -7,6 +7,8 @@ import type { Props as LegendProps } from 'recharts/types/component/DefaultLegen
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useRef } from 'react'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeShares } from '@/lib/a11y/chart-summary'
 import { RollingNumber } from '@/components/ui/rolling-number'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
 import { CategoryAnalysisLink } from '@/components/cards/category-analysis-link'
@@ -87,7 +89,11 @@ function CategoryDonutInner({
         <p className="flex flex-1 items-center justify-center py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
       <div className="flex flex-col md:flex-row gap-4 items-center">
-        <div className={`h-52 w-52 flex-shrink-0${entering ? ' chart-entrance-ring' : ''}`}>
+        <ChartFigure
+          label="התפלגות לפי קטגוריה"
+          summary={describeShares(chartData, formatCurrencyWhole)}
+          className={`h-52 w-52 flex-shrink-0${entering ? ' chart-entrance-ring' : ''}`}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie {...anim}
@@ -114,7 +120,7 @@ function CategoryDonutInner({
               <Tooltip content={<CustomTooltip tone={tone} />} />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </ChartFigure>
 
         {/* Legend as a table: category | amount, on one grid so the columns line up */}
         <div ref={legendRef} className="flex w-full min-w-0 flex-1 flex-col gap-0.5">

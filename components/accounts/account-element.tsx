@@ -345,7 +345,7 @@ export function Sparkline({ points, className }: { points: number[]; className?:
     // Time runs left to right, as on the app's charts. The SVG stretches to
     // its box, so the end dot is an HTML dot placed on it (stays round).
     <span className={cn('acct-bank__spark relative block h-9 w-full', className)} aria-hidden>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+      <svg aria-hidden viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
         <defs>
           <linearGradient id={fillId} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stopColor="currentColor" stopOpacity="0.22" />

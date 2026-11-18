@@ -5,6 +5,8 @@ import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeSeriesSet, pointsOf } from '@/lib/a11y/chart-summary'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
@@ -88,7 +90,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', sel
     <section className="rounded-xl surface p-4 sm:p-6">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
-          <h3 className="font-semibold text-base">סיכום חודשי</h3>
+          <h2 className="font-semibold text-base">סיכום חודשי</h2>
           <p className="text-sm text-muted-foreground">{`${ccKey} כלולים בהוצאות הבנק · לחיצה על חודש מסננת`}</p>
         </div>
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -101,7 +103,11 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', sel
           ))}
         </ul>
       </div>
-      <div className="h-52 sm:h-64 md:h-80">
+      <ChartFigure
+        label="סיכום חודשי"
+        summary={describeSeriesSet(SERIES.map(s => ({ name: s.key, points: pointsOf(chartData, s.key) })), formatCurrencyWhole)}
+        className="h-52 sm:h-64 md:h-80"
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
@@ -131,7 +137,7 @@ function CombinedChartInner({ bankSummary, maxSummary, cardsName = 'מקס', sel
             ))}
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFigure>
     </section>
   )
 }

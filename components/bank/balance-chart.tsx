@@ -4,6 +4,8 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { useChartAnimation } from '@/hooks/use-chart-animation'
 import { formatDate } from '@/lib/utils/date'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeSeriesSet, pointsOf } from '@/lib/a11y/chart-summary'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { ChartHeader, SECTION } from '@/components/accounts/page-parts'
@@ -57,6 +59,11 @@ export function BalanceChart({
         {chartData.length === 0 ? (
           <p className="flex h-full items-center justify-center text-sm text-muted-foreground">אין תנועות לתקופה זו</p>
         ) : (
+          <ChartFigure
+            label="יתרת חשבון לאורך זמן"
+            summary={describeSeriesSet([{ name: 'יתרה', points: pointsOf(chartData, 'יתרה', 'date') }], formatCurrencyWhole)}
+            className="h-full"
+          >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={axes.margin}>
               <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 4" />
@@ -78,6 +85,7 @@ export function BalanceChart({
               />
             </LineChart>
           </ResponsiveContainer>
+          </ChartFigure>
         )}
       </div>
     </section>
