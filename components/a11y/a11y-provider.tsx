@@ -1,12 +1,10 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useTheme } from 'next-themes'
 import {
-  A11Y_ALL_CLASSES,
   A11Y_COOKIE,
   A11Y_DEFAULTS,
-  a11yClasses,
+  a11yAttribute,
   formatA11y,
   normalizeA11y,
   sameA11y,
@@ -15,16 +13,14 @@ import {
 import { cookieAssignment } from '@/lib/nav/state'
 
 /*
- * The accessibility options (ENG-128). The root layout puts their classes on <html> on the
+ * The accessibility options (ENG-128). The root layout puts them on <html> as data-a11y on the
  * server, so the first paint is right. A change here is applied to <html> at once, then saved
  * (optimistic: if the save fails, the change is taken back and `error` says so). The PUT also
  * sets the cookie copy for pages without a session; the cookie is written here as well, so
  * this device keeps it even if the request fails.
  *
- * Why the layout effect re-applies the classes: the server renders <html className>, and when it
- * re-renders the layout (router.refresh) React sets className to the new value, which drops
- * next-themes' `dark` class and anything this provider added since. Re-applying after every
- * render puts both back before the browser paints.
+ * It is one attribute, not classes: a server re-render of <html> (router.refresh) only touches
+ * the attribute, so next-themes' `dark` class on the same element is never overwritten.
  */
 
 const API = '/api/preferences/accessibility'
@@ -46,32 +42,25 @@ export function useA11y(): A11yContextValue {
   return v
 }
 
+/** <html data-a11y>: React only ever sets this attribute, never the class next-themes keeps there */
 function applyToDocument(s: A11ySettings) {
-  const list = document.documentElement.classList
-  const want = new Set(a11yClasses(s).split(' ').filter(Boolean))
-  for (const c of A11Y_ALL_CLASSES) {
-    if (want.has(c)) list.add(c)
-    else list.remove(c)
-  }
+  const value = a11yAttribute(s)
+  const root = document.documentElement
+  if (value) root.setAttribute('data-a11y', value)
+  else root.removeAttribute('data-a11y')
 }
 
 export function A11yProvider({ initial, synced = false, children }: { initial: A11ySettings; synced?: boolean; children: ReactNode }) {
   const [settings, setSettings] = useState(initial)
   const [error, setError] = useState<string | null>(null)
-  const { resolvedTheme } = useTheme()
   // What the server has (to take a failed change back to), and the newest save in flight
   const saved = useRef(initial)
   const latest = useRef(settings)
   latest.current = settings
   const seq = useRef(0)
 
-  // After every render: the classes (and the theme's, which a server re-render of <html> may have dropped)
-  useLayoutEffect(() => {
-    applyToDocument(settings)
-    const root = document.documentElement
-    if (resolvedTheme === 'dark') root.classList.add('dark')
-    else if (resolvedTheme === 'light') root.classList.remove('dark')
-  })
+  // Whatever changes the settings (a switch, a failed save taken back, another device) reaches <html>
+  useLayoutEffect(() => applyToDocument(settings), [settings])
 
   // The server painted the person's stored options, not this device's cookie: keep the cookie a copy of them
   useEffect(() => {

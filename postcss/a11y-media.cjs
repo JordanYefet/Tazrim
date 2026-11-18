@@ -2,9 +2,9 @@
  * Settings → Accessibility (ENG-128): the switches "Stop animations" and "High contrast" must
  * behave exactly like the system settings they mirror. So every @media block that asks for
  *
- *   prefers-reduced-motion: reduce        -> also applies under  html.a11y-still
- *   prefers-contrast: more                -> also applies under  html.a11y-contrast
- *   prefers-reduced-transparency: reduce  -> also applies under  html.a11y-contrast
+ *   prefers-reduced-motion: reduce        -> also applies under  html[data-a11y~=still]
+ *   prefers-contrast: more                -> also applies under  html[data-a11y~=contrast]
+ *   prefers-reduced-transparency: reduce  -> also applies under  html[data-a11y~=contrast]
  *
  * gets a copy right after it, with every selector scoped to that class. This covers the
  * hand-written blocks in app/globals.css and everything Tailwind generates (`motion-reduce:`
@@ -15,20 +15,20 @@
  *    media block did and source order (the copy comes right after) decides, as before.
  *  - A selector whose first compound already targets <html> (`:root`, `html`, `.dark` as next-themes
  *    puts it, or one of the attributes the app sets on <html>) gets the class on that compound
- *    (`html.dark` -> `html.dark:where(.a11y-x)`); any other gets a prefix
- *    (`.foo` -> `:where(:root.a11y-x) .foo`).
+ *    (`html.dark` -> `html.dark:where([data-a11y~="x"])`); any other gets a prefix
+ *    (`.foo` -> `:where(:root[data-a11y~="x"]) .foo`).
  *  - Other conditions joined with `and` stay, in a new @media around the copy; in a comma list each
  *    query that matches is handled.
  *  - @keyframes / @font-face inside the block are hoisted unchanged (they are not selectors).
  */
 const FEATURES = [
-  { re: /^\(prefers-reduced-motion:reduce\)$/i, cls: 'a11y-still' },
-  { re: /^\(prefers-contrast:more\)$/i, cls: 'a11y-contrast' },
-  { re: /^\(prefers-reduced-transparency:reduce\)$/i, cls: 'a11y-contrast' },
+  { re: /^\(prefers-reduced-motion:reduce\)$/i, cls: 'still' },
+  { re: /^\(prefers-contrast:more\)$/i, cls: 'contrast' },
+  { re: /^\(prefers-reduced-transparency:reduce\)$/i, cls: 'contrast' },
 ]
 
 // Attributes (and the class) the app puts on <html>: lib/background/setting.ts, components/layout/privacy.tsx, lib/utils/theme-fade.ts
-const ROOT_ATTRIBUTES = ['data-bg', 'data-bg-palette', 'data-privacy', 'data-privacy-switch', 'data-theme-fade']
+const ROOT_ATTRIBUTES = ['data-bg', 'data-bg-palette', 'data-privacy', 'data-privacy-switch', 'data-theme-fade', 'data-a11y']
 const ROOT_COMPOUND = new RegExp(
   `^(?::root(?![\\w-])|html(?![\\w-])|\\.dark(?![\\w\\\\-])|\\[(?:${ROOT_ATTRIBUTES.join('|')})(?:[~|^$*]?=|\\]))`
 )
@@ -110,9 +110,9 @@ function scopeSelector(selector, cls) {
         break
       }
     }
-    return compound.slice(0, at) + `:where(.${cls})` + compound.slice(at) + sel.slice(end)
+    return compound.slice(0, at) + `:where([data-a11y~="${cls}"])` + compound.slice(at) + sel.slice(end)
   }
-  return `:where(:root.${cls}) ${sel}`
+  return `:where(:root[data-a11y~="${cls}"]) ${sel}`
 }
 
 const GENERATED = new WeakSet()

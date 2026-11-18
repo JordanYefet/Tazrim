@@ -1,7 +1,7 @@
 /*
  * Settings → Accessibility (ENG-128): nine options, kept per person as one JSON value
  * (lib/preferences/accessibility.ts) with a cookie copy for pages without a session. Each option
- * is a class on <html> (a11yClasses); app/globals.css and postcss/a11y-media.cjs do the rest.
+ * is a token of the data-a11y attribute on <html> (a11yAttribute); app/globals.css and postcss/a11y-media.cjs do the rest.
  * Pure: no database, safe in the browser.
  */
 
@@ -41,21 +41,6 @@ export const A11Y_DEFAULTS: A11ySettings = {
 export const A11Y_FLAGS = ['font', 'bold', 'spacing', 'contrast', 'cb', 'still', 'focus', 'underline'] as const
 export type A11yFlag = (typeof A11Y_FLAGS)[number]
 
-/** The class each flag puts on <html> */
-const FLAG_CLASS: Record<A11yFlag, string> = {
-  font: 'a11y-font',
-  bold: 'a11y-bold',
-  spacing: 'a11y-spacing',
-  contrast: 'a11y-contrast',
-  cb: 'a11y-cb',
-  still: 'a11y-still',
-  focus: 'a11y-focus',
-  underline: 'a11y-underline',
-}
-
-/** Every class this feature may put on <html> (to clear before applying a new setting) */
-export const A11Y_ALL_CLASSES: string[] = [...Object.values(FLAG_CLASS), ...TEXT_SIZES.filter(s => s !== 100).map(s => `a11y-text-${s}`)]
-
 /** Anything -> valid settings: unknown or invalid parts fall back to the defaults */
 export function normalizeA11y(raw: unknown): A11ySettings {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -84,11 +69,11 @@ export function formatA11y(s: A11ySettings): string {
   return JSON.stringify({ size: n.size, font: n.font, bold: n.bold, spacing: n.spacing, contrast: n.contrast, cb: n.cb, still: n.still, focus: n.focus, underline: n.underline })
 }
 
-/** The classes for <html>, space separated ('' when everything is off) */
-export function a11yClasses(s: A11ySettings): string {
+/** The value of data-a11y on <html>: space-separated tokens (text-130, font, bold ...); "" when everything is off */
+export function a11yAttribute(s: A11ySettings): string {
   const out: string[] = []
-  if (s.size !== 100) out.push(`a11y-text-${s.size}`)
-  for (const f of A11Y_FLAGS) if (s[f]) out.push(FLAG_CLASS[f])
+  if (s.size !== 100) out.push(`text-${s.size}`)
+  for (const f of A11Y_FLAGS) if (s[f]) out.push(f)
   return out.join(' ')
 }
 

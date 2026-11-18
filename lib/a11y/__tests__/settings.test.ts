@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { A11Y_DEFAULTS, a11yClasses, formatA11y, normalizeA11y, parseA11y } from '../settings'
+import { A11Y_DEFAULTS, a11yAttribute, formatA11y, normalizeA11y, parseA11y } from '../settings'
 
 describe('accessibility settings', () => {
-  it('defaults: nothing on, no classes', () => {
+  it('defaults: nothing on, no tokenes', () => {
     expect(parseA11y(undefined)).toEqual(A11Y_DEFAULTS)
-    expect(a11yClasses(A11Y_DEFAULTS)).toBe('')
+    expect(a11yAttribute(A11Y_DEFAULTS)).toBe('')
   })
 
-  it('maps every option to its class', () => {
+  it('maps every option to its token', () => {
     const all = { size: 150, font: true, bold: true, spacing: true, contrast: true, cb: true, still: true, focus: true, underline: true } as const
-    expect(a11yClasses(all).split(' ').sort()).toEqual(
-      ['a11y-text-150', 'a11y-font', 'a11y-bold', 'a11y-spacing', 'a11y-contrast', 'a11y-cb', 'a11y-still', 'a11y-focus', 'a11y-underline'].sort()
+    expect(a11yAttribute(all).split(' ').sort()).toEqual(
+      ['text-150', 'font', 'bold', 'spacing', 'contrast', 'cb', 'still', 'focus', 'underline'].sort()
     )
-    expect(a11yClasses({ ...A11Y_DEFAULTS, size: 115 })).toBe('a11y-text-115')
+    expect(a11yAttribute({ ...A11Y_DEFAULTS, size: 115 })).toBe('text-115')
   })
 
   it('round-trips through its stored text', () => {

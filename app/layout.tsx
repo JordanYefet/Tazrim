@@ -28,7 +28,7 @@ import { BACKGROUND_COOKIE, backgroundHtmlAttributes, backgroundHtmlStyle, parse
 import { getAvatars } from '@/lib/preferences/avatar'
 import { getStoredBackground } from '@/lib/preferences/background'
 import { getStoredA11y } from '@/lib/preferences/accessibility'
-import { A11Y_COOKIE, a11yClasses, parseA11y } from '@/lib/a11y/settings'
+import { A11Y_COOKIE, a11yAttribute, parseA11y } from '@/lib/a11y/settings'
 import { A11yProvider } from '@/components/a11y/a11y-provider'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
@@ -74,7 +74,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <html
         lang="he"
         dir="rtl"
-        className={`${fontVars} ${a11yClasses(bareA11y)}`.trim()}
+        className={fontVars}
+        data-a11y={a11yAttribute(bareA11y) || undefined}
         {...backgroundHtmlAttributes(background)}
         style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
         suppressHydrationWarning
@@ -111,7 +112,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang="he"
       dir="rtl"
-      className={`${fontVars} ${a11yClasses(a11y)}`.trim()}
+      className={fontVars}
+      data-a11y={a11yAttribute(a11y) || undefined}
       data-privacy={privacy ? 'on' : undefined}
       {...backgroundHtmlAttributes(background)}
       style={{ ...backgroundHtmlStyle(background), ...tileStyle(background, tileUrl) } as React.CSSProperties}
