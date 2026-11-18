@@ -98,7 +98,7 @@ export function BackgroundSettings() {
   return (
     <div className="flex flex-col gap-4 rounded-[20px] surface px-4 py-[18px] md:p-6">
       <div className="flex flex-col gap-0.5">
-        <h3 id="background-title" className="text-[1.0625rem] font-bold">רקע</h3>
+        <h2 id="background-title" className="text-[1.0625rem] font-bold">רקע</h2>
         <p className="text-[0.8125rem] text-muted-foreground">דוגמה עדינה מאחורי כל הדפים. חשבונות עם צבע &quot;זכוכית&quot; נראים דרכה.</p>
       </div>
 
