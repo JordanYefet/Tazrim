@@ -544,10 +544,10 @@ export function BankTransactionsTable({
                     />
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--expense))] font-medium tabular-nums">
-                    <span data-money>{tx.debit > 0 ? formatCurrency(tx.debit) : ''}</span>
+                    <span data-money data-flow="out">{tx.debit > 0 ? formatCurrency(tx.debit) : ''}</span>
                   </td>
                   <td className="py-2.5 px-4 text-[hsl(var(--income))] font-medium tabular-nums">
-                    <span data-money>{tx.credit > 0 ? formatCurrency(tx.credit) : ''}</span>
+                    <span data-money data-flow="in">{tx.credit > 0 ? formatCurrency(tx.credit) : ''}</span>
                   </td>
                   {!scope.several && (
                     <td className="py-2.5 px-4 whitespace-nowrap text-muted-foreground tabular-nums"><span data-money>{formatCurrency(tx.balance)}</span></td>

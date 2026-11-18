@@ -12,7 +12,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         // Self-hosted Heebo from app/fonts.ts (Hebrew + Latin subsets)
-        sans: ['var(--font-heebo-hebrew)', 'var(--font-heebo-latin)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-app)'],
       },
       colors: {
         border: 'hsl(var(--border))',

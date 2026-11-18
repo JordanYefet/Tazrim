@@ -140,6 +140,7 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
               <span className="shrink-0 text-end">
                 <span
                   data-money
+                  data-flow={income ? 'in' : undefined}
                   className={cn(
                     'block text-sm font-semibold tabular-nums',
                     income && 'text-[hsl(var(--income))]'

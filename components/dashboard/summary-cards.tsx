@@ -319,6 +319,7 @@ export function NetBalance({
           )}
         </p>
         <p
+          data-flow={positive ? 'in' : 'out'}
           className={cn(
             'mt-1 font-semibold tracking-tight tabular-nums',
             compact ? 'text-3xl leading-none' : 'text-4xl sm:text-[2.75rem] sm:leading-none',
@@ -499,6 +500,7 @@ export function DashboardSummaryCards({
       <div className="flex flex-col justify-center">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <p
+          data-flow={verdict ? (positive ? 'in' : 'out') : undefined}
           className={cn(
             'mt-1 text-4xl font-semibold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none',
             !verdict

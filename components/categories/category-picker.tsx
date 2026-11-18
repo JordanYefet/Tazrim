@@ -145,7 +145,7 @@ export function CategoryPicker({
           <span className="text-xs font-normal text-muted-foreground">{context}</span>
           <span>
             <bdi>{title}</bdi>{' '}
-            <span data-money className={cn('font-medium tabular-nums', amountTone === 'income' ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
+            <span data-money data-flow={amountTone === 'income' ? 'in' : 'out'} className={cn('font-medium tabular-nums', amountTone === 'income' ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
               {amount}
             </span>
           </span>

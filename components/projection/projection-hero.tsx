@@ -23,7 +23,7 @@ function Fact({ label, children }: { label: React.ReactNode; children: React.Rea
 /** A signed amount in the income or expense colour */
 function Signed({ value }: { value: number }) {
   return (
-    <span className={value >= 0 ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'} dir="ltr">
+    <span data-flow={value >= 0 ? 'in' : 'out'} className={value >= 0 ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]'} dir="ltr">
       {value >= 0 ? '+' : '−'}<RollingNumber value={Math.abs(value)} />
     </span>
   )

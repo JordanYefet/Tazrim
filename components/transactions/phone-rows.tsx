@@ -114,7 +114,7 @@ export function PhoneTransactionRows({
                       confined to their 22px line: a tap above or below them is the row's */}
                   {badges && <span className="pointer-events-auto relative shrink-0">{badges}</span>}
                   <span className="min-w-2 flex-1" aria-hidden />
-                  <span data-money className={cn('shrink-0 text-sm font-semibold tabular-nums', income ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
+                  <span data-money data-flow={income ? 'in' : 'out'} className={cn('shrink-0 text-sm font-semibold tabular-nums', income ? 'text-[hsl(var(--income))]' : 'text-[hsl(var(--expense))]')}>
                     {/* positive = money out; money in is shown green with a plus */}
                     {`${income ? '+' : ''}${formatCurrency(Math.abs(r.amount))}`}
                   </span>

@@ -2139,3 +2139,117 @@ html.dark[data-bg='sunrise'] body::before { background-color: var(--bg-page-dark
 @media (prefers-reduced-motion: reduce) {
   .sync-ring { animation: none; background: hsl(var(--primary)); }
 }
+
+/* ── Accessibility options (ENG-128, Settings → Accessibility) ───────────────────────────────
+   Each option is a class on <html> (lib/a11y/settings.ts; the layout renders them, so nothing
+   flashes). "Stop animations" and "High contrast" are the system settings' twins: the PostCSS
+   plugin (postcss/a11y-media.cjs) copies every prefers-reduced-motion / prefers-contrast /
+   prefers-reduced-transparency block, Tailwind's variants included, under .a11y-still /
+   .a11y-contrast, and lib/a11y/media.ts answers the same for JavaScript. */
+
+/* Readable font: Tailwind's `sans` is var(--font-app) */
+:root { --font-app: var(--font-heebo-hebrew), var(--font-heebo-latin), system-ui, sans-serif; }
+:root.a11y-font { --font-app: var(--font-assistant-hebrew), var(--font-assistant-latin), system-ui, sans-serif; }
+
+/* Text size: the root scales, every size in the app is rem (or em) */
+html.a11y-text-115 { font-size: 115%; }
+html.a11y-text-130 { font-size: 130%; }
+html.a11y-text-150 { font-size: 150%; }
+
+/* Bold: every weight one step heavier */
+html.a11y-bold body { font-weight: 500; }
+html.a11y-bold .font-light { font-weight: 400; }
+html.a11y-bold .font-normal { font-weight: 500; }
+html.a11y-bold .font-medium { font-weight: 600; }
+html.a11y-bold .font-semibold { font-weight: 700; }
+html.a11y-bold .font-bold { font-weight: 800; }
+html.a11y-bold .font-extrabold { font-weight: 900; }
+html.a11y-bold strong, html.a11y-bold b { font-weight: 800; }
+
+/* Text spacing (WCAG 1.4.12): letter 0.05em, word 0.16em, lines at least 1.7. Not the rolling
+   digits (their windows are exactly one line, one digit wide) and not the account faces and
+   wallet, whose lettering is part of their drawing. */
+html.a11y-spacing body :not([data-rolling], [data-rolling] *, :is(.acct-card, .acct-bank, .acct-mini, .wallet-shell, .wallet-card, .wallet-pocket) *) {
+  letter-spacing: 0.05em;
+  word-spacing: 0.16em;
+}
+html.a11y-spacing body :is(p, li, dd, dt, label, td, th, h1, h2, h3, h4, h5, h6, a, button, div, span):not([data-rolling], [data-rolling] *, [class*='leading-none'], .sr-only, :is(.acct-card, .acct-bank, .acct-mini, .wallet-shell, .wallet-card, .wallet-pocket, svg, .recharts-wrapper) *) {
+  line-height: 1.7;
+}
+
+/* High contrast, besides what the copied media blocks do: secondary text and lines that stand out */
+:root.a11y-contrast {
+  --muted-foreground: 214 28% 27%;
+  --border: 214 16% 48%;
+  --input: 214 16% 48%;
+  --surface-edge: 214 20% 30%;
+}
+:root.a11y-contrast.dark {
+  --muted-foreground: 214 22% 80%;
+  --border: 214 14% 58%;
+  --input: 214 14% 58%;
+  --surface-edge: 214 16% 72%;
+}
+
+/* Colour-blind colours: blue for income, orange for expense (the tokens every amount uses), and an
+   arrow on each amount, so colour is never the only sign */
+:root.a11y-cb {
+  --income: 212 72% 40%;
+  --income-foreground: 212 72% 40%;
+  --expense: 28 90% 38%;
+  --expense-foreground: 28 90% 38%;
+  --chart-income: hsl(212 72% 40%);
+  --chart-expense: hsl(28 90% 38%);
+}
+:root.a11y-cb.dark {
+  --income: 212 80% 62%;
+  --income-foreground: 212 80% 62%;
+  --expense: 30 90% 58%;
+  --expense-foreground: 30 90% 58%;
+  --chart-income: hsl(212 80% 62%);
+  --chart-expense: hsl(30 90% 58%);
+}
+html.a11y-cb [data-flow]:not(:empty)::before {
+  content: '\2191';
+  margin-inline-end: 0.25em;
+  font-weight: 800;
+}
+html.a11y-cb [data-flow='out']:not(:empty)::before { content: '\2193'; }
+
+/* Strong focus ring: 3px amber, everywhere, over the app's own ring utilities */
+html.a11y-focus :focus-visible,
+html.a11y-focus [data-focus-demo] {
+  outline: 3px solid #f59e0b !important;
+  outline-offset: 3px !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+/* Underline links and buttons: links underlined; buttons with no border or fill get a shape.
+   The shape is an inset line (no size change, so nothing moves) kept in the button's own
+   box-shadow stack, which Tailwind's focus rings share. */
+html.a11y-underline a[href]:not([class*='surface'], [data-no-underline]) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3.5px;
+}
+html.a11y-underline button:not(
+  [class^='bg-'], [class*=' bg-'], [class^='border'], [class*=' border'],
+  [class*='inset-0'], [class*='w-full'], [role='switch'], [role='radio'], [role='tab'], [role='menuitem'], [role='option'], [role='combobox'], [disabled], .sr-only
+) {
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, currentColor 55%, transparent),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+}
+/* The sample card's filled button: a dark edge, as the mockup shows */
+html.a11y-underline .a11y-sample-btn { box-shadow: inset 0 0 0 2px hsl(var(--foreground) / 0.85); }
+
+/* The sample card on Settings → Accessibility: pinned under the app header (which slides away on scroll) */
+.a11y-sample-pin { top: 3.5rem; transition: top var(--motion-fast) var(--ease-ui); }
+body:has(header[data-hidden]) .a11y-sample-pin { top: 0; }
+@keyframes a11y-sample-slide { from { transform: translateX(110%); } to { transform: translateX(-110%); } }
+.a11y-sample-line { animation: a11y-sample-slide 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .a11y-sample-pin { transition: none; }
+  .a11y-sample-line { animation: none; transform: none; }
+}

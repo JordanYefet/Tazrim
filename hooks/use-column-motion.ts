@@ -4,10 +4,6 @@ import { useEffect, useState } from 'react'
 import { MOTION } from '@/lib/motion'
 import { prefersReducedMotion } from '@/lib/a11y/media'
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && prefersReducedMotion()
-}
-
 /**
  * Optional table columns that come and go with motion (the "עמודות" picker):
  * a column just added slides in and fades (.col-in), a column just removed

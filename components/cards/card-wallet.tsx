@@ -124,10 +124,6 @@ function whenLanding(anim: Animation | null, land: () => void, duration = SPRING
 }
 const INTENT_EVENT = 'tazrim:wallet-route'
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && prefersReducedMotion()
-}
-
 /** Tell the wallet where a navigation is going, so it can move before the page arrives. */
 export function announceWalletRoute(href: string) {
   window.dispatchEvent(new CustomEvent(INTENT_EVENT, { detail: href }))

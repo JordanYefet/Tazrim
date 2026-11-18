@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, CreditCard, FileText, Info, LockKeyhole, Palette, RefreshCw, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { MoneyText } from '@/components/ui/money-text'
 
@@ -7,13 +7,14 @@ export interface SettingsTile {
   href: string
   title: string
   summary: string
-  icon: 'appearance' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'about'
+  icon: 'appearance' | 'accessibility' | 'projection' | 'accounts' | 'import-profiles' | 'people' | 'vault' | 'updates' | 'about'
   /** A small primary dot beside the title: a new version is out (ENG-98). Takes no room of its own. */
   dot?: boolean
 }
 
 const ICONS: Record<SettingsTile['icon'], LucideIcon> = {
   appearance: Palette,
+  accessibility: Accessibility,
   projection: TrendingUp,
   accounts: CreditCard,
   'import-profiles': FileText,
