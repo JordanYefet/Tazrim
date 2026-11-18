@@ -15,6 +15,7 @@
 $ErrorActionPreference = 'Continue'   # native commands write progress to stderr; failures are checked by exit code
 $Version   = '@@TAZRIM_VERSION@@'
 $Repo      = 'JordanYefet/Tazrim'
+$Image     = 'ghcr.io/jordanyefet/tazrim'
 $HelpUrl   = "https://github.com/$Repo#%D7%94%D7%AA%D7%A7%D7%A0%D7%94-%D7%95%D7%94%D7%A4%D7%A2%D7%9C%D7%94"
 $IssuesUrl = "https://github.com/$Repo/issues"
 $DockerUrl = 'https://www.docker.com/products/docker-desktop/'
@@ -171,6 +172,7 @@ try {
 
     # ---- 4. The compose file ----
     $compose = $null
+    $ver = ''
     if ($env:TAZRIM_COMPOSE_FILE) {
         if (-not (Test-Path $env:TAZRIM_COMPOSE_FILE)) { Fail "The compose file $($env:TAZRIM_COMPOSE_FILE) was not found." }
         $compose = [System.IO.File]::ReadAllText((Resolve-Path $env:TAZRIM_COMPOSE_FILE))
@@ -203,7 +205,17 @@ try {
     Write-Host "OK Created the folder $InstallDir"
 
     # ---- 6. Start ----
-    Write-Host 'Starting Tazrim. The first time Docker downloads the app, which can take a few minutes...'
+    # The image of exactly this version, also tagged :latest (the tag the compose file uses and an
+    # in-app update moves). Without this, an older :latest already on the computer would run with
+    # this version's compose file. Skipped when .env pins TAZRIM_VERSION: compose pulls that tag itself.
+    if ($ver -and -not (Env-Value 'TAZRIM_VERSION' $envText '')) {
+        Write-Host "Downloading Tazrim $ver. The first time this can take a few minutes..."
+        & docker pull "${Image}:$ver"
+        if ($LASTEXITCODE -ne 0) { Fail "Downloading Tazrim failed. Check your internet connection and try again. The install stays in $InstallDir, and you can double-click the installer again." }
+        & docker tag "${Image}:$ver" "${Image}:latest"
+        if ($LASTEXITCODE -ne 0) { Fail 'Docker could not tag the downloaded version.' }
+    }
+    Write-Host 'Starting Tazrim...'
     if (-not (Compose-Up $InstallDir)) {
         Fail "Starting failed. Docker's message is above; if it mentions a connection or a download, check your internet. The install stays in $InstallDir, and you can double-click the installer again."
     }
