@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { AlertCircle, ChevronLeft, Check, EyeOff, LogOut, MessageSquare, RefreshCw, Settings, Upload, User } from 'lucide-react'
+import { AlertCircle, ChevronLeft, Check, EyeOff, LogOut, MessageSquare, RefreshCw, RotateCw, Settings, Upload, User } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { avatarMark, profileRows, type AvatarMark } from '@/lib/nav/profile-card'
 import { face, needsCodeNow, type Tone } from '@/components/sync/sync-face'
@@ -12,6 +13,7 @@ import { useSync } from '@/components/sync/use-sync'
 import { Avatar, MENU_ITEM, signOut, signedInWith, useMe } from './profile-menu'
 import { usePeriodHref } from './period-context'
 import { usePhoneLayout, usePrivacy } from './privacy'
+import { isInstalledApp } from './pull-to-refresh'
 
 /**
  * Privacy mode on, on a phone (ENG-127): the header has no eye there, so the avatar says it,
@@ -128,6 +130,17 @@ export function ProfileButton() {
   const goLabel = tone === 'attention' ? (needsCode ? 'הזנה' : 'פתיחה') : 'סנכרון'
   const privacy = usePrivacy()
   const phone = usePhoneLayout()
+  // Pulling the page down refreshes it in the installed app (pull-to-refresh.tsx); a drag needs a
+  // single-tap alternative (WCAG 2.5.7), so the card has the same refresh as a row
+  const router = useRouter()
+  const [installed, setInstalled] = useState(false)
+  const [refreshNote, setRefreshNote] = useState('')
+  useEffect(() => setInstalled(isInstalledApp()), [])
+  function refreshPage() {
+    router.refresh()
+    setRefreshNote('מרענן את הנתונים')
+    window.setTimeout(() => setRefreshNote(''), 2000)
+  }
 
   return (
     <>
@@ -224,7 +237,8 @@ export function ProfileButton() {
                   aria-hidden
                   className={cn(
                     'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-fast ease-ui',
-                    privacy.on ? 'bg-primary' : 'bg-muted-foreground/30'
+                    // The off track keeps a hairline edge: a control's boundary needs 3:1 (WCAG 1.4.11)
+                    privacy.on ? 'bg-primary' : 'bg-muted-foreground/30 ring-1 ring-inset ring-muted-foreground/70'
                   )}
                 >
                   <span
@@ -236,6 +250,12 @@ export function ProfileButton() {
                   />
                 </span>
               </DropdownMenu.CheckboxItem>
+            )}
+            {installed && (
+              <DropdownMenu.Item onSelect={refreshPage} className={MENU_ITEM}>
+                <RotateCw className="h-4 w-4 text-muted-foreground" aria-hidden />
+                רענון הנתונים
+              </DropdownMenu.Item>
             )}
             {has('upload') && (
               <DropdownMenu.Item asChild className={MENU_ITEM}>
@@ -263,6 +283,8 @@ export function ProfileButton() {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+      {/* The sync's state, announced as it changes: the avatar's label only changes quietly. Nothing at rest */}
+      <span role="status" className="sr-only">{refreshNote || (tone === 'idle' ? '' : `${title}. ${sub}`)}</span>
       <SyncDialog open={syncOpen} onOpenChange={setSyncOpen} sync={sync} anchorRect={anchor} />
     </>
   )

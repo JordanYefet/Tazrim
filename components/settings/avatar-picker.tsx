@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 import { artHasBackground, artUri } from '@/components/avatar/person-avatar'
 import {
   AVATAR_SETS,
@@ -95,6 +96,10 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
     return () => io.disconnect()
   }, [])
 
+  function goToPage(i: number) {
+    pages.current?.querySelector<HTMLElement>(`[data-page="${i}"]`)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest', inline: 'start' })
+  }
+
   const art = draft.mode === 'art'
   const thumbs = art && !artHasBackground(draft.set)
   const canSave = art || draft.text.trim().length > 0
@@ -120,7 +125,19 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
   return (
     <div className="mt-4">
       {/* Mode switch: the pill slides under the chosen side (אות on the right) */}
-      <div role="tablist" data-mode={draft.mode} className="group relative mb-3.5 grid grid-cols-2 rounded-xl bg-muted p-[3px]">
+      <div
+        role="tablist"
+        aria-label="סוג התמונה"
+        data-mode={draft.mode}
+        // Two tabs: either arrow moves to the other one, as tabs do (the selected one holds the tab stop)
+        onKeyDown={e => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          e.preventDefault()
+          const next = draft.mode === 'art' ? 'text' : 'art'
+          set({ mode: next })
+          e.currentTarget.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus()
+        }}
+        className="group relative mb-3.5 grid grid-cols-2 rounded-xl bg-muted p-[3px]">
         <span
           aria-hidden
           className="absolute inset-y-[3px] start-[3px] w-[calc(50%-3px)] rounded-[9px] bg-card shadow-sm transition-transform duration-fast ease-ui motion-reduce:transition-none group-data-[mode=art]:-translate-x-full"
@@ -130,6 +147,8 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
             key={m}
             type="button"
             role="tab"
+            data-tab={m}
+            tabIndex={draft.mode === m ? 0 : -1}
             aria-selected={draft.mode === m}
             onClick={() => set({ mode: m })}
             className={cn(
@@ -174,9 +193,19 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
               </div>
             ))}
           </div>
-          <div aria-hidden className="mt-2 flex justify-center gap-1.5">
+          {/* The dots turn the page too (a tap instead of a swipe); each is a 24px target around its dot */}
+          <div className="mt-1 flex justify-center">
             {AVATAR_SETS.map((s, i) => (
-              <span key={s} className={cn('h-1.5 rounded-full transition-[width,background-color] duration-fast ease-ui motion-reduce:transition-none', page === i ? 'w-4 bg-primary' : 'w-1.5 bg-border')} />
+              <button
+                key={s}
+                type="button"
+                aria-label={`קבוצת איורים ${i + 1} מתוך ${AVATAR_SETS.length}`}
+                aria-current={page === i || undefined}
+                onClick={() => goToPage(i)}
+                className="flex h-6 w-6 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className={cn('h-1.5 rounded-full transition-[width,background-color] duration-fast ease-ui motion-reduce:transition-none', page === i ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/50')} />
+              </button>
             ))}
           </div>
         </div>
@@ -224,7 +253,7 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
               aria-pressed={!thumbs && draft.bg === i}
               disabled={thumbs}
               onClick={() => set({ bg: i })}
-              className={cn('h-[22px] w-[22px] justify-self-center rounded-full focus-visible:outline-none focus-visible:ring-foreground/60', RING, PRESS, !thumbs && draft.bg === i && 'ring-foreground')}
+              className={cn('h-6 w-6 justify-self-center rounded-full focus-visible:outline-none focus-visible:ring-foreground/60', RING, PRESS, !thumbs && draft.bg === i && 'ring-foreground')}
               style={{ backgroundColor: c }}
             />
           ))}

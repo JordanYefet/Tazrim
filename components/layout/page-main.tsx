@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from '@/lib/utils/cn'
 import { usePeriodPending } from './period-context'
 
 /**
@@ -13,9 +14,12 @@ export function PageMain({ className, children }: { className?: string; children
   const pending = usePeriodPending()
   return (
     <main
+      id="main"
+      // Focusable by the skip link only (never a tab stop), without a ring around the whole page
+      tabIndex={-1}
       data-pending={pending || undefined}
       aria-busy={pending || undefined}
-      className={className}
+      className={cn('outline-none', className)}
     >
       {children}
     </main>
