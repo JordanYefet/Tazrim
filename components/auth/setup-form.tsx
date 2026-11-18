@@ -12,7 +12,7 @@ import { card, errorText, ghostButton, primaryButton, textButton } from './ui'
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-bold text-primary" aria-hidden>{n}</span>
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.8125rem] font-bold text-primary" aria-hidden>{n}</span>
       <span className="text-sm font-semibold">{children}</span>
     </div>
   )

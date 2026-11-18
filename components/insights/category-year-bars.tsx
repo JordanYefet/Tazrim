@@ -70,7 +70,7 @@ export function CategoryYearBars({
             </span>
             <span
               className={cn(
-                'block truncate text-center text-[10px] leading-none text-muted-foreground',
+                'block truncate text-center text-[0.625rem] leading-none text-muted-foreground',
                 lit && 'font-medium text-foreground'
               )}
               aria-hidden

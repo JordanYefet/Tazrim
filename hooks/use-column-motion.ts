@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return typeof window !== 'undefined' && prefersReducedMotion()
 }
 
 /**

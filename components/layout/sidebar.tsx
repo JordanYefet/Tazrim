@@ -175,7 +175,7 @@ function SectionItem({
                       aria-current={current ? 'page' : undefined}
                       title={a.lastFour ? `${a.name} ·${a.lastFour}` : undefined}
                       className={cn(
-                        'flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[0.8125rem] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         current ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       )}
                     >

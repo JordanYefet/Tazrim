@@ -18,10 +18,10 @@ export function LoginStory() {
   return (
     <section aria-labelledby="story-title" className="flex w-full max-w-[46rem] flex-col gap-7">
       <div className="space-y-2.5">
-        <h2 id="story-title" className="text-balance text-3xl font-extrabold leading-[1.1] tracking-tight lg:text-[40px]">
+        <h2 id="story-title" className="text-balance text-3xl font-extrabold leading-[1.1] tracking-tight lg:text-[2.5rem]">
           כל הכסף של הבית, במקום אחד
         </h2>
-        <p className="max-w-[56ch] text-[17px] leading-relaxed text-muted-foreground text-pretty">
+        <p className="max-w-[56ch] text-[1.0625rem] leading-relaxed text-muted-foreground text-pretty">
           מעלים את הקבצים מהבנק ומחברות האשראי, ורואים לאן הולך הכסף, מה חוזר כל חודש ומה צפוי עד סופו. תזרים רץ על מחשב אצלכם בבית, והנתונים לא יוצאים ממנו.
         </p>
       </div>
@@ -46,8 +46,8 @@ export function LoginStory() {
       </div>
 
       <figure className="space-y-2.5 rounded-[20px] border border-white/80 bg-card/70 p-5 shadow-e1 dark:border-white/10 md:p-6">
-        <figcaption className="text-[15px] font-bold">למה בניתי את תזרים</figcaption>
-        <blockquote className="max-w-[62ch] space-y-2 text-[15px] leading-relaxed text-pretty">
+        <figcaption className="text-[0.9375rem] font-bold">למה בניתי את תזרים</figcaption>
+        <blockquote className="max-w-[62ch] space-y-2 text-[0.9375rem] leading-relaxed text-pretty">
           {STORY.map(p => <p key={p}>{p}</p>)}
         </blockquote>
       </figure>

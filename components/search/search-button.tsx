@@ -35,7 +35,7 @@ export function SearchButton() {
       >
         <Search className="h-4 w-4" aria-hidden />
         <span>חיפוש</span>
-        <kbd className="min-w-[2.6rem] rounded border bg-card px-1 text-[10px] leading-4" dir="ltr">
+        <kbd className="min-w-[2.6rem] rounded border bg-card px-1 text-[0.625rem] leading-4" dir="ltr">
           {shortcut}
         </kbd>
       </button>

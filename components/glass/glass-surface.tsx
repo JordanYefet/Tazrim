@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { decideGlassRenderer } from '@/lib/glass/policy'
 import { trackGlass } from './glass-bakery'
+import { prefersMoreContrast, prefersReducedTransparency, subscribe as subscribeMedia } from '@/lib/a11y/media'
 
 /*
  * The glass material of an account element (Account.color = "glass", ENG-72).
@@ -32,14 +33,15 @@ const subs = new Set<() => void>()
 function watch() {
   if (watching || typeof window === 'undefined') return
   watching = true
-  const rt = window.matchMedia('(prefers-reduced-transparency: reduce)')
-  const mc = window.matchMedia('(prefers-contrast: more)')
+  // The system setting or the Settings → Accessibility switch (lib/a11y/media.ts), live
   const read = () => {
-    prefs = { reducedTransparency: rt.matches, moreContrast: mc.matches }
+    const next = { reducedTransparency: prefersReducedTransparency(), moreContrast: prefersMoreContrast() }
+    if (next.reducedTransparency === prefs.reducedTransparency && next.moreContrast === prefs.moreContrast) return
+    prefs = next
     subs.forEach(fn => fn())
   }
-  rt.addEventListener?.('change', read)
-  mc.addEventListener?.('change', read)
+  subscribeMedia('transparency', read)
+  subscribeMedia('contrast', read)
   read()
 }
 function subscribe(fn: () => void) {

@@ -52,7 +52,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
                 <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
               </span>
               <span className="space-y-1">
-                <span className="flex items-center gap-2 text-[17px] font-semibold">
+                <span className="flex items-center gap-2 text-[1.0625rem] font-semibold">
                   {t.title}
                   {t.dot && (
                     <span data-dot className="h-2 w-2 shrink-0 rounded-full bg-primary">
@@ -78,7 +78,7 @@ export function SettingsTiles({ tiles }: { tiles: SettingsTile[] }) {
           <ChevronLeft className="h-[18px] w-[18px] text-muted-foreground/70 transition-transform duration-fast ease-ui group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
         </span>
         <span className="space-y-1">
-          <span className="block text-[17px] font-semibold text-destructive dark:text-red-400">אזור מסוכן</span>
+          <span className="block text-[1.0625rem] font-semibold text-destructive dark:text-red-400">אזור מסוכן</span>
           <span className="block text-sm leading-relaxed text-muted-foreground text-pretty">מחיקת כל הנתונים מהאפליקציה, בלי דרך חזרה.</span>
         </span>
       </Link>

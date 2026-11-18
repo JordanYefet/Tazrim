@@ -7,6 +7,7 @@ import { cardLabel, faceFor, isKnownIssuer, issuerWordmark, providerKey, provide
 import { NetworkMark } from './network-mark'
 import { DigitStrip, RollingNumber } from '@/components/ui/rolling-number'
 import { MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 import { formatDate } from '@/lib/utils/date'
 import { GlassSurface } from '@/components/glass/glass-surface'
 import { formatNet } from '@/lib/utils/currency'
@@ -52,10 +53,9 @@ function useTilt<T extends HTMLElement>(enabled: boolean, maxDeg: number) {
     const el = ref.current
     if (!enabled || !el) return
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)')
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0
     const move = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse' || !canHover.matches || reduce.matches) return
+      if (e.pointerType !== 'mouse' || !canHover.matches || prefersReducedMotion()) return
       const r = el.getBoundingClientRect()
       const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))
       const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))

@@ -156,7 +156,7 @@ export function PayerTiles({
         ))}
         <button type="button" role="radio" aria-checked={value === null} onClick={() => onChange(null)} className={tile(value === null)}>
           <UnknownFace />
-          <span className="min-w-0 text-[13px] leading-snug">{UNKNOWN_PAYER_LABEL}</span>
+          <span className="min-w-0 text-[0.8125rem] leading-snug">{UNKNOWN_PAYER_LABEL}</span>
           <Tick on={value === null} />
         </button>
       </div>

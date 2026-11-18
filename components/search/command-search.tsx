@@ -132,7 +132,7 @@ export function CommandSearch() {
               aria-activedescendant={results.length ? `cmd-result-${active}` : undefined}
               className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
-            <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">Esc</kbd>
+            <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[0.625rem] text-muted-foreground sm:inline">Esc</kbd>
           </div>
 
           <div ref={listRef} id="cmd-results" className="min-h-0 flex-1 overflow-y-auto p-1.5">

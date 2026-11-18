@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ROLL } from '@/lib/motion'
 import { BLUR_LEVELS, ROLL_EASE, blurFilter, landing, rollBlur, rowTransform, spinStart, spinTurn } from '@/lib/digit-motion'
 import { cn } from '@/lib/utils/cn'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /*
  * Apple-style rolling digits (SwiftUI `.contentTransition(.numericText())`).
@@ -50,7 +51,7 @@ export function cascade(index: number, count: number, total: number = ROLL.durat
 // Sign, digits and separators: the part that is laid out character by character
 const NUMERIC_CORE = /[-−]?\d(?:[\d.,]*\d)?/
 
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+const reducedMotion = () => prefersReducedMotion()
 const now = () => Number(document.timeline.currentTime ?? performance.now())
 
 /**

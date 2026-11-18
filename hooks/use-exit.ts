@@ -2,6 +2,7 @@
 
 import { useEffect, useReducer, useRef } from 'react'
 import { MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /**
  * Lets something that appears and goes with its data (a bar over the table while
@@ -17,7 +18,7 @@ export function useExit<T>(value: T | null, ms: number = MOTION.fast): { item: T
   if (value !== null) last.current = value
 
   const leaving = value === null && last.current !== null
-  const instant = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const instant = typeof window !== 'undefined' && prefersReducedMotion()
   useEffect(() => {
     if (!leaving) return
     if (instant) {

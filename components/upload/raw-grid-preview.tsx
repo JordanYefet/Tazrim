@@ -120,7 +120,7 @@ export function RawGridPreview({
                     >
                       {columnLabel(c)}
                       {tag && (
-                        <span className="mt-0.5 block whitespace-nowrap rounded bg-primary/10 px-1 text-[11px] leading-4 text-primary">
+                        <span className="mt-0.5 block whitespace-nowrap rounded bg-primary/10 px-1 text-[0.6875rem] leading-4 text-primary">
                           {tag}
                         </span>
                       )}

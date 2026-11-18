@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { MOTION } from '@/lib/motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /** How far the list peeks down (px), at most */
 export const HINT_PX = 44
@@ -26,7 +27,7 @@ export function ScrollHintList({ className, children }: { className?: string; ch
   const ref = useRef<HTMLUListElement>(null)
   useEffect(() => {
     const el = ref.current
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!el || prefersReducedMotion()) return
     let frame = 0
     let stopped = false
     const stop = () => {

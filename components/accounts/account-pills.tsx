@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils/cn'
  */
 export function pillClass(on: boolean) {
   return cn(
-    'relative flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
+    'relative flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[0.8125rem] transition-[background-color,color,transform] duration-quick active:scale-[0.97]',
     'before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""]',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     'surface',

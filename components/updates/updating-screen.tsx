@@ -356,7 +356,7 @@ export function UpdatingCard({
       <div role="status" aria-live="polite">
         <span
           aria-hidden
-          className="mb-3.5 flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-[22px] font-extrabold leading-none text-primary-foreground"
+          className="mb-3.5 flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-[1.375rem] font-extrabold leading-none text-primary-foreground"
         >
           ת
         </span>

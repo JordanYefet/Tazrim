@@ -102,18 +102,18 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                   {showAccount && <span aria-hidden className="sm:hidden">·</span>}
                   {showAccount && <span className="truncate sm:hidden">{r.accountName}</span>}
                   {r.category && !categoryInActions && (
-                    <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
+                    <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[0.6875rem] font-medium text-secondary-foreground">
                       {r.category}
                     </span>
                   )}
                   {r.recurringLabel && (
-                    <span className="inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/15">
+                    <span className="inline-flex max-w-[9rem] items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[0.6875rem] font-medium text-primary dark:bg-primary/15">
                       <Repeat className="h-3 w-3 shrink-0" aria-hidden />
                       <span className="truncate">{r.recurringLabel}</span>
                     </span>
                   )}
                   {r.ignored && (
-                    <span className="inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[11px]">
+                    <span className="inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[0.6875rem]">
                       <EyeOff className="h-3 w-3" aria-hidden />
                       מוסתרת
                     </span>
@@ -149,7 +149,7 @@ export function SearchResultList({ results, terms, activeIndex, onNavigate, onHo
                   {`${income ? '+' : ''}${formatCurrency(Math.abs(r.amount))}`}
                 </span>
                 {amountNote?.(r) && (
-                  <span className="block text-[11px] tabular-nums text-muted-foreground" dir="ltr">{amountNote(r)}</span>
+                  <span className="block text-[0.6875rem] tabular-nums text-muted-foreground" dir="ltr">{amountNote(r)}</span>
                 )}
               </span>
           </>

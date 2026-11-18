@@ -63,7 +63,7 @@ export function MonthBarsChart({
             />
           )}
         </div>
-        <div className="flex h-3.5 gap-[3px] text-[10px] leading-none text-muted-foreground">
+        <div className="flex h-3.5 gap-[3px] text-[0.625rem] leading-none text-muted-foreground">
           {bars.map(b => (
             <div key={b.month} className="relative min-w-0 flex-1">
               {b.label && (

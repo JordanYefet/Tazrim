@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CHART_ANIMATION } from '@/lib/motion'
+import { prefersReducedMotion, subscribe as subscribeMedia } from '@/lib/a11y/media'
 
 /**
  * Recharts animation props on the shared page beat (lib/motion.ts), and off
@@ -10,13 +11,12 @@ import { CHART_ANIMATION } from '@/lib/motion'
 export function useChartAnimation() {
   // Read at once on the client, so a chart never starts animating before the preference is known
   const [reduce, setReduce] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    () => typeof window !== 'undefined' && prefersReducedMotion()
   )
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const on = () => setReduce(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
+    const on = () => setReduce(prefersReducedMotion())
+    on()
+    return subscribeMedia('motion', on)
   }, [])
   return { ...CHART_ANIMATION, isAnimationActive: !reduce }
 }

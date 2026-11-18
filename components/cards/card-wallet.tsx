@@ -44,6 +44,7 @@ import {
   type CardPlacement,
   type WalletMode,
 } from '@/lib/cards/wallet-motion'
+import { prefersReducedMotion } from '@/lib/a11y/media'
 
 /*
  * The card wallet (ENG-56). app/cards/layout.tsx mounts it once for /cards and
@@ -124,7 +125,7 @@ function whenLanding(anim: Animation | null, land: () => void, duration = SPRING
 const INTENT_EVENT = 'tazrim:wallet-route'
 
 function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return typeof window !== 'undefined' && prefersReducedMotion()
 }
 
 /** Tell the wallet where a navigation is going, so it can move before the page arrives. */

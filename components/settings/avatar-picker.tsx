@@ -133,7 +133,7 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
             aria-selected={draft.mode === m}
             onClick={() => set({ mode: m })}
             className={cn(
-              'relative rounded-[9px] py-1.5 text-[13px] font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'relative rounded-[9px] py-1.5 text-[0.8125rem] font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               draft.mode === m ? 'text-foreground' : 'text-muted-foreground'
             )}
           >
@@ -204,9 +204,9 @@ function PickerBody({ avatar, name, onClose, onSaved }: { avatar: Avatar | null;
                 onChange={e => set({ text: [...e.target.value].slice(0, TEXT_MAX).join('') })}
                 placeholder="טקסט, עד 12 תווים"
                 aria-label="הטקסט בתמונה, עד 12 תווים"
-                className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-muted-foreground sm:text-sm"
+                className="min-w-0 flex-1 bg-transparent text-[1rem] outline-none placeholder:text-muted-foreground sm:text-sm"
               />
-              <small className="text-[11.5px] tabular-nums text-muted-foreground">{[...draft.text].length}/{TEXT_MAX}</small>
+              <small className="text-[0.71875rem] tabular-nums text-muted-foreground">{[...draft.text].length}/{TEXT_MAX}</small>
             </label>
           </div>
         </div>

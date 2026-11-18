@@ -45,9 +45,9 @@ export function BrandMark() {
   return (
     <div className="flex items-center justify-center gap-3">
       <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-primary shadow-[0_6px_18px_hsl(var(--primary)/0.28)]">
-        <span className="text-[28px] font-extrabold leading-none text-primary-foreground">ת</span>
+        <span className="text-[1.75rem] font-extrabold leading-none text-primary-foreground">ת</span>
       </span>
-      <h1 className="text-[26px] font-extrabold tracking-tight">תזרים</h1>
+      <h1 className="text-[1.625rem] font-extrabold tracking-tight">תזרים</h1>
     </div>
   )
 }
