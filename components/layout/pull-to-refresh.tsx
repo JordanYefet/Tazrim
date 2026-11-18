@@ -11,7 +11,7 @@ const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="l
 /** Things that handle drags themselves: the card wallet, or anything marked */
 const DRAG_SURFACES = '.wallet, [data-no-pull]'
 
-function isInstalledApp() {
+export function isInstalledApp() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
   return standalone && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
 }

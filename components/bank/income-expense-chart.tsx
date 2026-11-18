@@ -8,6 +8,8 @@ import { Suspense } from 'react'
 import { EmptyMonthSlots, EmptyMonthTooltip, clickedMonth, isEmptyMonthPayload } from '@/components/ui/month-slots'
 import { yearChartRows } from '@/lib/insights/chart-months'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeSeriesSet, pointsOf } from '@/lib/a11y/chart-summary'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { useStableData } from '@/hooks/use-stable-data'
@@ -91,7 +93,14 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flo
         legend={LEGEND.filter((_, i) => (i === 0 ? showIncome : showExpense))}
       />
       {/* Fills the card: as tall as a taller neighbour in its row (a long category legend), never shorter than this */}
-      <div className="min-h-48 flex-1 sm:min-h-64 md:min-h-72">
+      <ChartFigure
+        label="הכנסות והוצאות לפי חודש"
+        summary={describeSeriesSet(
+          [showIncome && 'הכנסות', showExpense && 'הוצאות'].filter((k): k is 'הכנסות' | 'הוצאות' => !!k).map(k => ({ name: k, points: pointsOf(rows, k) })),
+          formatCurrencyWhole
+        )}
+        className="min-h-48 flex-1 sm:min-h-64 md:min-h-72"
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
@@ -127,7 +136,7 @@ function IncomeExpenseChartInner({ data, selectedMonth, accountId, subtitle, flo
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFigure>
     </section>
   )
 }

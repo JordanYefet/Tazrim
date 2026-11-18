@@ -466,7 +466,7 @@ export function CardTransactionsTable({
                 {shownColumns.map(c => (
                   <th key={c} className={cn(TH, columnClass(c))}>{LABEL[c]}</th>
                 ))}
-                <th className={TH} />
+                <th className={TH}><span className="sr-only">פעולות</span></th>
               </tr>
             </thead>
             <tbody>

@@ -83,7 +83,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <body>
           <RollBlurDefs />
           <Providers>
-            <main>{children}</main>
+            <main id="main" tabIndex={-1} className="outline-none">{children}</main>
           </Providers>
         </body>
       </html>
@@ -120,6 +120,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body>
+        {/* The first stop for the keyboard: jumps past the sidebar and header to the page (components/layout/page-main.tsx) */}
+        <a href="#main" className="skip-link">דילוג לתוכן הראשי</a>
         <RollBlurDefs />
         <Providers>
           <BackgroundProvider initial={background} synced={owner !== undefined}>

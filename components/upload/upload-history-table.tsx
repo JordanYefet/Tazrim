@@ -67,7 +67,7 @@ export function UploadHistoryTable({ refresh }: { refresh: number }) {
             <thead>
               <tr className="border-b bg-muted/50">
                 {['קובץ', 'מקור', 'תאריך', 'עסקאות', ''].map((h, i) => (
-                  <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h}</th>
+                  <th key={i} className="text-right py-2.5 px-4 font-medium text-xs text-muted-foreground uppercase tracking-wide">{h || <span className="sr-only">פעולות</span>}</th>
                 ))}
               </tr>
             </thead>

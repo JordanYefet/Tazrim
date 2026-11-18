@@ -57,7 +57,7 @@ function Switch({ checked, label, onChange }: { checked: boolean; label: string;
         'relative flex h-[31px] w-[51px] shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-fast ease-ui motion-reduce:transition-none',
         'before:absolute before:-inset-x-1 before:-inset-y-[7px] before:content-[""]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
-        checked ? 'bg-primary' : 'bg-foreground/20 ring-1 ring-inset ring-border'
+        checked ? 'bg-primary' : 'bg-foreground/20 ring-1 ring-inset ring-muted-foreground/70'
       )}
     >
       <span

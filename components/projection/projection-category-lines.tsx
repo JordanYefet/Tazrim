@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes'
 import { SECTION } from '@/components/accounts/page-parts'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
 import { categoryColorMap } from '@/lib/utils/category-colors'
 import { categorySeries, type CategoryRow } from '@/lib/insights/projection-rows'
 import type { ProjectedMonth, ProjectionCategory } from '@/lib/insights/projection'
@@ -107,7 +108,7 @@ export function ProjectionCategoryLines({ actual, months, recurring }: {
           ))}
       </ul>
 
-      <div dir="ltr" className="h-64 sm:h-72">
+      <ChartFigure dir="ltr" label="הוצאות לפי קטגוריה ותחזית" summary={`${names.length} קטגוריות, בחודשים שעברו ובתחזית. הקטגוריות המסומנות מופיעות לצד הגרף`} className="h-64 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={axes.margin} onClick={pick} style={{ cursor: 'pointer' }}>
             <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 4" />
@@ -145,7 +146,7 @@ export function ProjectionCategoryLines({ actual, months, recurring }: {
               })}
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFigure>
 
       {recurring.count > 0 && (
         <Link href="/recurring" className="mt-4 inline-block text-sm text-primary hover:underline">

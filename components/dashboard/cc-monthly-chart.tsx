@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { monthName } from '@/lib/utils/date'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
+import { ChartFigure } from '@/components/ui/chart-figure'
+import { describeSeriesSet, pointsOf } from '@/lib/a11y/chart-summary'
 import { useTheme } from 'next-themes'
 import { useChartAxes } from '@/hooks/use-chart-axes'
 
@@ -74,9 +76,13 @@ function CCMonthlyChartInner({ data, series, selectedMonth }: Props) {
 
   return (
     <section className="rounded-xl surface p-4 sm:p-6">
-      <h3 className="font-semibold text-base">מגמת חיובי כרטיס אשראי</h3>
+      <h2 className="font-semibold text-base">מגמת חיובי כרטיס אשראי</h2>
       <p className="text-sm text-muted-foreground mb-5">לחיצה על חודש פותחת את פירוט החיובים שלו</p>
-      <div className="h-48 sm:h-64">
+      <ChartFigure
+        label="מגמת חיובי כרטיס אשראי"
+        summary={describeSeriesSet([{ name: 'חיובים', points: pointsOf(chartData, 'חיובי מקס') }], formatCurrencyWhole)}
+        className="h-48 sm:h-64"
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
@@ -116,7 +122,7 @@ function CCMonthlyChartInner({ data, series, selectedMonth }: Props) {
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFigure>
     </section>
   )
 }

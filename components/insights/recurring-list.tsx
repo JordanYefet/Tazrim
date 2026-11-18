@@ -138,10 +138,10 @@ export function RecurringList({
     <section className={cn('flex flex-col rounded-xl surface p-4 sm:p-6', className)}>
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="flex items-center gap-1.5 text-base font-semibold">
+          <h2 className="flex items-center gap-1.5 text-base font-semibold">
             <Repeat className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             {title}
-          </h3>
+          </h2>
           {subtitle && <p className="text-sm text-muted-foreground text-pretty"><MoneyText>{subtitle}</MoneyText></p>}
         </div>
         {total !== undefined && (
