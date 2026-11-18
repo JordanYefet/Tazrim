@@ -11,7 +11,7 @@ export const READ_ONLY_MESSAGE = 'זהו דמו לקריאה בלבד: שינו�
 
 /** POST routes that save nothing (they parse or compute), so forms work up to their save */
 // Privacy mode (ENG-127) is a cookie for this browser only, so the demo can hide its amounts too
-const READ_ONLY_POSTS = new Set(['/api/upload/preview', '/api/recurring/manual/preview', '/api/privacy', '/api/privacy/options'])
+const READ_ONLY_POSTS = new Set(['/api/upload/preview', '/api/recurring/manual/preview', '/api/privacy'])
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
