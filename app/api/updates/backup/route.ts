@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { describeError } from '@/lib/log/redact'
 import { readOnlyRefusal, hasHelperToken } from '@/lib/updates/guard'
 import { takeBackup } from '@/lib/updates/backup'
 import { setUpdating } from '@/lib/updates/paths'
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ file: await takeBackup(CURRENT_VERSION, to.join('.')), from: CURRENT_VERSION })
   } catch (e) {
     setUpdating(false)
-    console.error('updates: backup failed', e)
+    console.error('updates: backup failed', describeError(e))
     return NextResponse.json({ error: 'הגיבוי נכשל', code: 'BACKUP_FAILED' }, { status: 500 })
   }
 }

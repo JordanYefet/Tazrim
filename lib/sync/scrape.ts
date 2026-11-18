@@ -14,6 +14,7 @@
  */
 import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
+import { redact } from '@/lib/log/redact'
 
 export type ScrapeStep = 'starting' | 'logging-in' | 'fetching' | 'done'
 
@@ -32,12 +33,12 @@ export interface ScrapeRequest {
 
 /**
  * The library's reason for a failure, for the server log only: every run of three or
- * more digits masked (card, account and ID numbers, amounts) and cut short, so the
+ * more digits masked (card, account and ID numbers, amounts; then everything lib/log/redact.ts knows) and cut short, so the
  * log says why without carrying the person's data. Never sent to the page.
  */
 export function safeReason(text: unknown): string {
-  return String(text ?? '')
-    .replace(/\d{3,}/g, '###')
+  // Digits first, as before (the same ### for every number), then everything else redact knows
+  return redact(String(text ?? '').replace(/\d{3,}/g, '###'))
     .replace(/\s+/g, ' ')
     .slice(0, 300)
 }

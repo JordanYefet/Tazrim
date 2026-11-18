@@ -10,11 +10,12 @@ export async function register() {
   // TAZRIM_TZ wins over the database (ENG-120); the demo has no stored settings
   if (process.env.TAZRIM_TZ?.trim()) process.env.TZ = process.env.TAZRIM_TZ.trim()
   const { isReadOnly } = await import('./lib/read-only')
+  const { describeError } = await import('./lib/log/redact')
   try {
     const { startLocalDoor } = await import('./lib/local-door')
     startLocalDoor({ off: isReadOnly() })
   } catch (e) {
-    console.warn('this-computer door: could not start', e)
+    console.warn('this-computer door: could not start', describeError(e))
   }
   if (isReadOnly()) return
   // The stored app settings (time zone, allowed addresses...) are in memory, and the clock
@@ -24,19 +25,19 @@ export async function register() {
     await loadAppSettings()
     applyTimeZone()
   } catch (e) {
-    console.warn('settings: could not load the app settings, using the defaults', e)
+    console.warn('settings: could not load the app settings, using the defaults', describeError(e))
   }
   try {
     const { runBackfills } = await import('./lib/db/backfills')
     const res = await runBackfills()
     if (res.ran) console.log(`backfills: text rules applied to notes (${res.changed} rows updated)`)
   } catch (e) {
-    console.warn('backfills: failed, will try again on the next start', e)
+    console.warn('backfills: failed, will try again on the next start', describeError(e))
   }
   try {
     const { startDailyCheck } = await import('./lib/updates/check')
     startDailyCheck()
   } catch (e) {
-    console.warn('updates: could not start the daily check', e)
+    console.warn('updates: could not start the daily check', describeError(e))
   }
 }
