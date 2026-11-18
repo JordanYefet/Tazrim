@@ -496,7 +496,7 @@ export function DashboardSummaryCards({
   )
 
   return (
-    <section aria-label={label} className="grid gap-x-10 gap-y-5 rounded-xl surface-hero p-4 sm:p-6 lg:grid-cols-2">
+    <section aria-label={label} className="grid gap-x-10 gap-y-5 rounded-xl surface-hero p-4 sm:p-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-2">
       <div className="flex flex-col justify-center">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <p

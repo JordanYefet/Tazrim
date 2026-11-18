@@ -2250,6 +2250,17 @@ body:has(header[data-hidden]) .a11y-sample-pin { top: 0; }
 @keyframes a11y-sample-slide { from { transform: translateX(110%); } to { transform: translateX(-110%); } }
 .a11y-sample-line { animation: a11y-sample-slide 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .a11y-sample-pin { transition: none; }
+  /* The header never slides away under reduced motion, so the card stays below it */
+  .a11y-sample-pin { transition: none; top: 3.5rem !important; }
   .a11y-sample-line { animation: none; transform: none; }
 }
+
+/* Bigger text on a phone: nothing is cut off. Truncated lines wrap instead, and the header's
+   three columns give the period picker what the two buttons leave */
+html[class*='a11y-text-'] .truncate {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+html[class*='a11y-text-'] header { grid-template-columns: auto minmax(0, 1fr) auto; }
+html[class*='a11y-text-'] header .min-w-\[7\.5rem\] { min-width: 0; }

@@ -37,7 +37,7 @@ export default async function ProjectionPage({ searchParams }: { searchParams: P
         <SelectedMonthProvider>
           {/* The 12 months (or the month picked on either chart) beside the balance timeline, in
               two equal halves; how each category moves, full width below */}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <ProjectionHero months={p.months} start={p.start.balance} end={p.end} tight={p.tight} cushion={p.cushion} />
             <ProjectionChartCard past={p.past} months={p.months} start={p.start.balance} cushion={p.cushion} seasonal={p.seasonal} />
           </div>

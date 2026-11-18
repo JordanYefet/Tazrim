@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { CHART_ANIMATION } from '@/lib/motion'
 import { prefersReducedMotion, subscribe as subscribeMedia } from '@/lib/a11y/media'
 
@@ -9,14 +9,12 @@ import { prefersReducedMotion, subscribe as subscribeMedia } from '@/lib/a11y/me
  * entirely under prefers-reduced-motion (Recharts does not check it itself).
  */
 export function useChartAnimation() {
-  // Read at once on the client, so a chart never starts animating before the preference is known
-  const [reduce, setReduce] = useState(
-    () => typeof window !== 'undefined' && prefersReducedMotion()
+  // Read at once on the client (the server renders as if motion is allowed, and hydration
+  // uses that too, then corrects), live when the preference or the Settings switch changes
+  const reduce = useSyncExternalStore(
+    notify => subscribeMedia('motion', notify),
+    prefersReducedMotion,
+    () => false
   )
-  useEffect(() => {
-    const on = () => setReduce(prefersReducedMotion())
-    on()
-    return subscribeMedia('motion', on)
-  }, [])
   return { ...CHART_ANIMATION, isAnimationActive: !reduce }
 }

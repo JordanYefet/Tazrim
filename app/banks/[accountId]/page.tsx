@@ -246,7 +246,7 @@ export default async function BankAccountPage({
       {hasData && (
         <div data-view="trends" className="space-y-6">
           {/* Two equal halves, like the rows above and below */}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <IncomeExpenseChart data={chartData} selectedMonth={month} accountId={account.id} flow={flow} />
             <BalanceChart data={balancePoints} analysisHref={bankCategoryAnalysisHref(account.id, period)} />
           </div>

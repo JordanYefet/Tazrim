@@ -370,7 +370,7 @@ function Advanced({
         מתקדם
         <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-fast ease-ui group-open:rotate-180" aria-hidden />
       </summary>
-      <div className="grid gap-4 border-t p-3 sm:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 border-t p-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label htmlFor={`${id}-date`} className="text-xs font-medium text-muted-foreground">תבנית תאריך</label>
           <select
