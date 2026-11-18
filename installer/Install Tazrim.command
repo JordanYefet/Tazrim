@@ -14,6 +14,7 @@
 
 VERSION="@@TAZRIM_VERSION@@"
 REPO="JordanYefet/Tazrim"
+IMAGE="ghcr.io/jordanyefet/tazrim"
 HELP_URL="https://github.com/$REPO#התקנה-והפעלה"
 ISSUES_URL="https://github.com/$REPO/issues"
 DOCKER_URL="https://www.docker.com/products/docker-desktop/"
@@ -144,6 +145,7 @@ for p in "$PORT" "$PHONE_PORT"; do
 done
 
 # ---- 4. The compose file --------------------------------------------------------------
+ver=""
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/tazrim-install.XXXXXX") || fail "אין מקום זמני לעבוד בו." "Could not make a temporary folder."
 trap 'rm -rf "$tmp"' EXIT
 if [ -n "${TAZRIM_COMPOSE_FILE:-}" ]; then
@@ -172,8 +174,17 @@ printf '%s\n' "$env_text" > "$INSTALL_DIR/.env"
 msg "✓ נוצרה התיקייה $INSTALL_DIR" "✓ Created the folder $INSTALL_DIR"
 
 # ---- 6. Start -------------------------------------------------------------------------
-msg "מפעילים את תזרים. בפעם הראשונה Docker מוריד את האפליקציה, וזה יכול לקחת כמה דקות..." \
-    "Starting Tazrim. The first time Docker downloads the app, which can take a few minutes..."
+# The image of exactly this version, also tagged :latest (the tag the compose file uses and an
+# in-app update moves). Without this, an older :latest already on the computer would run with
+# this version's compose file. Skipped when .env pins TAZRIM_VERSION: compose pulls that tag itself.
+if [ -n "$ver" ] && [ -z "$(env_value TAZRIM_VERSION "$env_text" "")" ]; then
+  msg "מורידים את תזרים $ver. בפעם הראשונה זה יכול לקחת כמה דקות..." \
+      "Downloading Tazrim $ver. The first time this can take a few minutes..."
+  docker pull "$IMAGE:${ver#v}" || fail "ההורדה של תזרים נכשלה. בודקים את החיבור לאינטרנט ומנסים שוב. ההתקנה נשארה ב-$INSTALL_DIR, ואפשר ללחוץ שוב על הקובץ." \
+                                       "Downloading Tazrim failed. Check your internet connection and try again. The install stays in $INSTALL_DIR, and you can double-click this file again."
+  docker tag "$IMAGE:${ver#v}" "$IMAGE:latest" || fail "Docker לא הצליח לסמן את הגרסה שירדה." "Docker could not tag the downloaded version."
+fi
+msg "מפעילים את תזרים..." "Starting Tazrim..."
 if ! (cd "$INSTALL_DIR" && docker compose up -d); then
   fail "ההפעלה נכשלה. ההודעה של Docker מופיעה למעלה. אם כתוב שם על חיבור או הורדה, בודקים את האינטרנט. ההתקנה נשארה ב-$INSTALL_DIR, ואפשר ללחוץ שוב על הקובץ." \
        "Starting failed. Docker's message is above; if it mentions a connection or a download, check your internet. The install stays in $INSTALL_DIR, and you can double-click this file again."
