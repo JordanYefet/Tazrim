@@ -20,22 +20,40 @@ services:
     # To build it yourself instead: docker build -t ghcr.io/jordanyefet/tazrim:latest .
     image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
     ports:
-      - "${TAZRIM_PORT:-3000}:3000"
+      # This computer: http://localhost:3000. Published on 127.0.0.1 only, onto the app's
+      # "this computer" door (3001 inside), so whatever arrives there is this computer itself:
+      # first-run setup asks no code there. Never publish 3001 on any other address.
+      - "127.0.0.1:${TAZRIM_PORT:-3000}:3001"
+      # Phones and tablets on the home Wi-Fi: http://<this computer's address>:3001
+      - "${TAZRIM_PHONE_PORT:-3001}:3000"
     environment:
       TAZRIM_DEMO: "${TAZRIM_DEMO:-0}"
+      # Everything below can be changed in the app (Settings). A value set here (in .env) wins
+      # and shows there as locked. Empty = the app's own setting, or its default.
       # Only these addresses may sign in, e.g. https://tazrim.internal (comma-separated; empty = any)
       TAZRIM_ORIGINS: "${TAZRIM_ORIGINS:-}"
-      # First run: the code /setup asks for (8+ characters). Empty = a code printed to the log
+      # First run from another device: the code /setup asks for (8+ characters). Empty = a code
+      # shown on this computer's setup page and printed to the log
       TAZRIM_SETUP_CODE: "${TAZRIM_SETUP_CODE:-}"
       # 1 = passwords only over https or on this computer. Default: plain http from the home
       # network works too, so phones can sign in with nothing set up (unencrypted on the Wi-Fi)
       TAZRIM_REQUIRE_HTTPS: "${TAZRIM_REQUIRE_HTTPS:-}"
-      # The vault with the bank sign-ins locks after this many idle minutes
-      TAZRIM_VAULT_IDLE_MINUTES: "${TAZRIM_VAULT_IDLE_MINUTES:-15}"
-      # "Sync all" syncs this many companies at once; each opens its own headless browser
-      TAZRIM_SYNC_CONCURRENCY: "${TAZRIM_SYNC_CONCURRENCY:-3}"
-      # The clock dates and months follow; keep it the same as wherever the data was made
-      TZ: "${TAZRIM_TZ:-Asia/Jerusalem}"
+      # The vault with the bank sign-ins locks after this many idle minutes (default 15)
+      TAZRIM_VAULT_IDLE_MINUTES: "${TAZRIM_VAULT_IDLE_MINUTES:-}"
+      # "Sync all" syncs this many companies at once; each opens its own headless browser (default 3)
+      TAZRIM_SYNC_CONCURRENCY: "${TAZRIM_SYNC_CONCURRENCY:-}"
+      # The clock dates and months follow (default Asia/Jerusalem); keep it the same as
+      # wherever the data was made
+      TAZRIM_TZ: "${TAZRIM_TZ:-}"
+      # For the app to show its own addresses (Settings); it never trusts these for access
+      TAZRIM_PORT: "${TAZRIM_PORT:-3000}"
+      TAZRIM_PHONE_PORT: "${TAZRIM_PHONE_PORT:-3001}"
+      TAZRIM_LAN_IP: "${TAZRIM_LAN_IP:-}"
+      TAZRIM_HOST: "${TAZRIM_HOST:-tazrim.internal}"
+      TAZRIM_DNS_HOST: "${TAZRIM_DNS_HOST:-dns.internal}"
+      TAZRIM_PROFILES: "${COMPOSE_PROFILES:-}"
+      TAZRIM_HTTPS_PORT: "${TAZRIM_HTTPS_PORT:-443}"
+      TAZRIM_DNS_BIND: "${TAZRIM_DNS_BIND:-127.0.0.1}"
       # Where the optional updater helper is (only if its service was renamed)
       TAZRIM_UPDATER_URL: "${TAZRIM_UPDATER_URL:-http://updater:8080}"
     volumes:
@@ -57,9 +75,12 @@ services:
   # the data up, and restarts Tazrim on it (and puts the old version back if the new one does
   # not start). It uses the same image as the app.
   # It holds the Docker socket. A container with the socket can control Docker on this
-  # computer; this one only accepts "update Tazrim to a release" and "go back", and only from
-  # the app, with a token kept in the data volume. Leave it off to update by hand with
+  # computer; this one only accepts "update Tazrim to a release", "go back" and "change one of
+  # these settings in .env" (ports, this computer's address, host names, the https/dns
+  # profiles: checked values only), and only from the app, with a token kept in the data volume.
+  # Leave it off to update by hand with
   #   docker compose pull && docker compose up -d
+  # Its own settings must never use those .env values: a change would recreate it mid-job.
   # ---------------------------------------------------------------------------
 
   updater:
@@ -77,6 +98,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - tazrim-data:/data
+      # This folder: the helper writes .env here when a setting changes in the app (port,
+      # HTTPS, the computer's address), then applies it as `docker compose up -d` would
+      - ./:/install
     restart: unless-stopped
     # The image's healthcheck asks the Next server, which this container does not run
     healthcheck:
@@ -87,6 +111,7 @@ services:
   # Off unless .env turns them on:
   #   COMPOSE_PROFILES=https        Caddy: https://tazrim.internal, certificates from its own CA
   #   COMPOSE_PROFILES=https,dns    + AdGuard Home: answers *.internal for your own devices only
+  # Or from the app: Settings -> "טלפונים ורשת" -> HTTPS (with the updater helper on).
   # Already running a reverse proxy or local DNS? Leave these off and use yours.
   # ---------------------------------------------------------------------------
 
@@ -104,26 +129,37 @@ services:
       # new root certificate, to trust again on every device.
       - caddy-data:/data
       - caddy-config:/config
+    # The root certificate (that file only) for the app's download links, on this Docker network
+    # only (2016 is not published): Caddy's files are root-only, and the app runs as a user
+    expose:
+      - "2016"
     restart: unless-stopped
 
   adguard:
     profiles: [dns]
     image: adguard/adguardhome:v0.107.69
     ports:
-      # This computer only. Phones ask over HTTPS through Caddy, so no open DNS on any network.
-      - "127.0.0.1:${TAZRIM_DNS_PORT:-53}:53/udp"
-      - "127.0.0.1:${TAZRIM_DNS_PORT:-53}:53/tcp"
+      # This computer only, by default. iPhones and iPads ask over HTTPS through Caddy, so they
+      # need no open DNS. TAZRIM_DNS_BIND=0.0.0.0 (in the app: "שמות גם ל-Android ולמחשבים
+      # אחרים") opens port 53 to the home network, for Android phones and other computers that
+      # use this computer as their DNS. AdGuard answers .internal itself and passes every other
+      # name on to this computer's own DNS, without filtering.
+      - "${TAZRIM_DNS_BIND:-127.0.0.1}:${TAZRIM_DNS_PORT:-53}:53/udp"
+      - "${TAZRIM_DNS_BIND:-127.0.0.1}:${TAZRIM_DNS_PORT:-53}:53/tcp"
       # Admin page, this computer only: http://localhost:3053
       - "127.0.0.1:${TAZRIM_ADGUARD_PORT:-3053}:80"
     configs:
       - source: adguard-seed
         target: /seed/AdGuardHome.yaml
+      - source: adguard-start
+        target: /seed/start.sh
     # First start: the settings below instead of AdGuard's setup wizard. Later starts keep
-    # whatever was changed on the admin page.
-    entrypoint:
-      - sh
-      - -c
-      - test -f /opt/adguardhome/conf/AdGuardHome.yaml || cp /seed/AdGuardHome.yaml /opt/adguardhome/conf/; exec /opt/adguardhome/AdGuardHome --no-check-update -c /opt/adguardhome/conf/AdGuardHome.yaml -w /opt/adguardhome/work
+    # whatever was changed on the admin page, except Tazrim's own .internal rules, which every
+    # start writes again from these values (so a new address for this computer reaches them)
+    entrypoint: ["sh", "/seed/start.sh"]
+    environment:
+      TAZRIM_LAN_IP: "${TAZRIM_LAN_IP:-}"
+      TAZRIM_DNS_BIND: "${TAZRIM_DNS_BIND:-127.0.0.1}"
     volumes:
       - adguard-conf:/opt/adguardhome/conf
       - adguard-work:/opt/adguardhome/work
@@ -172,6 +208,18 @@ configs:
       	}
       }
 
+      # The root certificate, for Tazrim's own download links (Settings -> HTTPS). Only this
+      # Docker network reaches port 2016, and only the public root.crt is served, never a key.
+      http://:2016 {
+      	handle /root.crt {
+      		root * /data/caddy/pki/authorities/local
+      		file_server
+      	}
+      	handle {
+      		respond 404
+      	}
+      }
+
   adguard-seed:
     content: |
       # Starting settings (schema of AdGuard Home v0.107). No admin password: the admin page
@@ -183,6 +231,9 @@ configs:
         bind_hosts:
           - 0.0.0.0
         port: 53
+        # Names other than .internal: this computer's own DNS (Docker's resolver), unfiltered
+        upstream_dns:
+          - 127.0.0.11
         # Every request arrives from Docker's network, so a per-address limit would hit everyone
         ratelimit: 0
         # Caddy forwards the phones' DoH; trust it to say who asked
@@ -204,14 +255,46 @@ configs:
               - phones
             use_global_settings: true
             use_global_blocked_services: true
-      # Only names under .internal; no blocklists
+      # No blocklists. The .internal rules: start.sh writes them at every start
       filters: []
-      user_rules:
-        - "! Phones and tablets: this computer's address on the home network"
-        - "||internal^$$dnsrewrite=NOERROR;A;${TAZRIM_LAN_IP:-127.0.0.1},client=phones"
-        - "! Anything else is this computer itself: 127.0.0.1, wherever it is"
-        - "||internal^$$dnsrewrite=NOERROR;A;127.0.0.1,client=~phones"
+      user_rules: []
       schema_version: 31
+
+  adguard-start:
+    content: |
+      # AdGuard's start (ENG-123): the seed on the first start, then Tazrim's .internal rules,
+      # written again every time from TAZRIM_LAN_IP and TAZRIM_DNS_BIND. Other rules stay.
+      #   - phones and tablets (DoH at /dns-query/phones): this computer's home-network address
+      #   - plain DNS on this computer only: 127.0.0.1, so the names work on it anywhere
+      #   - plain DNS open to the home network: everyone gets the home-network address. On
+      #     Docker Desktop every request arrives from Docker's own gateway, so this computer and
+      #     a phone look the same; that address works from both, at home.
+      set -eu
+      conf=/opt/adguardhome/conf/AdGuardHome.yaml
+      test -f "$$conf" || cp /seed/AdGuardHome.yaml "$$conf"
+      lan="$${TAZRIM_LAN_IP:-}"
+      printf '%s' "$$lan" | grep -Eq '^[0-9]{1,3}([.][0-9]{1,3}){3}$$' || lan=127.0.0.1
+      others=127.0.0.1
+      [ "$${TAZRIM_DNS_BIND:-}" = 0.0.0.0 ] && others="$$lan"
+      awk -v lan="$$lan" -v others="$$others" '
+        function ours(line) {
+          return index(line, "internal^$$dnsrewrite=") > 0 || index(line, "! Tazrim:") > 0 ||
+            index(line, "! Phones and tablets: this computer") > 0 || index(line, "! Anything else is this computer itself") > 0
+        }
+        /^user_rules:/ {
+          print "user_rules:"
+          print "  - \"! Tazrim: phones and tablets (DoH) get this computer at home\""
+          print "  - \"||internal^$$dnsrewrite=NOERROR;A;" lan ",client=phones\""
+          print "  - \"! Tazrim: everyone else (plain DNS)\""
+          print "  - \"||internal^$$dnsrewrite=NOERROR;A;" others ",client=~phones\""
+          inrules = 1
+          next
+        }
+        inrules && /^  - / { if (!ours($$0)) print; next }
+        { inrules = 0; print }
+      ' "$$conf" > "$$conf.new"
+      mv "$$conf.new" "$$conf"
+      exec /opt/adguardhome/AdGuardHome --no-check-update -c "$$conf" -w /opt/adguardhome/work
 
   device-profile:
     content: |

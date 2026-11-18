@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ScrapedAccount } from './map'
 import type { SyncCompany } from './providers'
+import { getSyncConcurrency } from '@/lib/settings/app-settings'
 import { scrape, type ScrapeErrorCode, type ScrapeStep } from './scrape'
 import {
   chosenAccounts,
@@ -121,10 +122,9 @@ registry.runs ??= new Map()
 
 const active = (r: Run | null | undefined) => !!r && (r.status.state === 'running' || r.status.state === 'needs-code' || r.status.state === 'needs-links')
 
-/** How many companies "sync all" runs at once: each opens its own headless browser (TAZRIM_SYNC_CONCURRENCY, default 3) */
+/** How many companies "sync all" runs at once: each opens its own headless browser (Settings or TAZRIM_SYNC_CONCURRENCY, default 3) */
 export function syncConcurrency(): number {
-  const n = Number(process.env.TAZRIM_SYNC_CONCURRENCY)
-  return Number.isInteger(n) && n >= 1 ? Math.min(n, 8) : 3
+  return getSyncConcurrency()
 }
 
 /**
