@@ -145,9 +145,17 @@ function SizePicker() {
 function Sample({ settings }: { settings: A11ySettings }) {
   return (
     <div
-      // Pinned under the app header; page-coloured and nearly opaque so rows scroll away under it
-      className="a11y-sample-pin sticky z-20 -mx-4 border-b border-border/80 bg-[hsl(var(--background)/0.94)] px-4 pb-2.5 pt-3 md:-mx-6 md:px-6"
+      // Phones and tablets: pinned under the app header across the page, page-coloured and nearly
+      // opaque so rows scroll away under it. Wide screens: its own column beside the options,
+      // staying in view while they scroll
+      className={cn(
+        'a11y-sample-pin sticky z-20 -mx-4 border-b border-border/80 bg-[hsl(var(--background)/0.94)] px-4 pb-2.5 pt-3 md:-mx-6 md:px-6',
+        'lg:col-start-2 lg:row-start-1 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-4'
+      )}
     >
+      <span aria-hidden className="mx-1 mb-2 hidden text-[0.8125rem] font-semibold text-muted-foreground lg:block">
+        תצוגה מקדימה
+      </span>
       <div role="group" aria-label="תצוגה מקדימה" className="flex flex-col gap-2.5 rounded-2xl surface px-3.5 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col">
@@ -201,58 +209,61 @@ export function AccessibilitySettings() {
   const { settings, update, reset, error } = useA11y()
   const atDefaults = sameA11y(settings, A11Y_DEFAULTS)
   return (
-    <div className="flex flex-col gap-[22px]">
+    // Wide screens: the options in the first column (right, RTL) and the sample beside them
+    <div className="flex flex-col gap-[22px] lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start lg:gap-x-8">
       <Sample settings={settings} />
 
-      <section className="flex flex-col gap-2" aria-labelledby="a11y-g-text">
-        <h2 id="a11y-g-text" className={GROUP_TITLE}>
-          טקסט
-        </h2>
-        <div className={LIST}>
-          <SizePicker />
-          {TEXT_ROWS.map(r => (
-            <SwitchRow key={r.flag} row={r} />
-          ))}
-        </div>
-      </section>
+      <div className="flex min-w-0 flex-col gap-[22px] lg:col-start-1 lg:row-start-1">
+        <section className="flex flex-col gap-2" aria-labelledby="a11y-g-text">
+          <h2 id="a11y-g-text" className={GROUP_TITLE}>
+            טקסט
+          </h2>
+          <div className={LIST}>
+            <SizePicker />
+            {TEXT_ROWS.map(r => (
+              <SwitchRow key={r.flag} row={r} />
+            ))}
+          </div>
+        </section>
 
-      <section className="flex flex-col gap-2" aria-labelledby="a11y-g-color">
-        <h2 id="a11y-g-color" className={GROUP_TITLE}>
-          צבע וניגודיות
-        </h2>
-        <div className={LIST}>
-          {COLOR_ROWS.map((r, i) => (
-            <SwitchRow key={r.flag} row={r} first={i === 0} />
-          ))}
-        </div>
-      </section>
+        <section className="flex flex-col gap-2" aria-labelledby="a11y-g-color">
+          <h2 id="a11y-g-color" className={GROUP_TITLE}>
+            צבע וניגודיות
+          </h2>
+          <div className={LIST}>
+            {COLOR_ROWS.map((r, i) => (
+              <SwitchRow key={r.flag} row={r} first={i === 0} />
+            ))}
+          </div>
+        </section>
 
-      <section className="flex flex-col gap-2" aria-labelledby="a11y-g-nav">
-        <h2 id="a11y-g-nav" className={GROUP_TITLE}>
-          תנועה וניווט
-        </h2>
-        <div className={LIST}>
-          {NAV_ROWS.map((r, i) => (
-            <SwitchRow key={r.flag} row={r} first={i === 0} />
-          ))}
-        </div>
-      </section>
+        <section className="flex flex-col gap-2" aria-labelledby="a11y-g-nav">
+          <h2 id="a11y-g-nav" className={GROUP_TITLE}>
+            תנועה וניווט
+          </h2>
+          <div className={LIST}>
+            {NAV_ROWS.map((r, i) => (
+              <SwitchRow key={r.flag} row={r} first={i === 0} />
+            ))}
+          </div>
+        </section>
 
-      <div className="flex flex-col gap-3 px-1">
-        <p className="text-[0.8125rem] leading-[1.55] text-muted-foreground">
-          הגדרות הנגישות של הטלפון או המחשב (הפחתת תנועה, ניגודיות) ממשיכות לפעול גם כשהמתג כאן כבוי.
-        </p>
-        <button
-          type="button"
-          onClick={reset}
-          disabled={atDefaults}
-          className="min-h-11 self-start rounded-lg text-sm font-medium text-primary transition-opacity duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-        >
-          איפוס להגדרות ברירת המחדל
-        </button>
-        <p role="alert" className="min-h-5 text-sm text-destructive dark:text-red-400">
-          {error}
-        </p>
+        <div className="flex flex-col gap-3 px-1">
+          <p className="text-[0.8125rem] leading-[1.55] text-muted-foreground">
+            הגדרות הנגישות של הטלפון או המחשב (הפחתת תנועה, ניגודיות) ממשיכות לפעול גם כשהמתג כאן כבוי.
+          </p>
+          <button
+            type="button"
+            onClick={reset}
+            disabled={atDefaults}
+            className="min-h-11 self-start rounded-lg text-sm font-medium text-primary transition-opacity duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            איפוס להגדרות ברירת המחדל
+          </button>
+          <p role="alert" className="min-h-5 text-sm text-destructive dark:text-red-400">
+            {error}
+          </p>
+        </div>
       </div>
     </div>
   )
