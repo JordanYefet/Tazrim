@@ -31,6 +31,7 @@ import { preferenceOwner } from '@/lib/preferences/owner'
 import { tileStyle, tileUrl } from '@/lib/background/tile-svg'
 import { PRIVACY_COOKIE, parsePrivacyCookie } from '@/lib/privacy'
 import { PrivacyProvider } from '@/components/layout/privacy'
+import { RollBlurDefs } from '@/components/ui/rolling-number'
 import {
   SECTIONS_COOKIE,
   SIDEBAR_COOKIE,
@@ -72,6 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         suppressHydrationWarning
       >
         <body>
+          <RollBlurDefs />
           <Providers>
             <main>{children}</main>
           </Providers>
@@ -106,6 +108,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body>
+        <RollBlurDefs />
         <Providers>
           <BackgroundProvider initial={background} synced={owner !== undefined}>
           <PeriodProvider initial={initialPeriod} today={currentMonth()}>
