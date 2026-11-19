@@ -1,8 +1,8 @@
 /**
  * What the log window and the /logs page show of the entries, as pure functions:
- * the filters, and the grouping by page request. A page request (an entry with data.page,
- * logged by lib/log/pages.ts) starts a group and is its first line; the lines after it
- * (the API calls the page makes) belong to it.
+ * the filters, and the grouping by page. A page request (an entry with data.page, logged by
+ * lib/log/pages.ts) sets the page the lines after it (the API calls it makes) belong to; all the
+ * visits to one path, whatever their query, share a group titled by the path.
  */
 import type { LogEntry, LogLevel, LogSource } from './buffer'
 
@@ -50,10 +50,11 @@ export const countProblems = (entries: LogEntry[]) => ({
 })
 
 export interface Group {
-  /** The page request's id, or 0 for the lines before the first one */
+  /** The first page request of this path still in the buffer, or 0 for the lines before any page request */
   id: number
-  /** The page request ("GET /bank?year=2026&month=3"); null for the lines before the first one */
+  /** The page's path, without the method or the query ("/banks/acct_leumi"); null for the lines before any page request */
   title: string | null
+  /** The group's latest line: the groups are ordered by it, so the page in use is the last one */
   ts: number
   lines: LogEntry[]
   worst: 'ok' | 'warn' | 'error'
@@ -62,20 +63,32 @@ export interface Group {
 const worstOf = (lines: LogEntry[]): Group['worst'] =>
   lines.some(l => l.level === 'error') ? 'error' : lines.some(l => l.level === 'warn') ? 'warn' : 'ok'
 
-/** Entries (oldest first) split at each page request, which is the first line of its group */
+/** "GET /banks/acct_leumi?year=2026&month=3" → "/banks/acct_leumi" */
+export function pagePath(page: string): string {
+  return page.replace(/^[A-Z]+\s+/, '').split('?')[0] || '/'
+}
+
+/**
+ * Entries (oldest first) grouped by page: every line goes to the page of the latest page request
+ * before it, and every visit to the same path (any month, any filter in the query) lands in one
+ * group. Lines stay oldest first inside a group; the groups are ordered by their latest line.
+ */
 export function groupByAction(entries: LogEntry[]): Group[] {
-  const groups: Group[] = []
+  const byPath = new Map<string | null, Group>()
   let cur: Group | null = null
   for (const e of entries) {
-    if (isPageRequest(e)) {
-      cur = { id: e.id, title: String(e.data?.page), ts: e.ts, lines: [], worst: 'ok' }
-      groups.push(cur)
-    } else if (!cur) {
-      cur = { id: 0, title: null, ts: e.ts, lines: [], worst: 'ok' }
-      groups.push(cur)
+    if (isPageRequest(e) || !cur) {
+      const title = isPageRequest(e) ? pagePath(String(e.data?.page)) : null
+      cur = byPath.get(title) ?? null
+      if (!cur) {
+        cur = { id: title === null ? 0 : e.id, title, ts: e.ts, lines: [], worst: 'ok' }
+        byPath.set(title, cur)
+      }
     }
     cur.lines.push(e)
+    cur.ts = e.ts
   }
+  const groups = [...byPath.values()].sort((a, b) => a.ts - b.ts)
   for (const g of groups) g.worst = worstOf(g.lines)
   return groups
 }
@@ -85,7 +98,7 @@ export function groupedView(entries: LogEntry[], f: Filter): Group[] {
   return groupByAction(entries)
     .map(g => {
       const lines = filterEntries(g.lines, f)
-      return { ...g, lines, worst: worstOf(lines) }
+      return { ...g, lines, ts: lines.at(-1)?.ts ?? g.ts, worst: worstOf(lines) }
     })
     .filter(g => g.lines.length > 0)
 }

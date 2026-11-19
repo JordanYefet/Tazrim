@@ -194,7 +194,7 @@ export function LogsPage() {
           className={cn(BTN, prefs.grouped && 'border-primary/50 bg-primary/10 font-semibold text-primary')}
         >
           <ListTree aria-hidden className="h-3.5 w-3.5" />
-          קיבוץ לפי פעולה
+          קיבוץ לפי עמוד
         </button>
         <span className="flex-1" />
         <Link href="/logs/full" aria-label="מסך מלא" title="מסך מלא" className={BTN}>

@@ -35,10 +35,10 @@ function Row({ e, selected, onSelect, size, indent }: { e: LogEntry; selected: b
         selected && 'bg-[hsl(var(--lc-sel))] hover:bg-[hsl(var(--lc-sel))]'
       )}
     >
-      <span className="text-[hsl(var(--lc-faint))] tabular-nums">{formatTime(e.ts)}</span>
-      <span className={cn('w-10 font-medium', LEVEL_TEXT[e.level])}>{e.level.toUpperCase()}</span>
-      <span className="w-9 text-[hsl(var(--lc-dim))]">{e.source}</span>
-      <span dir="auto" className={MSG_TEXT[e.level]}>{e.msg}</span>
+      <span className="shrink-0 text-[hsl(var(--lc-faint))] tabular-nums">{formatTime(e.ts)}</span>
+      <span className={cn('w-10 shrink-0 font-medium', LEVEL_TEXT[e.level])}>{e.level.toUpperCase()}</span>
+      <span className="w-9 shrink-0 text-[hsl(var(--lc-dim))]">{e.source}</span>
+      <span dir="auto" className={cn('min-w-0 truncate', MSG_TEXT[e.level])}>{e.msg}</span>
     </button>
   )
 }

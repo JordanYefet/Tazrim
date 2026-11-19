@@ -129,7 +129,7 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
           type="button"
           aria-pressed={prefs.grouped}
           onClick={() => setLogPrefs({ grouped: !prefs.grouped })}
-          title="קיבוץ לפי פעולה"
+          title="קיבוץ לפי עמוד"
           className={cn('inline-flex h-[26px] items-center gap-1.5 rounded-md px-2 text-xs max-md:hidden', prefs.grouped ? 'bg-[hsl(var(--lc-sel))] text-[hsl(var(--lc-fg))]' : 'text-[hsl(var(--lc-dim))]')}
         >
           <ListTree aria-hidden className="h-[13px] w-[13px]" />
@@ -139,8 +139,8 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
           type="button"
           aria-pressed={prefs.grouped}
           onClick={() => setLogPrefs({ grouped: !prefs.grouped })}
-          aria-label="קיבוץ לפי פעולה"
-          title="קיבוץ לפי פעולה"
+          aria-label="קיבוץ לפי עמוד"
+          title="קיבוץ לפי עמוד"
           className={cn(TOOL, 'md:hidden', prefs.grouped && 'bg-[hsl(var(--lc-sel))] text-[hsl(var(--lc-fg))]')}
         >
           <ListTree aria-hidden className="h-4 w-4" />

@@ -20,11 +20,24 @@ const sample = () => [
 describe('groupByAction', () => {
   it('a page request starts a group and is its first line; the lines after it belong to it', () => {
     const g = groupByAction(sample())
-    expect(g.map(x => x.title)).toEqual([null, 'GET /cards', 'GET /bank?year=2026&month=3', 'GET /banks'])
+    expect(g.map(x => x.title)).toEqual([null, '/cards', '/bank', '/banks'])
     expect(g.map(x => x.lines.length)).toEqual([1, 2, 4, 1])
     expect(g[2].worst).toBe('error')
     expect(g[1].worst).toBe('ok')
     expect(g[1].lines[0].data?.page).toBe('GET /cards')
+  })
+  it('every visit to one path shares a group, whatever the query; the groups follow their latest line', () => {
+    const g = groupByAction([
+      mark('GET /banks/a?year=2026&month=9'),
+      e('info', 'app', 'GET /api/x → 200 · 3ms'),
+      mark('GET /banks/a?year=2026&month=11'),
+      mark('GET /cards'),
+      mark('GET /banks/a?year=2026&month=4&flow=in'),
+    ])
+    expect(g.map(x => x.title)).toEqual(['/cards', '/banks/a'])
+    expect(g[1].lines.map(l => l.data?.page ?? l.msg)).toEqual([
+      'GET /banks/a?year=2026&month=9', 'GET /api/x → 200 · 3ms', 'GET /banks/a?year=2026&month=11', 'GET /banks/a?year=2026&month=4&flow=in',
+    ])
   })
   it('has no groups for no entries', () => {
     expect(groupByAction([])).toEqual([])
@@ -51,16 +64,16 @@ describe('filterEntries', () => {
 
 describe('groupedView', () => {
   it('keeps every group with a line to show, with its title', () => {
-    expect(groupedView(sample(), {}).map(g => g.title)).toEqual([null, 'GET /cards', 'GET /bank?year=2026&month=3', 'GET /banks'])
+    expect(groupedView(sample(), {}).map(g => g.title)).toEqual([null, '/cards', '/bank', '/banks'])
   })
   it('drops the groups a filter leaves empty and keeps the title of the rest', () => {
     const g = groupedView(sample(), { tab: 'problems' })
-    expect(g.map(x => x.title)).toEqual(['GET /bank?year=2026&month=3', 'GET /banks'])
+    expect(g.map(x => x.title)).toEqual(['/bank', '/banks'])
     expect(g[0].lines).toHaveLength(2)
   })
   it('errors-only detail hides a 200 page line but keeps its group when a line shows', () => {
     const g = groupedView(sample(), { detail: 'errors' })
-    expect(g.map(x => x.title)).toEqual(['GET /bank?year=2026&month=3', 'GET /banks'])
+    expect(g.map(x => x.title)).toEqual(['/bank', '/banks'])
   })
 })
 
