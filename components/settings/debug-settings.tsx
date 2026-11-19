@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react'
 import Link from 'next/link'
+import { SquareTerminal } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { setLogPrefs, useLogPrefs } from '@/components/logs/prefs'
 import type { Detail } from '@/lib/log/view'
@@ -125,8 +126,9 @@ export function DebugSettings({ inDocker, initialShowBrowser }: { inDocker: bool
 
       <Link
         href="/logs"
-        className="inline-flex min-h-11 items-center rounded-lg px-1 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex h-11 items-center gap-2 self-start rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,transform] duration-quick hover:bg-primary/90 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
+        <SquareTerminal aria-hidden className="h-4 w-4" />
         פתיחת עמוד הלוגים
       </Link>
     </div>

@@ -24,7 +24,7 @@ export default async function DebugPage() {
           <span className="rounded-full bg-muted px-2.5 py-0.5 text-[0.8125rem] text-muted-foreground">{isAuthRequired() ? 'רק למי שמחובר' : 'רק מהמחשב הזה'}</span>
         </div>
         <p className="max-w-[40rem] text-[0.9375rem] leading-relaxed text-muted-foreground text-pretty">
-          כשמשהו לא עובד, החלון מראה מה קרה: מעברים בין דפים, בקשות לשרת ושלבי הסנכרון. הלוגים נשמרים רק בזיכרון של השרת (500 השורות האחרונות) ונמחקים בהפעלה מחדש.
+          כשמשהו לא עובד, החלון מראה מה קרה: כל טעינת דף וכל בקשה לשרת, עם מה שנשלח וה-status שחזר, ושלבי הסנכרון. הלוגים נשמרים רק בזיכרון של השרת (500 השורות האחרונות) ונמחקים בהפעלה מחדש.
         </p>
       </div>
       {allowed ? (
