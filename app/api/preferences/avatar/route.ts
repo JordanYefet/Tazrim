@@ -3,11 +3,12 @@ import { validateAvatar } from '@/lib/avatar/options'
 import { storeAvatar } from '@/lib/preferences/avatar'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { readOnlyRefusal } from '@/lib/updates/guard'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** PUT { kind: 'art' | 'text', ... }: the signed-in person's own avatar (nobody else's) */
-export async function PUT(req: Request) {
+async function handlePUT(req: Request) {
   const refused = readOnlyRefusal()
   if (refused) return refused
   const owner = await preferenceOwner()
@@ -18,3 +19,5 @@ export async function PUT(req: Request) {
   await storeAvatar(owner, avatar)
   return NextResponse.json({ avatar })
 }
+
+export const PUT = logged(handlePUT)

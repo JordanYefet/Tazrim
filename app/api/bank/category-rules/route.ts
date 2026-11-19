@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeProvider } from '@/lib/db/aliases'
 import { BankCategoryError, removeBankCategoryRule, setBankDescriptionRule } from '@/lib/db/bank-categories'
+import { logged } from '@/lib/log/route'
 
 // A bank description's category rule, added or removed from the categories page
 // (the bank table adds them too: "כל התנועות ...")
@@ -8,7 +9,7 @@ import { BankCategoryError, removeBankCategoryRule, setBankDescriptionRule } fro
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 
 /** { provider, originalDescription, direction, category }: the rule, applied to the rows not set by hand */
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const provider = text(body.provider) && normalizeProvider(text(body.provider))
   const originalDescription = text(body.originalDescription)
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
 }
 
 /** { provider, originalDescription, direction }: the rule goes, and the categories it set are cleared */
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const provider = text(body.provider) && normalizeProvider(text(body.provider))
   const originalDescription = text(body.originalDescription)
@@ -37,3 +38,6 @@ export async function DELETE(req: NextRequest) {
   await removeBankCategoryRule({ provider, originalDescription, direction })
   return NextResponse.json({ ok: true })
 }
+
+export const POST = logged(handlePOST)
+export const DELETE = logged(handleDELETE)

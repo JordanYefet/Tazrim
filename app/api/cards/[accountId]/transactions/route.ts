@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCCTransactions } from '@/lib/db/cards'
 import { getAccount } from '@/lib/db/accounts'
+import { logged } from '@/lib/log/route'
 
 /** One card's transactions; same paging as the /cards/[accountId] page (50 at a time unless a month is selected). */
-export async function GET(
+async function handleGET(
   req: NextRequest,
   { params }: { params: Promise<{ accountId: string }> }
 ) {
@@ -36,3 +37,5 @@ export async function GET(
   })
   return NextResponse.json(transactions)
 }
+
+export const GET = logged(handleGET)

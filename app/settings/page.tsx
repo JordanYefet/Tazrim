@@ -112,6 +112,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     ...(readOnly
       ? []
       : [{ href: '/settings/network', icon: 'network' as const, title: 'טלפונים ורשת', summary: 'הכתובת לפתיחה מהטלפון עם קוד QR, חיבור מוצפן, והפורטים.' }]),
+    // The debug window and the sync browser (ENG-104); never in the read-only demo
+    ...(readOnly
+      ? []
+      : [{ href: '/settings/debug', icon: 'debug' as const, title: 'דיבאג', summary: 'חלון לוגים צף שמראה מה האפליקציה והסנכרון עושים, למי שמחפש תקלה.' }]),
     { href: '/about', icon: 'about', title: 'אודות', summary: 'הסיפור מאחורי תזרים, פרטיות ויצירת קשר.' },
   ]
 

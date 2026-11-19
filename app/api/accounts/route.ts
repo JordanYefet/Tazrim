@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { AccountValidationError, createAccount, listAccountsWithCounts } from '@/lib/db/accounts'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** Every account, archived included, with transaction and upload counts. */
-export async function GET() {
+async function handleGET() {
   return NextResponse.json(await listAccountsWithCounts())
 }
 
@@ -13,7 +14,7 @@ export async function GET() {
  * payerAccountId? (cards: a non-archived bank account id, or null), paidCardIds? (bank accounts:
  * non-archived card ids, linked to the new account) }. 201 with the account.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })
   try {
@@ -26,3 +27,6 @@ export async function POST(req: Request) {
     throw e
   }
 }
+
+export const GET = logged(handleGET)
+export const POST = logged(handlePOST)

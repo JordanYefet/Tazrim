@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getTransactionForMarking } from '@/lib/db/manual-recurring'
 import { getRecurringSeries } from '@/lib/db/recurring'
+import { logged } from '@/lib/log/route'
 
 /**
  * GET /api/recurring/transaction?source=bank|card&id=… (ENG-71)
  * Everything the "mark as recurring" sheet needs: the transaction with a suggested
  * name and rule, the series it is already in (if any), and the account's manual series.
  */
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const sp = new URL(req.url).searchParams
   const source = sp.get('source')
   const id = sp.get('id')
@@ -39,3 +40,5 @@ export async function GET(req: Request) {
     .map(x => ({ id: x.manual!.id, name: x.name, cadence: x.cadence, latestAmount: x.latestAmount, occurrences: x.occurrences }))
   return NextResponse.json({ transaction, series, manualSeries })
 }
+
+export const GET = logged(handleGET)

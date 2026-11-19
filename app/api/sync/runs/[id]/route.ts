@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
 import { NOT_LOCAL, maySync } from '@/lib/sync/access'
 import { cancelRun, getRun, submitCode, submitLinks } from '@/lib/sync/runs'
@@ -6,7 +7,7 @@ import type { LinkAction } from '@/lib/sync/store'
 export const dynamic = 'force-dynamic'
 
 /** GET: the run's state, polled by the sync sheet while it runs (ENG-91). */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handleGET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const run = getRun((await params).id)
   if (!run) return NextResponse.json({ error: 'הסנכרון לא נמצא', code: 'NOT_FOUND' }, { status: 404 })
   return NextResponse.json({ run })
@@ -27,7 +28,7 @@ function linkActions(value: unknown): LinkAction[] | null {
 }
 
 /** POST { code } (the SMS code), { links } (answers for unknown accounts) or { cancel: true }. */
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export const POST = logged(async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!maySync(req.headers)) return NextResponse.json(NOT_LOCAL, { status: 403 })
   const { id } = await params
   const body = (await req.json().catch(() => null)) as { code?: unknown; links?: unknown; cancel?: unknown } | null
@@ -50,4 +51,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     { error: res.code === 'NOT_WAITING' ? 'הסנכרון לא מחכה לשיוך חשבונות' : 'שיוך החשבונות לא תקין', code: res.code },
     { status: res.code === 'NOT_WAITING' ? 409 : 400 }
   )
-}
+})
+
+export const GET = logged(handleGET)

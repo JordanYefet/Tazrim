@@ -31,12 +31,19 @@ COPY . .
 # runtime stage) is debian-openssl-3.0.x on amd64 or linux-arm64-openssl-3.0.x on arm64.
 RUN npx prisma generate
 RUN TAZRIM_STANDALONE=1 npx next build
-# The Prisma CLI for `migrate deploy` at start, at the exact version in the lockfile,
-# installed on its own so the runtime image doesn't carry all of node_modules.
+# The Prisma CLI for `migrate deploy` at start, assembled from the packages `npm ci`
+# already installed and verified against the lockfile (prisma and everything it depends
+# on, found with `npm query`), so nothing is resolved or downloaded from the registry
+# here and the CLI can't drift from the pinned versions. It lives apart so the runtime
+# image doesn't carry all of node_modules. TypeScript is left out: prisma only wants it
+# as an optional peer, for prisma.config.ts files we don't use.
 RUN mkdir -p /opt/prisma-cli \
+ && cd /app \
+ && npm query '#prisma, #prisma *:not(#typescript)' \
+  | node -e "for (const p of JSON.parse(require('fs').readFileSync(0))) console.log(p.location)" \
+  | while read -r dir; do mkdir -p "/opt/prisma-cli/$(dirname "$dir")" && cp -a "/app/$dir" "/opt/prisma-cli/$dir"; done \
  && cd /opt/prisma-cli \
- && echo '{"private":true}' > package.json \
- && npm install --no-audit --no-fund --omit=dev "prisma@$(node -p "require('/app/node_modules/prisma/package.json').version")" \
+ && test -f node_modules/prisma/build/index.js \
  && rm -rf node_modules/prisma/prisma-client node_modules/.cache
 # (the bundled client runtime is only for `generate`; the CLI checks for its engines at start, so they stay)
 # The runtime schema reads the database location from TAZRIM_DATABASE_URL (the
@@ -66,6 +73,7 @@ ENV NODE_ENV=production \
     TZ=Asia/Jerusalem \
     TAZRIM_DATABASE_URL=file:/data/tazrim.db \
     TAZRIM_DEMO=0 \
+    TAZRIM_IN_DOCKER=1 \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     TAZRIM_CHROMIUM_ARGS="--no-sandbox --disable-dev-shm-usage"
 

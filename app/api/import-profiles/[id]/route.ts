@@ -6,6 +6,7 @@ import {
   updateImportProfile,
 } from '@/lib/db/import-profiles'
 import { getAccount } from '@/lib/db/accounts'
+import { logged } from '@/lib/log/route'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -16,7 +17,7 @@ const notFound = () => NextResponse.json({ error: 'המיפוי לא נמצא' }
  * header snapshot (header row + sample rows). `snapshot` is null when the
  * header can't be rebuilt; the mapper then needs a file once.
  */
-export async function GET(_req: Request, { params }: Ctx) {
+async function handleGET(_req: Request, { params }: Ctx) {
   const { id } = await params
   const found = await getProfileForEdit(id)
   if (!found) return notFound()
@@ -39,7 +40,7 @@ export async function GET(_req: Request, { params }: Ctx) {
  * A mapping made on a file adds that file's { headerSignature, headers? };
  * without them (edited from the stored header, ENG-69) the stored ones stay.
  */
-export async function PATCH(req: Request, { params }: Ctx) {
+async function handlePATCH(req: Request, { params }: Ctx) {
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })
@@ -54,7 +55,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
 }
 
-export async function DELETE(_req: Request, { params }: Ctx) {
+async function handleDELETE(_req: Request, { params }: Ctx) {
   const { id } = await params
   return (await deleteImportProfile(id)) ? NextResponse.json({ ok: true }) : notFound()
 }
+
+export const GET = logged(handleGET)
+export const PATCH = logged(handlePATCH)
+export const DELETE = logged(handleDELETE)

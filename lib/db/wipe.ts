@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from './client'
+import { describeError } from '@/lib/log/redact'
 import { STARTING_CATEGORIES } from './starting-categories'
 import { STARTING_GENERIC_DESCRIPTIONS } from './starting-generic-descriptions'
 
@@ -71,7 +72,7 @@ export async function wipeAllData(): Promise<Record<WipeTable, number>> {
   try {
     await prisma.$executeRawUnsafe('VACUUM')
   } catch (e) {
-    console.warn('wipeAllData: VACUUM failed', e)
+    console.warn('wipeAllData: VACUUM failed', describeError(e))
   }
   return deleted
 }

@@ -5,13 +5,14 @@ import {
   markGenericDescription,
   unmarkGenericDescription,
 } from '@/lib/db/generic-descriptions'
+import { logged } from '@/lib/log/route'
 
 /**
  * Generic bank descriptions (lib/db/generic-descriptions.ts). POST `{ description }`
  * marks one: its rules go and the response lists the rows whose rule category was
  * cleared. DELETE `{ description }` takes one off the list, recategorising nothing.
  */
-export async function GET() {
+async function handleGET() {
   return NextResponse.json(await listGenericDescriptions())
 }
 
@@ -21,7 +22,7 @@ async function descriptionFrom(req: NextRequest): Promise<string | null> {
   return typeof description === 'string' && description.trim() ? description : null
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const description = await descriptionFrom(req)
   if (!description) return NextResponse.json({ error: 'תיאור נדרש' }, { status: 400 })
   try {
@@ -32,9 +33,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: NextRequest) {
   const description = await descriptionFrom(req)
   if (!description) return NextResponse.json({ error: 'תיאור נדרש' }, { status: 400 })
   await unmarkGenericDescription(description)
   return NextResponse.json({ ok: true })
 }
+
+export const GET = logged(handleGET)
+export const POST = logged(handlePOST)
+export const DELETE = logged(handleDELETE)

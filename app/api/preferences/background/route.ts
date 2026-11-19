@@ -3,6 +3,7 @@ import { BACKGROUND_KINDS, BACKGROUND_PALETTES, formatBackgroundCookie, parseBac
 import { getStoredBackground, storeBackground } from '@/lib/preferences/background'
 import { preferenceOwner } from '@/lib/preferences/owner'
 import { readOnlyRefusal } from '@/lib/updates/guard'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ const PALETTES = BACKGROUND_PALETTES.map(p => p.value).join('|')
 const VALUE = new RegExp(`^(${KINDS})\\.\\d{1,3}\\.(${PALETTES})$`)
 
 /** The page background stored for whoever is signed in (null: none yet, the device's cookie decides) */
-export async function GET() {
+async function handleGET() {
   const owner = await preferenceOwner()
   if (owner === undefined) return NextResponse.json({ value: null })
   const stored = await getStoredBackground(owner)
@@ -20,7 +21,7 @@ export async function GET() {
 }
 
 /** PUT { value: "lines.10.indigo-pink" }: the background chosen, the same on every device of that person */
-export async function PUT(req: Request) {
+async function handlePUT(req: Request) {
   const refused = readOnlyRefusal()
   if (refused) return refused
   const owner = await preferenceOwner()
@@ -33,3 +34,6 @@ export async function PUT(req: Request) {
   await storeBackground(owner, setting)
   return NextResponse.json({ value: formatBackgroundCookie(setting) })
 }
+
+export const GET = logged(handleGET)
+export const PUT = logged(handlePUT)

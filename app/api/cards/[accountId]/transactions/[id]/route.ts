@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { updateCCTransaction, bulkUpdateCCCategory } from '@/lib/db/cards'
 import { upsertAlias } from '@/lib/db/aliases'
 import { prisma } from '@/lib/db/client'
+import { logged } from '@/lib/log/route'
 
-export async function PATCH(
+async function handlePATCH(
   req: NextRequest,
   { params }: { params: Promise<{ accountId: string; id: string }> }
 ) {
@@ -47,3 +48,5 @@ export async function PATCH(
 
   return NextResponse.json(updated)
 }
+
+export const PATCH = logged(handlePATCH)

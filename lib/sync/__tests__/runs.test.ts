@@ -382,3 +382,24 @@ describe('"sync all" (ENG-92), several at once', () => {
     expect(await runs.startQueue([])).toEqual({ ok: false, code: 'EMPTY' })
   })
 })
+
+describe('the debug log (ENG-104)', () => {
+  it('records a run as steps, counts and codes, never the login or what was fetched', async () => {
+    const log = await import('../../log/buffer')
+    log.resetLog()
+    const ok = await startAndSettle('max', 'secret-pass-1')
+    expect(ok.status.state).toBe('needs-links')
+    runs.cancelRun(ok.id)
+    const bad = await startAndSettle('leumi', 'wrong')
+    expect(bad.status).toMatchObject({ state: 'failed', code: 'INVALID_PASSWORD' })
+
+    const lines = log.entriesAfter()
+    const text = JSON.stringify(lines.map(l => [l.msg, l.data]))
+    expect(lines.some(l => l.source === 'sync' && /max · LOGGING_IN/.test(l.msg))).toBe(true)
+    expect(lines.some(l => l.level === 'warn' && /leumi · LOGIN_FAILED/.test(l.msg))).toBe(true)
+    expect(lines.some(l => l.level === 'error' && /leumi · INVALID_PASSWORD/.test(l.msg))).toBe(true)
+    // Two runs, two numbers
+    expect(new Set(lines.map(l => l.data?.run).filter(Boolean)).size).toBe(2)
+    for (const never of ['secret-pass-1', 'someone', 'דמו', '1234', '5678']) expect(text).not.toContain(never)
+  })
+})

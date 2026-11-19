@@ -4,6 +4,7 @@ import { checkSetupCode, cleanLabel, clearSetupCode, createFirstPerson, hasPeopl
 import { passwordProblem } from '@/lib/auth/password'
 import { createSession } from '@/lib/auth/session'
 import { isThisComputer } from '@/lib/local-request'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
  * door, never a header the client writes) it is not needed. Signs this browser
  * in and returns the recovery code, shown once.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!allow(req, 'register', 10)) return TOO_MANY()
   const rp = rpOr400(req)
   if (rp instanceof NextResponse) return rp
@@ -34,6 +35,9 @@ export async function POST(req: Request) {
   return signedIn({ ok: true, recoveryCode: await newRecoveryCode() }, token, rp)
 }
 
-export function GET() {
+function handleGET() {
   return NextResponse.json({ error: 'POST only' }, { status: 405 })
 }
+
+export const POST = logged(handlePOST)
+export const GET = logged(handleGET)

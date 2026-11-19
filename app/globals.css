@@ -2356,3 +2356,37 @@ html[data-a11y*='text-'] dl a > dt { flex-basis: 7rem; }
 
 /* Keyboard focus in a menu is the highlighted row; a tint alone is faint on a card, so keys also draw an edge */
 [role^='menuitem'][data-highlighted]:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+
+/* The debug console (ENG-104): the log window, /logs and its full screen. Dark in both themes,
+   like a terminal; everything around it uses the app's own tokens. System monospace: the app
+   never contacts a third party for a font. Text colours clear 4.5:1 on --lc-bg. */
+.log-console {
+  --lc-bg: 220 24% 13%;
+  --lc-deep: 220 28% 9%;
+  --lc-border: 220 18% 24%;
+  --lc-rule: 220 18% 19%;
+  --lc-fg: 210 20% 94%;
+  --lc-msg: 210 20% 90%;
+  --lc-dim: 214 15% 66%;
+  --lc-faint: 214 15% 62%;
+  --lc-info: 196 65% 56%;
+  --lc-warn: 31 60% 60%;
+  --lc-error: 3 65% 70%;
+  --lc-ok: 158 50% 52%;
+  --lc-accent: 196 65% 48%;
+  --lc-hover: 220 20% 17%;
+  --lc-sel: 199 40% 20%;
+  background: hsl(var(--lc-bg));
+  color: hsl(var(--lc-fg));
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+.log-console button:focus-visible,
+.log-console a:focus-visible,
+.log-console input:focus-visible {
+  outline: 2px solid hsl(var(--lc-accent));
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .log-console * { transition: none !important; animation: none !important; }
+}

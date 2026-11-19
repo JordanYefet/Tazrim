@@ -25,6 +25,8 @@ import {
 } from './store'
 import { lastFour } from './map'
 import { localDay } from '@/lib/upload/card-dedupe'
+import { log } from '@/lib/log/logger'
+import { describeError } from '@/lib/log/redact'
 
 /** How long a sync waits for an SMS code */
 const OTP_TIMEOUT_MS = 3 * 60_000
@@ -50,6 +52,8 @@ export interface RunView {
 
 interface Run {
   id: string
+  /** Its short number in the debug log: 1, 2, 3... since the server started */
+  no: number
   company: SyncCompany
   startedAt: Date
   startDate: Date
@@ -112,6 +116,8 @@ interface Registry {
   queue?: Queue | null
   /** The tail of the writes: runs store one at a time */
   writing?: Promise<unknown>
+  /** The last run number handed out (the debug log's "run #3") */
+  runNo?: number
 }
 
 // One registry per server process (and across dev hot reloads)
@@ -150,6 +156,13 @@ function view(r: Run): RunView {
 
 function finish(run: Run, status: RunState) {
   if (run.finishedAt) return
+  // One line for the outcome: counts and a code, never what was fetched
+  if (status.state === 'failed') {
+    // Not waiting any more (a cancel, or the links never answered) is a warning, not a failure of the site
+    log[status.code === 'EXPIRED' ? 'warn' : 'error']('sync', `${run.company.id} · ${status.code}${status.at ? ` (${status.at})` : ''}`, { run: run.no, code: status.code, ...(status.at ? { at: status.at } : {}) })
+  } else if (status.state === 'done') {
+    log.info('sync', `run #${run.no} · ${run.company.id} · done in ${Math.round((Date.now() - run.startedAt.getTime()) / 100) / 10}s`, { run: run.no })
+  }
   if (run.timer) clearTimeout(run.timer)
   run.timer = undefined
   run.otp = undefined
@@ -192,6 +205,7 @@ export function startRun(company: SyncCompany, credentials: Record<string, strin
 function launch(company: SyncCompany, credentials: Record<string, string>, startDate: Date, onChange?: () => void): Run {
   const run: Run = {
     id: randomUUID(),
+    no: (registry.runNo = (registry.runNo ?? 0) + 1),
     company,
     startedAt: new Date(),
     startDate,
@@ -201,6 +215,7 @@ function launch(company: SyncCompany, credentials: Record<string, string>, start
     onChange,
   }
   registry.runs.set(run.id, run)
+  log.info('sync', `run #${run.no} · ${company.id} · start`, { run: run.no, company: company.id, since: localDay(startDate) })
   void execute(run, credentials, startDate)
   return run
 }
@@ -240,6 +255,7 @@ export async function startQueue(items: { company: SyncCompany; startDate: Date;
   registry.runs = new Map()
   const q: Queue = { id: randomUUID(), items: items.map(i => ({ ...i })), next: 0, finishedAt: null }
   registry.queue = q
+  log.info('sync', `sync all · ${items.length} ${items.length === 1 ? 'company' : 'companies'}`, { companies: items.length })
   // The first ones have started (or were skipped) by the time this answers
   await Promise.all(pump(q))
   return { ok: true, queue: currentQueue()! }
@@ -266,7 +282,10 @@ async function startItem(q: Queue, item: QueueItem) {
   const login = await item.login().catch(() => null)
   item.reading = false
   if (login && typeof login === 'object') item.run = launch(item.company, login, item.startDate, () => void pump(q))
-  else item.skipped = login === 'VAULT_LOCKED' ? 'VAULT_LOCKED' : 'GENERIC'
+  else {
+    item.skipped = login === 'VAULT_LOCKED' ? 'VAULT_LOCKED' : 'GENERIC'
+    log.warn('sync', `${item.company.id} · skipped (${item.skipped})`, { code: item.skipped })
+  }
   pump(q)
 }
 
@@ -275,21 +294,27 @@ async function execute(run: Run, credentials: Record<string, string>, startDate:
     company: run.company,
     credentials,
     startDate,
+    runNo: run.no,
     onStep: step => {
       if (run.status.state === 'running' || run.status.state === 'needs-code') run.status = { state: 'running', step }
     },
     requestOtp: () =>
       new Promise<string>((resolve, reject) => {
         run.status = { state: 'needs-code' }
+        log.warn('sync', `${run.company.id} · OTP required, waiting for the code`, { run: run.no, waitMs: OTP_TIMEOUT_MS })
         run.timer = setTimeout(() => reject(new Error('OTP_TIMEOUT')), OTP_TIMEOUT_MS)
         run.otp = code => {
+          log.info('sync', `${run.company.id} · code received`, { run: run.no })
           clearTimeout(run.timer)
           run.otp = undefined
           run.status = { state: 'running', step: 'logging-in' }
           resolve(code)
         }
       }),
-  }).catch(() => ({ ok: false as const, code: 'GENERIC' as const }))
+  }).catch(e => {
+    log.debug('sync', `${run.company.id} · scrape threw ${describeError(e)}`, { run: run.no })
+    return { ok: false as const, code: 'GENERIC' as const }
+  })
   for (const k of Object.keys(credentials)) credentials[k] = ''
   run.browser = false
   run.onChange?.()
@@ -337,8 +362,13 @@ async function linkOrStore(run: Run) {
     }
     run.status = { state: 'running', step: 'storing' }
     const results = await exclusive(() => storeScrape(run.company, scraped))
+    // Counts only: what was fetched and how much of it was new
+    const fetched = scraped.reduce((n, a) => n + a.txns.length, 0)
+    const added = results.reduce((n, r) => n + r.created, 0)
+    log.info('sync', `${run.company.id} · ${fetched} txns fetched · ${added} new`, { run: run.no, fetched, added })
     finish(run, { state: 'done', results })
-  } catch {
+  } catch (e) {
+    log.debug('sync', `${run.company.id} · store threw ${describeError(e)}`, { run: run.no })
     finish(run, { state: 'failed', code: 'STORE', at: 'storing' })
   }
 }
@@ -363,7 +393,8 @@ export async function submitLinks(id: string, actions: LinkAction[]): Promise<Li
   run.timer = undefined
   try {
     await exclusive(() => saveLinks(run.company, actions))
-  } catch {
+  } catch (e) {
+    log.debug('sync', `${run.company.id} · saving the links threw ${describeError(e)}`, { run: run.no })
     return { ok: false, code: 'INVALID' }
   }
   run.status = { state: 'running', step: 'storing' }
@@ -375,6 +406,7 @@ export async function submitLinks(id: string, actions: LinkAction[]): Promise<Li
 export function cancelRun(id: string): boolean {
   const run = registry.runs.get(id)
   if (!run || !active(run) || run.status.state === 'running') return false
+  log.info('sync', `${run.company.id} · cancelled`, { run: run.no })
   // An empty code makes the site refuse at once, so the browser closes instead of waiting
   run.otp?.('')
   finish(run, { state: 'failed', code: 'EXPIRED' })

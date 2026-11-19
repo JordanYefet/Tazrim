@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { BankCategoryError } from '@/lib/db/bank-categories'
 import { bulkTargetsFor, MAX_BULK, setCategoryMany, type BulkTargets } from '@/lib/db/bulk-category'
 import { hasCriteria, parseSearchParams } from '@/lib/search/query'
+import { logged } from '@/lib/log/route'
 
 const TOO_MANY = `החיפוש מוצא יותר מ-${MAX_BULK} תנועות: צמצמו אותו כדי לבחור את כולן`
 
@@ -18,7 +19,7 @@ async function targetsOf(query: URLSearchParams) {
  * GET /api/search/bulk-category?<search params> — what "select all" would take:
  * { bankOut, bankIn, card } counts, so the window offers the right categories.
  */
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const targets = await targetsOf(req.nextUrl.searchParams)
   if (targets instanceof NextResponse) return targets
   return NextResponse.json({ bankOut: targets.bankOut, bankIn: targets.bankIn, card: targets.cardIds.length })
@@ -38,7 +39,7 @@ function keys(v: unknown): Key[] | null {
  * Each row gets the category as its own choice; card charges need an expense one.
  * -> { bankIds, cardIds } changed
  */
-export async function PATCH(req: NextRequest) {
+async function handlePATCH(req: NextRequest) {
   const body = await req.json()
   if (body.category !== null && (typeof body.category !== 'string' || !body.category.trim())) {
     return NextResponse.json({ error: 'קטגוריה לא תקינה' }, { status: 400 })
@@ -70,3 +71,6 @@ export async function PATCH(req: NextRequest) {
     throw e
   }
 }
+
+export const GET = logged(handleGET)
+export const PATCH = logged(handlePATCH)

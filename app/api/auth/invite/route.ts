@@ -3,6 +3,7 @@ import { allow, fail, passwordTransportOr400, rpOr400, signedIn, TOO_MANY } from
 import { cleanLabel, findInvite, joinWithPassword } from '@/lib/auth/household'
 import { passwordProblem } from '@/lib/auth/password'
 import { createSession } from '@/lib/auth/session'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
  * someone makes a passkey (/api/auth/register/options), or they sign in with
  * their password.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!allow(req, 'register', 10)) return TOO_MANY()
   const rp = rpOr400(req)
   if (rp instanceof NextResponse) return rp
@@ -34,6 +35,9 @@ export async function POST(req: Request) {
   return signedIn({ ok: true }, token, rp)
 }
 
-export function GET() {
+function handleGET() {
   return NextResponse.json({ error: 'POST only' }, { status: 405 })
 }
+
+export const POST = logged(handlePOST)
+export const GET = logged(handleGET)

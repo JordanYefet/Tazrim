@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { getInstallView, startConfigChange } from '@/lib/install/config'
 import { INSTALL_MESSAGES, INVALID_VALUE_BY_KEY } from '@/lib/install/messages'
 import { readOnlyRefusal } from '@/lib/updates/guard'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** GET: container-level settings (ENG-121): values, whether the helper can change them, the last change */
-export async function GET() {
+async function handleGET() {
   return readOnlyRefusal() ?? NextResponse.json(await getInstallView())
 }
 
@@ -14,7 +15,7 @@ export async function GET() {
  * POST { changes: { KEY: string | null } }: the helper writes .env and applies it. 202 { job },
  * or { code, key?, error } with a fixed code. Signed-in only (middleware); never in the demo.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const refused = readOnlyRefusal()
   if (refused) return refused
   const body = (await req.json().catch(() => null)) as { changes?: unknown } | null
@@ -26,3 +27,6 @@ export async function POST(req: Request) {
   const error = (code === 'INVALID_VALUE' && key && INVALID_VALUE_BY_KEY[key]) || INSTALL_MESSAGES[code] || INSTALL_MESSAGES.HELPER_ERROR
   return NextResponse.json({ code, key, error }, { status: r.status })
 }
+
+export const GET = logged(handleGET)
+export const POST = logged(handlePOST)

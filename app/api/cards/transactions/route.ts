@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCCTransactions } from '@/lib/db/cards'
 import { accountIdsParam } from '@/lib/accounts/routes'
+import { logged } from '@/lib/log/route'
 
 /**
  * Several cards' transactions together (`?accountId=` repeated: the /cards table);
  * omitted = every card. Same paging as /api/cards/[accountId]/transactions.
  */
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const month = sp.get('month') ? Number(sp.get('month')) : undefined
   const transactions = await getCCTransactions({
@@ -22,3 +23,5 @@ export async function GET(req: NextRequest) {
   })
   return NextResponse.json(transactions)
 }
+
+export const GET = logged(handleGET)

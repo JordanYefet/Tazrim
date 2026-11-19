@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMerchantYear } from '@/lib/db/category-year'
+import { logged } from '@/lib/log/route'
 
 /**
  * GET ?source=bank|card&id=<row id>&year=YYYY — that row's merchant over the year
  * (lib/db/category-year.ts): { name, year, months: { 1..12 }, total, count }. The
  * transaction window's "העסק הזה לאורך השנה".
  */
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const source = sp.get('source')
   const id = sp.get('id')
@@ -18,3 +19,5 @@ export async function GET(req: NextRequest) {
   if (!result) return NextResponse.json({ error: 'not found' }, { status: 404 })
   return NextResponse.json(result)
 }
+
+export const GET = logged(handleGET)

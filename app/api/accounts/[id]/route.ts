@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { AccountValidationError, deleteAccount, updateAccount } from '@/lib/db/accounts'
 import { providerLabel } from '@/lib/accounts/brands'
+import { logged } from '@/lib/log/route'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -14,7 +15,7 @@ const notFound = () => NextResponse.json({ error: 'החשבון לא נמצא' }
  * `confirmProviderChange: true` (409 PROVIDER_CHANGE_UNCONFIRMED otherwise),
  * since merchant rules are keyed by provider.
  */
-export async function PATCH(req: Request, { params }: Ctx) {
+async function handlePATCH(req: Request, { params }: Ctx) {
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })
@@ -51,7 +52,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
  * Body (optional): { confirm?: string }, the account's display name, required
  * when it has transactions. 409 with code LAST_OF_KIND or CONFIRMATION_REQUIRED.
  */
-export async function DELETE(req: Request, { params }: Ctx) {
+async function handleDELETE(req: Request, { params }: Ctx) {
   const { id } = await params
   const body = (await req.json().catch(() => null)) as { confirm?: unknown } | null
   const result = await deleteAccount(id, { confirmName: body?.confirm })
@@ -72,3 +73,6 @@ export async function DELETE(req: Request, { params }: Ctx) {
       return NextResponse.json({ ok: true, deleted: result.deleted })
   }
 }
+
+export const PATCH = logged(handlePATCH)
+export const DELETE = logged(handleDELETE)
