@@ -71,7 +71,8 @@ export function redact(text: string): string {
   return out
 }
 
-const MAX_DEPTH = 4
+// A logged request body sits under data.body, so a few levels of nesting must survive
+const MAX_DEPTH = 7
 const MAX_ITEMS = 50
 
 /** Structured fields, redacted: a secret field's value is masked outright, strings go through redact. */

@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import { getAccount } from '@/lib/db/accounts'
 import { createImportProfile, listImportProfiles, ProfileValidationError } from '@/lib/db/import-profiles'
 import { toProfileView } from '@/lib/import/profile-view'
+import { logged } from '@/lib/log/route'
 
 /** Saved column mappings, newest first. */
-export async function GET() {
+async function handleGET() {
   return NextResponse.json((await listImportProfiles()).map(toProfileView))
 }
 
@@ -13,7 +14,7 @@ export async function GET() {
  * Kind and provider come from the account; the mapping is validated for its
  * kind. `headers` (a HeaderSnapshot, ENG-69) must match `headerSignature`.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'גוף בקשה לא תקין' }, { status: 400 })
   const { accountId, name, mapping, headerSignature, headers, linkAccount } = body as Record<string, unknown>
@@ -31,3 +32,6 @@ export async function POST(req: Request) {
     throw e
   }
 }
+
+export const GET = logged(handleGET)
+export const POST = logged(handlePOST)

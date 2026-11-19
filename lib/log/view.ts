@@ -1,7 +1,8 @@
 /**
  * What the log window and the /logs page show of the entries, as pure functions:
- * the filters, and the grouping by action. A marker (an entry with data.action, posted
- * when the page changes) starts a group; the lines after it belong to it.
+ * the filters, and the grouping by page request. A page request (an entry with data.page,
+ * logged by lib/log/pages.ts) starts a group and is its first line; the lines after it
+ * (the API calls the page makes) belong to it.
  */
 import type { LogEntry, LogLevel, LogSource } from './buffer'
 
@@ -9,7 +10,8 @@ export type Tab = 'all' | 'app' | 'sync' | 'problems'
 /** Settings → Debug "detail level": what goes into the window at all */
 export type Detail = 'errors' | 'info' | 'debug'
 
-export const isAction = (e: LogEntry) => e.data?.action === true
+/** A page request (a document load or a navigation): the line that starts a group. data.page is its title, "GET /bank?year=2026&month=3" */
+export const isPageRequest = (e: LogEntry) => typeof e.data?.page === 'string'
 
 const DETAIL_LEVELS: Record<Detail, LogLevel[]> = {
   errors: ['warn', 'error'],
@@ -48,48 +50,44 @@ export const countProblems = (entries: LogEntry[]) => ({
 })
 
 export interface Group {
-  /** The marker's id, or 0 for the lines before the first marker */
+  /** The page request's id, or 0 for the lines before the first one */
   id: number
-  /** The action's name; null for the lines before the first marker */
+  /** The page request ("GET /bank?year=2026&month=3"); null for the lines before the first one */
   title: string | null
   ts: number
   lines: LogEntry[]
   worst: 'ok' | 'warn' | 'error'
 }
 
-/**
- * Entries (oldest first) split at each action marker. A marker with no lines after it
- * still makes a group (the page was opened and nothing was logged); `keepEmpty: false`
- * drops those, for when a filter is on and an empty group would only be noise.
- */
-export function groupByAction(entries: LogEntry[], keepEmpty = true): Group[] {
+const worstOf = (lines: LogEntry[]): Group['worst'] =>
+  lines.some(l => l.level === 'error') ? 'error' : lines.some(l => l.level === 'warn') ? 'warn' : 'ok'
+
+/** Entries (oldest first) split at each page request, which is the first line of its group */
+export function groupByAction(entries: LogEntry[]): Group[] {
   const groups: Group[] = []
   let cur: Group | null = null
   for (const e of entries) {
-    if (isAction(e)) {
-      cur = { id: e.id, title: e.msg, ts: e.ts, lines: [], worst: 'ok' }
+    if (isPageRequest(e)) {
+      cur = { id: e.id, title: String(e.data?.page), ts: e.ts, lines: [], worst: 'ok' }
       groups.push(cur)
-      continue
-    }
-    if (!cur) {
+    } else if (!cur) {
       cur = { id: 0, title: null, ts: e.ts, lines: [], worst: 'ok' }
       groups.push(cur)
     }
     cur.lines.push(e)
-    if (e.level === 'error') cur.worst = 'error'
-    else if (e.level === 'warn' && cur.worst === 'ok') cur.worst = 'warn'
   }
-  return keepEmpty ? groups : groups.filter(g => g.lines.length > 0)
+  for (const g of groups) g.worst = worstOf(g.lines)
+  return groups
 }
 
-/** Filters applied to the lines of the groups (markers always head their group, unless a filter hides the group's every line) */
+/** The groups with the filters applied to their lines; a group with no line left is dropped (its title stays while any line shows) */
 export function groupedView(entries: LogEntry[], f: Filter): Group[] {
-  const filtered = !!((f.tab && f.tab !== 'all') || f.q?.trim() || (f.level && f.level !== 'all') || (f.source && f.source !== 'all'))
-  const levels = DETAIL_LEVELS[f.detail ?? 'info']
-  // Markers are not lines to filter by tab or search; only the detail level (errors only hides them) applies to them
-  const kept = entries.filter(e => (isAction(e) ? levels.includes(e.level) : true))
-  const lineIds = new Set(filterEntries(entries.filter(e => !isAction(e)), f).map(e => e.id))
-  return groupByAction(kept.filter(e => isAction(e) || lineIds.has(e.id)), !filtered)
+  return groupByAction(entries)
+    .map(g => {
+      const lines = filterEntries(g.lines, f)
+      return { ...g, lines, worst: worstOf(lines) }
+    })
+    .filter(g => g.lines.length > 0)
 }
 
 /** The last 3 sync runs, from the buffer: a run is the lines carrying the same data.run */
@@ -131,16 +129,15 @@ export function formatTime(ts: number, ms = true): string {
 
 /** One line as plain text, for Copy */
 export function lineText(e: LogEntry): string {
-  if (isAction(e)) return `── ${e.msg} ──`
   return `${formatTime(e.ts)} ${e.level.toUpperCase().padEnd(5)} ${e.source.padEnd(4)} ${e.msg}`
 }
 
-/** The action (page change or the like) a line happened under: the latest marker before it */
-export function actionOf(entries: LogEntry[], id: number): string | null {
+/** The page request a line happened under: the latest one before it (itself, for a page request) */
+export function pageOf(entries: LogEntry[], id: number): string | null {
   let title: string | null = null
   for (const e of entries) {
-    if (e.id === id) return isAction(e) ? e.msg : title
-    if (isAction(e)) title = e.msg
+    if (isPageRequest(e)) title = String(e.data?.page)
+    if (e.id === id) return title
   }
   return null
 }
@@ -150,8 +147,8 @@ export function detailsJson(e: LogEntry): string {
   return JSON.stringify(e.data ?? {}, null, 2)
 }
 
-/** What Copy writes: the visible lines (flat), or each group's action then its lines */
+/** What Copy writes: the visible lines (flat), or the groups' lines, a blank line between groups */
 export function copyText(visible: LogEntry[], groups: Group[] | null): string {
   if (!groups) return visible.map(lineText).join('\n')
-  return groups.flatMap(g => [...(g.title ? [`── ${g.title} ──`] : []), ...g.lines.map(lineText)]).join('\n')
+  return groups.map(g => g.lines.map(lineText).join('\n')).join('\n\n')
 }

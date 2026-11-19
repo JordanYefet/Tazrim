@@ -8,7 +8,7 @@ import { getIssuerCategories, removeCategoryMapping, saveCategoryMapping } from 
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 
-export async function GET() {
+async function handleGET() {
   return NextResponse.json(await getIssuerCategories())
 }
 
@@ -37,3 +37,5 @@ export const DELETE = logged(async function DELETE(req: NextRequest) {
   await removeCategoryMapping(provider, sourceCategory)
   return NextResponse.json({ ok: true })
 })
+
+export const GET = logged(handleGET)

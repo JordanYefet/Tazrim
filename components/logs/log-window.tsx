@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, ListTree, PanelBottom, Ban } from 'lucide-react'
-import { actionLabel } from '@/lib/log/page-names'
-import { actionOf, countProblems, filterEntries, formatTime, groupedView, copyText, type Tab } from '@/lib/log/view'
+import { pageOf, countProblems, filterEntries, formatTime, groupedView, copyText, type Tab } from '@/lib/log/view'
 import { cn } from '@/lib/utils/cn'
 import { ConsoleList, DetailsPane } from './console'
 import { setLogPrefs, useLogPrefs } from './prefs'
@@ -21,24 +20,6 @@ const TABS: { id: Tab; label: string }[] = [
 const TOOL =
   'inline-flex h-7 w-7 items-center justify-center rounded-[7px] text-[hsl(var(--lc-dim))] hover:bg-[hsl(220_20%_20%)] hover:text-[hsl(var(--lc-fg))] md:h-7 md:w-7 max-md:h-9 max-md:w-9'
 
-/** Posts a page change as an action marker; the log starts a new group at it (grouped view) */
-function useActionMarkers(active: boolean) {
-  const pathname = usePathname()
-  const last = useRef<string | null>(null)
-  useEffect(() => {
-    if (!active || last.current === pathname) return
-    last.current = pathname
-    const label = actionLabel(pathname)
-    if (!label) return
-    void fetch('/api/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label }),
-      keepalive: true,
-    }).catch(() => {})
-  }, [active, pathname])
-}
-
 /**
  * The floating log window (ENG-104), mounted once in the root layout. It exists only when the
  * switch in Settings → Debug is on for this device and the server lets this request see the log.
@@ -51,7 +32,6 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
   const pathname = usePathname()
   const onLogs = pathname === '/logs' || pathname.startsWith('/logs/')
   const active = allowed && prefs.on
-  useActionMarkers(active)
   const { entries, status, clear } = useLogStream({ enabled: active })
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
@@ -67,12 +47,12 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
   const problemCount = problems.errors + problems.warnings
   const live = status === 'live'
 
-  // The bar's text: the latest line, or the latest action when grouped
+  // The bar's text: the latest line, or the latest page request when grouped
   const latestGroup = groups?.at(-1)
   const lastLine = visible.at(-1)
   const barText = groups
     ? latestGroup
-      ? `${latestGroup.title ?? 'לפני הפעולה הראשונה'} · ${latestGroup.lines.length} שורות`
+      ? `${latestGroup.title ?? 'לפני הבקשה הראשונה'} · ${latestGroup.lines.length} שורות`
       : 'אין שורות'
     : lastLine
       ? `${formatTime(lastLine.ts, false)} ${lastLine.msg}`
@@ -153,7 +133,7 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
           className={cn('inline-flex h-[26px] items-center gap-1.5 rounded-md px-2 text-xs max-md:hidden', prefs.grouped ? 'bg-[hsl(var(--lc-sel))] text-[hsl(var(--lc-fg))]' : 'text-[hsl(var(--lc-dim))]')}
         >
           <ListTree aria-hidden className="h-[13px] w-[13px]" />
-          Group by action
+          Group by page
         </button>
         <button
           type="button"
@@ -210,7 +190,7 @@ export function LogWindow({ allowed }: { allowed: boolean }) {
           size="sm"
           emptyText={status === 'denied' ? 'אין הרשאה לראות את הלוגים מהמכשיר הזה.' : 'אין שורות שמתאימות לסינון.'}
         />
-        {max && <DetailsPane entry={selected} action={selected ? actionOf(entries, selected.id) : null} className="w-[360px] max-md:hidden" />}
+        {max && <DetailsPane entry={selected} page={selected ? pageOf(entries, selected.id) : null} className="w-[360px] max-md:hidden" />}
       </div>
     </section>
   )

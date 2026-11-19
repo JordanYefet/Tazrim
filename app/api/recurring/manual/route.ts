@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createManualSeries, parseManualInput, type ManualSeriesInput } from '@/lib/db/manual-recurring'
+import { logged } from '@/lib/log/route'
 
 /**
  * POST /api/recurring/manual (ENG-71)
@@ -7,7 +8,7 @@ import { createManualSeries, parseManualInput, type ManualSeriesInput } from '@/
  *   attachedIds?, detachedIds?, replaceOverrideKeys? } → 201 { id }
  * `replaceOverrideKeys`: override keys of a detected series this one takes over.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })
   if (typeof body.accountId !== 'string' || !body.accountId) return NextResponse.json({ error: 'חסר חשבון' }, { status: 400 })
@@ -32,3 +33,5 @@ export async function POST(req: Request) {
   if (result.status === 'invalid') return NextResponse.json({ error: result.error }, { status: 400 })
   return NextResponse.json({ id: result.id }, { status: 201 })
 }
+
+export const POST = logged(handlePOST)

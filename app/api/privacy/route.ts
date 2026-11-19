@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { relyingParty } from '@/lib/auth/webauthn'
 import { PRIVACY_COOKIE, formatPrivacyCookie } from '@/lib/privacy'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
  *
  * 200 { on }; 400 for a body without on.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const body = (await req.json().catch(() => null)) as { on?: unknown } | null
   if (typeof body?.on !== 'boolean') return NextResponse.json({ error: 'חסר on' }, { status: 400 })
   const res = NextResponse.json({ on: body.on })
@@ -29,3 +30,5 @@ export async function POST(req: Request) {
   })
   return res
 }
+
+export const POST = logged(handlePOST)

@@ -3,6 +3,7 @@ import { allow, fail, rpOr400, TOO_MANY } from '@/lib/auth/http'
 import { vaultOptions, type VaultPurpose } from '@/lib/auth/webauthn'
 import { isResponse, sessionOr401 } from '@/lib/vault/http'
 import { status } from '@/lib/vault/vault'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ const PURPOSES: VaultPurpose[] = ['unlock', 'create', 'add']
  * POST { purpose }: a passkey challenge for the vault, with the PRF salt to
  * ask each of the signed-in person's passkeys (`prf`, by credential id).
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const session = await sessionOr401()
   if (isResponse(session)) return session
   if (!allow(req, 'vault', 30)) return TOO_MANY()
@@ -34,3 +35,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json(options)
 }
+
+export const POST = logged(handlePOST)

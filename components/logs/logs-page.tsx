@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Ban, Check, Copy, ListTree, Maximize2, Pause, Play, Search } from 'lucide-react'
 import { syncCompany } from '@/lib/sync/providers'
-import { actionOf, countProblems, filterEntries, formatTime, groupedView, copyText, recentRuns, type Filter, type RunSummary } from '@/lib/log/view'
+import { pageOf, countProblems, filterEntries, formatTime, groupedView, copyText, recentRuns, type Filter, type RunSummary } from '@/lib/log/view'
 import { cn } from '@/lib/utils/cn'
 import { ConsoleList, DetailsPane } from './console'
 import { setLogPrefs, useLogPrefs } from './prefs'
@@ -224,7 +224,7 @@ export function LogsPage() {
           hasAny={entries.length > 0}
           emptyText="אין שורות שמתאימות לחיפוש ולסינון."
         />
-        <DetailsPane entry={selected} action={selected ? actionOf(entries, selected.id) : null} className="w-[340px] max-md:hidden" />
+        <DetailsPane entry={selected} page={selected ? pageOf(entries, selected.id) : null} className="w-[340px] max-md:hidden" />
       </section>
     </div>
   )

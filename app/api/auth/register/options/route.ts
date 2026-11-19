@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { allow, fail, rpOr400, TOO_MANY } from '@/lib/auth/http'
 import { findInvite } from '@/lib/auth/household'
 import { registrationOptions } from '@/lib/auth/webauthn'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
  * and a new person's invite (/api/auth/invite) take a name and a password, and a
  * passkey is added after, signed in (/api/people/devices).
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!allow(req, 'register', 10)) return TOO_MANY()
   const rp = rpOr400(req)
   if (rp instanceof NextResponse) return rp
@@ -32,3 +33,5 @@ export async function POST(req: Request) {
 
   return fail(400, 'בקשה לא תקינה', 'BAD_REQUEST')
 }
+
+export const POST = logged(handlePOST)

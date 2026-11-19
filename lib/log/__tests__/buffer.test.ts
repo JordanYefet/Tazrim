@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAPACITY, append, appendAction, clear, entriesAfter, resetLog, stats } from '../buffer'
+import { CAPACITY, append, clear, entriesAfter, resetLog, stats } from '../buffer'
 import { log } from '../logger'
 import { MASK } from '../redact'
 
@@ -28,11 +28,6 @@ describe('log buffer', () => {
     expect(e.msg).toBe(`login password=${MASK} for ${MASK}`)
     expect(e.data).toEqual({ username: MASK, note: `mail ${MASK}`, ms: 40 })
     expect(JSON.stringify(entriesAfter())).not.toMatch(/hunter2|12345678|a@b\.test/)
-  })
-
-  it('stores an action as an info line from the app with data.action', () => {
-    const e = appendAction('מעבר לדף כרטיסים')
-    expect(e).toMatchObject({ level: 'info', source: 'app', msg: 'מעבר לדף כרטיסים', data: { action: true } })
   })
 
   it('clear empties it but ids keep rising', () => {

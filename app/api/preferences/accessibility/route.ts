@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { A11Y_COOKIE, A11Y_FLAGS, TEXT_SIZES, formatA11y, normalizeA11y } from '@/lib/a11y/settings'
 import { getStoredA11y, storeA11y } from '@/lib/preferences/accessibility'
 import { preferenceOwner } from '@/lib/preferences/owner'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** The accessibility options stored for whoever is signed in (null: none yet, the device's cookie decides) */
-export async function GET() {
+async function handleGET() {
   const owner = await preferenceOwner()
   if (owner === undefined) return NextResponse.json({ value: null })
   const stored = await getStoredA11y(owner)
@@ -19,7 +20,7 @@ export async function GET() {
  * pages without a session. Where nothing can be stored (the read-only demo, no session) only the
  * cookie is set, so the demo can still change it on this device (lib/read-only.ts allows the path).
  */
-export async function PUT(req: Request) {
+async function handlePUT(req: Request) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return NextResponse.json({ error: 'הגדרות נגישות לא תקינות', code: 'INVALID' }, { status: 400 })
@@ -41,3 +42,6 @@ export async function PUT(req: Request) {
   })
   return res
 }
+
+export const GET = logged(handleGET)
+export const PUT = logged(handlePUT)

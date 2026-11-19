@@ -36,9 +36,6 @@ const KEY = Symbol.for('tazrim.log.buffer')
 const g = globalThis as unknown as Record<symbol, Store>
 const store: Store = (g[KEY] ??= { entries: [], nextId: 1, total: 0, since: Date.now() })
 
-/** The longest an action's label is kept */
-const LABEL_MAX = 80
-
 export function append(level: LogLevel, source: LogSource, msg: string, data?: Record<string, unknown>): LogEntry {
   const entry: LogEntry = {
     id: store.nextId++,
@@ -52,11 +49,6 @@ export function append(level: LogLevel, source: LogSource, msg: string, data?: R
   if (store.entries.length > CAPACITY) store.entries.splice(0, store.entries.length - CAPACITY)
   store.total++
   return entry
-}
-
-/** The person's action (a page change), the start of a group in the grouped view */
-export function appendAction(label: string): LogEntry {
-  return append('info', 'app', String(label).slice(0, LABEL_MAX), { action: true })
 }
 
 /** Entries with an id above `after` (0 = all kept ones) */

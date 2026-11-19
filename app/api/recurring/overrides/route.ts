@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { renameRecurring, setRecurringStatus, type RecurringStatusValue } from '@/lib/db/recurring'
+import { logged } from '@/lib/log/route'
 
 const STATUSES: (RecurringStatusValue | null)[] = ['confirmed', 'dismissed', null]
 
@@ -8,7 +9,7 @@ const STATUSES: (RecurringStatusValue | null)[] = ['confirmed', 'dismissed', nul
  * { key, baseKey, accountId?, overrideKey?, status?: 'confirmed' | 'dismissed' | null, displayName?: string | null }
  * `status` and `displayName` are each applied only when present; null undoes them.
  */
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body.key !== 'string' || !body.key || typeof body.baseKey !== 'string' || !body.baseKey) {
     return NextResponse.json({ error: 'חסר מזהה סדרה' }, { status: 400 })
@@ -33,3 +34,5 @@ export async function POST(req: NextRequest) {
   }
   return new NextResponse(null, { status: 204 })
 }
+
+export const POST = logged(handlePOST)

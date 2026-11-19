@@ -6,6 +6,7 @@ import { setUpdating } from '@/lib/updates/paths'
 import { isSyncActive } from '@/lib/sync/runs'
 import { CURRENT_VERSION } from '@/lib/updates/check'
 import { parseVersion } from '@/lib/updates/version'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ const UNAUTHORIZED = () => NextResponse.json({ error: 'unauthorized' }, { status
  * `from: 'unknown'` or nothing). So `from` only has to be x.y.z, 'unknown' or missing, and the
  * backup is always named, and answered, with CURRENT_VERSION.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const refused = readOnlyRefusal()
   if (refused) return refused
   if (!hasHelperToken(req)) return UNAUTHORIZED()
@@ -39,10 +40,13 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+async function handleDELETE(req: Request) {
   const refused = readOnlyRefusal()
   if (refused) return refused
   if (!hasHelperToken(req)) return UNAUTHORIZED()
   setUpdating(false)
   return NextResponse.json({ ok: true })
 }
+
+export const POST = logged(handlePOST)
+export const DELETE = logged(handleDELETE)

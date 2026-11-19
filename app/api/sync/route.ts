@@ -48,7 +48,7 @@ function fromVault(company: SyncCompany, credentialId: string): LoginSource {
 
 const VAULT_LOCKED = { error: 'הכספת נעולה. פותחים אותה עם Face ID או Touch ID', code: 'VAULT_LOCKED' }
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const available = !isReadOnly() && maySync(req.headers)
   const [accounts, saved, vault] = await Promise.all([ownAccounts(), savedLogins(), vaultStatus()])
   const owned = SYNC_COMPANIES.map(c => ({
@@ -162,3 +162,5 @@ export const POST = logged(async function POST(req: Request) {
   if (!res.ok) return NextResponse.json({ error: 'סנכרון אחר עדיין רץ', code: 'BUSY' }, { status: 409 })
   return NextResponse.json({ run: res.run })
 })
+
+export const GET = logged(handleGET)

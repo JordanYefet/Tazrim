@@ -1,7 +1,7 @@
 /**
  * Runs once when the server starts (Next.js instrumentation): the "this computer"
  * door (lib/local-door.ts, when TAZRIM_LOCAL_PORT is set), the app settings and the
- * clock (lib/settings/app-settings.ts), the one-time data updates a release needs
+ * clock (lib/settings/app-settings.ts), the page-request log hook (lib/log/pages.ts), the one-time data updates a release needs
  * (lib/db/backfills.ts) and the daily update check. Never in the read-only demo
  * (except the time zone), and a failure is logged, never fatal.
  */
@@ -18,6 +18,13 @@ export async function register() {
     log.info('app', `server started · v${CURRENT_VERSION}`, { version: CURRENT_VERSION })
   } catch (e) {
     console.warn('debug log: could not write the start line', describeError(e))
+  }
+  // Page requests with their status and time (ENG-104): hooks the http server, once
+  try {
+    const { installPageLog } = await import('./lib/log/pages')
+    installPageLog()
+  } catch (e) {
+    console.warn('debug log: could not hook page requests', describeError(e))
   }
   try {
     const { startLocalDoor } = await import('./lib/local-door')

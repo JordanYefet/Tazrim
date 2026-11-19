@@ -1,33 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import type { LogEntry } from '../buffer'
-import { actionLabel } from '../page-names'
-import { copyText, filterEntries, groupByAction, groupedView, recentRuns } from '../view'
+import { copyText, filterEntries, groupByAction, groupedView, pageOf, recentRuns } from '../view'
 
 let id = 0
 const e = (level: LogEntry['level'], source: LogEntry['source'], msg: string, data?: LogEntry['data']): LogEntry => ({ id: ++id, ts: 1000 + id, level, source, msg, data })
-const mark = (label: string) => e('info', 'app', label, { action: true })
+const mark = (page: string, status = 200) => e(status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info', 'app', `${page} → ${status} · 9ms`, { page, kind: 'page', status })
 
 const sample = () => [
   e('info', 'app', 'server started'),
-  mark('מעבר לדף כרטיסים'),
-  e('info', 'app', 'GET /api/x → 200'),
-  mark('סנכרון'),
+  mark('GET /cards'),
+  e('info', 'app', 'POST /api/x → 200 · 4ms'),
+  mark('GET /bank?year=2026&month=3'),
   e('info', 'sync', 'leumi · LOGGING_IN', { run: 1 }),
   e('warn', 'sync', 'max · OTP required', { run: 1 }),
   e('error', 'sync', 'max · TIMEOUT', { run: 1 }),
-  mark('מעבר לדף בנקים'),
+  mark('GET /banks', 500),
 ]
 
 describe('groupByAction', () => {
-  it('a marker starts a group and the lines after it belong to it', () => {
+  it('a page request starts a group and is its first line; the lines after it belong to it', () => {
     const g = groupByAction(sample())
-    expect(g.map(x => x.title)).toEqual([null, 'מעבר לדף כרטיסים', 'סנכרון', 'מעבר לדף בנקים'])
-    expect(g.map(x => x.lines.length)).toEqual([1, 1, 3, 0])
+    expect(g.map(x => x.title)).toEqual([null, 'GET /cards', 'GET /bank?year=2026&month=3', 'GET /banks'])
+    expect(g.map(x => x.lines.length)).toEqual([1, 2, 4, 1])
     expect(g[2].worst).toBe('error')
     expect(g[1].worst).toBe('ok')
-  })
-  it('can drop the groups with no lines', () => {
-    expect(groupByAction(sample(), false).map(x => x.title)).toEqual([null, 'מעבר לדף כרטיסים', 'סנכרון'])
+    expect(g[1].lines[0].data?.page).toBe('GET /cards')
   })
   it('has no groups for no entries', () => {
     expect(groupByAction([])).toEqual([])
@@ -43,19 +40,27 @@ describe('filterEntries', () => {
   })
   it('tabs and search', () => {
     expect(filterEntries(sample(), { tab: 'sync' })).toHaveLength(3)
-    expect(filterEntries(sample(), { tab: 'problems' }).map(x => x.level)).toEqual(['warn', 'error'])
+    expect(filterEntries(sample(), { tab: 'problems' }).map(x => x.level)).toEqual(['warn', 'error', 'error'])
     expect(filterEntries(sample(), { q: 'timeout' })).toHaveLength(1)
   })
   it('level and source (the /logs page)', () => {
-    expect(filterEntries(sample(), { level: 'errors' })).toHaveLength(1)
+    expect(filterEntries(sample(), { level: 'errors' })).toHaveLength(2)
     expect(filterEntries(sample(), { level: 'problems', source: 'sync' })).toHaveLength(2)
   })
 })
 
 describe('groupedView', () => {
-  it('hides empty groups once a filter is on, keeps them otherwise', () => {
-    expect(groupedView(sample(), {}).map(g => g.title)).toContain('מעבר לדף בנקים')
-    expect(groupedView(sample(), { tab: 'problems' }).map(g => g.title)).toEqual(['סנכרון'])
+  it('keeps every group with a line to show, with its title', () => {
+    expect(groupedView(sample(), {}).map(g => g.title)).toEqual([null, 'GET /cards', 'GET /bank?year=2026&month=3', 'GET /banks'])
+  })
+  it('drops the groups a filter leaves empty and keeps the title of the rest', () => {
+    const g = groupedView(sample(), { tab: 'problems' })
+    expect(g.map(x => x.title)).toEqual(['GET /bank?year=2026&month=3', 'GET /banks'])
+    expect(g[0].lines).toHaveLength(2)
+  })
+  it('errors-only detail hides a 200 page line but keeps its group when a line shows', () => {
+    const g = groupedView(sample(), { detail: 'errors' })
+    expect(g.map(x => x.title)).toEqual(['GET /bank?year=2026&month=3', 'GET /banks'])
   })
 })
 
@@ -74,24 +79,24 @@ describe('recentRuns', () => {
   })
 })
 
-describe('actionLabel', () => {
-  it('names a page change from the nav labels', () => {
-    expect(actionLabel('/cards')).toBe('מעבר לדף כרטיסים')
-    expect(actionLabel('/settings/debug')).toBe('מעבר לדף הגדרות דיבאג')
-    expect(actionLabel('/')).toBe('מעבר לדף ראשי')
-  })
-  it('skips the logs page itself', () => {
-    expect(actionLabel('/logs')).toBeNull()
-    expect(actionLabel('/logs/full')).toBeNull()
+describe('pageOf', () => {
+  it('is the latest page request before the line, or null before any', () => {
+    const list = sample()
+    expect(pageOf(list, list[0].id)).toBeNull()
+    expect(pageOf(list, list[2].id)).toBe('GET /cards')
+    expect(pageOf(list, list[4].id)).toBe('GET /bank?year=2026&month=3')
+    expect(pageOf(list, list[3].id)).toBe('GET /bank?year=2026&month=3')
   })
 })
 
 describe('copyText', () => {
-  it('writes an action as a divider, flat or grouped', () => {
-    const list = [mark('מעבר לדף בנקים'), e('info', 'app', 'hello')]
-    expect(copyText(list, null).split('\n')[0]).toBe('── מעבר לדף בנקים ──')
+  it('writes the visible lines, grouped ones with a blank line between groups, and no divider', () => {
+    const list = [mark('GET /banks'), e('info', 'app', 'hello'), mark('GET /cards')]
+    expect(copyText(list, null).split('\n')).toHaveLength(3)
     const grouped = copyText(list, groupByAction(list)).split('\n')
-    expect(grouped[0]).toBe('── מעבר לדף בנקים ──')
+    expect(grouped[0]).toContain('GET /banks → 200')
     expect(grouped[1]).toContain('hello')
+    expect(grouped[2]).toBe('')
+    expect(grouped.join('')).not.toContain('──')
   })
 })

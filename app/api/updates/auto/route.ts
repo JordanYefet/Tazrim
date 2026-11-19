@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { readOnlyRefusal } from '@/lib/updates/guard'
 import { setAutoCheck } from '@/lib/updates/settings'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** PUT { on: boolean }: the daily check on or off */
-export async function PUT(req: Request) {
+async function handlePUT(req: Request) {
   const refused = readOnlyRefusal()
   if (refused) return refused
   const body = (await req.json().catch(() => null)) as { on?: unknown } | null
@@ -13,3 +14,5 @@ export async function PUT(req: Request) {
   await setAutoCheck(body.on)
   return NextResponse.json({ on: body.on })
 }
+
+export const PUT = logged(handlePUT)

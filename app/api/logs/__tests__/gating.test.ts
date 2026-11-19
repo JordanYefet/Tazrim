@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { GET, POST, DELETE } from '../route'
+import { GET, DELETE } from '../route'
 import { GET as browserGet, PUT as browserPut } from '../browser/route'
 import { append, entriesAfter, resetLog } from '@/lib/log/buffer'
 import { getShowBrowser, setShowBrowser } from '@/lib/log/browser-flag'
@@ -36,7 +36,6 @@ describe('/api/logs gating (like the bank sync)', () => {
     append('info', 'app', 'hello')
     for (const [fn, r] of [
       [GET, req('GET', lan)],
-      [POST, req('POST', lan, { label: 'x' })],
       [DELETE, req('DELETE', lan)],
       [browserGet, req('GET', lan, undefined, '/api/logs/browser')],
       [browserPut, req('PUT', lan, { show: true }, '/api/logs/browser')],
@@ -58,7 +57,6 @@ describe('/api/logs gating (like the bank sync)', () => {
     process.env.TAZRIM_READ_ONLY = '1'
     for (const [fn, r] of [
       [GET, req('GET', local)],
-      [POST, req('POST', local, { label: 'x' })],
       [DELETE, req('DELETE', local)],
       [browserGet, req('GET', local, undefined, '/api/logs/browser')],
       [browserPut, req('PUT', local, { show: true }, '/api/logs/browser')],
@@ -76,12 +74,6 @@ describe('/api/logs', () => {
     append('info', 'app', 'two')
     const res = await GET(req('GET', local, undefined, `/api/logs?after=${a.id}`))
     expect((await res.json()).entries.map((e: { msg: string }) => e.msg)).toEqual(['two'])
-  })
-
-  it('POST stores an action marker, redacted; an empty label is refused', async () => {
-    expect((await POST(req('POST', local, { label: 'מעבר לדף כרטיסים' }))).status).toBe(200)
-    expect(entriesAfter()[0]).toMatchObject({ source: 'app', level: 'info', data: { action: true } })
-    expect((await POST(req('POST', local, { label: '  ' }))).status).toBe(400)
   })
 
   it('DELETE clears', async () => {

@@ -16,7 +16,7 @@ function fromRowOf(value: unknown): FromRow | undefined {
   return { source: v.source, id: text(v.id) }
 }
 
-export async function GET() {
+async function handleGET() {
   return NextResponse.json(await listKeywordRules())
 }
 
@@ -38,3 +38,5 @@ export const POST = logged(async function POST(req: NextRequest) {
     throw e
   }
 })
+
+export const GET = logged(handleGET)

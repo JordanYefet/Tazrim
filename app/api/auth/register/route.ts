@@ -3,6 +3,7 @@ import { allow, currentSession, fail, signedIn, TOO_MANY } from '@/lib/auth/http
 import { cleanLabel, consumeInvite, linkSessionToPasskey, savePasskey } from '@/lib/auth/household'
 import { createSession } from '@/lib/auth/session'
 import { takeChallenge, verifyRegistration } from '@/lib/auth/webauthn'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
  * A password or recovery-code session that adds its own device's passkey
  * becomes that passkey's session, so Settings knows it as "this device".
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!allow(req, 'register', 10)) return TOO_MANY()
   const body = (await req.json().catch(() => null)) as { flowId?: unknown; response?: unknown; label?: unknown } | null
   const pending = takeChallenge(body?.flowId)
@@ -41,3 +42,5 @@ export async function POST(req: Request) {
   const token = await createSession(flow.personId, passkey.id)
   return signedIn({ ok: true }, token, pending.rp)
 }
+
+export const POST = logged(handlePOST)

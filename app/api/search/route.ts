@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchTransactions } from '@/lib/db/search'
 import { parseSearchParams } from '@/lib/search/query'
+import { logged } from '@/lib/log/route'
 
 /**
  * GET /api/search — every account, every year.
@@ -8,10 +9,12 @@ import { parseSearchParams } from '@/lib/search/query'
  * &account=id (repeatable) &category=name (repeatable) &ignored=1 &cursor= &limit= (default 30, max 100)
  * -> { results: SearchResult[], nextCursor: string | null, total: number }
  */
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const filters = parseSearchParams(req.nextUrl.searchParams)
   if (filters.amountInvalid) {
     return NextResponse.json({ error: 'invalid amount' }, { status: 400 })
   }
   return NextResponse.json(await searchTransactions(filters))
 }
+
+export const GET = logged(handleGET)

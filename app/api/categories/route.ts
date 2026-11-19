@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCategories, createCategory, parseCategoryKind } from '@/lib/db/categories'
 
 /** `?kind=EXPENSE|INCOME` narrows the list */
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const categories = await getCategories(parseCategoryKind(req.nextUrl.searchParams.get('kind')))
   return NextResponse.json(categories)
 }
@@ -15,3 +15,5 @@ export const POST = logged(async function POST(req: NextRequest) {
   const category = await createCategory(name.trim(), parseCategoryKind(kind))
   return NextResponse.json(category)
 })
+
+export const GET = logged(handleGET)

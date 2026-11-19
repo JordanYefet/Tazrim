@@ -6,7 +6,7 @@ import { getCushion, setCushion, SettingValidationError } from '@/lib/db/setting
 export const dynamic = 'force-dynamic'
 
 /** The app's preferences: { cushion } (the projection page's safety cushion, ₪). */
-export async function GET() {
+async function handleGET() {
   return NextResponse.json({ cushion: await getCushion() })
 }
 
@@ -21,3 +21,5 @@ export const PUT = logged(async function PUT(req: Request) {
     throw e
   }
 })
+
+export const GET = logged(handleGET)

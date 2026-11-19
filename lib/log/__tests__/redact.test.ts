@@ -66,7 +66,7 @@ describe('redactData', () => {
     expect(redactData({ ms: 4460, count: 42, big: 1234567890123 })).toEqual({ ms: 4460, count: 42, big: MASK })
   })
   it('stops at a depth', () => {
-    const deep = { a: { b: { c: { d: { e: 1 } } } } }
+    const deep = { a: { b: { c: { d: { e: { f: { g: { h: 1 } } } } } } } }
     expect(JSON.stringify(redactData(deep))).toContain('…')
   })
 })
