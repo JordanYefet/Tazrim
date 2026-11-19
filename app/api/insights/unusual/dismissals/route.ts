@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dismissUnusual, undismissUnusual, type TransactionSource } from '@/lib/db/unusual'
+import { logged } from '@/lib/log/route'
 
 async function readKey(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
@@ -11,7 +12,7 @@ async function readKey(req: NextRequest) {
 }
 
 /** POST { source: 'bank' | 'card', transactionId, reason? } — mark as "not unusual" */
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const dismissal = await dismissUnusual(await readKey(req))
     return NextResponse.json(dismissal)
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
 }
 
 /** DELETE { source, transactionId } — undo */
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: NextRequest) {
   try {
     const { source, transactionId } = await readKey(req)
     return NextResponse.json(await undismissUnusual({ source, transactionId }))
@@ -29,3 +30,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })
   }
 }
+
+export const POST = logged(handlePOST)
+export const DELETE = logged(handleDELETE)

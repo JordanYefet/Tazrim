@@ -5,6 +5,7 @@
  */
 import pkg from '@/package.json'
 import { prisma } from '@/lib/db/client'
+import { describeError } from '@/lib/log/redact'
 import { parseRelease, type ReleaseInfo } from './version'
 import { CACHE_KEY, getAutoCheck } from './settings'
 
@@ -89,7 +90,7 @@ export async function checkNow(fetchImpl: typeof fetch = fetch): Promise<UpdateC
   try {
     await saveCache(next)
   } catch (e) {
-    console.warn('updates: could not save the check result', e)
+    console.warn('updates: could not save the check result', describeError(e))
   }
   return next
 }
@@ -115,7 +116,7 @@ export function startDailyCheck(): void {
       }
       await checkNow()
     } catch (e) {
-      console.warn('updates: scheduled check failed', e)
+      console.warn('updates: scheduled check failed', describeError(e))
     }
   }
 

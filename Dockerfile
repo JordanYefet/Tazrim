@@ -73,6 +73,7 @@ ENV NODE_ENV=production \
     TZ=Asia/Jerusalem \
     TAZRIM_DATABASE_URL=file:/data/tazrim.db \
     TAZRIM_DEMO=0 \
+    TAZRIM_IN_DOCKER=1 \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     TAZRIM_CHROMIUM_ARGS="--no-sandbox --disable-dev-shm-usage"
 

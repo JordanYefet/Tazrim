@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { deleteManualSeries, parseManualInput, updateManualSeries } from '@/lib/db/manual-recurring'
+import { logged } from '@/lib/log/route'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -8,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> }
  * Any of { name, cadence, pattern, dayFrom, dayTo, amountMin, amountMax, attachedIds, detachedIds }.
  * The id lists, when given, replace the transactions attached / detached by hand.
  */
-export async function PATCH(req: Request, { params }: Ctx) {
+async function handlePATCH(req: Request, { params }: Ctx) {
   const { id } = await params
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })
@@ -21,8 +22,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 /** DELETE /api/recurring/manual/:id: removes the series; its transactions go back to detection */
-export async function DELETE(_req: Request, { params }: Ctx) {
+async function handleDELETE(_req: Request, { params }: Ctx) {
   const { id } = await params
   if (!(await deleteManualSeries(id))) return NextResponse.json({ error: 'החיוב הקבוע לא נמצא' }, { status: 404 })
   return new NextResponse(null, { status: 204 })
 }
+
+export const PATCH = logged(handlePATCH)
+export const DELETE = logged(handleDELETE)

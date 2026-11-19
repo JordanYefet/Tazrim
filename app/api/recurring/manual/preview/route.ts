@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { parseManualInput, previewManualSeries } from '@/lib/db/manual-recurring'
 import { getRecurringSeries } from '@/lib/db/recurring'
+import { logged } from '@/lib/log/route'
 
 /**
  * POST /api/recurring/manual/preview (ENG-71): what a rule would match, before saving.
  * { accountId, seriesId?, cadence, pattern, dayFrom, dayTo, amountMin, amountMax, attachedIds, detachedIds }
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object' || typeof body.accountId !== 'string') {
     return NextResponse.json({ error: 'בקשה לא תקינה' }, { status: 400 })
@@ -42,3 +43,5 @@ export async function POST(req: Request) {
   if (!preview) return NextResponse.json({ error: 'החשבון לא נמצא' }, { status: 404 })
   return NextResponse.json(preview)
 }
+
+export const POST = logged(handlePOST)

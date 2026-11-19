@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
 import { readRawGrid, truncateWorkbook, RawGridError } from '@/lib/parsers/raw-grid'
 import { MAX_PREVIEW_ROWS } from '@/lib/upload/preview-limits'
@@ -11,7 +12,7 @@ import { mapperFor } from '@/lib/upload/mapper-preview'
  * file, if any. Every bank and card account imports through a mapping; other
  * kinds get no mapper. Nothing is saved.
  */
-export async function POST(req: Request) {
+export const POST = logged(async function POST(req: Request) {
   const input = await readUploadForm(req)
   if ('response' in input) return input.response
   const { file, account } = input
@@ -32,4 +33,4 @@ export async function POST(req: Request) {
     }
     throw e
   }
-}
+})

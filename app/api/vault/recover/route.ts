@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { allow, fail, TOO_MANY } from '@/lib/auth/http'
 import { isResponse, sessionOr401 } from '@/lib/vault/http'
 import { unlockWithRecovery } from '@/lib/vault/vault'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** POST { recoveryKey }: opens the vault without a passkey (lost devices, no PRF) */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const session = await sessionOr401()
   if (isResponse(session)) return session
   if (!allow(req, 'vault-recover', 10, 15 * 60 * 1000)) return TOO_MANY()
@@ -16,3 +17,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ ok: true })
 }
+
+export const POST = logged(handlePOST)

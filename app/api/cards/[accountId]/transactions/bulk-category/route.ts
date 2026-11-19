@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { BankCategoryError } from '@/lib/db/bank-categories'
 import { MAX_BULK, setCardCategoryMany } from '@/lib/db/bulk-category'
+import { logged } from '@/lib/log/route'
 
 /**
  * `{ ids, category }` sets that (expense) category on every listed charge of
  * this card, each as its own choice: no merchant rule. All or none.
  */
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ accountId: string }> }) {
+async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ accountId: string }> }) {
   const { accountId } = await params
   const body = await req.json()
   const ids: unknown = body.ids
@@ -26,3 +27,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ac
     throw e
   }
 }
+
+export const PATCH = logged(handlePATCH)

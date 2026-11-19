@@ -1,7 +1,8 @@
+import { logged } from '@/lib/log/route'
 import { NextRequest, NextResponse } from 'next/server'
 import { renameCategory, deleteCategory } from '@/lib/db/categories'
 
-export async function PATCH(
+export const PATCH = logged(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -15,13 +16,13 @@ export async function PATCH(
     if ((e as { code?: string }).code === 'P2002') return NextResponse.json({ error: 'שם כבר קיים' }, { status: 400 })
     throw e
   }
-}
+})
 
-export async function DELETE(
+export const DELETE = logged(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
   await deleteCategory(id)
   return NextResponse.json({ ok: true })
-}
+})

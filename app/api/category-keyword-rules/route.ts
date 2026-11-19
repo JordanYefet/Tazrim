@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextRequest, NextResponse } from 'next/server'
 import { KeywordRuleError, listKeywordRules, saveKeywordRule, type FromRow } from '@/lib/db/keyword-rules'
 import { isKeywordScope } from '@/lib/insights/keyword-rules'
@@ -15,7 +16,7 @@ function fromRowOf(value: unknown): FromRow | undefined {
   return { source: v.source, id: text(v.id) }
 }
 
-export async function GET() {
+async function handleGET() {
   return NextResponse.json(await listKeywordRules())
 }
 
@@ -23,7 +24,7 @@ export async function GET() {
  * { pattern, category, scope?, merchant?, fromRow? }: the rule (the same rule is updated), and
  * { cardIds, bankIds } it changed. scope: ANY | NAME | NOTES; merchant: limit to one merchant or description.
  */
-export async function POST(req: NextRequest) {
+export const POST = logged(async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const pattern = text(body.pattern)
   const category = text(body.category)
@@ -36,4 +37,6 @@ export async function POST(req: NextRequest) {
     if (e instanceof KeywordRuleError) return NextResponse.json({ error: e.message }, { status: e.status })
     throw e
   }
-}
+})
+
+export const GET = logged(handleGET)

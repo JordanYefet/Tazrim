@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db/client'
 import { syncCompany, validateCredentials } from '@/lib/sync/providers'
 import { isResponse, readDetails, sessionOr401, whileOpen } from '@/lib/vault/http'
 import { deleteCredential, readCredential, saveCredential } from '@/lib/vault/vault'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ type Params = { params: Promise<{ id: string }> }
  * PUT { label, accountId?, fields }: edits a sign-in (the vault must be open).
  * A field left empty keeps its stored value: the page never shows them again.
  */
-export async function PUT(req: Request, { params }: Params) {
+async function handlePUT(req: Request, { params }: Params) {
   const session = await sessionOr401()
   if (isResponse(session)) return session
   const { id } = await params
@@ -34,9 +35,12 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 /** DELETE: removes a sign-in (the vault must be open) */
-export async function DELETE(_req: Request, { params }: Params) {
+async function handleDELETE(_req: Request, { params }: Params) {
   const session = await sessionOr401()
   if (isResponse(session)) return session
   const { id } = await params
   return whileOpen(async () => ((await deleteCredential(id)) ? NextResponse.json({ ok: true }) : fail(404, 'לא נמצא', 'NOT_FOUND')))
 }
+
+export const PUT = logged(handlePUT)
+export const DELETE = logged(handleDELETE)

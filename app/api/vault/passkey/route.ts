@@ -3,6 +3,7 @@ import { allow, fail, TOO_MANY } from '@/lib/auth/http'
 import { takeChallenge, verifyAuthentication } from '@/lib/auth/webauthn'
 import { isResponse, sessionOr401, whileOpen } from '@/lib/vault/http'
 import { addPasskey, createVault, unlockWithPasskey } from '@/lib/vault/vault'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
  *   unlock: opens the vault
  *   add:    gives this passkey its own copy (the vault must be open)
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const session = await sessionOr401()
   if (isResponse(session)) return session
   if (!allow(req, 'vault', 30)) return TOO_MANY()
@@ -52,3 +53,5 @@ export async function POST(req: Request) {
     prf.fill(0)
   }
 }
+
+export const POST = logged(handlePOST)

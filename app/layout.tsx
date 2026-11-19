@@ -12,6 +12,8 @@ import { FreshData } from '@/components/layout/fresh-data'
 import { PullToRefresh } from '@/components/layout/pull-to-refresh'
 import { PageMain } from '@/components/layout/page-main'
 import { isReadOnly } from '@/lib/read-only'
+import { maySync } from '@/lib/sync/access'
+import { LogWindow } from '@/components/logs/log-window'
 import { BARE_HEADER } from '@/lib/auth/config'
 import { NavSectionsProvider } from '@/components/layout/nav-context'
 import { MeProvider, type Me } from '@/components/layout/profile-menu'
@@ -66,7 +68,8 @@ const fontVars = `${heeboHebrew.variable} ${heeboLatin.variable} ${assistantHebr
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Sign-in, first run and invites (ENG-89): the page alone, with no sidebar, header or account data
-  if ((await headers()).get(BARE_HEADER) === '1') {
+  const requestHeaders = await headers()
+  if (requestHeaders.get(BARE_HEADER) === '1') {
     const bareJar = await cookies()
     const background = parseBackgroundCookie(bareJar.get(BACKGROUND_COOKIE)?.value)
     const bareA11y = parseA11y(bareJar.get(A11Y_COOKIE)?.value)
@@ -105,6 +108,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // The public demo (lib/read-only.ts): the app as usual, nothing saved
   const readOnly = isReadOnly()
+  // The debug window (ENG-104) is for whoever may start a bank sync, and never in the demo
+  const logsAllowed = !readOnly && maySync(requestHeaders)
   // Privacy mode (ENG-127): rendered hidden from the first paint, so amounts never flash
   const privacy = parsePrivacyCookie(jar.get(PRIVACY_COOKIE)?.value)
 
@@ -144,6 +149,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
               </div>
               <BottomNav />
+              <LogWindow allowed={logsAllowed} />
               <FreshData />
               <PullToRefresh />
               <ReadOnlyGuard readOnly={readOnly} />

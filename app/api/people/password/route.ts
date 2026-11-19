@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { currentSession, fail, passwordTransportOr400, rpOr400 } from '@/lib/auth/http'
 import { removePassword, setPassword } from '@/lib/auth/household'
 import { passwordProblem } from '@/lib/auth/password'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** PUT { password }: sets or replaces the signed-in person's own password; their other password sign-ins end */
-export async function PUT(req: Request) {
+async function handlePUT(req: Request) {
   const session = await currentSession()
   if (!session) return fail(401, 'צריך להתחבר מחדש', 'SIGNED_OUT')
   const rp = rpOr400(req)
@@ -24,10 +25,13 @@ export async function PUT(req: Request) {
 }
 
 /** DELETE: removes the signed-in person's password (refused when it is the household's last way in) */
-export async function DELETE() {
+async function handleDELETE() {
   const session = await currentSession()
   if (!session) return fail(401, 'צריך להתחבר מחדש', 'SIGNED_OUT')
   const result = await removePassword(session.personId, session.sessionId)
   if (result === 'last-way-in') return fail(409, 'זו הדרך האחרונה להיכנס. הוסיפו מפתח לפני שמסירים את הסיסמה', 'LAST_WAY_IN')
   return NextResponse.json({ ok: true })
 }
+
+export const PUT = logged(handlePUT)
+export const DELETE = logged(handleDELETE)

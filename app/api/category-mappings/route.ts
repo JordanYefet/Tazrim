@@ -1,3 +1,4 @@
+import { logged } from '@/lib/log/route'
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeProvider } from '@/lib/db/aliases'
 import { prisma } from '@/lib/db/client'
@@ -7,12 +8,12 @@ import { getIssuerCategories, removeCategoryMapping, saveCategoryMapping } from 
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 
-export async function GET() {
+async function handleGET() {
   return NextResponse.json(await getIssuerCategories())
 }
 
 /** { provider, sourceCategory, category }: map the issuer's category to one of yours (an existing one). */
-export async function PUT(req: NextRequest) {
+export const PUT = logged(async function PUT(req: NextRequest) {
   const body = await req.json()
   const provider = text(body.provider) && normalizeProvider(text(body.provider))
   const sourceCategory = text(body.sourceCategory)
@@ -25,14 +26,16 @@ export async function PUT(req: NextRequest) {
   }
   await saveCategoryMapping({ provider, sourceCategory, category })
   return NextResponse.json({ ok: true })
-}
+})
 
 /** { provider, sourceCategory }: the rows show the issuer's name again. */
-export async function DELETE(req: NextRequest) {
+export const DELETE = logged(async function DELETE(req: NextRequest) {
   const body = await req.json()
   const provider = text(body.provider) && normalizeProvider(text(body.provider))
   const sourceCategory = text(body.sourceCategory)
   if (!provider || !sourceCategory) return NextResponse.json({ error: 'חסרים ספק או קטגוריה מהקובץ' }, { status: 400 })
   await removeCategoryMapping(provider, sourceCategory)
   return NextResponse.json({ ok: true })
-}
+})
+
+export const GET = logged(handleGET)

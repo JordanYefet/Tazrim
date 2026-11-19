@@ -8,6 +8,7 @@ import { isLocalRequest } from '@/lib/local-request'
 import { matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
 import { wipeAllData } from '@/lib/db/wipe'
 import { lock } from '@/lib/vault/vault'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ interface Body {
  * 400 for a wrong or missing phrase, 401/403 when not confirmed.
  * 200 { ok, deleted: { <table>: rows } }.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const body = (await req.json().catch(() => null)) as Body | null
   if (isAuthRequired()) {
     const denied = await confirmSignedInPerson(req, body, 'delete-all')
@@ -48,3 +49,5 @@ export async function POST(req: Request) {
   res.cookies.set(clearedSessionCookie(relyingParty(req.headers)?.secure ?? false))
   return res
 }
+
+export const POST = logged(handlePOST)

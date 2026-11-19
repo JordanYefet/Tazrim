@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/client'
 import { isResponse, sessionOr401 } from '@/lib/vault/http'
 import { listCredentials, status } from '@/lib/vault/vault'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
  * GET: the vault (ENG-90) for Settings: whether it exists and is open, which
  * passkeys have their own copy, and the stored sign-ins without any secret.
  */
-export async function GET() {
+async function handleGET() {
   const session = await sessionOr401()
   if (isResponse(session)) return session
   const [vault, credentials, passkeys] = await Promise.all([
@@ -33,3 +34,5 @@ export async function GET() {
     })),
   })
 }
+
+export const GET = logged(handleGET)

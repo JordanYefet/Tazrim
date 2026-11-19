@@ -65,7 +65,7 @@ function isAuthPage(path: string): boolean {
   return path === '/login' || path === '/setup' || path === '/invite' || path.startsWith('/invite/')
 }
 
-/** Pages without the app's sidebar and header: the sign-in pages, and an update's progress (ENG-98), which still needs a session */
+/** Pages without the app's sidebar and header: the sign-in pages, an update's progress (ENG-98) and the full-screen debug log (ENG-104), which still need a session */
 export function isBarePath(path: string): boolean {
-  return isAuthPage(path) || path === '/updating'
+  return isAuthPage(path) || path === '/updating' || path === '/logs/full'
 }

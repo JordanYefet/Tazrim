@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateBankTransaction } from '@/lib/db/bank'
 import { BankCategoryError, setBankCategory } from '@/lib/db/bank-categories'
+import { logged } from '@/lib/log/route'
 
 /**
  * `category` (a name, or null to clear) with `categoryScope` 'row' | 'rule'
  * sets the row's category (lib/db/bank-categories); the response then lists
  * every row it changed. Other fields edit the row itself.
  */
-export async function PATCH(
+async function handlePATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -35,3 +36,5 @@ export async function PATCH(
   })
   return NextResponse.json(updated)
 }
+
+export const PATCH = logged(handlePATCH)

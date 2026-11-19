@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { allow, fail, rpOr400, signedIn, TOO_MANY } from '@/lib/auth/http'
 import { useRecoveryCode } from '@/lib/auth/household'
 import { createSession } from '@/lib/auth/session'
+import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
 
 /** POST { code }: signs in once with the recovery code, which then stops working */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!allow(req, 'recover', 5, 15 * 60 * 1000)) return TOO_MANY()
   const rp = rpOr400(req)
   if (rp instanceof NextResponse) return rp
@@ -16,3 +17,5 @@ export async function POST(req: Request) {
   const token = await createSession(person.id, null)
   return signedIn({ ok: true }, token, rp)
 }
+
+export const POST = logged(handlePOST)
