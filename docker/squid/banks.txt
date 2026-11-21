@@ -39,6 +39,8 @@
 # --- leumi: Bank Leumi
 .bankleumi.co.il
 .leumi.co.il
+.hcaptcha.com # third-party: the login page's captcha (survey 2026-11-21)
+.perfdrive.com # third-party: Radware Bot Manager, the login page's bot check (survey 2026-11-21)
 
 # --- massad: Bank Massad
 .bankmassad.co.il
