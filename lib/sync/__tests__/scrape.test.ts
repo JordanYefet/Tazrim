@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chromiumArgs, safeReason } from '../scrape'
+import { chromiumArgs, safeReason, syncProxyArgs } from '../scrape'
 
 // Made-up card digits and messages only.
 describe('safeReason', () => {
@@ -19,5 +19,22 @@ describe('chromiumArgs', () => {
     expect(chromiumArgs('--no-sandbox  --disable-dev-shm-usage ')).toEqual(['--no-sandbox', '--disable-dev-shm-usage'])
     expect(chromiumArgs('')).toEqual([])
     expect(chromiumArgs(undefined)).toEqual([])
+  })
+})
+
+describe('syncProxyArgs', () => {
+  it('turns TAZRIM_SYNC_PROXY into the browser flag', () => {
+    expect(syncProxyArgs('http://squid:3128')).toEqual(['--proxy-server=http://squid:3128'])
+    expect(syncProxyArgs(' http://proxy.example.com:8080/ ')).toEqual(['--proxy-server=http://proxy.example.com:8080'])
+  })
+  it('adds nothing when unset or empty, so installs without the proxy are unchanged', () => {
+    expect(syncProxyArgs(undefined)).toEqual([])
+    expect(syncProxyArgs('')).toEqual([])
+  })
+  it('ignores anything that is not a plain http(s) proxy address (never another browser flag)', () => {
+    expect(syncProxyArgs('--no-sandbox')).toEqual([])
+    expect(syncProxyArgs('squid:3128')).toEqual([])
+    expect(syncProxyArgs('http://squid:3128 --disable-web-security')).toEqual([])
+    expect(syncProxyArgs('socks5://squid:1080')).toEqual([])
   })
 })

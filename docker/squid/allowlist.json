@@ -1,0 +1,30 @@
+{
+  "_readme": "The single source of truth for what the tazrim container may reach through Squid (ENG-131). docker/squid/banks.txt is GENERATED from this file: run `node scripts/egress-allowlist.mjs` after editing. A test (scripts/__tests__/egress-allowlist.test.ts) fails when israeli-bank-scrapers has a company missing here, or banks.txt is stale. 'domains' = the provider's own hosts, from the scraper source (israeli-bank-scrapers 6.13.0, lib/scrapers/*.js). 'thirdParty' = hosts the provider's pages load that login needs, from scripts/egress-survey.mjs. Survey of 2026-11-21 (login pages, before login): only Leumi loads hosts login needs (hCaptcha, Radware); every other third-party host was ads, analytics or session recording and stays blocked. Desktop Chrome's own traffic (www.google.com, *.googleapis.com, *.gvt1.com) is not a page need. amex, isracard, oneZero and visaCal answered the headless browser with a bot challenge, so their pages are unverified: learn them with LEARNING MODE and a real account. Never add a broad shared host (cloud storage, code hosting, paste or webhook sites): a test rejects the known ones.",
+  "providers": {
+    "hapoalim": { "name": "Bank Hapoalim", "domains": [".bankhapoalim.co.il"], "thirdParty": [] },
+    "beinleumi": { "name": "Beinleumi (FIBI)", "domains": [".fibi.co.il"], "thirdParty": [] },
+    "union": { "name": "Union Bank", "note": "unionbank.co.il no longer resolves (2026-11-21 survey; merged into Mizrahi): kept so the CompanyTypes test stays complete", "domains": [".unionbank.co.il"], "thirdParty": [] },
+    "amex": { "name": "American Express Israel", "domains": [".americanexpress.co.il"], "thirdParty": [] },
+    "isracard": { "name": "Isracard", "domains": [".isracard.co.il"], "thirdParty": [] },
+    "visaCal": { "name": "Visa CAL", "domains": [".cal-online.co.il"], "thirdParty": [] },
+    "max": { "name": "Max", "domains": [".max.co.il"], "thirdParty": [] },
+    "otsarHahayal": { "name": "Bank Otsar Hahayal", "domains": [".bankotsar.co.il"], "thirdParty": [] },
+    "discount": { "name": "Discount Bank", "domains": [".telebank.co.il"], "thirdParty": [] },
+    "mercantile": { "name": "Mercantile Bank", "domains": [".telebank.co.il"], "thirdParty": [] },
+    "mizrahi": { "name": "Mizrahi-Tefahot", "domains": [".mizrahi-tefahot.co.il"], "thirdParty": [] },
+    "leumi": {
+      "name": "Bank Leumi",
+      "domains": [".bankleumi.co.il", ".leumi.co.il"],
+      "thirdParty": [
+        { "domain": ".hcaptcha.com", "why": "the login page's captcha (survey 2026-11-21)" },
+        { "domain": ".perfdrive.com", "why": "Radware Bot Manager, the login page's bot check (survey 2026-11-21)" }
+      ]
+    },
+    "massad": { "name": "Bank Massad", "domains": [".bankmassad.co.il"], "thirdParty": [] },
+    "yahav": { "name": "Bank Yahav", "domains": [".yahav.co.il"], "thirdParty": [] },
+    "behatsdaa": { "name": "Behatsdaa", "domains": [".behatsdaa.org.il"], "thirdParty": [] },
+    "beyahadBishvilha": { "name": "Beyahad Bishvilha (Hist)", "domains": [".hist.org.il"], "thirdParty": [] },
+    "oneZero": { "name": "One Zero", "domains": [".tfd-bank.com"], "thirdParty": [] },
+    "pagi": { "name": "Pagi", "domains": [".pagi.co.il"], "thirdParty": [] }
+  }
+}

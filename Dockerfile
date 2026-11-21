@@ -87,6 +87,10 @@ COPY --from=build --chown=node:node /app/prisma/migrations ./prisma/migrations
 COPY --from=build --chown=node:node /app/scripts/seed-demo.mjs ./scripts/seed-demo.mjs
 # The updater helper (ENG-98) runs from this same image: docker-compose.yml's `updater` service
 COPY --from=build --chown=node:node /app/updater/*.mjs ./updater/
+# What the updater needs for network isolation (ENG-133): the override file it puts in the install folder
+# when isolation is turned on from the app, and the bank list (to tell "already allowed")
+COPY --from=build --chown=node:node /app/docker-compose.egress.yml ./docker/docker-compose.egress.yml
+COPY --from=build --chown=node:node /app/docker/squid/allowlist.json ./docker/squid/allowlist.json
 COPY --from=build /opt/prisma-cli /opt/prisma-cli
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/tazrim-entrypoint
 

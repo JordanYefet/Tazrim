@@ -50,6 +50,42 @@ async function startAndSettle(companyId: string, password = 'fake-password') {
   return { id: res.run.id, status: await settle(res.run.id) }
 }
 
+describe('network isolation: a failed run names what the proxy refused (ENG-133)', () => {
+  it('lists the hosts the app was refused while it ran, only when isolation is on', async () => {
+    const fs = await import('node:fs')
+    const os = await import('node:os')
+    const path = await import('node:path')
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-egress-'))
+    const log = path.join(dir, 'access.log')
+    const t = Date.now() / 1000
+    fs.writeFileSync(
+      log,
+      [
+        `${t - 3600} 5 172.31.1.5 TCP_DENIED/403 1 CONNECT old.example.test:443 - HIER_NONE/- -`,
+        `${t + 0.2} 5 172.31.1.5 TCP_DENIED/403 1 CONNECT captcha.example.test:443 - HIER_NONE/- -`,
+        `${t + 0.3} 5 172.31.2.5 TCP_DENIED/403 1 CONNECT updater.example.test:443 - HIER_NONE/- -`,
+      ].join('\n') + '\n'
+    )
+    process.env.TAZRIM_SQUID_LOG = log
+    try {
+      const off = runs.startRun(company('leumi'), { username: 'someone', password: 'wrong' }, start())
+      if (!off.ok) throw new Error('busy')
+      await settle(off.run.id)
+      expect(runs.getRun(off.run.id)!.blocked).toBeUndefined()
+
+      process.env.TAZRIM_EGRESS = '1'
+      const on = runs.startRun(company('leumi'), { username: 'someone', password: 'wrong' }, start())
+      if (!on.ok) throw new Error('busy')
+      await settle(on.run.id)
+      expect(runs.getRun(on.run.id)!.blocked).toEqual(['captcha.example.test'])
+    } finally {
+      delete process.env.TAZRIM_EGRESS
+      delete process.env.TAZRIM_SQUID_LOG
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('a card sync', () => {
   it('asks about cards it does not know, stores after the answers, and remembers them', async () => {
     const first = await startAndSettle('max')

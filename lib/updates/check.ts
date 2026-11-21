@@ -2,10 +2,15 @@
  * The daily "is there a newer Tazrim?" check (ENG-98): one unauthenticated GET to
  * GitHub's latest-release endpoint, the answer cached in Setting 'updates.cache'.
  * Never throws: a failed check keeps the last known release and records why.
+ *
+ * Behind the egress proxy (ENG-131, TAZRIM_UPDATE_CHECK_VIA=helper) this container cannot reach
+ * GitHub, so the updater helper makes the same GET for it (GET /v1/latest) and the app parses
+ * its answer the same way. Without that variable nothing here changes: the app asks GitHub itself.
  */
 import pkg from '@/package.json'
 import { prisma } from '@/lib/db/client'
 import { describeError } from '@/lib/log/redact'
+import { helperCall } from './helper'
 import { parseRelease, type ReleaseInfo } from './version'
 import { CACHE_KEY, getAutoCheck } from './settings'
 
@@ -78,10 +83,23 @@ async function fetchLatest(fetchImpl: typeof fetch): Promise<Outcome> {
   }
 }
 
+const FAILURES: readonly string[] = ['NETWORK', 'RATE_LIMIT', 'BAD_RESPONSE']
+
+/** The helper's answer to GET /v1/latest: { release: <GitHub's JSON> } or { error: <one of the three> } */
+async function fetchViaHelper(): Promise<Outcome> {
+  // A little longer than the helper's own 5 s limit, so its verdict arrives
+  const r = await helperCall('GET', '/v1/latest', { timeoutMs: TIMEOUT_MS + 2000 })
+  if (!r || r.status !== 200) return { error: 'NETWORK' }
+  const j = r.json as { release?: unknown; error?: unknown } | null
+  if (j && typeof j.error === 'string') return { error: (FAILURES.includes(j.error) ? j.error : 'BAD_RESPONSE') as NonNullable<UpdateCache['error']> }
+  const release = parseRelease(j?.release)
+  return release ? { release } : { error: 'BAD_RESPONSE' }
+}
+
 /** Asks GitHub now and caches the answer. On failure keeps the previous `latest` and sets `error`. */
 export async function checkNow(fetchImpl: typeof fetch = fetch): Promise<UpdateCache> {
   const previous = await getUpdateCache().catch(() => ({ ...EMPTY }))
-  const outcome = await fetchLatest(fetchImpl)
+  const outcome = process.env.TAZRIM_UPDATE_CHECK_VIA === 'helper' ? await fetchViaHelper() : await fetchLatest(fetchImpl)
   const checkedAt = new Date().toISOString()
   const next: UpdateCache =
     'release' in outcome

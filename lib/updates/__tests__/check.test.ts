@@ -2,6 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
 
 let db: TestDb
+const helperCall = vi.hoisted(() => vi.fn())
+vi.mock('../helper', () => ({ helperCall }))
 
 const RELEASE = {
   tag_name: 'v9.1.0',
@@ -22,12 +24,68 @@ beforeEach(() => {
   db.exec(`DELETE FROM "Setting";`)
 })
 afterEach(() => {
+  vi.unstubAllEnvs()
+  helperCall.mockReset()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 afterAll(async () => {
   await releasePrisma()
   db.cleanup()
+})
+
+describe('checkNow behind the egress proxy (TAZRIM_UPDATE_CHECK_VIA=helper)', () => {
+  const via = () => vi.stubEnv('TAZRIM_UPDATE_CHECK_VIA', 'helper')
+  const never = vi.fn(() => Promise.reject(new Error('the app must not call GitHub itself')))
+
+  it('asks the updater, not GitHub, and parses its answer like a direct one', async () => {
+    via()
+    helperCall.mockResolvedValue({ status: 200, json: { release: RELEASE } })
+    const { checkNow } = await import('../check')
+    const res = await checkNow(never as unknown as typeof fetch)
+    expect(res.error).toBeNull()
+    expect(res.latest?.version).toBe('9.1.0')
+    expect(never).not.toHaveBeenCalled()
+    expect(helperCall.mock.calls[0].slice(0, 2)).toEqual(['GET', '/v1/latest'])
+  })
+
+  it('reports the failure the updater names, and keeps the previous release', async () => {
+    via()
+    const { checkNow } = await import('../check')
+    helperCall.mockResolvedValueOnce({ status: 200, json: { release: RELEASE } })
+    await checkNow(never as unknown as typeof fetch)
+    helperCall.mockResolvedValueOnce({ status: 200, json: { error: 'RATE_LIMIT' } })
+    const res = await checkNow(never as unknown as typeof fetch)
+    expect(res.error).toBe('RATE_LIMIT')
+    expect(res.latest?.version).toBe('9.1.0')
+  })
+
+  it('says NETWORK when the updater is down, has no token or refuses', async () => {
+    via()
+    const { checkNow } = await import('../check')
+    helperCall.mockResolvedValueOnce(null)
+    expect((await checkNow(never as unknown as typeof fetch)).error).toBe('NETWORK')
+    helperCall.mockResolvedValueOnce({ status: 404, json: { error: 'not found' } })
+    expect((await checkNow(never as unknown as typeof fetch)).error).toBe('NETWORK')
+  })
+
+  it('says BAD_RESPONSE for an answer that is not a release, or an error code it does not know', async () => {
+    via()
+    const { checkNow } = await import('../check')
+    helperCall.mockResolvedValueOnce({ status: 200, json: { release: { nope: true } } })
+    expect((await checkNow(never as unknown as typeof fetch)).error).toBe('BAD_RESPONSE')
+    helperCall.mockResolvedValueOnce({ status: 200, json: { error: 'weird' } })
+    expect((await checkNow(never as unknown as typeof fetch)).error).toBe('BAD_RESPONSE')
+  })
+
+  it('without the variable the app still asks GitHub itself and never the updater', async () => {
+    const { checkNow } = await import('../check')
+    const fetchMock = vi.fn(() => ok(RELEASE))
+    const res = await checkNow(fetchMock as unknown as typeof fetch)
+    expect(res.latest?.version).toBe('9.1.0')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(helperCall).not.toHaveBeenCalled()
+  })
 })
 
 describe('checkNow', () => {
