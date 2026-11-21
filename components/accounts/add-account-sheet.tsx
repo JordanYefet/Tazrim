@@ -9,6 +9,7 @@ import { SegmentedTabs } from '@/components/ui/segmented-tabs'
 import { RecoveryCode } from '@/components/auth/recovery-code'
 import { errorText } from '@/components/auth/ui'
 import { vaultWithPasskey } from '@/components/vault/vault-client'
+import { unlockVault } from '@/components/vault/unlock'
 import { FIELD_LABELS, SYNC_COMPANIES, type SyncCompany } from '@/lib/sync/providers'
 import { FAILURE_TEXT, STEP_TEXT } from '@/lib/sync/format'
 import type { RunView } from '@/lib/sync/runs'
@@ -66,11 +67,11 @@ async function call<T = Record<string, unknown>>(url: string, body?: unknown, me
   return { ok: res.ok, data }
 }
 
-/** Runs `send`; when the vault is locked, opens it with Face ID / Touch ID and tries once more */
+/** Runs `send`; when the vault is locked, opens it (passkey, password or recovery key) and tries once more */
 async function withVault<T>(send: () => Promise<{ ok: boolean; data: T & { error?: string; code?: string } }>) {
   let res = await send()
   if (!res.ok && res.data.code === 'VAULT_LOCKED') {
-    await vaultWithPasskey('unlock')
+    await unlockVault()
     res = await send()
   }
   if (!res.ok) throw new Error(res.data.error ?? 'משהו השתבש. נסו שוב')
@@ -256,7 +257,7 @@ export function AddAccountSheet({
       if (!info.ok) throw new Error(info.data.error ?? 'הכספת לא זמינה')
       let key: string | null = null
       if (!info.data.vault.exists) key = (await vaultWithPasskey('create')).recoveryKey ?? null
-      else if (!info.data.vault.open) await vaultWithPasskey('unlock')
+      else if (!info.data.vault.open) await unlockVault()
 
       if (!draft.current) {
         // The sync needs an account of the company: this one becomes the first one found

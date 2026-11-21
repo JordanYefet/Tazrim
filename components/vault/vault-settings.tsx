@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, KeyRound, Laptop, RotateCcw, LockKeyhole, LockKeyholeOpen, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, CreditCard, KeyRound, Laptop, RotateCcw, Lock, LockKeyhole, LockKeyholeOpen, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
@@ -10,6 +10,7 @@ import { errorText, primaryButton, secondaryButton, textButton } from '@/compone
 import { inputClass } from '@/components/accounts/add-account-form'
 import { cn } from '@/lib/utils/cn'
 import { post, vaultWithPasskey } from './vault-client'
+import { unlockVault } from './unlock'
 
 interface Credential { id: string; company: string; label: string; accountId: string | null; updatedAt: string }
 interface Passkey { id: string; label: string; personName: string; mine: boolean; thisDevice: boolean; opens: boolean }
@@ -17,6 +18,8 @@ interface VaultInfo {
   vault: { exists: boolean; open: boolean; openedBy: string | null; openedAt: string | null; locksAt: string | null; hasRecoveryKey: boolean }
   credentials: Credential[]
   passkeys: Passkey[]
+  /** The signed-in person's password: whether they have one, and whether it opens the vault */
+  password: { has: boolean; opensVault: boolean }
 }
 
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '')
@@ -45,10 +48,10 @@ export function VaultSettings() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [shownKey, setShownKey] = useState<{ title: string; key: string } | null>(null)
-  const [recovering, setRecovering] = useState(false)
-  const [recoveryInput, setRecoveryInput] = useState('')
   const [renewing, setRenewing] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [enablingPassword, setEnablingPassword] = useState(false)
+  const [passwordInput, setPasswordInput] = useState('')
 
   const load = useCallback(() => {
     fetch('/api/vault').then(async r => {
@@ -82,12 +85,12 @@ export function VaultSettings() {
     if (recoveryKey) setShownKey({ title: 'מפתח השחזור של הכספת', key: recoveryKey })
   })
 
-  async function recover(e: React.FormEvent) {
+  async function enablePassword(e: React.FormEvent) {
     e.preventDefault()
     await run(async () => {
-      await post('/api/vault/recover', { recoveryKey: recoveryInput })
-      setRecovering(false)
-      setRecoveryInput('')
+      await post('/api/vault/password', { password: passwordInput }, 'PUT')
+      setEnablingPassword(false)
+      setPasswordInput('')
     })
   }
 
@@ -100,7 +103,7 @@ export function VaultSettings() {
     )
   }
 
-  const { vault, credentials, passkeys } = info
+  const { vault, credentials, passkeys, password } = info
   const open = vault.open
   const canAddMine = open && passkeys.some(p => p.mine && !p.opens)
 
@@ -123,7 +126,7 @@ export function VaultSettings() {
                 ? 'יוצרים אותה עם Face ID או Touch ID, ומקבלים מפתח שחזור לשמור.'
                 : open
                   ? `נפתחה ב-${time(vault.openedAt)} (${vault.openedBy}). תינעל ב-${time(vault.locksAt)} אם לא ישתמשו בה, או כשהשרת מופעל מחדש.`
-                  : 'נפתחת עם Face ID או Touch ID כשסנכרון צריך אותה.'}
+                  : 'נפתחת עם Face ID או Touch ID, עם הסיסמה (אם הופעלה) או עם מפתח השחזור, כשסנכרון צריך אותה.'}
             </span>
           </span>
         </div>
@@ -138,11 +141,10 @@ export function VaultSettings() {
           </button>
         ) : (
           <span className="flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
-            <button type="button" onClick={() => run(() => vaultWithPasskey('unlock'))} disabled={busy} className={cn(secondaryButton, 'w-full border-transparent bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto')}>
+            <button type="button" onClick={() => run(() => unlockVault())} disabled={busy} className={cn(secondaryButton, 'w-full border-transparent bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto')}>
               <KeyRound className="h-4 w-4" aria-hidden />
               פתיחה
             </button>
-            <button type="button" onClick={() => setRecovering(true)} className={textButton}>עם מפתח השחזור</button>
           </span>
         )}
       </section>
@@ -185,6 +187,33 @@ export function VaultSettings() {
             )}
           </section>
 
+          <section aria-labelledby="password-title" className="space-y-2">
+            <h2 id="password-title" className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">פתיחה עם הסיסמה</h2>
+            <div className="overflow-hidden rounded-2xl surface">
+              <div className={ROW}>
+                <RowIcon icon={Lock} muted={!password.opensVault} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[0.9375rem] font-medium">הסיסמה שלי פותחת את הכספת</span>
+                  <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
+                    {!password.has
+                      ? 'עוד אין לך סיסמה. מגדירים אותה בהגדרות ← אנשים.'
+                      : password.opensVault
+                        ? 'פועל: אפשר לפתוח את הכספת עם הסיסמה שבה נכנסים.'
+                        : 'כבוי. להפעלה צריך שהכספת תהיה פתוחה ולהקליד את הסיסמה.'}
+                  </span>
+                </span>
+                {password.opensVault ? (
+                  <button type="button" disabled={busy} onClick={() => run(() => post('/api/vault/password', undefined, 'DELETE'))} className={cn(TEXT, QUIET_DANGER)}>כיבוי</button>
+                ) : (
+                  <button type="button" disabled={busy || !open || !password.has} onClick={() => setEnablingPassword(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>הפעלה</button>
+                )}
+              </div>
+            </div>
+            <p className="px-1 text-[0.78125rem] leading-relaxed text-muted-foreground text-pretty">
+              מי שיש לו את קובץ מסד הנתונים יכול לנסות לנחש את הסיסמה בלי הגבלה, אז חשובה סיסמה ארוכה. מפתח (Face ID) חזק ממנה.
+            </p>
+          </section>
+
           <section aria-labelledby="recovery-title" className="space-y-2">
             <h2 id="recovery-title" className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">אם כל המפתחות אבדו</h2>
             <div className="overflow-hidden rounded-2xl surface">
@@ -221,14 +250,14 @@ export function VaultSettings() {
         )}
       </AppDialog>
 
-      <AppDialog open={recovering} onOpenChange={setRecovering} title="פתיחה עם מפתח השחזור">
-        <form onSubmit={recover} className="mt-4 space-y-3">
+      <AppDialog open={enablingPassword} onOpenChange={o => { setEnablingPassword(o); if (!o) setPasswordInput('') }} title="פתיחה עם הסיסמה">
+        <form onSubmit={enablePassword} className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground text-pretty">הקלידו את הסיסמה שבה נכנסים לתזרים. היא לא נשמרת: רק עותק של מפתח הכספת, שהיא פותחת.</p>
           {error && <p className={errorText} role="alert">{error}</p>}
-          <input dir="ltr" autoComplete="off" spellCheck={false} value={recoveryInput} onChange={e => setRecoveryInput(e.target.value)} className={cn(inputClass, 'font-mono')} aria-label="מפתח השחזור" />
-          <button type="submit" disabled={busy || !recoveryInput.trim()} className={primaryButton}>פתיחה</button>
+          <input type="password" dir="ltr" autoComplete="current-password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className={inputClass} aria-label="הסיסמה שלך" />
+          <button type="submit" disabled={busy || !passwordInput} className={primaryButton}>הפעלה</button>
         </form>
       </AppDialog>
-
 
       <ConfirmDialog
         open={resetting}
@@ -264,7 +293,7 @@ function Heading() {
     <div className="space-y-1">
       <h1 className="text-2xl font-semibold tracking-tight">כספת</h1>
       <p className="max-w-[62ch] text-sm text-muted-foreground text-pretty">
-        שומרת מוצפנים את פרטי הכניסה של החשבונות המסונכרנים, ורק מפתח (Face ID, Touch ID) של מישהו בבית פותח אותה. הכספת ננעלת לבד.
+        שומרת מוצפנים את פרטי הכניסה של החשבונות המסונכרנים, ורק מפתח (Face ID, Touch ID), סיסמה שהופעלה לכך או מפתח השחזור פותחים אותה. הכספת ננעלת לבד.
       </p>
     </div>
   )

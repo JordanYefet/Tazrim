@@ -82,7 +82,7 @@ describe('turning it on', () => {
 describe('opening with it', () => {
   it('opens with the right password; a wrong one, an empty one, or someone without a copy does not', async () => {
     vault.lock()
-    expect(await vault.unlockWithPassword('p1', 'wrong-password')).toBe(false)
+    expect(await vault.unlockWithPassword('p1', 'wrong-password', 'x')).toBe(false)
     expect(await vault.unlockWithPassword('p1', '', 'x')).toBe(false)
     expect(await vault.unlockWithPassword('p2', 'fake-partner-password-2', 'x')).toBe(false)
     expect((await vault.status()).open).toBe(false)

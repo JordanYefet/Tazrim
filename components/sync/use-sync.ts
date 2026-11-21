@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { LoginField } from '@/lib/sync/providers'
 import type { QueueView, RunView } from '@/lib/sync/runs'
-import { vaultWithPasskey } from '@/components/vault/vault-client'
+import { unlockVault } from '@/components/vault/unlock'
 import type { LinkAction } from '@/lib/sync/store'
 
 export interface CompanyInfo {
@@ -146,14 +146,14 @@ export function useSync() {
   }, [runGoing, runId, load, router])
 
   /**
-   * Runs `send`; when the vault is locked (423), opens it with Face ID / Touch ID
-   * and tries once more. Returns the error to show, or null.
+   * Runs `send`; when the vault is locked (423), opens it (passkey, password or
+   * recovery key, components/vault/unlock.tsx) and tries once more. Returns the error to show, or null.
    */
   const withVault = useCallback(async (send: () => Promise<{ ok: boolean; data: Record<string, unknown> }>) => {
     let res = await send()
     if (!res.ok && res.data.code === 'VAULT_LOCKED') {
       try {
-        await vaultWithPasskey('unlock')
+        await unlockVault()
       } catch (e) {
         return (e as Error).message
       }
