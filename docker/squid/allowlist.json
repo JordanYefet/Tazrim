@@ -1,0 +1,23 @@
+{
+  "_readme": "The single source of truth for what the tazrim container may reach through Squid (ENG-131). docker/squid/banks.txt is GENERATED from this file: run `node scripts/egress-allowlist.mjs` after editing. A test (scripts/__tests__/egress-allowlist.test.ts) fails when israeli-bank-scrapers has a company missing here, or banks.txt is stale. 'domains' = the provider's own hosts, from the scraper source (israeli-bank-scrapers 6.13.0, lib/scrapers/*.js). 'thirdParty' = hosts the provider's pages load that login needs, from scripts/egress-survey.mjs. NOTE (2026-11-21): every thirdParty list is still EMPTY: the survey could not be run yet (no IPv4 route on the machine it was written on). Run it (README: upgrading the scraper), review each third-party host (needed for login vs tracking), and add the needed ones here with a 'why'. Never add a broad shared host (cloud storage, code hosting, paste or webhook sites): a test rejects the known ones.",
+  "providers": {
+    "hapoalim": { "name": "Bank Hapoalim", "domains": [".bankhapoalim.co.il"], "thirdParty": [] },
+    "beinleumi": { "name": "Beinleumi (FIBI)", "domains": [".fibi.co.il"], "thirdParty": [] },
+    "union": { "name": "Union Bank", "domains": [".unionbank.co.il"], "thirdParty": [] },
+    "amex": { "name": "American Express Israel", "domains": [".americanexpress.co.il"], "thirdParty": [] },
+    "isracard": { "name": "Isracard", "domains": [".isracard.co.il"], "thirdParty": [] },
+    "visaCal": { "name": "Visa CAL", "domains": [".cal-online.co.il"], "thirdParty": [] },
+    "max": { "name": "Max", "domains": [".max.co.il"], "thirdParty": [] },
+    "otsarHahayal": { "name": "Bank Otsar Hahayal", "domains": [".bankotsar.co.il"], "thirdParty": [] },
+    "discount": { "name": "Discount Bank", "domains": [".telebank.co.il"], "thirdParty": [] },
+    "mercantile": { "name": "Mercantile Bank", "domains": [".telebank.co.il"], "thirdParty": [] },
+    "mizrahi": { "name": "Mizrahi-Tefahot", "domains": [".mizrahi-tefahot.co.il"], "thirdParty": [] },
+    "leumi": { "name": "Bank Leumi", "domains": [".bankleumi.co.il", ".leumi.co.il"], "thirdParty": [] },
+    "massad": { "name": "Bank Massad", "domains": [".bankmassad.co.il"], "thirdParty": [] },
+    "yahav": { "name": "Bank Yahav", "domains": [".yahav.co.il"], "thirdParty": [] },
+    "behatsdaa": { "name": "Behatsdaa", "domains": [".behatsdaa.org.il"], "thirdParty": [] },
+    "beyahadBishvilha": { "name": "Beyahad Bishvilha (Hist)", "domains": [".hist.org.il"], "thirdParty": [] },
+    "oneZero": { "name": "One Zero", "domains": [".tfd-bank.com"], "thirdParty": [] },
+    "pagi": { "name": "Pagi", "domains": [".pagi.co.il"], "thirdParty": [] }
+  }
+}
