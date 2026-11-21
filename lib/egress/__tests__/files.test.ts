@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { readApprovers, readChanges, readExtraDomains } from '../files'
+import { cleanApprovers, readChanges, readExtraDomains } from '../files'
 
 let dir: string
 beforeEach(() => {
@@ -17,12 +17,10 @@ afterEach(() => {
 describe('the mounted egress files', () => {
   it('missing files are empty lists', () => {
     expect(readExtraDomains()).toEqual([])
-    expect(readApprovers()).toEqual([])
     expect(readChanges()).toEqual([])
   })
   it('approvers never carry their public key to the browser', () => {
-    fs.writeFileSync(path.join(dir, 'approvers.json'), JSON.stringify([{ id: 'abc', name: 'Phone', publicKey: 'SECRETISH', alg: -7, rpId: 'tazrim.test', origin: 'https://tazrim.test', createdAt: '2030-01-01T00:00:00Z' }]))
-    const [a] = readApprovers()
+    const [a] = cleanApprovers([{ id: 'abc', name: 'Phone', publicKey: 'SECRETISH', alg: -7, rpId: 'tazrim.test', origin: 'https://tazrim.test', createdAt: '2030-01-01T00:00:00Z' }])
     expect(a).toEqual({ id: 'abc', name: 'Phone', rpId: 'tazrim.test', createdAt: '2030-01-01T00:00:00Z', kind: 'passkey' })
     expect(JSON.stringify(a)).not.toContain('SECRETISH')
   })

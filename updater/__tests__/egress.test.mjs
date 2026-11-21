@@ -88,7 +88,7 @@ beforeEach(() => {
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
 const codeOnDisk = () => fs.readFileSync(path.join(dir, CODE_FILE), 'utf8').trim()
-const readJson = f => JSON.parse(fs.readFileSync(path.join(dir, 'egress', f), 'utf8'))
+const readJson = f => JSON.parse(fs.readFileSync(f === 'approvers.json' ? path.join(dir, '.tazrim-approvers', f) : path.join(dir, 'egress', f), 'utf8'))
 const logLines = () => fs.readFileSync(path.join(dir, 'egress/changes.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
 
 /** Registers a passkey the way the app would: begin, read the code file, finish */
@@ -183,7 +183,7 @@ describe('registration of a passkey', () => {
     // declares ES256 but the key is Ed25519
     expect(await go({ ...registration(makeKey('eddsa'), { challenge }), response: { ...registration(makeKey('eddsa'), { challenge }).response, publicKeyAlgorithm: -7 } })).toBe('BAD_KEY')
     expect(await go({ ...registration(key, { challenge }), response: { ...registration(key, { challenge }).response, publicKeyAlgorithm: -99 } })).toBe('BAD_ALG')
-    expect(fs.existsSync(path.join(dir, 'egress/approvers.json'))).toBe(false)
+    expect(fs.existsSync(path.join(dir, '.tazrim-approvers/approvers.json'))).toBe(false)
   })
 
   it('accepts a subdomain origin of the rpId', async () => {
@@ -207,7 +207,9 @@ describe('registration of the approval password', () => {
     expect(stored).toMatchObject({ kind: 'password', params: { N: 32768, r: 8, p: 1, keylen: 64 } })
     expect(stored.hash).toBeTruthy()
     expect(stored.salt).toBeTruthy()
-    for (const f of ['approvers.json', 'changes.jsonl']) expect(fs.readFileSync(path.join(dir, 'egress', f), 'utf8')).not.toContain(PASSWORD)
+    for (const f of ['.tazrim-approvers/approvers.json', 'egress/changes.jsonl']) expect(fs.readFileSync(path.join(dir, f), 'utf8')).not.toContain(PASSWORD)
+    // the folder the app can read holds no approvers (no password hash to guess at offline)
+    expect(fs.readdirSync(path.join(dir, 'egress'))).not.toContain('approvers.json')
     expect(JSON.stringify(r.body)).not.toContain('hash')
     expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
   })

@@ -41,7 +41,6 @@ export function cleanChanges(v: unknown): EgressChange[] {
 }
 
 export const readExtraDomains = (): ExtraDomain[] => cleanExtras(readJson('extra-domains.json'))
-export const readApprovers = (): Approver[] => cleanApprovers(readJson('approvers.json'))
 
 /** The last `limit` lines of changes.jsonl, newest first */
 export function readChanges(limit = 50): EgressChange[] {

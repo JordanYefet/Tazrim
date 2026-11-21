@@ -5,7 +5,7 @@
  */
 import { helperCall, helperHealth } from '@/lib/updates/helper'
 import { egressActive } from './config'
-import { cleanApprovers, cleanChanges, cleanExtras, readApprovers, readChanges, readExtraDomains } from './files'
+import { cleanApprovers, cleanChanges, cleanExtras, readChanges, readExtraDomains } from './files'
 import { recentDenied } from './squid-log'
 import { egressMessage } from './messages'
 import type { ChangeRequest, EgressJob, EgressView } from './types'
@@ -71,7 +71,6 @@ export async function getEgressView(): Promise<EgressView> {
   }
   if (!fromHelper && envOn) {
     view.extraDomains = readExtraDomains()
-    view.approvers = readApprovers()
     view.changes = readChanges()
   }
   if (view.on) view.blocked = recentDenied()

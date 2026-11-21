@@ -13,7 +13,8 @@
  *   extra-domains.json  [{ domain, note, addedAt, approver }]
  *   extra-domains.txt   generated from it: what Squid reads (acl extra)
  *   changes.jsonl       append-only { at, action, detail, approver }
- *   approvers.json      passkeys and at most one password
+ *   (approvers: <install>/.tazrim-approvers/approvers.json, outside egress/ on purpose:
+ *    the app can read egress/, and the password approver's hash must stay out of its reach)
  * And <install>/tazrim-approval-code.txt (outside egress/: the app never sees it) holds the
  * one-time code that proves the person is at this computer when they register an approver.
  */
@@ -74,6 +75,9 @@ function defaultBankDomains() {
   }
 }
 
+/** Where approvers live, next to the compose file, never mounted into the app */
+export const KEYS_DIR = '.tazrim-approvers'
+
 export function createEgress({
   config,
   docker,
@@ -90,7 +94,9 @@ export function createEgress({
     json: path.join(dir, 'extra-domains.json'),
     txt: path.join(dir, 'extra-domains.txt'),
     log: path.join(dir, 'changes.jsonl'),
-    approvers: path.join(dir, 'approvers.json'),
+    // NOT in egress/ (the app mounts that read-only): the password approver's hash would be
+    // open to offline guessing by app code. This folder is mounted only in the updater.
+    approvers: path.join(installDir, KEYS_DIR, 'approvers.json'),
     code: path.join(installDir, CODE_FILE),
     override: path.join(installDir, EGRESS_FILE),
   }
@@ -133,7 +139,18 @@ export function createEgress({
 
   const extras = () => readJson(files.json, [])
   const approvers = () => readJson(files.approvers, [])
-  const saveApprovers = list => writeAtomic(files.approvers, `${JSON.stringify(list, null, 2)}\n`)
+  function saveApprovers(list) {
+    // Only the updater and the computer's own user may look inside (0700)
+    const keys = path.dirname(files.approvers)
+    const existed = isRealDir(keys, fs)
+    realDir(keys, fs)
+    if (!existed) {
+      const o = owner()
+      fs.chownSync(keys, o.uid, o.gid)
+      fs.chmodSync(keys, 0o700)
+    }
+    writeAtomic(files.approvers, `${JSON.stringify(list, null, 2)}\n`, 0o600)
+  }
 
   function log(action, detail, approver) {
     ensureDir()
