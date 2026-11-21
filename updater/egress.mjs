@@ -313,7 +313,9 @@ export function createEgress({
   // ---- approvals ---------------------------------------------------------------------------------
 
   const flows = new Map() // flowId -> { challenge, change, rpId, expires }
-  const lockState = { fails: [], until: 0 }
+  // `pending`: password checks still running (scrypt is async), counted against the limit so a
+  // burst of parallel tries can't all slip in before the first wrong one is recorded
+  const lockState = { fails: [], until: 0, pending: 0 }
 
   function sweepFlows() {
     const t = now().getTime()
@@ -396,12 +398,22 @@ export function createEgress({
       const t = now().getTime()
       lockState.fails = lockState.fails.filter(x => t - x < PASSWORD_LOCK_MS)
       if (lockState.until > t) return fail('LOCKED', undefined, { until: new Date(lockState.until).toISOString() })
+      if (lockState.fails.length + lockState.pending >= PASSWORD_TRIES) {
+        return fail('LOCKED', undefined, { until: new Date(t + PASSWORD_LOCK_MS).toISOString() })
+      }
       const taken = takeFlow({ flowId: body.flowId })
       if (!taken.flow) return taken
       flow = taken.flow
       const pw = approvers().find(a => a.kind === 'password')
       if (!pw) return fail('NO_APPROVER')
-      if (!(await checkPassword(body.password, pw))) {
+      lockState.pending++
+      let right
+      try {
+        right = await checkPassword(body.password, pw)
+      } finally {
+        lockState.pending--
+      }
+      if (!right) {
         lockState.fails.push(t)
         if (lockState.fails.length >= PASSWORD_TRIES) {
           lockState.until = t + PASSWORD_LOCK_MS

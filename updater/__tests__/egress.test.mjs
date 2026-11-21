@@ -465,6 +465,16 @@ describe('approving with the password', () => {
     expect((await egress.approveFinish({ flowId: b2.body.flowId, password: PASSWORD })).body.ok).toBe(true)
   })
 
+  it('a burst of parallel password tries gets no more than 5 checks', async () => {
+    await registerPassword()
+    const flows = []
+    for (let i = 0; i < 12; i++) flows.push((await begin(addDomain())).body.flowId)
+    const answers = await Promise.all(flows.map((flowId, i) => egress.approveFinish({ flowId, password: `wrong password ${i}` })))
+    const errors = answers.map(a => a.body.error)
+    expect(errors.filter(e => e === 'BAD_PASSWORD')).toHaveLength(5)
+    expect(errors.filter(e => e === 'LOCKED')).toHaveLength(7)
+  })
+
   it('a used flowId, an unknown one and an expired one are refused', async () => {
     await registerPassword()
     const b = await begin(addDomain())
