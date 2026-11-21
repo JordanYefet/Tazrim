@@ -37,12 +37,12 @@ const HOST_RE = /^\.?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 export function checkDomain(input) {
   if (typeof input !== 'string') return { ok: false, code: 'BAD_DOMAIN' }
   const domain = input.trim().toLowerCase()
-  if (domain.length > 253 || !HOST_RE.test(domain)) return { ok: false, code: 'BAD_DOMAIN' }
   const bare = domain.replace(/^\./, '')
+  // A public suffix itself (checked first: a bare ".il" is not a host name by the pattern below)
+  if (PUBLIC_SUFFIXES.includes(bare)) return { ok: false, code: 'TOO_BROAD' }
+  if (domain.length > 253 || !HOST_RE.test(domain)) return { ok: false, code: 'BAD_DOMAIN' }
   // A name made only of digits and dots is an IP address, whatever the regex above thought
   if (/^[0-9.]+$/.test(bare) || bare.split('.').every(l => /^\d+$/.test(l))) return { ok: false, code: 'BAD_DOMAIN' }
-  // A public suffix itself, or anything that would cover one (a rule is only ever broader than its name)
-  if (PUBLIC_SUFFIXES.includes(bare)) return { ok: false, code: 'TOO_BROAD' }
   // A shared host, or anything under one or above one
   if (SHARED_HOSTS.some(h => bare === h || bare.endsWith(`.${h}`) || h.endsWith(`.${bare}`))) return { ok: false, code: 'SHARED_HOST' }
   return { ok: true, domain }
