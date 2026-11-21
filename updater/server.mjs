@@ -16,6 +16,7 @@ import { createConfig } from './config.mjs'
 import { createDocker } from './docker.mjs'
 import { readPlain, writeText } from './files.mjs'
 import { createJobs, IMAGE } from './job.mjs'
+import { fetchLatest } from './latest.mjs'
 import { createStatusStore } from './status.mjs'
 
 export const PORT = 8080
@@ -26,6 +27,8 @@ export const API_VERSION = 1
  * apps and helpers of either age keep working with each other.
  */
 export const FEATURES = Object.freeze(['config'])
+/** 'latest' (ENG-131): GET /v1/latest, the release check for an app that has no internet of its own */
+export const ALWAYS = Object.freeze(['latest'])
 const MAX_BODY = 4096
 const TOKEN_RE = /^[0-9a-f]{64}$/
 
@@ -84,8 +87,8 @@ function readJson(req) {
   })
 }
 
-export function createServer({ jobs, config = null, token, helperVersion }) {
-  const features = config ? FEATURES : []
+export function createServer({ jobs, config = null, token, helperVersion, latest = fetchLatest }) {
+  const features = [...(config ? FEATURES : []), ...ALWAYS]
   // Compare hashes: same length always, so timingSafeEqual never throws and the length doesn't leak
   const expected = sha256(token)
   const authorized = header => {
@@ -103,6 +106,8 @@ export function createServer({ jobs, config = null, token, helperVersion }) {
     },
     // ?kind=config: the last settings job (its own store, so it never hides the last update's roll back)
     'GET /v1/status': async (req, url) => [200, url.searchParams.get('kind') === 'config' ? (config?.current() ?? null) : jobs.current()],
+    // The newest release, asked of GitHub from here (the app may have no way out, ENG-131): { release } or { error }
+    'GET /v1/latest': async () => [200, await latest({ helperVersion })],
     'POST /v1/update': async req => {
       const body = await readJson(req)
       const r = await jobs.startUpdate(body?.version)
