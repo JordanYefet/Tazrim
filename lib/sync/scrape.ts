@@ -52,6 +52,17 @@ export function chromiumArgs(value: string | undefined): string[] {
   return (value ?? '').split(/\s+/).filter(Boolean)
 }
 
+/**
+ * TAZRIM_SYNC_PROXY (e.g. http://squid:3128): the browser's only way out when the install runs
+ * behind the egress proxy (compose profile/override "egress", docker/squid/). Becomes
+ * `--proxy-server=<it>`; nothing else changes. Only an http(s)://host[:port] is accepted, anything
+ * else is ignored (a typo must not turn into some other browser flag).
+ */
+export function syncProxyArgs(value: string | undefined): string[] {
+  const v = (value ?? '').trim()
+  return /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?\/?$/.test(v) ? [`--proxy-server=${v.replace(/\/$/, '')}`] : []
+}
+
 const ERROR_CODES: Record<string, ScrapeErrorCode> = {
   INVALID_PASSWORD: 'INVALID_PASSWORD',
   CHANGE_PASSWORD: 'CHANGE_PASSWORD',
@@ -73,7 +84,7 @@ async function realScrape({ company, credentials, startDate, onStep, requestOtp,
     combineInstallments: false,
     showBrowser: showSyncBrowser(),
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS),
+    args: [...chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS), ...syncProxyArgs(process.env.TAZRIM_SYNC_PROXY)],
     verbose: false,
   })
   scraper.onProgress((_id, { type }) => {
