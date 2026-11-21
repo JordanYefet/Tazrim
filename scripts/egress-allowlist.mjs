@@ -12,6 +12,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { covers } from '../updater/egress-rules.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const ALLOWLIST_JSON = path.join(here, '../docker/squid/allowlist.json')
@@ -23,11 +24,7 @@ export function loadAllowlist(file = ALLOWLIST_JSON) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
 }
 
-/** ".a.com" covers "a.com" and every subdomain; "a.com" covers only itself */
-export function covers(broad, narrow) {
-  if (broad === narrow) return true
-  return broad.startsWith('.') && (narrow === broad.slice(1) || narrow.endsWith(broad))
-}
+export { covers }
 
 /** Every domain in the file (own and third-party), in file order, with its provider and why */
 export function entries(list) {
