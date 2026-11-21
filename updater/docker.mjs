@@ -219,6 +219,72 @@ export function createDocker({
   const inspect = id => call('GET', `/containers/${enc(id)}/json`)
   const inspectImage = id => call('GET', `/images/${encName(id)}/json`)
 
+
+  /** The create request of a short-lived compose container (see runCli); pulls the CLI image when missing */
+  async function cliBody(ctx, cliImage, script, hostConfig = {}) {
+    if (!(await inspectImage(cliImage).catch(() => null))) {
+      const colon = cliImage.lastIndexOf(':')
+      await pullImage(cliImage.slice(0, colon), cliImage.slice(colon + 1))
+    }
+    const dirs = [ctx.workingDir, ...ctx.configFiles.map(f => f.slice(0, f.lastIndexOf('/')) || '/')]
+    const binds = [...new Set(dirs)]
+      .filter((d, _, all) => !all.some(o => o !== d && d.startsWith(`${o}/`)))
+      .map(d => `${d}:${d}:ro`)
+    return {
+      Image: cliImage,
+      Entrypoint: ['sh', '-c', script],
+      Cmd: [],
+      Env: [
+        `COMPOSE_PROJECT_NAME=${ctx.project}`,
+        `COMPOSE_FILE=${ctx.configFiles.join(':')}`,
+        `COMPOSE_PATH_SEPARATOR=:`,
+        // Plain lines in the log, no colours or progress bars
+        'COMPOSE_ANSI=never',
+        'COMPOSE_PROGRESS=plain',
+        `TAZRIM_WD=${ctx.workingDir}`,
+        `TAZRIM_SELF=${ctx.selfService}`,
+      ],
+      WorkingDir: ctx.workingDir,
+      Tty: true,
+      Labels: { 'tazrim.updater': 'compose' },
+      HostConfig: { Binds: [`${ctx.socket}:/var/run/docker.sock`, ...binds], NetworkMode: 'none', ...hostConfig },
+    }
+  }
+
+  async function pullImage(repo, tag, onProgress = () => {}) {
+    const layers = new Map()
+    let failure = null
+    await call('POST', `/images/create?fromImage=${enc(repo)}&tag=${enc(tag)}`, {
+      idleMs: pullIdleMs,
+      totalMs: pullTotalMs,
+      idleWhat: 'the download made no progress',
+      onLine: line => {
+        let ev
+        try {
+          ev = JSON.parse(line)
+        } catch {
+          return
+        }
+        if (ev.error) failure = ev.error
+        if (!ev.id) return
+        const d = ev.progressDetail
+        if (ev.status === 'Downloading' && d?.total > 0) layers.set(ev.id, { current: d.current ?? 0, total: d.total })
+        else if (/^(Download complete|Pull complete|Already exists)$/.test(ev.status ?? '') && layers.has(ev.id)) {
+          const l = layers.get(ev.id)
+          l.current = l.total
+        } else return
+        let current = 0
+        let total = 0
+        for (const l of layers.values()) {
+          current += l.current
+          total += l.total
+        }
+        onProgress({ current, total })
+      },
+    })
+    if (failure) throw new Error(failure)
+  }
+
   return {
     /** The one `tazrim` service container in the helper's own compose project (not a `-previous` one) */
     async findTarget() {
@@ -244,39 +310,7 @@ export function createDocker({
     },
 
     /** Pulls repo:tag; onProgress({current, total}) in bytes summed over the layers */
-    async pull(repo, tag, onProgress) {
-      const layers = new Map()
-      let failure = null
-      await call('POST', `/images/create?fromImage=${enc(repo)}&tag=${enc(tag)}`, {
-        idleMs: pullIdleMs,
-        totalMs: pullTotalMs,
-        idleWhat: 'the download made no progress',
-        onLine: line => {
-          let ev
-          try {
-            ev = JSON.parse(line)
-          } catch {
-            return
-          }
-          if (ev.error) failure = ev.error
-          if (!ev.id) return
-          const d = ev.progressDetail
-          if (ev.status === 'Downloading' && d?.total > 0) layers.set(ev.id, { current: d.current ?? 0, total: d.total })
-          else if (/^(Download complete|Pull complete|Already exists)$/.test(ev.status ?? '') && layers.has(ev.id)) {
-            const l = layers.get(ev.id)
-            l.current = l.total
-          } else return
-          let current = 0
-          let total = 0
-          for (const l of layers.values()) {
-            current += l.current
-            total += l.total
-          }
-          onProgress({ current, total })
-        },
-      })
-      if (failure) throw new Error(failure)
-    },
+    pull: (repo, tag, onProgress) => pullImage(repo, tag, onProgress),
 
     /** The negotiated API version, e.g. "1.47"; rejects when Docker is too old or unreachable */
     api: async () => (await apiPrefix()).slice(2),
@@ -368,35 +402,7 @@ export function createDocker({
      * Resolves { exitCode, output } (output: the last 4 KB); the container is removed after.
      */
     async runCli(ctx, cliImage, script, { timeoutMs = 10 * 60 * 1000 } = {}) {
-      if (!(await inspectImage(cliImage).catch(() => null))) {
-        const colon = cliImage.lastIndexOf(':')
-        await this.pull(cliImage.slice(0, colon), cliImage.slice(colon + 1), () => {})
-      }
-      const dirs = [ctx.workingDir, ...ctx.configFiles.map(f => f.slice(0, f.lastIndexOf('/')) || '/')]
-      const binds = [...new Set(dirs)]
-        .filter((d, _, all) => !all.some(o => o !== d && d.startsWith(`${o}/`)))
-        .map(d => `${d}:${d}:ro`)
-      const created = await call('POST', '/containers/create', {
-        body: {
-          Image: cliImage,
-          Entrypoint: ['sh', '-c', script],
-          Cmd: [],
-          Env: [
-            `COMPOSE_PROJECT_NAME=${ctx.project}`,
-            `COMPOSE_FILE=${ctx.configFiles.join(':')}`,
-            `COMPOSE_PATH_SEPARATOR=:`,
-            // Plain lines in the log, no colours or progress bars
-            'COMPOSE_ANSI=never',
-            'COMPOSE_PROGRESS=plain',
-            `TAZRIM_WD=${ctx.workingDir}`,
-            `TAZRIM_SELF=${ctx.selfService}`,
-          ],
-          WorkingDir: ctx.workingDir,
-          Tty: true,
-          Labels: { 'tazrim.updater': 'compose' },
-          HostConfig: { Binds: [`${ctx.socket}:/var/run/docker.sock`, ...binds], NetworkMode: 'none' },
-        },
-      })
+      const created = await call('POST', '/containers/create', { body: await cliBody(ctx, cliImage, script) })
       const id = created.Id
       try {
         await call('POST', `/containers/${enc(id)}/start`)
@@ -417,6 +423,53 @@ export function createDocker({
         return { exitCode: state.ExitCode ?? 1, output }
       } finally {
         await call('DELETE', `/containers/${enc(id)}?force=true&v=true`).catch(() => {})
+      }
+    },
+
+    /**
+     * Starts `docker compose` for `ctx` in a container that is NOT waited for (AutoRemove): for work
+     * that stops the helper itself, which a waiting helper could not survive. Resolves with the id
+     * once it started. Leftovers (a start that never ran) are swept by removeFinishedCli.
+     */
+    async runCliDetached(ctx, cliImage, script) {
+      const created = await call('POST', '/containers/create', { body: await cliBody(ctx, cliImage, script, { AutoRemove: true }) })
+      try {
+        await call('POST', `/containers/${enc(created.Id)}/start`)
+      } catch (e) {
+        await call('DELETE', `/containers/${enc(created.Id)}?force=true&v=true`).catch(() => {})
+        throw e
+      }
+      return created.Id
+    },
+
+    /** Removes the short-lived compose containers (label tazrim.updater=compose) that have exited; returns how many */
+    async removeFinishedCli() {
+      const filters = JSON.stringify({ label: ['tazrim.updater=compose'], status: ['exited', 'created', 'dead'] })
+      const list = (await call('GET', `/containers/json?all=true&filters=${enc(filters)}`)) ?? []
+      for (const c of list) await call('DELETE', `/containers/${enc(c.Id)}?force=true&v=true`).catch(() => {})
+      return list.length
+    },
+
+    /** The running container of compose service `service` in the helper's own project, or null */
+    async findService(service) {
+      const self = await inspect(selfId)
+      const project = self?.Config?.Labels?.['com.docker.compose.project']
+      if (!project) throw new Error('the updater is not running under docker compose')
+      const filters = JSON.stringify({ label: [`com.docker.compose.project=${project}`, `com.docker.compose.service=${service}`], status: ['running'] })
+      const list = (await call('GET', `/containers/json?filters=${enc(filters)}`)) ?? []
+      return list[0]?.Id ?? null
+    },
+
+    /** Runs `cmd` (argv) inside container `id`; resolves { exitCode }. Output is not collected. */
+    async exec(id, cmd, { timeoutMs = 30 * 1000 } = {}) {
+      const created = await call('POST', `/containers/${enc(id)}/exec`, { body: { Cmd: cmd, AttachStdout: false, AttachStderr: false } })
+      await call('POST', `/exec/${enc(created.Id)}/start`, { body: { Detach: true } })
+      const deadline = Date.now() + timeoutMs
+      for (;;) {
+        const e = await call('GET', `/exec/${enc(created.Id)}/json`)
+        if (!e?.Running && e?.ExitCode !== null && e?.ExitCode !== undefined) return { exitCode: e.ExitCode }
+        if (Date.now() >= deadline) throw new Error(`${cmd[0]} did not finish in ${Math.round(timeoutMs / 1000)} seconds`)
+        await new Promise(r => setTimeout(r, Math.min(pollMs, 250)))
       }
     },
   }

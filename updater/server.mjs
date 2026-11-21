@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { createApp } from './app.mjs'
 import { createConfig } from './config.mjs'
 import { createDocker } from './docker.mjs'
+import { createEgress } from './egress.mjs'
 import { readPlain, writeText } from './files.mjs'
 import { createJobs, IMAGE } from './job.mjs'
 import { fetchLatest } from './latest.mjs'
@@ -27,9 +28,12 @@ export const API_VERSION = 1
  * apps and helpers of either age keep working with each other.
  */
 export const FEATURES = Object.freeze(['config'])
+/** 'egress' (ENG-133): network isolation switch and passkey-approved allowlist edits; needs the config port too */
+export const EGRESS_FEATURE = 'egress'
 /** 'latest' (ENG-131): GET /v1/latest, the release check for an app that has no internet of its own */
 export const ALWAYS = Object.freeze(['latest'])
-const MAX_BODY = 4096
+// A passkey registration answer is a few KB (attestation object, client data)
+const MAX_BODY = 32 * 1024
 const TOKEN_RE = /^[0-9a-f]{64}$/
 
 /**
@@ -63,6 +67,12 @@ function send(res, status, body) {
   res.end(data)
 }
 
+/** An egress answer { status, body } as a route's [status, body] */
+const pair = async result => {
+  const r = await result
+  return [r.status, r.body]
+}
+
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let size = 0
@@ -87,8 +97,8 @@ function readJson(req) {
   })
 }
 
-export function createServer({ jobs, config = null, token, helperVersion, latest = fetchLatest }) {
-  const features = [...(config ? FEATURES : []), ...ALWAYS]
+export function createServer({ jobs, config = null, egress = null, token, helperVersion, latest = fetchLatest }) {
+  const features = [...(config ? FEATURES : []), ...(egress ? [EGRESS_FEATURE] : []), ...ALWAYS]
   // Compare hashes: same length always, so timingSafeEqual never throws and the length doesn't leak
   const expected = sha256(token)
   const authorized = header => {
@@ -124,6 +134,14 @@ export function createServer({ jobs, config = null, token, helperVersion, latest
         const r = await config.start(body?.changes)
         return r.status === 202 ? [202, { job: r.job }] : [r.status, { code: r.code, key: r.key, reason: r.reason, error: r.error }]
       },
+    }),
+    ...(egress && {
+      'GET /v1/egress': () => pair(egress.info()),
+      'POST /v1/egress/on': () => pair(egress.turnOn()),
+      'POST /v1/egress/approvers/register/begin': async req => pair(egress.registerBegin(await readJson(req))),
+      'POST /v1/egress/approvers/register/finish': async req => pair(egress.registerFinish(await readJson(req))),
+      'POST /v1/egress/approve/begin': async req => pair(egress.approveBegin(await readJson(req))),
+      'POST /v1/egress/approve/finish': async req => pair(egress.approveFinish(await readJson(req))),
     }),
   }
 
@@ -177,7 +195,10 @@ function main() {
   const lock = { busy: false }
   const jobs = createJobs({ docker, app, status, lock })
   const config = createConfig({ docker, lock, status: createStatusStore(path.join(dataDir, '.config-status.json')) })
-  createServer({ jobs, config, token, helperVersion: helperVersionFromPackage() }).listen(PORT, () => {
+  const egress = createEgress({ config, docker, lock })
+  // Leftovers of the detached compose container that recreated the helper (it removes itself; this is the safety net)
+  docker.removeFinishedCli().catch(e => console.warn(`updater: ${e?.message ?? e}`))
+  createServer({ jobs, config, egress, token, helperVersion: helperVersionFromPackage() }).listen(PORT, () => {
     console.log(`updater: listening on :${PORT} (api v${API_VERSION}), data in ${dataDir}`)
   })
 }
