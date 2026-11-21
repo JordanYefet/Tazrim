@@ -1,0 +1,15 @@
+# The survey's Squid (see survey.squid.conf):
+#   docker compose -f docker/squid/survey.compose.yml up -d
+#   node scripts/egress-survey.mjs
+#   docker compose -f docker/squid/survey.compose.yml down
+# Published on 127.0.0.1 only: it is an open proxy.
+name: squid-survey
+
+services:
+  squid:
+    container_name: squid-survey
+    image: ubuntu/squid:6.13-25.04_beta
+    volumes:
+      - ./survey.squid.conf:/etc/squid/squid.conf:ro
+    ports:
+      - "127.0.0.1:3129:3128"
