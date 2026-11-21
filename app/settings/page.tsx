@@ -9,6 +9,7 @@ import { settingsAccountsHref, type QueryInput } from '@/lib/accounts/routes'
 import { formatCurrencyWhole } from '@/lib/utils/currency'
 import { SettingsTiles, type SettingsTile } from '@/components/settings/settings-tiles'
 import { LegacySettingsHash } from '@/components/settings/legacy-settings-hash'
+import { egressActive } from '@/lib/egress/config'
 import { isReadOnly } from '@/lib/read-only'
 import { CURRENT_VERSION, getUpdateCache } from '@/lib/updates/check'
 import { isNewer } from '@/lib/updates/version'
@@ -112,6 +113,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     ...(readOnly
       ? []
       : [{ href: '/settings/network', icon: 'network' as const, title: 'טלפונים ורשת', summary: 'הכתובת לפתיחה מהטלפון עם קוד QR, חיבור מוצפן, והפורטים.' }]),
+    // Network isolation (ENG-133): the app reaches only bank and card sites; never in the read-only demo
+    ...(readOnly
+      ? []
+      : [{ href: '/settings/egress', icon: 'egress' as const, title: 'בידוד רשת', summary: egressActive() ? 'פעיל: האפליקציה מגיעה רק לבנקים ולחברות האשראי. אתרים מותרים ומה שנחסם.' : 'כבוי. מומלץ: שהאפליקציה תגיע רק לבנקים ולחברות האשראי.' }]),
     // The debug window and the sync browser (ENG-104); never in the read-only demo
     ...(readOnly
       ? []
