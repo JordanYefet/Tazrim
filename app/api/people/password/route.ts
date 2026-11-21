@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { currentSession, fail, passwordTransportOr400, rpOr400 } from '@/lib/auth/http'
 import { removePassword, setPassword } from '@/lib/auth/household'
 import { passwordProblem } from '@/lib/auth/password'
+import { passwordChanged } from '@/lib/vault/vault'
 import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,7 @@ async function handlePUT(req: Request) {
   if (result === 'name-taken') {
     return fail(409, 'לעוד מישהו בבית יש אותו שם, ובכניסה עם סיסמה מקלידים שם. שנו קודם את אחד השמות', 'NAME_TAKEN')
   }
+  await passwordChanged(session.personId, body!.password as string)
   return NextResponse.json({ ok: true })
 }
 
@@ -30,6 +32,7 @@ async function handleDELETE() {
   if (!session) return fail(401, 'צריך להתחבר מחדש', 'SIGNED_OUT')
   const result = await removePassword(session.personId, session.sessionId)
   if (result === 'last-way-in') return fail(409, 'זו הדרך האחרונה להיכנס. הוסיפו מפתח לפני שמסירים את הסיסמה', 'LAST_WAY_IN')
+  await passwordChanged(session.personId, null)
   return NextResponse.json({ ok: true })
 }
 

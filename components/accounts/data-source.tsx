@@ -7,6 +7,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecoveryCode } from '@/components/auth/recovery-code'
 import { errorText } from '@/components/auth/ui'
 import { vaultWithPasskey } from '@/components/vault/vault-client'
+import { unlockVault } from '@/components/vault/unlock'
 import { FIELD_LABELS, companyForAccount } from '@/lib/sync/providers'
 import { timeAgo } from '@/lib/sync/format'
 import { AccountMini } from './account-element'
@@ -40,11 +41,11 @@ async function call(url: string, body?: unknown, method = 'POST') {
   return { ok: res.ok, data }
 }
 
-/** Opens the vault with Face ID / Touch ID when a call finds it locked, and tries once more */
+/** Opens the vault (passkey, password or recovery key) when a call finds it locked, and tries once more */
 async function withVault(send: () => Promise<{ ok: boolean; data: { error?: string; code?: string } }>) {
   let res = await send()
   if (!res.ok && res.data.code === 'VAULT_LOCKED') {
-    await vaultWithPasskey('unlock')
+    await unlockVault()
     res = await send()
   }
   if (!res.ok) throw new Error(res.data.error ?? 'משהו השתבש. נסו שוב')
@@ -103,7 +104,7 @@ export function DataSource({
         if (!info.vault.exists) {
           const { recoveryKey: key } = await vaultWithPasskey('create')
           if (key) setRecoveryKey(key)
-        } else if (!info.vault.open) await vaultWithPasskey('unlock')
+        } else if (!info.vault.open) await unlockVault()
         await withVault(() => call('/api/vault/logins', { company: company.id, label: company.label, accountId: account.id, fields }))
       }
       setForm(null)
