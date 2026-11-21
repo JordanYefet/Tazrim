@@ -1,0 +1,308 @@
+# Network isolation for Tazrim (ENG-131): the tazrim container's only way out is Squid, which
+# lets it reach bank and card provider domains and nothing else. README: "בידוד רשת".
+#
+# An OVERRIDE file, not a profile: a compose profile can only switch services on or off, and
+# this has to move tazrim and the updater onto other networks (a service on an internal network
+# cannot publish ports, so a small gateway takes over the ports too). It adds to docker-compose.yml,
+# which stays exactly as it is. Turn it on in .env (same folder), then `docker compose up -d`:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.egress.yml
+#
+# (On Windows the separator is ";".) Needs Docker Compose 2.24 or newer. Take it out of
+# COMPOSE_FILE and `docker compose up -d --remove-orphans` to go back.
+#
+# The picture ("internal" = Docker gives that network no route to the internet):
+#
+#                    app-net (internal)       172.31.1.0/24
+#      tazrim  ------------------------------+
+#         |                                   +--> squid --> bank domains only        --+
+#         |      updater-net (internal)       |             api.github.com (updater)    +--> default
+#         |   +-------------------------------+                                       --+    network:
+#      updater                                                                              the internet
+#         |
+#      "inside" (internal)  172.31.3.0/24: tazrim <-> updater <-> gateway (<-> caddy)
+#         |
+#      gateway: also on the default network, so it can publish 3000/3001 (and 80/443 for caddy)
+#
+# Why three internal networks and not one: Squid tells clients apart by SOURCE ADDRESS. If the
+# updater were on app-net it would look like the app and get the bank list instead of GitHub,
+# and the app would get anything the updater may reach. So each has its own network with Squid
+# on it; "inside" is the one they and the gateway share, and Squid is NOT on it, so nothing
+# there is proxied or filtered (and nothing there can reach out either: it is internal).
+#
+# Not covered, by design: the updater's image pulls. Docker (the daemon on this computer, not a
+# container) downloads the new image, through the computer's own connection, when you press
+# update in the app; the updater only asks it over the socket.
+
+services:
+  tazrim:
+    networks: [app-net, inside]
+    # The base file's ports move to the gateway: Docker publishes nothing from a container that
+    # is only on internal networks
+    ports: !reset []
+    depends_on: [squid]
+    environment:
+      # The browser's only way out (sync: lib/sync/scrape.ts)
+      TAZRIM_SYNC_PROXY: "http://squid:3128"
+      # One bank (One Zero) is not scraped with a browser but with the app's own HTTP calls:
+      # Node 22 sends those through the proxy too with these three. (Node prints an
+      # "experimental" warning for NODE_USE_ENV_PROXY; harmless.)
+      NODE_USE_ENV_PROXY: "1"
+      HTTP_PROXY: "http://squid:3128"
+      HTTPS_PROXY: "http://squid:3128"
+      # The app's own calls to the helper and to Caddy go straight there, not through Squid
+      NO_PROXY: "localhost,127.0.0.1,updater,caddy,gateway"
+      # "Is there a newer version?" cannot go to GitHub from here: the updater asks for us
+      TAZRIM_UPDATE_CHECK_VIA: "helper"
+
+  updater:
+    networks: [updater-net, inside]
+    depends_on: [squid]
+    environment:
+      # Only for the release check (api.github.com); Squid refuses everything else from here
+      NODE_USE_ENV_PROXY: "1"
+      HTTP_PROXY: "http://squid:3128"
+      HTTPS_PROXY: "http://squid:3128"
+      NO_PROXY: "localhost,127.0.0.1,tazrim"
+
+  # Caddy (profile https) is the same, but must reach the app on "inside" and keep the default
+  # network for its own published ports
+  caddy:
+    networks: [default, inside]
+
+  # ---------------------------------------------------------------------------
+  # Squid: the only service with a way to the internet for the two above.
+  # ---------------------------------------------------------------------------
+  squid:
+    # Pinned by tag. Digest of the tag when it was written (check it again when changing the tag):
+    #   ubuntu/squid:6.13-25.04_beta @ sha256:3de2e64f0ca6efdac3e98557607dc0f23050037f3885016d5d5bfcf9950501b8
+    image: ubuntu/squid:6.13-25.04_beta
+    configs:
+      - source: squid-conf
+        target: /etc/squid/squid.conf
+      - source: squid-banks
+        target: /etc/squid/banks.txt
+    # Each on its own network, so the source address says who is asking; default = the way out
+    networks: [app-net, updater-net, default]
+    healthcheck:
+      test: ["CMD", "squid", "-k", "check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # The gateway: publishes the app's ports and passes the bytes on, unchanged (plain TCP, no HTTP
+  # in between: the app tells "this computer" from the network by the port a connection came in
+  # on and by the headers as the client wrote them, so nothing may be added or changed).
+  # Same numbers as the app's own: 3001 = "this computer" door (127.0.0.1 only!), 3000 = phones.
+  # Uses the app's own image (it has Node), so there is nothing else to download or trust.
+  # ---------------------------------------------------------------------------
+  gateway:
+    image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
+    entrypoint: ["node", "/gateway.mjs"]
+    user: node
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    configs:
+      - source: gateway-script
+        target: /gateway.mjs
+    ports:
+      # Never publish the door (3001) on any other address than 127.0.0.1 (see README)
+      - "127.0.0.1:${TAZRIM_PORT:-3000}:3001"
+      - "${TAZRIM_PHONE_PORT:-3001}:3000"
+    networks: [default, inside]
+    depends_on: [tazrim]
+    restart: unless-stopped
+    # The image's healthcheck asks the Next server, which this container does not run
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  # Fixed subnets: squid.conf names them. (If 172.31.x.x is taken on this computer, change them
+  # here AND in the "acl from_..." lines of docker/squid/squid.conf, then run
+  # node scripts/egress-allowlist.mjs to copy that file in below.)
+  app-net:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.31.1.0/24 }]
+  updater-net:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.31.2.0/24 }]
+  inside:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.31.3.0/24 }]
+
+configs:
+  # The two blocks below are COPIES of docker/squid/squid.conf and docker/squid/banks.txt (so
+  # this one extra file is all a user downloads). Do not edit them here: edit those and run
+  #   node scripts/egress-allowlist.mjs
+  # A test fails when they differ.
+  squid-conf:
+    content: |
+      # BEGIN squid.conf
+      # Squid for Tazrim (ENG-131): the only way out of the tazrim container and of the updater.
+      # Used through docker-compose.egress.yml (README: "בידוד רשת"); docker/squid/lab.compose.yml is
+      # a sandbox for trying it by hand.
+      #
+      # The idea: the containers sit on internal-only Docker networks (no route to the internet).
+      # Each can reach Squid and nothing else. Squid decides, per client and per destination name.
+      #
+      #   tazrim  --(172.31.1.0/24)--> Squid --> bank and card provider domains only (banks.txt)
+      #   updater --(172.31.2.0/24)--> Squid --> api.github.com only
+      #   everyone else, everything else --> denied
+      #
+      # STAGE: this file is shipped in ENFORCING mode. To learn what a real bank login needs, turn
+      # on LEARNING MODE below, sync each account once, read the log, and add what you find to
+      # docker/squid/allowlist.json (README).
+
+      # --- Where we listen --------------------------------------------------------------
+      # A plain forward proxy. For HTTPS the client sends "CONNECT host:443" and Squid tunnels the
+      # bytes without opening them: there is no ssl_bump here on purpose, Squid never sees a login.
+      http_port 3128
+
+      # --- Access lists (acl NAME TYPE VALUES) ------------------------------------------
+      # WHO is asking. Every client has its own network with a fixed subnet (set in
+      # docker-compose.egress.yml); the source address is how Squid tells them apart.
+      acl from_app     src 172.31.1.0/24
+      acl from_updater src 172.31.2.0/24
+
+      # WHERE to. A leading dot matches the domain and every subdomain. The bank list lives in its
+      # own file (generated from allowlist.json; one domain per line).
+      acl banks  dstdomain "/etc/squid/banks.txt"
+      acl github dstdomain api.github.com
+
+      # Never a bare IP address, and never an address inside this computer or its home network.
+      # dstdomain looks IPs up in reverse DNS, which a name server can control; and a bank domain
+      # that resolves to 192.168.x.x would turn Squid into a way into the home network.
+      acl ip_literal  dstdom_regex ^[0-9.]+$$ ^\[?[0-9a-f:]+\]?$$
+      acl private_dst dst 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 ::1 fc00::/7 fe80::/10
+
+      # WHAT kind: HTTPS tunnels only to port 443, plain HTTP only to port 80
+      acl CONNECT  method CONNECT
+      acl SSL_port port 443
+      acl web_port port 80 443
+
+      # --- Rules: top to bottom, the first one that matches wins (like iptables) ----------
+      http_access deny !web_port
+      http_access deny CONNECT !SSL_port
+      http_access deny ip_literal
+      http_access deny private_dst
+
+      # ===== LEARNING MODE ================================================================
+      # OFF by default. To turn it on, remove the "#" in front of the next line and restart Squid.
+      # Then everything the tazrim container asks for is ALLOWED and LOGGED (the updater stays
+      # restricted). Sync every account once, then read the hosts out of the log:
+      #   docker compose exec squid sh -c "awk '{print \$$7}' /var/log/squid/access.log | sort | uniq -c | sort -rn"
+      # and add what the bank needs, and only that, to docker/squid/allowlist.json. TURN IT OFF AGAIN.
+      #http_access allow from_app
+      # =====================================================================================
+
+      # Each client reaches only its own list
+      http_access allow from_app banks
+      http_access allow from_updater github
+      # Deny by default: nothing else may use this proxy
+      http_access deny all
+
+      # --- No cache: Squid is a gatekeeper here, not a cache -----------------------------
+      cache deny all
+
+      # --- Don't leak anything about the client upstream ---------------------------------
+      forwarded_for delete
+      via off
+
+      # --- Logs -------------------------------------------------------------------------
+      # Squid starts as root and drops to the "proxy" user, which cannot write to the container's
+      # stdout, so the access log is a file. The image's entrypoint also copies it to the container
+      # log:  docker compose logs squid   (or:  docker compose exec squid tail -f /var/log/squid/access.log)
+      # Format: time  elapsed-ms  client  result/status  bytes  method  url  user  hierarchy/peer  type
+      # TCP_DENIED/403 = refused by the rules above; TCP_TUNNEL/200 = an HTTPS tunnel that was allowed.
+      access_log daemon:/var/log/squid/access.log squid
+      cache_store_log none
+      # END squid.conf
+
+  squid-banks:
+    content: |
+      # BEGIN banks.txt
+      # GENERATED by scripts/egress-allowlist.mjs from docker/squid/allowlist.json: do not edit here.
+      # What the tazrim container may reach through Squid: one dstdomain per line.
+      # A leading dot matches the domain and every subdomain; no dot = that exact host only.
+      # "third-party" = a host the provider's pages load that login needs (found by scripts/egress-survey.mjs).
+
+      # --- hapoalim: Bank Hapoalim
+      .bankhapoalim.co.il
+
+      # --- beinleumi: Beinleumi (FIBI)
+      .fibi.co.il
+
+      # --- union: Union Bank
+      .unionbank.co.il
+
+      # --- amex: American Express Israel
+      .americanexpress.co.il
+
+      # --- isracard: Isracard
+      .isracard.co.il
+
+      # --- visaCal: Visa CAL
+      .cal-online.co.il
+
+      # --- max: Max
+      .max.co.il
+
+      # --- otsarHahayal: Bank Otsar Hahayal
+      .bankotsar.co.il
+
+      # --- discount: Discount Bank
+      .telebank.co.il
+
+      # --- mercantile: Mercantile Bank
+      # .telebank.co.il  (already covered by .telebank.co.il, listed under discount)
+
+      # --- mizrahi: Mizrahi-Tefahot
+      .mizrahi-tefahot.co.il
+
+      # --- leumi: Bank Leumi
+      .bankleumi.co.il
+      .leumi.co.il
+
+      # --- massad: Bank Massad
+      .bankmassad.co.il
+
+      # --- yahav: Bank Yahav
+      .yahav.co.il
+
+      # --- behatsdaa: Behatsdaa
+      .behatsdaa.org.il
+
+      # --- beyahadBishvilha: Beyahad Bishvilha (Hist)
+      .hist.org.il
+
+      # --- oneZero: One Zero
+      .tfd-bank.com
+
+      # --- pagi: Pagi
+      .pagi.co.il
+      # END banks.txt
+
+  gateway-script:
+    content: |
+      // TCP pass-through, bytes unchanged: published port -> the app. 3001 is the "this computer"
+      // door, 3000 the phones' port; the numbers are the app's own.
+      import net from 'node:net'
+      for (const port of [3000, 3001]) {
+        net
+          .createServer(client => {
+            const app = net.connect(port, 'tazrim')
+            client.pipe(app).pipe(client)
+            const stop = () => (client.destroy(), app.destroy())
+            client.on('error', stop).on('close', stop)
+            app.on('error', stop).on('close', stop)
+          })
+          .listen(port, '0.0.0.0')
+      }
