@@ -491,6 +491,26 @@ function LinkAccounts({
   )
 }
 
+/** Network isolation (ENG-133): the site a failed sync was refused, and where to approve it */
+function BlockedHint({ hosts }: { hosts?: string[] }) {
+  if (!hosts?.length) return null
+  return (
+    <p className="text-[0.8125rem] leading-relaxed text-muted-foreground text-pretty">
+      {hosts.length === 1 ? 'האתר ' : 'האתרים '}
+      {hosts.map((h, i) => (
+        <span key={h}>
+          {i > 0 && ', '}
+          <bdi dir="ltr" className="font-mono">{h}</bdi>
+        </span>
+      ))}{' '}
+      {hosts.length === 1 ? 'נחסם' : 'נחסמו'} בבידוד הרשת.{' '}
+      <Link href="/settings/egress" className="font-medium text-primary underline-offset-2 hover:underline">
+        אישור בהגדרות
+      </Link>
+    </p>
+  )
+}
+
 function Result({ run, company, onAgain, onClose }: { run: RunView; company: CompanyInfo; onAgain: () => void; onClose: () => void }) {
   const s = run.status
   if (s.state === 'failed') {
@@ -499,6 +519,7 @@ function Result({ run, company, onAgain, onClose }: { run: RunView; company: Com
         <p role="alert" className="rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-900 dark:bg-red-500/10 dark:text-red-200">
           {FAILURE_TEXT[s.code] ?? FAILURE_TEXT.GENERIC}
         </p>
+        <BlockedHint hosts={run.blocked} />
         <button type="button" onClick={onAgain} className={PRIMARY}>
           לנסות שוב
         </button>
@@ -691,6 +712,7 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
         </div>
         <div className="flex flex-col gap-4 px-4">
           <QueueList queue={queue} companies={info.companies} />
+          <BlockedHint hosts={[...new Set(queue.items.flatMap(i => i.run?.blocked ?? []))]} />
           <QueuePrompts queue={queue} companies={info.companies} sync={sync} />
           {going ? (
             <p className="text-xs text-muted-foreground">אפשר לסגור את החלון; הסנכרון ממשיך, והכפתור בכותרת יראה מתי הוא מסתיים.</p>

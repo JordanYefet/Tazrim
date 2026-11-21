@@ -26,6 +26,8 @@ import {
 import { lastFour } from './map'
 import { localDay } from '@/lib/upload/card-dedupe'
 import { log } from '@/lib/log/logger'
+import { egressActive } from '@/lib/egress/config'
+import { blockedDuring } from '@/lib/egress/squid-log'
 import { describeError } from '@/lib/log/redact'
 
 /** How long a sync waits for an SMS code */
@@ -48,6 +50,8 @@ export interface RunView {
   startDate: string
   finishedAt: string | null
   status: RunState
+  /** Network isolation (ENG-133): hosts the proxy refused the app while this run went, when it failed */
+  blocked?: string[]
 }
 
 interface Run {
@@ -65,6 +69,7 @@ interface Run {
   onChange?: () => void
   otp?: (code: string) => void
   scraped?: ScrapedAccount[]
+  blocked?: string[]
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -151,6 +156,7 @@ function view(r: Run): RunView {
     startDate: localDay(r.startDate),
     finishedAt: r.finishedAt?.toISOString() ?? null,
     status: r.status,
+    ...(r.blocked?.length ? { blocked: r.blocked } : {}),
   }
 }
 
@@ -162,6 +168,12 @@ function finish(run: Run, status: RunState) {
     log[status.code === 'EXPIRED' ? 'warn' : 'error']('sync', `${run.company.id} · ${status.code}${status.at ? ` (${status.at})` : ''}`, { run: run.no, code: status.code, ...(status.at ? { at: status.at } : {}) })
   } else if (status.state === 'done') {
     log.info('sync', `run #${run.no} · ${run.company.id} · done in ${Math.round((Date.now() - run.startedAt.getTime()) / 100) / 10}s`, { run: run.no })
+  }
+  // With isolation on, a failure may be the proxy refusing a host the site needs: remember which
+  if (status.state === 'failed' && egressActive()) {
+    try {
+      run.blocked = blockedDuring(run.startedAt.getTime(), Date.now())
+    } catch {}
   }
   if (run.timer) clearTimeout(run.timer)
   run.timer = undefined
