@@ -41,7 +41,14 @@ services:
     # is only on internal networks
     ports: !reset []
     depends_on: [squid]
+    volumes:
+      # Read-only: what the owner added (extra-domains.json) and what Squid refused (the log).
+      # Only the updater writes ./egress, and only after a passkey approval (README: "בידוד רשת")
+      - ./egress:/egress:ro
+      - squid-logs:/squid-logs:ro
     environment:
+      TAZRIM_EGRESS: "1"
+      TAZRIM_SQUID_LOG: /squid-logs/access.log
       # The browser's only way out (sync: lib/sync/scrape.ts)
       TAZRIM_SYNC_PROXY: "http://squid:3128"
       # One bank (One Zero) is not scraped with a browser but with the app's own HTTP calls:
@@ -82,6 +89,18 @@ services:
         target: /etc/squid/squid.conf
       - source: squid-banks
         target: /etc/squid/banks.txt
+    # ./egress holds the owner's additions (extra-domains.txt, written by the updater only). The
+    # wrapper creates the empty file when there is none yet, so a fresh install starts; "-k
+    # reconfigure" (run by the updater) picks up later changes without a restart
+    entrypoint:
+      - sh
+      - -c
+      - '[ -e /etc/squid/extra/extra-domains.txt ] || : > /etc/squid/extra/extra-domains.txt; exec entrypoint.sh "$$@"'
+      - squid
+    command: ["-f", "/etc/squid/squid.conf", "-NYC"]
+    volumes:
+      - ./egress:/etc/squid/extra
+      - squid-logs:/var/log/squid
     # Each on its own network, so the source address says who is asking; default = the way out
     networks: [app-net, updater-net, default]
     healthcheck:
@@ -138,6 +157,10 @@ networks:
     ipam:
       config: [{ subnet: 172.31.3.0/24 }]
 
+volumes:
+  # Squid's access log, which the app reads (read-only) to show what was blocked
+  squid-logs:
+
 configs:
   # The two blocks below are COPIES of docker/squid/squid.conf and docker/squid/banks.txt (so
   # this one extra file is all a user downloads). Do not edit them here: edit those and run
@@ -153,7 +176,8 @@ configs:
       # The idea: the containers sit on internal-only Docker networks (no route to the internet).
       # Each can reach Squid and nothing else. Squid decides, per client and per destination name.
       #
-      #   tazrim  --(172.31.1.0/24)--> Squid --> bank and card provider domains only (banks.txt)
+      #   tazrim  --(172.31.1.0/24)--> Squid --> bank and card provider domains only (banks.txt),
+      #                                          plus the owner's own additions (extra-domains.txt)
       #   updater --(172.31.2.0/24)--> Squid --> api.github.com only
       #   everyone else, everything else --> denied
       #
@@ -176,6 +200,9 @@ configs:
       # own file (generated from allowlist.json; one domain per line).
       acl banks  dstdomain "/etc/squid/banks.txt"
       acl github dstdomain api.github.com
+      # Sites the owner added from the app (ENG-133). The file is written ONLY by the updater, after a
+      # passkey approval; the app has it read-only. It may be empty (Squid is fine with that).
+      acl extra  dstdomain "/etc/squid/extra/extra-domains.txt"
 
       # Never a bare IP address, and never an address inside this computer or its home network.
       # dstdomain looks IPs up in reverse DNS, which a name server can control; and a bank domain
@@ -205,6 +232,7 @@ configs:
 
       # Each client reaches only its own list
       http_access allow from_app banks
+      http_access allow from_app extra
       http_access allow from_updater github
       # Deny by default: nothing else may use this proxy
       http_access deny all
@@ -222,6 +250,8 @@ configs:
       # log:  docker compose logs squid   (or:  docker compose exec squid tail -f /var/log/squid/access.log)
       # Format: time  elapsed-ms  client  result/status  bytes  method  url  user  hierarchy/peer  type
       # TCP_DENIED/403 = refused by the rules above; TCP_TUNNEL/200 = an HTTPS tunnel that was allowed.
+      # Files Squid creates (the log) are readable by the app, which shows what was blocked (ENG-134)
+      umask 022
       access_log daemon:/var/log/squid/access.log squid
       cache_store_log none
       # END squid.conf

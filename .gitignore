@@ -31,3 +31,4 @@ prisma/*.backup.db
 # Files the device-profile service writes (docker-compose.yml)
 /tazrim.mobileconfig
 /tazrim-root.crt
+docker/squid/lab-extra/

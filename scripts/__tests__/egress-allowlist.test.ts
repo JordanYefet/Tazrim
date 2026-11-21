@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { SHARED_HOSTS } from '../../updater/egress-rules.mjs'
 import { BANKS_TXT, covers, EGRESS_COMPOSE, entries, loadAllowlist, render, renderCompose, SQUID_CONF } from '../egress-allowlist.mjs'
 
 // ENG-131: what the tazrim container may reach through Squid. docker/squid/allowlist.json is the
@@ -42,14 +43,7 @@ describe('Squid allowlist', () => {
   })
 
   it('never allows a broad shared host that code could send data to', () => {
-    const banned = [
-      'github.com', 'githubusercontent.com', 'pastebin.com', 'paste.ee', 'hastebin.com', 'webhook.site',
-      'requestbin.com', 'pipedream.net', 'ngrok.io', 'ngrok-free.app', 'discord.com', 'discordapp.com', 'telegram.org',
-      't.me', 'slack.com', 'dropbox.com', 'drive.google.com', 'docs.google.com', 'script.google.com', 'transfer.sh',
-      'amazonaws.com', 'cloudfront.net', 'azurewebsites.net', 'blob.core.windows.net', 'appspot.com', 'herokuapp.com',
-      'workers.dev', 'pages.dev', 'netlify.app', 'vercel.app', 'firebaseio.com', 'web.app', 'googleapis.com',
-      'google.com', 'cloudflare.com', 'jsdelivr.net', 'unpkg.com', 'githubassets.com', 'gitlab.com', 'bitbucket.org',
-    ]
+    const banned = SHARED_HOSTS as readonly string[]
     for (const e of all) {
       const bare = e.domain.replace(/^\./, '')
       const hit = banned.find(b => bare === b || bare.endsWith(`.${b}`))
@@ -79,6 +73,8 @@ describe('Squid allowlist', () => {
   it('squid.conf reads the list from banks.txt', () => {
     const conf = fs.readFileSync(path.join(path.dirname(banks), 'squid.conf'), 'utf8')
     expect(conf).toMatch(/^acl banks\s+dstdomain "\/etc\/squid\/banks\.txt"/m)
+    expect(conf).toMatch(/^acl extra\s+dstdomain "\/etc\/squid\/extra\/extra-domains\.txt"/m)
+    expect(conf).toMatch(/^umask 022$/m)
   })
 
   it('docker-compose.egress.yml carries current copies of squid.conf and banks.txt (run node scripts/egress-allowlist.mjs)', () => {
@@ -90,7 +86,7 @@ describe('Squid allowlist', () => {
     const conf = fs.readFileSync(SQUID_CONF as string, 'utf8')
     const rules = conf.split('\n').filter(l => /^\s*http_access\s/.test(l))
     expect(rules.at(-1)).toBe('http_access deny all')
-    expect(rules.filter(l => /allow/.test(l))).toEqual(['http_access allow from_app banks', 'http_access allow from_updater github'])
+    expect(rules.filter(l => /allow/.test(l))).toEqual(['http_access allow from_app banks', 'http_access allow from_app extra', 'http_access allow from_updater github'])
     expect(conf).toMatch(/^#http_access allow from_app$/m)
   })
 })
