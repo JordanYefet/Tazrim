@@ -15,7 +15,7 @@
  * request events are recorded too, to catch anything Squid did not log.
  *
  * Re-run it when israeli-bank-scrapers is upgraded, then update docker/squid/allowlist.json
- * (README: "upgrading the scraper"). Login pages change; so does what they load.
+ * (docs/development.md, the pinned scraper). Login pages change; so does what they load.
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
