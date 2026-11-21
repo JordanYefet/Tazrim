@@ -13,16 +13,19 @@ export const dynamic = 'force-dynamic'
 async function handleGET() {
   const session = await sessionOr401()
   if (isResponse(session)) return session
-  const [vault, credentials, passkeys] = await Promise.all([
+  const [vault, credentials, passkeys, me] = await Promise.all([
     status(),
     listCredentials(),
     prisma.passkey.findMany({
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true, label: true, personId: true, person: { select: { name: true } } },
     }),
+    prisma.person.findUnique({ where: { id: session.personId }, select: { passwordHash: true } }),
   ])
   return NextResponse.json({
-    vault: { ...vault, passkeys: undefined },
+    vault: { ...vault, passkeys: undefined, passwords: undefined },
+    /** The signed-in person's password: whether they have one, and whether it opens the vault (ENG-135) */
+    password: { has: !!me?.passwordHash, opensVault: vault.passwords.includes(session.personId) },
     credentials,
     passkeys: passkeys.map(p => ({
       id: p.id,
