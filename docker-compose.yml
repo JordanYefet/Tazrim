@@ -5,7 +5,7 @@
 # Time zone:      TAZRIM_TZ=Europe/London docker compose up -d   (default Asia/Jerusalem)
 # Update:         docker compose pull && docker compose up -d   (or from the app, with the updater below)
 # Phones: http://<this computer's IP>:3000 with a password, or HTTPS for passkeys:
-#                 COMPOSE_PROFILES=https,dns in .env, see the README
+#                 COMPOSE_PROFILES=https,dns in .env, see docs/phones.md
 # Updating from the app (Settings -> Updates): COMPOSE_PROFILES=updater in .env (or https,dns,updater)
 #
 # All data is in the "tazrim_tazrim-data" volume on this machine (/data/tazrim.db inside the container).
@@ -68,7 +68,7 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # Optional: updating from inside the app (Settings -> Updates, README: "עדכון לגרסה חדשה").
+  # Optional: updating from inside the app (Settings -> Updates, docs/updates.md).
   # Off unless .env turns it on:
   #   COMPOSE_PROFILES=updater        (together with the others: https,dns,updater)
   # A small helper that, when you press "עדכון לגרסה vX" in the app (Settings -> Updates), downloads the new release, backs
@@ -107,7 +107,7 @@ services:
       disable: true
 
   # ---------------------------------------------------------------------------
-  # Optional: HTTPS and local names, so phones can use passkeys (README: "פתיחה מהטלפון").
+  # Optional: HTTPS and local names, so phones can use passkeys (docs/phones.md).
   # Off unless .env turns them on:
   #   COMPOSE_PROFILES=https        Caddy: https://tazrim.internal, certificates from its own CA
   #   COMPOSE_PROFILES=https,dns    + AdGuard Home: answers *.internal for your own devices only

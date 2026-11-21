@@ -1,5 +1,5 @@
 # Network isolation for Tazrim (ENG-131): the tazrim container's only way out is Squid, which
-# lets it reach bank and card provider domains and nothing else. README: "בידוד רשת".
+# lets it reach bank and card provider domains and nothing else. docs/network-isolation.md.
 #
 # An OVERRIDE file, not a profile: a compose profile can only switch services on or off, and
 # this has to move tazrim and the updater onto other networks (a service on an internal network
@@ -43,7 +43,7 @@ services:
     depends_on: [squid]
     volumes:
       # Read-only: what the owner added (extra-domains.json) and what Squid refused (the log).
-      # Only the updater writes ./egress, and only after a passkey approval (README: "בידוד רשת")
+      # Only the updater writes ./egress, and only after a passkey approval (docs/network-isolation.md)
       - ./egress:/egress:ro
       - squid-logs:/squid-logs:ro
     environment:
@@ -170,7 +170,7 @@ configs:
     content: |
       # BEGIN squid.conf
       # Squid for Tazrim (ENG-131): the only way out of the tazrim container and of the updater.
-      # Used through docker-compose.egress.yml (README: "בידוד רשת"); docker/squid/lab.compose.yml is
+      # Used through docker-compose.egress.yml (docs/network-isolation.md); docker/squid/lab.compose.yml is
       # a sandbox for trying it by hand.
       #
       # The idea: the containers sit on internal-only Docker networks (no route to the internet).
