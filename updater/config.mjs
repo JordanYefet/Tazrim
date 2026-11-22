@@ -53,6 +53,20 @@ up=$(printf '%s\\n' "$on" | grep -vx -- "$TAZRIM_SELF")
 c up -d $up
 `
 
+/**
+ * The same, for switching network isolation (ENG-133): `--remove-orphans` takes squid and the
+ * gateway away when docker-compose.egress.yml leaves the file list (they would otherwise keep
+ * running, and keep the networks and ports busy).
+ */
+export const COMPOSE_SCRIPT_ISOLATION = COMPOSE_SCRIPT.replace('c up -d $up', 'c up -d --remove-orphans $up')
+
+/** What the helper does once the app is back after a switch: its own networks changed, so it is recreated (not waited for) */
+export const RECREATE_SCRIPT = `sleep 3
+docker compose --project-directory "$TAZRIM_WD" up -d --no-deps --force-recreate "$TAZRIM_SELF"
+`
+
+export const EGRESS_FILE = 'docker-compose.egress.yml'
+
 const pad = n => String(n).padStart(2, '0')
 const stamp = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
 
@@ -157,8 +171,8 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
     }
   }
 
-  async function apply(ctx) {
-    const r = await docker.runCli(ctx, cliImage, COMPOSE_SCRIPT)
+  async function apply(ctx, script = COMPOSE_SCRIPT) {
+    const r = await docker.runCli(ctx, cliImage, script)
     if (r.exitCode !== 0) {
       const lines = r.output.trim().split('\n').filter(Boolean)
       throw Object.assign(new Error(lines.slice(-3).join(' ') || `docker compose exited with ${r.exitCode}`), { code: failureCode(r.output) })
@@ -175,18 +189,19 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
     save(job)
   }
 
-  async function run(job, ctx, before, existed, text) {
+  async function run(job, ctx, before, existed, text, { applyCtx = ctx, script = COMPOSE_SCRIPT, prepare = null, afterDone = null } = {}) {
     let wrote = false
     let current = 'write'
     try {
       setStep(job, 'write', 'running')
+      if (prepare) await prepare()
       job.backup = existed ? env.backup(before) : null
       env.write(text)
       wrote = true
       setStep(job, 'write', 'done')
       current = 'apply'
       setStep(job, 'apply', 'running')
-      await apply(ctx)
+      await apply(applyCtx, script)
       setStep(job, 'apply', 'done')
       current = 'check'
       setStep(job, 'check', 'running')
@@ -201,7 +216,7 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
         save(job)
         try {
           env.restore(before, existed)
-          await apply(ctx)
+          await apply(ctx, script)
           job.restored = true
           setStep(job, 'restore', 'done')
         } catch (e2) {
@@ -216,7 +231,70 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
     }
     job.state = 'done'
     job.finishedAt = now().toISOString()
+    if (afterDone) job.restartingHelper = true
     save(job)
+    if (afterDone) {
+      // The job is saved as done first: the helper is about to be replaced, and the new one reads this status
+      try {
+        await afterDone(applyCtx)
+      } catch (e) {
+        job.restartingHelper = false
+        job.helperRestartError = short(e)
+        save(job)
+      }
+    }
+  }
+
+  /** The compose files in use, as names relative to the project folder where they live there (absolute otherwise) */
+  function fileNames(ctx) {
+    return ctx.configFiles.map(f => {
+      const i = f.lastIndexOf('/')
+      return f.slice(0, i) === ctx.workingDir ? f.slice(i + 1) : f
+    })
+  }
+
+  /** The shared start: lock, context, .env, then `build(read, ctx)` decides; one job at a time */
+  async function begin(build) {
+    if (lock.busy) return { status: 409, code: 'BUSY', error: 'An update, a rollback or a settings change is already running.' }
+    lock.busy = true
+    try {
+      const { ctx, reason, detail } = await context()
+      if (!ctx) {
+        lock.busy = false
+        return { status: 422, code: 'NOT_AVAILABLE', reason, error: detail ?? reason }
+      }
+      let read
+      try {
+        read = env.read()
+      } catch (e) {
+        lock.busy = false
+        return { status: 422, code: 'NOT_AVAILABLE', reason: e?.code ?? 'ENV_NOT_FILE', error: short(e) }
+      }
+      const b = await build(read, ctx)
+      if (b.refused) {
+        lock.busy = false
+        return b.refused
+      }
+      const job = {
+        id: crypto.randomBytes(8).toString('hex'),
+        kind: 'config',
+        state: 'running',
+        restored: false,
+        ...b.fields,
+        steps: STEPS.map(id => ({ id, state: 'waiting' })),
+        startedAt: now().toISOString(),
+      }
+      save(job)
+      const done = run(job, ctx, read.text, read.exists, b.text, b.opts)
+        .catch(e => console.error('updater: config job crashed', e))
+        .finally(() => {
+          lock.busy = false
+        })
+      return { status: 202, job: structuredClone(job), done }
+    } catch (e) {
+      lock.busy = false
+      throw e
+    }
   }
 
   return {
@@ -234,52 +312,47 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
       return ctx ? { available: true, values, installDir: ctx.workingDir } : { available: false, reason, values, installDir: null }
     },
 
+    /** { ctx } | { reason, detail }: can this install apply settings (shared with the isolation switch) */
+    context,
+
     /** The current or last config job, or null */
     current: () => status.get(),
 
     /** 202 { job, done } | 400 refused values | 409 busy | 422 not available */
     async start(changes) {
-      if (lock.busy) return { status: 409, code: 'BUSY', error: 'An update, a rollback or a settings change is already running.' }
-      lock.busy = true
-      try {
-        const { ctx, reason, detail } = await context()
-        if (!ctx) {
-          lock.busy = false
-          return { status: 422, code: 'NOT_AVAILABLE', reason, error: detail ?? reason }
-        }
-        let read
-        try {
-          read = env.read()
-        } catch (e) {
-          lock.busy = false
-          return { status: 422, code: 'NOT_AVAILABLE', reason: e?.code ?? 'ENV_NOT_FILE', error: short(e) }
-        }
+      return begin(async (read, ctx) => {
         const v = validateChanges(changes, configValues(read.text))
-        if (!v.ok) {
-          lock.busy = false
-          return { status: 400, code: v.code, key: v.key, error: v.error }
+        if (!v.ok) return { refused: { status: 400, code: v.code, key: v.key, error: v.error } }
+        return { fields: { changes: v.changes }, text: applyChanges(read.text, v.changes) }
+      })
+    },
+
+    /**
+     * Turns network isolation on or off (ENG-133): edits COMPOSE_FILE in .env (other files kept),
+     * applies it with the NEW file list, checks the app, and only then recreates the helper itself
+     * (its networks change too) from a detached container. `prepare` runs first (files isolation
+     * needs). 202 { job, done } | 409 BUSY | 409 ALREADY_ON/ALREADY_OFF | 422 not available
+     */
+    async startEgress(on, { prepare = null } = {}) {
+      return begin(async (read, ctx) => {
+        const isOn = ctx.configFiles.some(f => f.endsWith(`/${EGRESS_FILE}`))
+        if (on && isOn) return { refused: { status: 409, code: 'ALREADY_ON', error: 'Network isolation is already on.' } }
+        if (!on && !isOn) return { refused: { status: 409, code: 'ALREADY_OFF', error: 'Network isolation is already off.' } }
+        const names = fileNames(ctx)
+        const next = on ? [...names, EGRESS_FILE] : names.filter(n => n !== EGRESS_FILE)
+        const changes = { COMPOSE_FILE: next.join(':'), COMPOSE_PATH_SEPARATOR: ':' }
+        const applyCtx = { ...ctx, configFiles: next.map(n => (n.startsWith('/') ? n : `${ctx.workingDir}/${n}`)) }
+        return {
+          fields: { egress: on ? 'on' : 'off', changes },
+          text: applyChanges(read.text, changes),
+          opts: {
+            applyCtx,
+            script: COMPOSE_SCRIPT_ISOLATION,
+            prepare: on ? prepare : null,
+            afterDone: c => docker.runCliDetached(c, cliImage, RECREATE_SCRIPT),
+          },
         }
-        const job = {
-          id: crypto.randomBytes(8).toString('hex'),
-          kind: 'config',
-          state: 'running',
-          restored: false,
-          changes: v.changes,
-          steps: STEPS.map(id => ({ id, state: 'waiting' })),
-          startedAt: now().toISOString(),
-        }
-        save(job)
-        const text = applyChanges(read.text, v.changes)
-        const done = run(job, ctx, read.text, read.exists, text)
-          .catch(e => console.error('updater: config job crashed', e))
-          .finally(() => {
-            lock.busy = false
-          })
-        return { status: 202, job: structuredClone(job), done }
-      } catch (e) {
-        lock.busy = false
-        throw e
-      }
+      })
     },
   }
 }

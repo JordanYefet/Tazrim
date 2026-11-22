@@ -49,7 +49,7 @@ describe('VersionCard', () => {
     expect(h).toContain('הצגת פקודות ידניות')
     expect(h).not.toContain(CMD)
     expect(h).not.toMatch(/docker/i)
-    expect(h).toContain('href="https://github.com/JordanYefet/Tazrim#עדכון-לגרסה-חדשה"')
+    expect(h).toContain('href="https://github.com/JordanYefet/Tazrim/blob/main/docs/updates.md"')
     expect(renderToStaticMarkup(<ManualCommands defaultOpen />)).toContain(CMD)
   })
 

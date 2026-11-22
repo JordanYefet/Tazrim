@@ -8,9 +8,14 @@
  *   HKDF-SHA256 from that passkey's 32-byte WebAuthn PRF output. The recovery
  *   key's copy is the same, derived from the recovery key.
  *
+ * - A person's password copy (ENG-135) is the same, under a key from their password
+ *   with scrypt (N=2^17, r=8, p=1, 128 MiB, a random salt of its own), the parameters
+ *   stored with the copy so they can be raised later. A password is guessable, unlike
+ *   a PRF output, so this key is deliberately slow to compute.
+ *
  * Sealed text: "v1.<iv>.<tag>.<ciphertext>", each part base64url.
  */
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, scrypt as scryptCb } from 'node:crypto'
 import { normalizeCode, readableCode } from '@/lib/auth/tokens'
 
 const VERSION = 'v1'
@@ -61,3 +66,26 @@ export function keyFromRecovery(recoveryKey: string): Buffer {
 
 /** Associated data that ties a copy of the vault key to its row's purpose */
 export const wrapAad = (passkeyId: string | null) => (passkeyId ? `wrap:${passkeyId}` : 'wrap:recovery')
+
+/** The same for a person's password copy */
+export const passwordWrapAad = (personId: string) => `wrap:password:${personId}`
+
+/** scrypt parameters for a password copy (OWASP-grade; about 0.3 s and 128 MiB per try) */
+export const PASSWORD_KDF = { N: 2 ** 17, r: 8, p: 1 } as const
+
+/** "scrypt$N$r$p$<salt>": what a password copy stores to derive its key again */
+export function newPasswordKdf(): string {
+  return ['scrypt', PASSWORD_KDF.N, PASSWORD_KDF.r, PASSWORD_KDF.p, randomBytes(16).toString('base64url')].join('$')
+}
+
+/** The key that opens a person's password copy; null for a malformed or unsupported `kdf` */
+export function keyFromPassword(password: string, kdf: string): Promise<Buffer | null> {
+  const [kind, n, r, p, salt] = kdf.split('$')
+  const [N, R, P] = [Number(n), Number(r), Number(p)]
+  if (kind !== 'scrypt' || !salt || !(N >= 2 ** 14 && N <= 2 ** 20) || !(R >= 1 && R <= 16) || !(P >= 1 && P <= 4)) return Promise.resolve(null)
+  return new Promise(resolve =>
+    scryptCb(password.normalize('NFC'), Buffer.from(salt, 'base64url'), KEY_BYTES, { N, r: R, p: P, maxmem: 128 * N * R + 8 * 1024 * 1024 }, (err, key) =>
+      resolve(err ? null : key)
+    )
+  )
+}

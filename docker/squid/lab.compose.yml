@@ -1,0 +1,55 @@
+# Squid lab (ENG-131): learn the moving parts without touching Tazrim.
+#   docker compose -f docker/squid/lab.compose.yml up -d
+#   docker compose -f docker/squid/lab.compose.yml exec squid tail -f /var/log/squid/access.log
+#   docker compose -f docker/squid/lab.compose.yml exec app sh
+#   docker compose -f docker/squid/lab.compose.yml down
+#
+# Try:  docker compose -f docker/squid/lab.compose.yml exec app curl -x http://squid:3128 -I https://www.max.co.il   (allowed)
+#       ... exec app curl -x http://squid:3128 -I https://example.com                                          (403)
+#       ... exec updater curl -x http://squid:3128 -I https://api.github.com                                   (allowed)
+#       ... exec updater curl -x http://squid:3128 -I https://www.max.co.il                                    (403)
+#
+# lab-extra/ (git-ignored) stands in for ./egress: add ".example.com" to lab-extra/extra-domains.txt, then
+#       docker compose -f docker/squid/lab.compose.yml exec squid squid -k reconfigure
+#
+# "app" stands in for the tazrim container and "updater" for the updater. Each sits ONLY on
+# its own internal network, so its only way out is Squid, which sits on all three. Squid tells
+# them apart by the network a request comes from (fixed subnets, see squid.conf).
+name: squid-lab
+
+services:
+  squid:
+    image: ubuntu/squid:6.13-25.04_beta
+    # Same wrapper as docker-compose.egress.yml: creates the empty extra file when missing
+    entrypoint:
+      - sh
+      - -c
+      - '[ -e /etc/squid/extra/extra-domains.txt ] || : > /etc/squid/extra/extra-domains.txt; exec entrypoint.sh "$$@"'
+      - squid
+    command: ["-f", "/etc/squid/squid.conf", "-NYC"]
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+      - ./banks.txt:/etc/squid/banks.txt:ro
+      - ./lab-extra:/etc/squid/extra
+    networks: [app-net, updater-net, outside]
+
+  app:
+    image: curlimages/curl:8.17.0
+    command: ["sleep", "infinity"]
+    networks: [app-net]
+
+  updater:
+    image: curlimages/curl:8.17.0
+    command: ["sleep", "infinity"]
+    networks: [updater-net]
+
+networks:
+  app-net:
+    internal: true   # no route to the internet from here
+    ipam:
+      config: [{ subnet: 172.31.1.0/24 }]
+  updater-net:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.31.2.0/24 }]
+  outside: {}

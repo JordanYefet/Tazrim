@@ -38,6 +38,31 @@ describe('auth', () => {
   })
 })
 
+describe('GET /v1/latest', () => {
+  it('asks GitHub from the helper and hands the answer back as it is, only with the token', async () => {
+    const asked = []
+    const jobs = createJobs({ docker: f.docker, app: f.app, status: memStore(), healthTimeoutMs: 1000 })
+    const s2 = createServer({
+      jobs,
+      token: TOKEN,
+      helperVersion: '9.9.9',
+      latest: async opts => (asked.push(opts), { release: { tag_name: 'v9.1.0' } }),
+    })
+    await new Promise(r => s2.listen(0, '127.0.0.1', r))
+    try {
+      const url = `http://127.0.0.1:${s2.address().port}/v1/latest`
+      expect((await fetch(url)).status).toBe(401)
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN}` } })
+      expect(r.status).toBe(200)
+      expect(await r.json()).toEqual({ release: { tag_name: 'v9.1.0' } })
+      expect(asked).toEqual([{ helperVersion: '9.9.9' }])
+      expect((await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` } })).status).toBe(405)
+    } finally {
+      await new Promise(r => s2.close(r))
+    }
+  })
+})
+
 describe('routes', () => {
   it('GET /v1/health reports the helper and the target', async () => {
     const r = await call('/v1/health')
@@ -46,7 +71,7 @@ describe('routes', () => {
       ok: true,
       helperVersion: '9.9.9',
       api: 1,
-      features: [],
+      features: ['latest'],
       updatable: true,
       image: 'ghcr.io/jordanyefet/tazrim:1.0.0',
       runningVersion: '1.0.0',
@@ -147,7 +172,7 @@ describe('config routes (ENG-121)', () => {
     fetch(base2 + p, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
 
   it('health lists the config feature', async () => {
-    expect(await (await call2('/v1/health')).json()).toMatchObject({ api: 1, features: ['config'] })
+    expect(await (await call2('/v1/health')).json()).toMatchObject({ api: 1, features: ['config', 'latest'] })
   })
 
   it('needs the token', async () => {

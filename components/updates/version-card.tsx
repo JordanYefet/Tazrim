@@ -11,8 +11,8 @@ import { RollbackConfirmDialog, UpdateConfirmDialog, Ver, knownVersion } from '.
 
 export { rollbackLossText } from './update-dialogs'
 
-/** The README's section on updating, where adding the helper is explained */
-const README_UPDATES = `${REPO_URL}#עדכון-לגרסה-חדשה`
+/** The docs page on updating, where adding the helper is explained */
+const README_UPDATES = `${REPO_URL}/blob/main/docs/updates.md`
 
 // The About page's link buttons (components/about/about-content.tsx), pressed a little deeper
 const BUTTON =

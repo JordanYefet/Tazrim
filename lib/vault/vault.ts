@@ -8,7 +8,8 @@
  */
 import { prisma } from '@/lib/db/client'
 import { getVaultIdleMinutes } from '@/lib/settings/app-settings'
-import { keyFromPrf, keyFromRecovery, newRecoveryKey, newVaultKey, open, seal, wrapAad } from './crypto'
+import { checkOwnPassword } from '@/lib/auth/household'
+import { keyFromPassword, keyFromPrf, keyFromRecovery, newPasswordKdf, newRecoveryKey, newVaultKey, open, passwordWrapAad, seal, wrapAad } from './crypto'
 
 interface Unlocked {
   key: Buffer
@@ -70,11 +71,13 @@ export interface VaultStatus {
   hasRecoveryKey: boolean
   /** Passkey ids that have their own copy */
   passkeys: string[]
+  /** People (ids) who have a password copy (ENG-135) */
+  passwords: string[]
 }
 
 export async function status(): Promise<VaultStatus> {
   expireIfIdle()
-  const wraps = await prisma.vaultKeyWrap.findMany({ select: { passkeyId: true } })
+  const wraps = await prisma.vaultKeyWrap.findMany({ select: { passkeyId: true, personId: true } })
   const o = state.open
   return {
     exists: wraps.length > 0,
@@ -82,8 +85,9 @@ export async function status(): Promise<VaultStatus> {
     openedBy: o?.by ?? null,
     openedAt: o ? new Date(o.openedAt).toISOString() : null,
     locksAt: o ? new Date(o.lastUsedAt + idleMs()).toISOString() : null,
-    hasRecoveryKey: wraps.some(w => w.passkeyId === null),
+    hasRecoveryKey: wraps.some(w => w.passkeyId === null && w.personId === null),
     passkeys: wraps.flatMap(w => (w.passkeyId ? [w.passkeyId] : [])),
+    passwords: wraps.flatMap(w => (w.personId ? [w.personId] : [])),
   }
 }
 
@@ -121,7 +125,7 @@ export async function unlockWithPasskey(passkeyId: string, prfOutput: Buffer, by
 /** Opens the vault with the recovery key; false when it's wrong */
 export async function unlockWithRecovery(recoveryKey: unknown, by: string): Promise<boolean> {
   if (typeof recoveryKey !== 'string' || !recoveryKey.trim()) return false
-  const wrap = await prisma.vaultKeyWrap.findFirst({ where: { passkeyId: null } })
+  const wrap = await prisma.vaultKeyWrap.findFirst({ where: { passkeyId: null, personId: null } })
   if (!wrap) return false
   const vaultKey = open(keyFromRecovery(recoveryKey), wrap.wrappedKey, wrapAad(null))
   if (!vaultKey) return false
@@ -144,10 +148,73 @@ export async function replaceRecoveryKey(): Promise<string> {
   const recovery = newRecoveryKey()
   const wrappedKey = seal(keyFromRecovery(recovery), k, wrapAad(null))
   await prisma.$transaction([
-    prisma.vaultKeyWrap.deleteMany({ where: { passkeyId: null } }),
+    prisma.vaultKeyWrap.deleteMany({ where: { passkeyId: null, personId: null } }),
     prisma.vaultKeyWrap.create({ data: { passkeyId: null, wrappedKey } }),
   ])
   return recovery
+}
+
+export type EnablePasswordResult = 'ok' | 'wrong-password' | 'no-password'
+
+/**
+ * While open: a copy of the vault key for this person under a key from their sign-in password
+ * (ENG-135). The password must match the one they sign in with. It is used and dropped.
+ */
+export async function enablePasswordUnlock(personId: string, password: unknown): Promise<EnablePasswordResult> {
+  const k = key()
+  if (!k) throw new VaultLockedError()
+  if (typeof password !== 'string' || !password) return 'wrong-password'
+  if (!(await checkOwnPassword(personId, password))) {
+    return (await prisma.person.findUnique({ where: { id: personId }, select: { passwordHash: true } }))?.passwordHash ? 'wrong-password' : 'no-password'
+  }
+  await wrapWithPassword(personId, password, k)
+  return 'ok'
+}
+
+async function wrapWithPassword(personId: string, password: string, vaultKey: Buffer) {
+  const kdf = newPasswordKdf()
+  const derived = (await keyFromPassword(password, kdf))!
+  const wrappedKey = seal(derived, vaultKey, passwordWrapAad(personId))
+  derived.fill(0)
+  await prisma.vaultKeyWrap.upsert({ where: { personId }, create: { personId, kdf, wrappedKey }, update: { kdf, wrappedKey } })
+}
+
+/** Opens the vault with a person's password; false when they have no copy or it doesn't open it */
+export async function unlockWithPassword(personId: string, password: unknown, by: string): Promise<boolean> {
+  if (typeof password !== 'string' || !password) return false
+  const wrap = await prisma.vaultKeyWrap.findUnique({ where: { personId } })
+  if (!wrap?.kdf) return false
+  const derived = await keyFromPassword(password, wrap.kdf)
+  if (!derived) return false
+  const vaultKey = open(derived, wrap.wrappedKey, passwordWrapAad(personId))
+  derived.fill(0)
+  if (!vaultKey) return false
+  setOpen(vaultKey, by)
+  return true
+}
+
+/** Turns "open with my password" off: removes this person's copy */
+export async function disablePasswordUnlock(personId: string) {
+  await prisma.vaultKeyWrap.deleteMany({ where: { personId } })
+}
+
+/**
+ * After a person's password changed: while the vault is open their copy is made again under the
+ * new password (if they had one); while it is locked the copy can't be re-made, so it is deleted
+ * (they turn it on again later). Removing the password removes the copy too (`password` null).
+ */
+export async function passwordChanged(personId: string, password: string | null) {
+  const had = await prisma.vaultKeyWrap.findUnique({ where: { personId }, select: { id: true } })
+  if (!had) return
+  const k = password ? key() : null
+  if (k && password) {
+    try {
+      return await wrapWithPassword(personId, password, k)
+    } catch {
+      // never leave a copy that the old password still opens
+    }
+  }
+  await disablePasswordUnlock(personId)
 }
 
 /**
