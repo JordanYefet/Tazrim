@@ -1,19 +1,29 @@
 /**
- * The app's side of the updater helper (ENG-98; updater/ in the repo). The helper is a
- * separate container on the compose network; the app finds it at TAZRIM_UPDATER_URL and
- * proves itself with the token the helper writes to <dataDir>/.updater-token. No token
- * file means no helper. The shapes mirror updater/job.mjs and updater/server.mjs.
+ * The app's side of the updater (ENG-98, ENG-136; updater/ in the repo). The updater is a separate
+ * container on the compose network: a launcher with a frozen API (api 2) that starts job containers
+ * from this app's own image, so the jobs always match this version. The app finds the launcher at
+ * TAZRIM_UPDATER_URL and proves itself with the token it writes to <dataDir>/.updater-token. No
+ * token file means no updater.
+ *
+ * What the app asks is `runJob(name, input)`; what it learns about a running or finished job it
+ * reads from the status files on the shared volume (status.ts), not from the launcher.
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { cleanPlan, type ComposeConfirm, type UpdatePlan } from './compose'
 import { dataDir } from './paths'
+import { CONFIG_JOBS, CONFIG_STATUS_FILE, currentJob, UPDATE_JOBS, UPDATE_STATUS_FILE } from './status'
 
-export const HELPER_API = 1
+export const HELPER_API = 2
 const HEALTH_TIMEOUT_MS = 1000
 const HEALTH_CACHE_MS = 60_000
+/** Above the launcher's own 60 s wait for a job's answer */
+const JOB_TIMEOUT_MS = 70_000
 const CALL_TIMEOUT_MS = 10_000
+/** Up to four GitHub requests of 5 s each, and the job's own start */
+const PLAN_TIMEOUT_MS = 45_000
 
-export type StepId = 'backup' | 'download' | 'restart' | 'migrate' | 'check' | 'restore'
+export type StepId = 'backup' | 'download' | 'restart' | 'migrate' | 'check' | 'restore' | 'compose'
 export interface JobStep {
   id: StepId
   state: 'waiting' | 'running' | 'done' | 'failed'
@@ -33,19 +43,28 @@ export interface JobStatus {
   /** Path of the pre-update backup, in the helper's words; never sent to the browser */
   backup?: string
   previousImage?: string
+  /** A fixed code of what failed beyond the steps: COMPOSE_FAILED (the new version runs, the compose files stayed as they were) */
+  code?: string
+  /** The compose files the update brought (ENG-137) */
+  compose?: { files: { name: string; action: string }[]; backups?: Record<string, string>; pin?: boolean }
 }
 
+/** The launcher's own answer. Any api but 2 is an older updater: the page tells how to refresh it once. */
 export interface HelperHealth {
   ok: true
-  helperVersion: string
   api: number
+  launcherVersion: string
+}
+
+/** What the `health` job says about the Tazrim container */
+export interface HelperTarget {
   updatable: boolean
   image: string
   runningVersion: string | null
   error?: string
-  /** What it can do beyond API 1: 'config' = container settings (ENG-121). Missing on older helpers. */
-  features?: string[]
 }
+
+export const helperIsReady = (health: HelperHealth | null): health is HelperHealth => health?.api === HELPER_API
 
 export function helperUrl(): string {
   return (process.env.TAZRIM_UPDATER_URL || 'http://updater:8080').replace(/\/+$/, '')
@@ -61,11 +80,13 @@ export function readToken(): string | null {
 }
 
 let healthCache: { at: number; value: HelperHealth | null } | null = null
+let targetCache: { at: number; value: HelperTarget | null } | null = null
 export function resetHelperCache(): void {
   healthCache = null
+  targetCache = null
 }
 
-/** One call to the helper with its token; null when there is no token or no answer */
+/** One call to the launcher with its token; null when there is no token or no answer */
 export async function helperCall(method: string, route: string, opts: { body?: unknown; timeoutMs?: number } = {}) {
   const token = readToken()
   if (!token) return null
@@ -87,74 +108,112 @@ export async function helperCall(method: string, route: string, opts: { body?: u
   }
 }
 
-/** The helper's health, or null when it is unreachable, refuses our token, or speaks another API. Cached 60 s. */
+/** Runs a job in the updater and returns its answer { status, json }; null when there is no updater or it did not answer */
+export function runJob(name: string, input: unknown = {}, { timeoutMs = JOB_TIMEOUT_MS }: { timeoutMs?: number } = {}) {
+  return helperCall('POST', `/v1/jobs/${name}`, { body: input ?? {}, timeoutMs })
+}
+
+/**
+ * The launcher's health, or null when it is unreachable or refuses our token. Cached 60 s. Any api
+ * number comes back (an old updater says 1): callers check helperIsReady.
+ */
 export async function helperHealth(): Promise<HelperHealth | null> {
   if (healthCache && Date.now() - healthCache.at < HEALTH_CACHE_MS) return healthCache.value
   const r = await helperCall('GET', '/v1/health', { timeoutMs: HEALTH_TIMEOUT_MS })
-  const j = r?.json as Partial<HelperHealth> | null | undefined
-  const value = r && r.status === 200 && j && j.ok === true && j.api === HELPER_API ? (j as HelperHealth) : null
+  const j = r?.json as { ok?: unknown; api?: unknown; launcherVersion?: unknown; helperVersion?: unknown } | null | undefined
+  const value: HelperHealth | null =
+    r && r.status === 200 && j && j.ok === true && typeof j.api === 'number'
+      ? { ok: true, api: j.api, launcherVersion: String(j.launcherVersion ?? j.helperVersion ?? '') }
+      : null
   healthCache = { at: Date.now(), value }
   return value
 }
 
-function readStatusFile(): JobStatus | null {
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(dataDir(), '.update-status.json'), 'utf8')) as JobStatus | null
-    return j && typeof j === 'object' && Array.isArray(j.steps) ? j : null
-  } catch {
-    return null
-  }
-}
-
-/** Was the helper's health last seen? undefined when unknown or older than the cache; null when it was down */
+/** Was the launcher's health last seen? undefined when unknown or older than the cache; null when it was down */
 export function cachedHealth(): HelperHealth | null | undefined {
   return healthCache && Date.now() - healthCache.at < HEALTH_CACHE_MS ? healthCache.value : undefined
 }
 
+/** What the `health` job says about the app container (can it be updated), or null. Cached 60 s. */
+export async function helperTarget(): Promise<HelperTarget | null> {
+  if (targetCache && Date.now() - targetCache.at < HEALTH_CACHE_MS) return targetCache.value
+  const r = await runJob('health', {}, { timeoutMs: CALL_TIMEOUT_MS })
+  const j = r?.json as Partial<HelperTarget> | null | undefined
+  const value: HelperTarget | null =
+    r && r.status === 200 && j && typeof j === 'object'
+      ? { updatable: j.updatable === true, image: typeof j.image === 'string' ? j.image : '', runningVersion: typeof j.runningVersion === 'string' ? j.runningVersion : null, ...(typeof j.error === 'string' ? { error: j.error } : {}) }
+      : null
+  targetCache = { at: Date.now(), value }
+  return value
+}
+
+/** The names of the job containers running now (GET /v1/jobs), or null when the launcher did not answer */
+export async function helperRunningJobs(): Promise<string[] | null> {
+  const r = await helperCall('GET', '/v1/jobs', { timeoutMs: HEALTH_TIMEOUT_MS })
+  const running = (r?.json as { running?: unknown } | null | undefined)?.running
+  if (!r || r.status !== 200 || !Array.isArray(running)) return null
+  return running.map(j => (j && typeof j === 'object' && typeof (j as { name?: unknown }).name === 'string' ? (j as { name: string }).name : ''))
+}
+
 /**
- * The current or last job. `live` is true only when the helper itself answered; otherwise
- * the job is read from its status file (how the new version reads the outcome), which may be
- * stale, so nothing destructive may rest on it. `skipHelper` goes straight to the file.
+ * The current or last update or roll back job, read from its status file. `live` is true only when
+ * the launcher answered (so "running" with no job container behind it was settled as failed);
+ * otherwise the file is taken as it is, and may be stale, so nothing destructive may rest on it.
+ * `skipHelper` doesn't ask the launcher at all.
  */
 export async function helperJob(skipHelper = false): Promise<{ job: JobStatus | null; live: boolean }> {
-  if (!skipHelper) {
-    const r = await helperCall('GET', '/v1/status', { timeoutMs: HEALTH_TIMEOUT_MS })
-    if (r && r.status === 200) return { job: r.json && typeof r.json === 'object' ? (r.json as JobStatus) : null, live: true }
-  }
-  return { job: readStatusFile(), live: false }
+  return currentJob<JobStatus>(UPDATE_STATUS_FILE, UPDATE_JOBS, skipHelper ? null : await helperRunningJobs())
 }
 
 export const helperStatus = async (): Promise<JobStatus | null> => (await helperJob()).job
 
+/** The current or last settings job (settings and isolation share the file), raw: the caller keeps only what it shows */
+export async function helperConfigJob(): Promise<unknown> {
+  return currentJob<{ state?: unknown; steps?: { state?: unknown }[] }>(CONFIG_STATUS_FILE, CONFIG_JOBS, await helperRunningJobs()).job
+}
+
 /** Why the helper said no, as a fixed code (its own text is English and may carry Docker output, so it never leaves the server) */
-export type HelperRefusal = 'NO_HELPER' | 'BUSY' | 'NOT_NEWER' | 'NOT_UPDATABLE' | 'NO_ROLLBACK' | 'HELPER_ERROR'
+export type HelperRefusal = 'NO_HELPER' | 'BUSY' | 'NOT_NEWER' | 'NOT_UPDATABLE' | 'NO_ROLLBACK' | 'HELPER_ERROR' | (typeof COMPOSE_CODES)[number] | (typeof APPROVAL_CODES)[number]
 
 export interface HelperResult {
   status: number
   code?: HelperRefusal
+  /** A locked password: until when (ISO) */
+  until?: string
 }
 
-const HELPER_CODES: readonly HelperRefusal[] = ['BUSY', 'NOT_NEWER', 'NOT_UPDATABLE', 'NO_ROLLBACK']
+/** The compose files (ENG-137) and the approval of their replacement (the egress approvals' own codes) */
+export const COMPOSE_CODES = ['COMPOSE_FETCH_FAILED', 'COMPOSE_CHANGED', 'COMPOSE_NEEDS_CONFIRM'] as const
+export const APPROVAL_CODES = ['BAD_PASSWORD', 'LOCKED', 'BAD_SIGNATURE', 'CHALLENGE_UNKNOWN', 'CHALLENGE_EXPIRED', 'UNKNOWN_CREDENTIAL', 'BAD_CLIENT_DATA', 'BAD_CHANGE', 'NO_APPROVER'] as const
+const HELPER_CODES: readonly string[] = ['BUSY', 'NOT_NEWER', 'NOT_UPDATABLE', 'NO_ROLLBACK', ...COMPOSE_CODES, ...APPROVAL_CODES]
 
-/** By the helper's `code` when it sends one; older helpers only send text, so then by status and text */
-function refusal(kind: 'update' | 'rollback', status: number, text: string, code: unknown): HelperRefusal {
-  if (status === 401 || status === 403) return 'NO_HELPER'
-  if (typeof code === 'string') return (HELPER_CODES as readonly string[]).includes(code) ? (code as HelperRefusal) : 'HELPER_ERROR'
-  if (status === 409) return /already running/i.test(text) ? 'BUSY' : kind === 'rollback' ? 'NO_ROLLBACK' : 'BUSY'
-  if (status === 400) return kind === 'update' ? 'NOT_NEWER' : 'HELPER_ERROR'
-  if (status === 422) return 'NOT_UPDATABLE'
-  if (status === 401 || status === 403) return 'NO_HELPER'
+/** By the job's `code`; a launcher or job that sends none is a plain helper error (except the auth failures) */
+function refusal(status: number, code: unknown): HelperRefusal {
+  // A coded refusal is the job speaking, even a 403 (a wrong approval password)
+  if (typeof code === 'string' && HELPER_CODES.includes(code)) return code as HelperRefusal
+  if (status === 401 || status === 403 || status === 404) return 'NO_HELPER'
   return 'HELPER_ERROR'
 }
 
-async function post(kind: 'update' | 'rollback', route: string, body?: unknown): Promise<HelperResult> {
-  const r = await helperCall('POST', route, { body: body ?? {} })
+async function post(name: 'update' | 'rollback', input: unknown): Promise<HelperResult> {
+  const r = await runJob(name, input)
   if (!r) return { status: 503, code: 'NO_HELPER' }
   if (r.status === 202) return { status: 202 }
-  const j = r.json as { error?: unknown; code?: unknown } | null
-  const code = refusal(kind, r.status, typeof j?.error === 'string' ? j.error : '', j?.code)
-  return { status: code === 'NO_HELPER' ? 503 : r.status, code }
+  const j = r.json as { code?: unknown; until?: unknown } | null
+  const code = refusal(r.status, j?.code)
+  return { status: code === 'NO_HELPER' ? 503 : r.status, code, ...(code === 'LOCKED' && typeof j?.until === 'string' ? { until: j.until.slice(0, 40) } : {}) }
 }
 
-export const helperStart = (version: string) => post('update', '/v1/update', { version })
-export const helperRollback = () => post('rollback', '/v1/rollback')
+/** `compose`: what the person confirmed about the compose files (see lib/updates/compose.ts), when the plan had something to replace */
+export const helperStart = (version: string, compose?: ComposeConfirm) => post('update', compose ? { version, compose } : { version })
+
+/** The plan for the compose files of an update to `version`: { plan } or { code, status } (a refusal or no answer) */
+export async function helperPlan(version: string): Promise<{ plan: UpdatePlan } | { code: HelperRefusal; status: number }> {
+  const r = await runJob('update-plan', { version }, { timeoutMs: PLAN_TIMEOUT_MS })
+  if (!r) return { code: 'NO_HELPER', status: 503 }
+  const plan = r.status === 200 ? cleanPlan(r.json) : null
+  if (plan) return { plan }
+  const code = refusal(r.status, (r.json as { code?: unknown } | null)?.code)
+  return { code, status: code === 'NO_HELPER' ? 503 : r.status === 200 ? 502 : r.status }
+}
+export const helperRollback = () => post('rollback', {})

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 async function handlePOST(req: Request) {
   const refused = egressRefusal(req.headers)
   if (refused) return refused
-  const r = await relay('/v1/egress/on', {})
+  const r = await relay('egress-on', {})
   return NextResponse.json(r.body, { status: r.status })
 }
 

@@ -41,6 +41,7 @@ function view(j: JobStatus | null, current = '9.1.0'): UpdateView {
     error: null,
     auto: true,
     canUpdate: true,
+    helperOld: false,
     syncRunning: false,
     job: j,
     lastUpdate: null,
@@ -246,5 +247,54 @@ describe('review fixes', () => {
     s = applyPoll(s, { kind: 'view', view: view(back, '9.2.0') }) as Screen
     expect(card(s)).not.toContain('תזרים לא חזר לפעול')
     expect(card(s)).toContain('מעדכנים לגרסה')
+  })
+})
+
+describe('the compose files step (ENG-137)', () => {
+  const withCompose = (states: Partial<Record<JobStep['id'], JobStep['state']>>, extra: Partial<JobStatus> = {}) => {
+    const j = job(states, extra)
+    j.steps.push({ id: 'compose', state: states.compose ?? 'waiting' })
+    return j
+  }
+  const allDone = Object.fromEntries(UPDATE_IDS.map(id => [id, 'done'])) as Record<JobStep['id'], 'done'>
+
+  it('a job that has the step shows a sixth row, last; one that has not shows five', () => {
+    expect(rowsOf(screen(withCompose({ ...allDone, compose: 'running' }))).map(r => r.id)).toEqual([...UPDATE_IDS, 'compose'])
+    expect(rowsOf(screen(withCompose({ ...allDone, compose: 'running' }))).at(-1)).toMatchObject({ label: 'עדכון קובצי ההתקנה', state: 'running' })
+    expect(rowsOf(screen(job({ backup: 'running' }))).map(r => r.id)).toEqual([...UPDATE_IDS])
+  })
+
+  it('a roll back that puts the files back words its row for that', () => {
+    const j = job({ restore: 'done', restart: 'done', check: 'done' }, { kind: 'rollback' })
+    j.steps.push({ id: 'compose', state: 'running' })
+    expect(rowsOf(screen(j)).at(-1)).toMatchObject({ id: 'compose', label: 'החזרת קובצי ההתקנה' })
+  })
+
+  it('a page opened right after the start has the row from the first frame, so nothing is added later', () => {
+    const waiting = startScreen(view(null), '9.2.0', true)
+    expect(rowsOf(waiting).map(r => r.id)).toEqual([...UPDATE_IDS, 'compose'])
+    expect(rowsOf(startScreen(view(null), '9.2.0')).map(r => r.id)).toEqual([...UPDATE_IDS])
+  })
+
+  it('the bar goes on past the check while the files are written', () => {
+    expect(progressOf(withCompose({ ...allDone, compose: 'running' }))).toBe(0.97)
+  })
+
+  it('a failed step says the new version runs and the files stayed; the retry waits (the update already happened), the way back stays', () => {
+    const failed = withCompose({ ...allDone, compose: 'failed' }, { state: 'failed', restored: true, code: 'COMPOSE_FAILED' })
+    const html = renderToStaticMarkup(<UpdatingCard screen={screen(failed, { current: '9.2.0' })} manualOpen={false} />)
+    expect(html).toContain('הגרסה החדשה רצה, אבל קובצי ההתקנה נשארו כמו שהיו.')
+    expect(html).not.toContain('תזרים חזר לגרסה')
+    expect(html).toContain('קובצי ההתקנה נשארו כמו שהיו</')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>לנסות שוב<\/button>/)
+    expect(html).toContain('חזרה לאפליקציה')
+    expect(rowsOf(screen(failed, { current: '9.2.0' })).find(r => r.state === 'failed')?.id).toBe('compose')
+  })
+
+  it('without that code a failed update still reads as before', () => {
+    const failed = job({ backup: 'done', download: 'failed' }, { state: 'failed' })
+    const html = renderToStaticMarkup(<UpdatingCard screen={screen(failed)} manualOpen={false} />)
+    expect(html).not.toContain('הגרסה החדשה רצה, אבל')
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>לנסות שוב<\/button>/)
   })
 })

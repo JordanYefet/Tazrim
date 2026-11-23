@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { APPROVAL_TTL_MS, CODE_FILE, CODE_TTL_MS, createEgress, PASSWORD_LOCK_MS, renderExtraTxt } from '../egress.mjs'
+import { memLock } from './fakes.mjs'
 
 // Fake values only. Real keys are generated per test run: the code under test verifies real signatures.
 const RP = 'tazrim.example'
@@ -53,6 +54,7 @@ let dir
 let clock
 let squid // fake squid state
 let egress
+let restart // a new module instance over the same folder: what a new job container is
 let config
 let lock
 
@@ -60,7 +62,7 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-egress-'))
   clock = { t: Date.parse('2026-11-21T10:00:00Z') }
   squid = { running: true, exitCode: 0, execs: [] }
-  lock = { busy: false }
+  lock = memLock()
   config = {
     started: [],
     async context() {
@@ -83,7 +85,8 @@ beforeEach(() => {
       return { exitCode: code }
     },
   }
-  egress = createEgress({ config, docker, lock, installDir: dir, now: () => new Date(clock.t), bankDomains: ['.bank-one.example', '.bank-two.example'], overrideSource: path.join(dir, 'missing.yml') })
+  restart = () => createEgress({ config, docker, lock, installDir: dir, now: () => new Date(clock.t), bankDomains: ['.bank-one.example', '.bank-two.example'], overrideSource: path.join(dir, 'missing.yml') })
+  egress = restart()
 })
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
@@ -523,5 +526,165 @@ describe('renderExtraTxt', () => {
     const txt = renderExtraTxt([{ domain: '.a.example' }, { domain: 'www.a.example' }, { domain: '.b.example' }])
     expect(txt.split('\n').filter(l => l && !l.startsWith('#'))).toEqual(['.a.example', '.b.example'])
     expect(txt).toContain('# www.a.example  (already covered by .a.example)')
+  })
+})
+
+describe('state across job containers (ENG-136)', () => {
+  const keys = f => path.join(dir, '.tazrim-approvers', f)
+
+  it('a registration begun in one instance is finished in another', async () => {
+    const key = makeKey('es256')
+    const b = await egress.registerBegin({ rpId: RP, rpName: 'Tazrim', userName: 'me' })
+    expect(fs.statSync(keys('pending-registration.json')).mode & 0o777).toBe(0o600)
+    expect(fs.statSync(path.join(dir, '.tazrim-approvers')).mode & 0o777).toBe(0o700)
+    const other = restart()
+    expect((await other.info()).body.registration).toMatchObject({ pending: true })
+    const r = await other.registerFinish({ code: codeOnDisk(), name: 'My phone', response: registration(key, { challenge: b.body.options.challenge }) })
+    expect(r.body).toMatchObject({ ok: true })
+    expect(fs.existsSync(keys('pending-registration.json'))).toBe(false)
+    expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
+    expect((await restart().info()).body.registration).toBeNull()
+  })
+
+  it('wrong codes are counted across instances, and the fifth cancels the registration', async () => {
+    await egress.registerBegin({ rpId: RP })
+    const wrong = codeOnDisk() === '000000' ? '111111' : '000000'
+    const errors = []
+    for (let i = 0; i < 5; i++) errors.push((await restart().registerFinish({ code: wrong, name: 'x', response: {} })).body.error)
+    expect(errors).toEqual(['BAD_CODE', 'BAD_CODE', 'BAD_CODE', 'BAD_CODE', 'TOO_MANY_TRIES'])
+    expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
+  })
+
+  it('an expired registration is gone for the next instance, and its code file is removed lazily', async () => {
+    await egress.registerBegin({ rpId: RP })
+    clock.t += CODE_TTL_MS
+    expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(true) // no timer removes it
+    const other = restart()
+    expect((await other.registerFinish({ code: '123456', name: 'x', response: {} })).body.error).toBe('NO_REGISTRATION')
+    expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
+    expect(fs.existsSync(keys('pending-registration.json'))).toBe(false)
+  })
+
+  it('an approval begun in one instance is finished in another, once', async () => {
+    await registerPassword()
+    const b = await egress.approveBegin({ change: addDomain(), rpId: RP })
+    expect(fs.statSync(keys('pending-approvals.json')).mode & 0o777).toBe(0o600)
+    const r = await restart().approveFinish({ flowId: b.body.flowId, password: PASSWORD })
+    expect(r.body.ok).toBe(true)
+    expect((await restart().approveFinish({ flowId: b.body.flowId, password: PASSWORD })).body.error).toBe('CHALLENGE_UNKNOWN')
+  })
+
+  it('an approval that expired while no process ran is refused by the next one', async () => {
+    await registerPassword()
+    const b = await egress.approveBegin({ change: addDomain(), rpId: RP })
+    clock.t += APPROVAL_TTL_MS
+    expect((await restart().approveFinish({ flowId: b.body.flowId, password: PASSWORD })).body.error).toBe('CHALLENGE_EXPIRED')
+  })
+
+  it('two instances taking the same approval at once: only one gets it', async () => {
+    await registerPassword()
+    const b = await egress.approveBegin({ change: addDomain(), rpId: RP })
+    const answers = await Promise.all([restart(), restart(), restart()].map(e => e.approveFinish({ flowId: b.body.flowId, password: PASSWORD })))
+    expect(answers.filter(a => a.body.ok)).toHaveLength(1)
+    expect(answers.filter(a => a.body.error === 'CHALLENGE_UNKNOWN')).toHaveLength(2)
+  })
+
+  it('the password lock holds across instances, and ends on time', async () => {
+    await registerPassword()
+    for (let i = 0; i < 5; i++) {
+      const b = await restart().approveBegin({ change: addDomain(), rpId: RP })
+      expect((await restart().approveFinish({ flowId: b.body.flowId, password: `wrong password ${i}` })).body.error).toBe('BAD_PASSWORD')
+    }
+    expect(fs.statSync(keys('password-lock.json')).mode & 0o777).toBe(0o600)
+    const b = await restart().approveBegin({ change: addDomain(), rpId: RP })
+    expect(await restart().approveFinish({ flowId: b.body.flowId, password: PASSWORD })).toMatchObject({ status: 429, body: { error: 'LOCKED', until: new Date(clock.t + PASSWORD_LOCK_MS).toISOString() } })
+    clock.t += PASSWORD_LOCK_MS
+    const b2 = await restart().approveBegin({ change: addDomain(), rpId: RP })
+    expect((await restart().approveFinish({ flowId: b2.body.flowId, password: PASSWORD })).body.ok).toBe(true)
+  })
+
+  it('a burst of tries spread over instances still gets no more than 5 checks', async () => {
+    await registerPassword()
+    const flows = []
+    for (let i = 0; i < 12; i++) flows.push((await begin(addDomain())).body.flowId)
+    const answers = await Promise.all(flows.map((flowId, i) => restart().approveFinish({ flowId, password: `wrong password ${i}` })))
+    expect(answers.filter(a => a.body.error === 'BAD_PASSWORD')).toHaveLength(5)
+    expect(answers.filter(a => a.body.error === 'LOCKED')).toHaveLength(7)
+  })
+
+  it('a try that never reached the password check is not counted as a failure', async () => {
+    await registerPassword()
+    for (let i = 0; i < 8; i++) expect((await restart().approveFinish({ flowId: `unknown-${i}`, password: 'x'.repeat(12) })).body.error).toBe('CHALLENGE_UNKNOWN')
+    const b = await begin(addDomain())
+    expect((await restart().approveFinish({ flowId: b.body.flowId, password: PASSWORD })).body.ok).toBe(true)
+  })
+
+  it('a job that finishes an async change hands its tail back as `done`', async () => {
+    const r = await restart().turnOn()
+    expect(r.status).toBe(202)
+    await expect(r.done).resolves.toBeUndefined()
+  })
+})
+
+describe('approving an update\'s compose files (ENG-137)', () => {
+  const H = crypto.createHash('sha256').update('new file').digest('hex')
+  const change = { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': H } }
+
+  it('has approvers only once one is registered', async () => {
+    expect(egress.hasApprovers()).toBe(false)
+    await registerPassword()
+    expect(egress.hasApprovers()).toBe(true)
+  })
+
+  it('begin takes the change in its one shape and refuses a malformed one', async () => {
+    await registerPassword()
+    const b = await begin({ ...change, files: { 'docker-compose.yml': H, '.env': H } })
+    expect(b.body.error).toBe('BAD_CHANGE')
+    expect((await begin({ ...change, version: 'latest' })).body.error).toBe('BAD_CHANGE')
+    const ok = await begin(change)
+    expect(ok.body.change).toEqual(change)
+    expect(ok.body.passwordAllowed).toBe(true)
+  })
+
+  it('a password approval for exactly this change passes, once, and is logged with its approver', async () => {
+    await registerPassword('Home password')
+    const b = await begin(change)
+    const r = await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)
+    expect(r).toEqual({ ok: true, approver: 'Home password (סיסמה)' })
+    expect(logLines().at(-1)).toMatchObject({ action: 'update-compose', detail: 'v1.2.0: docker-compose.yml' })
+    // single use: the same flow again is gone
+    expect((await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)).body.error).toBe('CHALLENGE_UNKNOWN')
+  })
+
+  it('a passkey approval passes; one for another change or another set of files does not', async () => {
+    const key = makeKey('es256')
+    await registerPasskey(key)
+    const b = await begin(change)
+    expect((await egress.verifyApproval({ response: assertion(key, { challenge: b.body.options.challenge }) }, change)).ok).toBe(true)
+
+    const other = await begin(change)
+    const r = await egress.verifyApproval({ response: assertion(key, { challenge: other.body.options.challenge }) }, { ...change, files: { 'docker-compose.egress.yml': H } })
+    expect(r.body.error).toBe('BAD_CHANGE')
+    // an approval for a different kind of change cannot be reused here either
+    const domain = await begin(addDomain())
+    expect((await egress.verifyApproval({ response: assertion(key, { challenge: domain.body.options.challenge }) }, change)).body.error).toBe('BAD_CHANGE')
+  })
+
+  it('a wrong password counts toward the lock, and the lock applies here too', async () => {
+    await registerPassword()
+    for (let i = 0; i < 5; i++) {
+      const b = await begin(change)
+      expect((await egress.verifyApproval({ flowId: b.body.flowId, password: 'wrong password value' }, change)).body.error).toBe('BAD_PASSWORD')
+    }
+    const b = await begin(change)
+    const r = await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)
+    expect(r.body.error).toBe('LOCKED')
+  })
+
+  it('finishing it through the egress approval applies nothing', async () => {
+    await registerPassword()
+    const b = await begin(change)
+    const r = await egress.approveFinish({ flowId: b.body.flowId, password: PASSWORD })
+    expect(r.body.error).toBe('BAD_CHANGE')
   })
 })

@@ -25,7 +25,7 @@ function helper(answers: Record<string, { status: number; json: unknown }>) {
   )
   return calls
 }
-const HEALTH = { '/v1/health': { status: 200, json: { ok: true, api: 1, helperVersion: '1', updatable: true, image: 'x', runningVersion: '1.0.0', features: ['config', 'egress'] } } }
+const HEALTH = { '/v1/health': { status: 200, json: { ok: true, api: 2, launcherVersion: '1.30.0' } } }
 
 beforeEach(() => {
   resetLog()
@@ -84,10 +84,26 @@ describe('GET /api/egress', () => {
     expect(body.extraDomains).toHaveLength(1)
     expect(body.blocked).toEqual([{ at: 1790000000000, who: 'app', host: 'ads.example.test' }])
   })
+  it('an older updater (api 1) is "old": nothing is run in it', async () => {
+    const calls = helper({ '/v1/health': { status: 200, json: { ok: true, api: 1, helperVersion: '1.19.0', features: ['config'] } } })
+    const { GET } = await import('../route')
+    expect(await (await GET(get())).json()).toMatchObject({ helper: 'old', on: false })
+    expect(calls.map(c => c.route)).toEqual(['/v1/health'])
+  })
+  it('the switch job is the settings job from the status file when it says egress', async () => {
+    fs.writeFileSync(path.join(dir, '.config-status.json'), JSON.stringify({ id: 'j9', kind: 'config', egress: 'on', state: 'done', restored: false, steps: [{ id: 'write', state: 'done' }], finishedAt: '2030-01-01T00:00:00Z', backup: '.env.bak-x' }))
+    helper({ ...HEALTH, '/v1/jobs/egress-info': { status: 200, json: { available: true, on: true, extraDomains: [], approvers: [], changes: [] } } })
+    const { GET } = await import('../route')
+    const body = await (await GET(get())).json()
+    expect(body.job).toEqual({ id: 'j9', state: 'done', restored: false, steps: [{ id: 'write', state: 'done' }], finishedAt: '2030-01-01T00:00:00Z' })
+    // a plain settings job is not the isolation switch's
+    fs.writeFileSync(path.join(dir, '.config-status.json'), JSON.stringify({ id: 'j8', kind: 'config', state: 'done', restored: false, steps: [] }))
+    expect((await (await GET(get())).json()).job).toBeNull()
+  })
   it('with the helper: its answer, reduced to known fields', async () => {
     helper({
       ...HEALTH,
-      '/v1/egress': { status: 200, json: { available: true, on: true, overrideDiffers: false, extraDomains: [], approvers: [{ id: 'k1', name: 'Phone', rpId: 'tazrim.test', createdAt: '2030-01-01', kind: 'password', publicKey: 'LEAK' }], changes: [], secret: 'LEAK' } },
+      '/v1/jobs/egress-info': { status: 200, json: { available: true, on: true, overrideDiffers: false, extraDomains: [], approvers: [{ id: 'k1', name: 'Phone', rpId: 'tazrim.test', createdAt: '2030-01-01', kind: 'password', publicKey: 'LEAK' }], changes: [], secret: 'LEAK' } },
     })
     const { GET } = await import('../route')
     const body = await (await GET(get())).json()
@@ -98,21 +114,38 @@ describe('GET /api/egress', () => {
 
 describe('POST relays', () => {
   it('on: the helper token route, 202 with a cut-down job', async () => {
-    const calls = helper({ '/v1/egress/on': { status: 202, json: { job: { id: 'j1', kind: 'config', state: 'running', steps: [{ id: 'write', state: 'running' }], secretPath: '/install/.env' } } } })
+    const calls = helper({ '/v1/jobs/egress-on': { status: 202, json: { job: { id: 'j1', kind: 'config', state: 'running', steps: [{ id: 'write', state: 'running' }], secretPath: '/install/.env' } } } })
     const { POST } = await import('../on/route')
     const res = await POST(post('on', {}))
     expect(res.status).toBe(202)
     const body = await res.json()
     expect(body.job).toMatchObject({ id: 'j1', state: 'running' })
     expect(JSON.stringify(body)).not.toContain('/install')
-    expect(calls[0].route).toBe('/v1/egress/on')
+    expect(calls[0].route).toBe('/v1/jobs/egress-on')
   })
   it('approve/begin passes the change and this request\'s host name as rpId, nothing else', async () => {
-    const calls = helper({ '/v1/egress/approve/begin': { status: 200, json: { options: { challenge: 'c' }, change: { action: 'turn-off' } } } })
+    const calls = helper({ '/v1/jobs/egress-approve-begin': { status: 200, json: { options: { challenge: 'c' }, change: { action: 'turn-off' } } } })
     const { POST } = await import('../approve/begin/route')
     const res = await POST(post('approve/begin', { change: { action: 'turn-off', extra: 'x' }, isAdmin: true }, { host: 'tazrim.test:3000' }))
     expect(res.status).toBe(200)
     expect(calls[0].body).toEqual({ change: { action: 'turn-off' }, rpId: 'tazrim.test' })
+  })
+  it('approve/begin takes an update\'s compose files too (ENG-137): the version and the hashes, cut down to known names', async () => {
+    const H = 'c'.repeat(64)
+    const calls = helper({ '/v1/jobs/egress-approve-begin': { status: 200, json: { flowId: 'f1', options: null, passwordAllowed: true, change: { action: 'update-compose' } } } })
+    const { POST } = await import('../approve/begin/route')
+    const res = await POST(post('approve/begin', { change: { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': H }, extra: 1 } }, { host: 'tazrim.test' }))
+    expect(res.status).toBe(200)
+    expect(calls[0].body).toEqual({ change: { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': H } }, rpId: 'tazrim.test' })
+    for (const change of [
+      { action: 'update-compose', version: 'latest', files: { 'docker-compose.yml': H } },
+      { action: 'update-compose', version: '1.2.0', files: { '.env': H } },
+      { action: 'update-compose', version: '1.2.0', files: {} },
+      { action: 'update-compose', version: '1.2.0' },
+    ]) {
+      expect((await POST(post('approve/begin', { change }))).status).toBe(400)
+    }
+    expect(calls).toHaveLength(1)
   })
   it('a bad change never reaches the helper', async () => {
     const calls = helper({})
@@ -123,7 +156,7 @@ describe('POST relays', () => {
     expect(calls).toHaveLength(0)
   })
   it('a refusal becomes its Hebrew line; the helper\'s detail stays behind', async () => {
-    helper({ '/v1/egress/approve/begin': { status: 400, json: { error: 'SHARED_HOST', detail: 'pastebin.example.test is a paste site' } } })
+    helper({ '/v1/jobs/egress-approve-begin': { status: 400, json: { error: 'SHARED_HOST', detail: 'pastebin.example.test is a paste site' } } })
     const { POST } = await import('../approve/begin/route')
     const res = await POST(post('approve/begin', { change: { action: 'add-domain', domain: 'paste.example.test' } }))
     const body = await res.json()
@@ -140,7 +173,7 @@ describe('POST relays', () => {
     expect((await res.json()).code).toBe('NO_HELPER')
   })
   it('register/begin sends rpId, rpName and the key\'s name', async () => {
-    const calls = helper({ '/v1/egress/approvers/register/begin': { status: 200, json: { options: {}, codeFile: 'tazrim-approval-code.txt', expiresAt: 'soon' } } })
+    const calls = helper({ '/v1/jobs/egress-register-begin': { status: 200, json: { options: {}, codeFile: 'tazrim-approval-code.txt', expiresAt: 'soon' } } })
     const { POST } = await import('../approvers/register/begin/route')
     const res = await POST(post('approvers/register/begin', { name: ' Laptop ' }, { host: 'localhost:3000' }))
     expect(res.status).toBe(200)
@@ -157,7 +190,7 @@ describe('the passkey routes log keys only', () => {
     expect(isSensitiveRoute('/api/egress/on')).toBe(false)
   })
   it('a finish call leaves its keys in the log, never the passkey answer or the code', async () => {
-    helper({ '/v1/egress/approve/finish': { status: 200, json: { ok: true } } })
+    helper({ '/v1/jobs/egress-approve-finish': { status: 200, json: { ok: true } } })
     const { POST } = await import('../approve/finish/route')
     await POST(post('approve/finish', { response: { id: 'CRED-ID-1', response: { signature: 'SIGNATURE-BYTES', clientDataJSON: 'CLIENT-DATA' } } }))
     const { POST: register } = await import('../approvers/register/finish/route')
@@ -170,8 +203,8 @@ describe('the passkey routes log keys only', () => {
   })
   it('a password never reaches the log, and reaches the helper as sent', async () => {
     const calls = helper({
-      '/v1/egress/approve/finish': { status: 200, json: { ok: true } },
-      '/v1/egress/approvers/register/finish': { status: 200, json: { ok: true, approver: { id: 'p', name: 'Pw', rpId: '', createdAt: 'x', kind: 'password', hash: 'LEAK' } } },
+      '/v1/jobs/egress-approve-finish': { status: 200, json: { ok: true } },
+      '/v1/jobs/egress-register-finish': { status: 200, json: { ok: true, approver: { id: 'p', name: 'Pw', rpId: '', createdAt: 'x', kind: 'password', hash: 'LEAK' } } },
     })
     const { POST: finish } = await import('../approve/finish/route')
     const { POST: register } = await import('../approvers/register/finish/route')
@@ -184,7 +217,7 @@ describe('the passkey routes log keys only', () => {
     for (const secret of ['correct horse battery', '654321', 'flow-1']) expect(dump).not.toContain(secret)
   })
   it('a wrong password and a lockout come back as their Hebrew lines', async () => {
-    helper({ '/v1/egress/approve/finish': { status: 403, json: { error: 'LOCKED', until: '2030-01-01T00:15:00Z', detail: 'x' } } })
+    helper({ '/v1/jobs/egress-approve-finish': { status: 403, json: { error: 'LOCKED', until: '2030-01-01T00:15:00Z', detail: 'x' } } })
     const { POST } = await import('../approve/finish/route')
     const res = await POST(post('approve/finish', { flowId: 'f', password: 'wrong' }))
     const body = await res.json()
@@ -192,7 +225,7 @@ describe('the passkey routes log keys only', () => {
     expect(body.error).toMatch(/[֐-׿]/)
   })
   it('begin forwards flowId, options and passwordAllowed', async () => {
-    helper({ '/v1/egress/approve/begin': { status: 200, json: { flowId: 'f1', options: null, passwordAllowed: true, change: { action: 'turn-off' }, junk: 1 } } })
+    helper({ '/v1/jobs/egress-approve-begin': { status: 200, json: { flowId: 'f1', options: null, passwordAllowed: true, change: { action: 'turn-off' }, junk: 1 } } })
     const { POST } = await import('../approve/begin/route')
     const body = await (await POST(post('approve/begin', { change: { action: 'turn-off' } }))).json()
     expect(body).toEqual({ flowId: 'f1', options: null, passwordAllowed: true, change: { action: 'turn-off' } })

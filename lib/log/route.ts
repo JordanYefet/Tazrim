@@ -11,7 +11,7 @@
  *  - the response is read (from res.clone()) only for status 400 and up with a JSON body,
  *    to show the error; a success and anything streaming is never read;
  *  - on the sensitive routes (SENSITIVE below: sign-in, the vault, passwords, passkeys,
- *    network-isolation approvals, deleting everything) only the body's keys are kept, every value is masked;
+ *    network-isolation approvals and the update's, which may carry an approval, deleting everything) only the body's keys are kept, every value is masked;
  *  - the log never throws into a request: any failure here is swallowed.
  */
 import { log } from './logger'
@@ -23,7 +23,7 @@ export function routeName(pathname: string): string {
 }
 
 /** Routes that carry logins, passwords or passkey answers: the body is logged as keys only */
-const SENSITIVE = /^\/api\/(?:auth|vault)(?:\/|$)|^\/api\/people\/(?:password|recovery|passkeys)(?:\/|$)|^\/api\/data\/delete-all(?:\/|$)|^\/api\/egress\/approv(?:e|ers)(?:\/|$)/
+const SENSITIVE = /^\/api\/(?:auth|vault)(?:\/|$)|^\/api\/people\/(?:password|recovery|passkeys)(?:\/|$)|^\/api\/data\/delete-all(?:\/|$)|^\/api\/egress\/approv(?:e|ers)(?:\/|$)|^\/api\/updates\/start(?:\/|$)/
 export const isSensitiveRoute = (pathname: string) => SENSITIVE.test(pathname)
 
 /** The longest a body or an error response is kept, serialised */

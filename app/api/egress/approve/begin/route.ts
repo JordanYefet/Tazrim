@@ -18,7 +18,7 @@ async function handlePOST(req: Request) {
   const change = parseChange(body?.change)
   const rpId = rpIdOf(req.headers)
   if (!change || !rpId) return NextResponse.json({ code: 'INVALID', error: egressMessage('INVALID') }, { status: 400 })
-  const r = await relay('/v1/egress/approve/begin', { change, rpId })
+  const r = await relay('egress-approve-begin', { change, rpId })
   return NextResponse.json(r.body, { status: r.status })
 }
 

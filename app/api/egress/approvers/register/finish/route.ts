@@ -19,7 +19,7 @@ async function handlePOST(req: Request) {
   const proof =
     body?.response && typeof body.response === 'object' ? { response: body.response } : typeof body?.password === 'string' && body.password && body.password.length <= 500 ? { password: body.password } : null
   if (!code || !name || !proof) return NextResponse.json({ code: 'INVALID', error: egressMessage('INVALID') }, { status: 400 })
-  const r = await relay('/v1/egress/approvers/register/finish', { code, name, ...proof })
+  const r = await relay('egress-register-finish', { code, name, ...proof })
   return NextResponse.json(r.body, { status: r.status })
 }
 

@@ -4,12 +4,12 @@ import { useState } from 'react'
 import type { ConfigKey, InstallView } from '@/lib/install/types'
 import { cn } from '@/lib/utils/cn'
 import { ContainerApplyStatus, ContainerSettingField, ManualEnvSteps, useContainerSettings, type ContainerSettings } from './container-settings'
-import { SectionHeading, sectionClass } from './guide'
+import { OldUpdaterNote, SectionHeading, sectionClass } from './guide'
 
 /** Why the app can't change these itself (the controls then show manual steps) */
 const WHY_MANUAL: Record<Exclude<InstallView['helper'], 'ready'>, string> = {
   none: 'רכיב העדכון לא פועל, אז משנים את ההגדרות האלה ידנית.',
-  old: 'רכיב העדכון ישן מדי לשינוי ההגדרות האלה מכאן. אחרי העדכון הבא זה יעבוד, ועד אז משנים ידנית.',
+  old: 'משנים את ההגדרות האלה ידנית, או מעדכנים את שירות העזר (למטה).',
   unavailable: 'רכיב העדכון לא מחובר לתיקייה של תזרים, אז משנים את ההגדרות האלה ידנית.',
 }
 
@@ -88,7 +88,10 @@ export function AdvancedSection({ settings }: { settings: ContainerSettings }) {
       {settings.canApply ? (
         <ContainerApplyStatus settings={settings} only={[...KEYS]} />
       ) : (
-        <ManualEnvSteps lines={KEYS.map(k => `${k}=${drafts[k]}`)} installDir={view.installDir} />
+        <>
+          {view.helper === 'old' && <OldUpdaterNote />}
+          <ManualEnvSteps lines={KEYS.map(k => `${k}=${drafts[k]}`)} installDir={view.installDir} />
+        </>
       )}
     </section>
   )

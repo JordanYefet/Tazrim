@@ -267,6 +267,19 @@ export function CopyLine({ text, className }: { text: string; className?: string
   )
 }
 
+/** The one command that brings an updater from before api 2 up to date; after it the updater never needs refreshing by hand again */
+export const REFRESH_UPDATER_COMMAND = 'docker compose pull updater && docker compose up -d updater'
+
+/** Where a feature needs the updater and the updater is older than this version's API: why, and the one-time command */
+export function OldUpdaterNote({ className }: { className?: string }) {
+  return (
+    <div className={cn('space-y-2', className)}>
+      <p className="text-sm text-muted-foreground text-pretty">שירות העזר ישן. עדכון חד-פעמי, בתיקייה של תזרים:</p>
+      <CopyLine text={REFRESH_UPDATER_COMMAND} className="bg-background" />
+    </div>
+  )
+}
+
 /** A QR code for `url`, drawn here (no service). Keeps its square while drawing. */
 export function QrImage({ url, size = 148, label }: { url: string | null; size?: number; label: string }) {
   const [src, setSrc] = useState<string | null>(null)

@@ -60,6 +60,15 @@ c up -d $up
  */
 export const COMPOSE_SCRIPT_ISOLATION = COMPOSE_SCRIPT.replace('c up -d $up', 'c up -d --remove-orphans $up')
 
+/**
+ * The same, for an update that brings new compose files (ENG-137): every service, the helper
+ * included (its own definition may have changed), and `--remove-orphans` for what the release
+ * dropped. The job is not a compose container, so recreating the helper does not stop it.
+ */
+export const COMPOSE_SCRIPT_RELEASE = `set -u
+docker compose --project-directory "$TAZRIM_WD" up -d --remove-orphans
+`
+
 /** What the helper does once the app is back after a switch: its own networks changed, so it is recreated (not waited for) */
 export const RECREATE_SCRIPT = `sleep 3
 docker compose --project-directory "$TAZRIM_WD" up -d --no-deps --force-recreate "$TAZRIM_SELF"
@@ -80,6 +89,15 @@ function short(e) {
 export function failureCode(output) {
   if (/port is already allocated|address already in use|ports are not available|bind for .* failed/i.test(output)) return 'PORT_BUSY'
   return 'APPLY_FAILED'
+}
+
+/** Runs `script` in a CLI container for `ctx`; throws with a fixed `code` (see failureCode) when compose fails */
+export async function runCompose(docker, ctx, cliImage, script) {
+  const r = await docker.runCli(ctx, cliImage, script)
+  if (r.exitCode !== 0) {
+    const lines = r.output.trim().split('\n').filter(Boolean)
+    throw Object.assign(new Error(lines.slice(-3).join(' ') || `docker compose exited with ${r.exitCode}`), { code: failureCode(r.output) })
+  }
 }
 
 /**
@@ -155,7 +173,7 @@ export function createEnvFile(dir, { fs = nodeFs, now = () => new Date() } = {})
 
 /**
  * The config port of the helper. `docker`: composeContext, runCli, findTarget, waitHealthy;
- * `lock`: the busy flag shared with the update jobs; `status`: its own store.
+ * `lock`: the file lock shared with the update jobs (lock.mjs); `status`: its own store.
  */
 export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, fs = nodeFs, now = () => new Date(), healthTimeoutMs = 3 * 60 * 1000, cliImage = CLI_IMAGE }) {
   const env = createEnvFile(installDir, { fs, now })
@@ -171,13 +189,7 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
     }
   }
 
-  async function apply(ctx, script = COMPOSE_SCRIPT) {
-    const r = await docker.runCli(ctx, cliImage, script)
-    if (r.exitCode !== 0) {
-      const lines = r.output.trim().split('\n').filter(Boolean)
-      throw Object.assign(new Error(lines.slice(-3).join(' ') || `docker compose exited with ${r.exitCode}`), { code: failureCode(r.output) })
-    }
-  }
+  const apply = (ctx, script = COMPOSE_SCRIPT) => runCompose(docker, ctx, cliImage, script)
 
   async function checkApp() {
     const t = await docker.findTarget()
@@ -255,24 +267,23 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
 
   /** The shared start: lock, context, .env, then `build(read, ctx)` decides; one job at a time */
   async function begin(build) {
-    if (lock.busy) return { status: 409, code: 'BUSY', error: 'An update, a rollback or a settings change is already running.' }
-    lock.busy = true
+    if (!(await lock.acquire())) return { status: 409, code: 'BUSY', error: 'An update, a rollback or a settings change is already running.' }
     try {
       const { ctx, reason, detail } = await context()
       if (!ctx) {
-        lock.busy = false
+        lock.release()
         return { status: 422, code: 'NOT_AVAILABLE', reason, error: detail ?? reason }
       }
       let read
       try {
         read = env.read()
       } catch (e) {
-        lock.busy = false
+        lock.release()
         return { status: 422, code: 'NOT_AVAILABLE', reason: e?.code ?? 'ENV_NOT_FILE', error: short(e) }
       }
       const b = await build(read, ctx)
       if (b.refused) {
-        lock.busy = false
+        lock.release()
         return b.refused
       }
       const job = {
@@ -287,12 +298,10 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
       save(job)
       const done = run(job, ctx, read.text, read.exists, b.text, b.opts)
         .catch(e => console.error('updater: config job crashed', e))
-        .finally(() => {
-          lock.busy = false
-        })
+        .finally(() => lock.release())
       return { status: 202, job: structuredClone(job), done }
     } catch (e) {
-      lock.busy = false
+      lock.release()
       throw e
     }
   }
