@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils/cn'
 import { REPO_URL } from '@/lib/about/content'
 import type { UpdateView } from '@/lib/updates/state'
 import { AutoCheckSwitch } from './auto-check-switch'
+import { OldUpdaterNote } from '@/components/install/guide'
 import { ManualCommands } from './manual-commands'
 import { RollbackConfirmDialog, UpdateConfirmDialog, Ver, knownVersion } from './update-dialogs'
 
@@ -69,7 +70,7 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
   const [rollbackOpen, setRollbackOpen] = useState(false)
   const now = useNow()
 
-  const { latest, newer, canUpdate, lastUpdate, job } = view
+  const { latest, newer, canUpdate, helperOld, lastUpdate, job } = view
   const running = job?.state === 'running'
 
   async function check() {
@@ -167,6 +168,7 @@ export function VersionCard({ initial }: { initial: UpdateView }) {
         <div className="space-y-1 text-sm">
           <p className="text-muted-foreground">אפשר לעדכן בפקודה אחת, במחשב שעליו תזרים רץ.</p>
           <ManualCommands />
+          {helperOld && <OldUpdaterNote />}
           <p className="text-xs leading-relaxed text-muted-foreground">
             רוצים לעדכן מכאן בלחיצה? מוסיפים לתזרים את רכיב העדכון.{' '}
             <a href={README_UPDATES} target="_blank" rel="noreferrer" className="font-medium text-primary underline-offset-4 hover:underline">
