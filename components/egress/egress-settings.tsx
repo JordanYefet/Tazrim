@@ -35,6 +35,7 @@ const ACTION_TEXT: Record<ChangeAction, string> = {
   'turn-off': 'כובה הבידוד',
   'add-approver': 'נוסף אישור',
   'remove-approver': 'הוסר אישור',
+  'update-compose': 'אושר עדכון של קובצי ההתקנה',
 }
 
 type Line = { tone: 'busy' | 'error' | 'ok'; text: string } | null

@@ -49,18 +49,22 @@ export interface Approved {
   job?: EgressJob | null
 }
 
-/** The passkey half of an approval: the browser signs the challenge, the updater checks it */
-export async function approveWithPasskey(begin: Begin): Promise<Approved> {
-  let response
+/** What the person gave to approve: a signed passkey answer, or the approval password for the flow the begin call opened */
+export type Proof = { response: object } | { flowId: string | undefined; password: string }
+
+/** The passkey half of an approval: the browser signs the challenge */
+export async function proveWithPasskey(begin: Begin): Promise<Proof> {
   try {
-    response = await startAuthentication({ optionsJSON: begin.options })
+    return { response: await startAuthentication({ optionsJSON: begin.options }) }
   } catch (e) {
     throw friendly(e)
   }
-  return call<Approved>('/approve/finish', { response })
 }
 
-export const approveWithPassword = (begin: Begin, password: string) => call<Approved>('/approve/finish', { flowId: begin.flowId, password })
+export const proveWithPassword = async (begin: Begin, password: string): Promise<Proof> => ({ flowId: begin.flowId, password })
+
+/** The default end of an approval: the updater checks the proof and applies the change */
+export const finishApproval = (proof: Proof) => call<Approved>('/approve/finish', proof)
 
 /** Creates the passkey for the options the updater issued and registers it with the code from the file */
 export async function registerPasskey(
