@@ -317,11 +317,11 @@ export function createJobs({ docker, app, status, lock, compose = null, egress =
 
     /**
      * What an update to `version` would do to the compose files (ENG-137), for the person to see
-     * first. 200 { version, applicable, reason?, files, needsApproval, approvers } | 400 | 502 COMPOSE_FETCH_FAILED
+     * first. 200 { version, applicable, reason?, files, needsApproval, approvers, step } | 400 | 502 COMPOSE_FETCH_FAILED
      */
     async planUpdate(version) {
       if (typeof version !== 'string' || !VERSION_RE.test(version)) return refuse(400, 'INVALID_VERSION', 'The version must look like 1.2.3.')
-      const none = reason => ({ status: 200, body: { version, applicable: false, reason, files: [], needsApproval: false, approvers: false } })
+      const none = reason => ({ status: 200, body: { version, applicable: false, reason, files: [], needsApproval: false, approvers: false, step: false } })
       if (!compose) return none('NO_INSTALL_MOUNT')
       let target
       try {

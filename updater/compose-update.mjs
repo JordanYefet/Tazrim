@@ -106,7 +106,7 @@ export function createComposeUpdate({
     }
   }
 
-  const notApplicable = (version, reason) => ({ view: { version, applicable: false, reason, files: [], needsApproval: false, approvers: false }, work: null })
+  const notApplicable = (version, reason) => ({ view: { version, applicable: false, reason, files: [], needsApproval: false, approvers: false, step: false }, work: null })
 
   /**
    * What an update to `version` would do to the compose files. `current`: the running version
@@ -155,9 +155,11 @@ export function createComposeUpdate({
     const changing = items.filter(i => i.action === 'replace' || i.action === 'create')
     const toWrite = items.filter(i => i.action === 'edited' && readPlain(at(`${i.name}.new`), fs) !== i.next)
     const pinBump = Boolean(pinned) && pinned !== version
+    // The update gets its last step (the page shows its row from the start)
+    const step = changing.length > 0 || toWrite.length > 0 || pinBump
     return {
-      view: { version, applicable: true, files, needsApproval: changing.length > 0, approvers: Boolean(egress?.hasApprovers()) },
-      work: { ctx, version, items, changing, toWrite, pinBump, pinned, record, steps: changing.length > 0 || toWrite.length > 0 || pinBump },
+      view: { version, applicable: true, files, needsApproval: changing.length > 0, approvers: Boolean(egress?.hasApprovers()), step },
+      work: { ctx, version, items, changing, toWrite, pinBump, pinned, record, steps: step },
     }
   }
 

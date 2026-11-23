@@ -68,7 +68,7 @@ describe('plan', () => {
     write(RECORD_FILE, JSON.stringify({ files: { [Y]: sha256(RELEASES['1.0.0'][Y]) } }))
     const { c, fetches } = setup()
     const { view, work } = await c.plan('1.2.0', '1.0.0')
-    expect(view).toMatchObject({ version: '1.2.0', applicable: true, needsApproval: true, approvers: false })
+    expect(view).toMatchObject({ version: '1.2.0', applicable: true, needsApproval: true, approvers: false, step: true })
     const y = view.files.find(f => f.name === Y)
     expect(y).toMatchObject({ action: 'replace', sha256: sha256(RELEASES['1.2.0'][Y]) })
     expect(y.diff).toContain('-    image: app:1.0.0')
@@ -135,7 +135,7 @@ describe('plan', () => {
   it('does not apply: not a compose install, no /install, a custom tag; an x.y.z pin is fine', async () => {
     for (const reason of ['NO_INSTALL_MOUNT', 'NOT_COMPOSE', 'FOLDER_MISMATCH']) {
       const { view } = await setup({ context: { reason } }).c.plan('1.2.0', '1.0.0')
-      expect(view).toEqual({ version: '1.2.0', applicable: false, reason, files: [], needsApproval: false, approvers: false })
+      expect(view).toEqual({ version: '1.2.0', applicable: false, reason, files: [], needsApproval: false, approvers: false, step: false })
     }
     expect((await setup({ env: 'TAZRIM_VERSION=preview-abc\n' }).c.plan('1.2.0', '1.0.0')).view).toMatchObject({ applicable: false, reason: 'CUSTOM_TAG' })
     expect((await setup({ env: 'TAZRIM_VERSION=1.0.0\n' }).c.plan('1.2.0', '1.0.0')).view.applicable).toBe(true)
