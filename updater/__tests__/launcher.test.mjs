@@ -259,6 +259,11 @@ describe('jobBody', () => {
     expect(body.NetworkingConfig).toBeUndefined()
     expect(extraNetworks).toEqual([])
   })
+
+  it("turns off the image's healthcheck (it asks the Next server, which a job does not run)", () => {
+    const { body } = jobBody({ self: structuredClone(SELF), selfImage: null, image: APP_IMAGE, name: 'latest', jobId: '0'.repeat(16) })
+    expect(body.Healthcheck).toEqual({ Test: ['NONE'] })
+  })
 })
 
 describe('sweep', () => {

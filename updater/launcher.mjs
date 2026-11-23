@@ -123,6 +123,8 @@ export function jobBody({ self, selfImage, image, name, jobId }) {
     Cmd: ['node', '/app/updater/run.mjs', name, jobId],
     Env: [...(cc.Env ?? []).filter(e => !imageEnv.has(e) && !e.startsWith('TAZRIM_LAUNCHER_ID=')), `TAZRIM_LAUNCHER_ID=${self.Id}`],
     Labels: { 'tazrim.job': name, 'tazrim.job.id': jobId },
+    // The image's healthcheck asks the Next server, which a job does not run
+    Healthcheck: { Test: ['NONE'] },
     HostConfig: {
       Binds: hc.Binds ?? undefined,
       Mounts: hc.Mounts ?? undefined,
