@@ -17,7 +17,7 @@ export interface Approver {
   kind: 'passkey' | 'password'
 }
 
-export type ChangeAction = 'add-domain' | 'remove-domain' | 'turn-on' | 'turn-off' | 'add-approver' | 'remove-approver'
+export type ChangeAction = 'add-domain' | 'remove-domain' | 'turn-on' | 'turn-off' | 'add-approver' | 'remove-approver' | 'update-compose'
 
 export interface EgressChange {
   at: string
@@ -66,3 +66,5 @@ export type ChangeRequest =
   | { action: 'remove-domain'; domain: string }
   | { action: 'turn-off' }
   | { action: 'remove-approver'; id: string }
+  /** An update that replaces compose files in the install folder (ENG-137): the version and the hashes of the files */
+  | { action: 'update-compose'; version: string; files: Record<string, string> }

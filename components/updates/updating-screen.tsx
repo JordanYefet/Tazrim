@@ -38,6 +38,7 @@ const LABEL: Record<StepId, string> = {
   migrate: 'עדכון בסיס הנתונים',
   check: 'בדיקה שהכול עובד',
   restore: 'שחזור הנתונים מהגיבוי',
+  compose: 'עדכון קובצי ההתקנה',
 }
 
 /** The failed row's short reason */
@@ -48,12 +49,19 @@ const REASON: Record<StepId, string> = {
   migrate: 'הגרסה החדשה לא עלתה',
   check: 'הגרסה החדשה לא עברה את הבדיקה',
   restore: 'השחזור מהגיבוי לא הצליח',
+  compose: 'קובצי ההתקנה נשארו כמו שהיו',
 }
 
-const rowIds = (job: JobStatus) => (job.kind === 'rollback' ? ROLLBACK_ROWS : UPDATE_ROWS)
+/** The job's rows; the compose files' row (ENG-137) only for a job that has that step */
+const rowIds = (job: JobStatus): StepId[] => {
+  const base = job.kind === 'rollback' ? ROLLBACK_ROWS : UPDATE_ROWS
+  return job.steps.some(st => st.id === 'compose') ? [...base, 'compose'] : base
+}
+
+const labelOf = (id: StepId, kind: JobStatus['kind']) => (id === 'compose' && kind === 'rollback' ? 'החזרת קובצי ההתקנה' : LABEL[id])
 
 /** Where the bar stands while each step runs (download moves on from here by its bytes) */
-const AT: Record<StepId, number> = { backup: 0.1, download: 0.1, restart: 0.65, migrate: 0.8, check: 0.92, restore: 0.3 }
+const AT: Record<StepId, number> = { backup: 0.1, download: 0.1, restart: 0.65, migrate: 0.8, check: 0.92, restore: 0.3, compose: 0.97 }
 
 /** The bar, 0..1: the running (or failed) step's place; the download moves it from .1 to .5 by bytes */
 export function progressOf(job: JobStatus): number {
@@ -93,13 +101,14 @@ function pastRestart(s: Screen): boolean {
   return s.job.steps.some(st => ids.indexOf(st.id) >= at && st.state !== 'waiting')
 }
 
-function pendingJob(kind: JobStatus['kind'], from: string, to: string): JobStatus {
-  const ids = kind === 'rollback' ? ROLLBACK_ROWS : UPDATE_ROWS
+function pendingJob(kind: JobStatus['kind'], from: string, to: string, compose = false): JobStatus {
+  const base = kind === 'rollback' ? ROLLBACK_ROWS : UPDATE_ROWS
+  const ids: StepId[] = compose ? [...base, 'compose'] : base
   return { kind, from, to, state: 'running', restored: false, steps: ids.map((id, i) => ({ id, state: i === 0 ? 'running' : 'waiting' })) }
 }
 
-/** The page's first state: the view's job, or (just started, `start` given) a job waiting to show up */
-export function startScreen(view: UpdateView, start?: string): Screen {
+/** The page's first state: the view's job, or (just started, `start` given) a job waiting to show up; `compose`: it has the compose files' step */
+export function startScreen(view: UpdateView, start?: string, compose = false): Screen {
   const job = view.job
   if (job && (job.state === 'running' || start === undefined)) return { job, current: view.current, offline: false }
   const kind: JobStatus['kind'] = start === 'rollback' ? 'rollback' : 'update'
@@ -107,7 +116,7 @@ export function startScreen(view: UpdateView, start?: string): Screen {
     kind === 'rollback'
       ? view.lastUpdate?.from || (job?.kind === 'update' ? job.from : undefined) || view.current
       : start || view.latest?.version || job?.to || view.current
-  return { job: pendingJob(kind, view.current, to), current: view.current, offline: false, waitingFor: { stale: job?.finishedAt ?? null, polls: 0 } }
+  return { job: pendingJob(kind, view.current, to, compose), current: view.current, offline: false, waitingFor: { stale: job?.finishedAt ?? null, polls: 0 } }
 }
 
 /** One poll's answer applied to the screen; `go` leaves the page */
@@ -191,9 +200,9 @@ function mb(bytes: number): string {
 /** The rows, always the same ones in the same order: five for an update, three for a roll back */
 export function rowsOf(s: Screen): Row[] {
   const job = shownJob(s)
-  if (isDone(s)) return rowIds(job).map(id => ({ id, label: LABEL[id], state: 'done', note: '' }))
+  if (isDone(s)) return rowIds(job).map(id => ({ id, label: labelOf(id, job.kind), state: 'done', note: '' }))
   const ids = rowIds(job)
-  const rows: Row[] = ids.map(id => ({ id, label: LABEL[id], state: job.steps.find(st => st.id === id)?.state ?? 'waiting', note: '' }))
+  const rows: Row[] = ids.map(id => ({ id, label: labelOf(id, job.kind), state: job.steps.find(st => st.id === id)?.state ?? 'waiting', note: '' }))
   if (job.state === 'failed') {
     // The helper may append its own step (the restore after a failed update): the row that failed is one of ours
     let failed = rows.findIndex(r => r.state === 'failed')
@@ -266,6 +275,12 @@ function Heading({ s, rows }: { s: Screen; rows: Row[] }) {
         <p className="mt-1 min-h-11 text-sm leading-relaxed text-muted-foreground">
           {s.stuck ? (
             'תזרים לא חזר לפעול. אפשר להריץ את הפקודה הידנית כדי להפעיל אותו מחדש.'
+          ) : job.code === 'COMPOSE_FAILED' ? (
+            rollback ? (
+              'תזרים חזר לגרסה הקודמת, אבל קובצי ההתקנה לא הוחזרו. העותקים השמורים נמצאים בתיקיית ההתקנה, בשמות שמסתיימים ב-bak.'
+            ) : (
+              'הגרסה החדשה רצה, אבל קובצי ההתקנה נשארו כמו שהיו.'
+            )
           ) : job.restored && rollback && afterRestart ? (
             from ? (
               <>
@@ -379,7 +394,7 @@ export function UpdatingCard({
       </ul>
       {/* Reserved in every state, shown on a failure, so nothing moves when it appears */}
       <div className="update-actions mt-[22px] grid min-h-12 grid-cols-2 gap-2.5" data-shown={failed || undefined} aria-hidden={!failed || undefined}>
-        <button type="button" className={primaryHalf} onClick={onRetry} disabled={!failed || retrying || !!screen.stuck} tabIndex={failed ? undefined : -1}>
+        <button type="button" className={primaryHalf} onClick={onRetry} disabled={!failed || retrying || !!screen.stuck || screen.job.code === 'COMPOSE_FAILED'} tabIndex={failed ? undefined : -1}>
           לנסות שוב
         </button>
         <a href="/" className={secondaryHalf} tabIndex={failed ? undefined : -1}>
@@ -407,8 +422,8 @@ export function UpdatingCard({
 }
 
 /** The page: polls the update's state every second and follows it to done (About) or a failure */
-export function UpdatingScreen({ initial, start }: { initial: UpdateView; start?: string }) {
-  const [screen, setScreen] = useState<Screen>(() => startScreen(initial, start))
+export function UpdatingScreen({ initial, start, compose = false }: { initial: UpdateView; start?: string; compose?: boolean }) {
+  const [screen, setScreen] = useState<Screen>(() => startScreen(initial, start, compose))
   const [manualOpen, setManualOpen] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [retryError, setRetryError] = useState<string | null>(null)
@@ -479,7 +494,7 @@ export function UpdatingScreen({ initial, start }: { initial: UpdateView; start?
       }
       setManualOpen(false)
       setScreen(s => ({
-        job: pendingJob(job.kind, s.current, job.to),
+        job: pendingJob(job.kind, s.current, job.to, job.steps.some(st => st.id === 'compose')),
         current: s.current,
         offline: false,
         waitingFor: { stale: job.finishedAt ?? null, polls: 0 },

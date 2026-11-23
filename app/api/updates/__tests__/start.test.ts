@@ -139,3 +139,140 @@ describe('POST /api/updates/rollback', () => {
     expect(new URL((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string).pathname).toBe('/v1/jobs/rollback')
   })
 })
+
+// ---- the compose files an update brings (ENG-137) ----------------------------------------------
+
+const H1 = 'a'.repeat(64)
+const H2 = 'b'.repeat(64)
+const withCompose = (compose: unknown, version = '1.2.0') =>
+  new Request('http://localhost/api/updates/start', { method: 'POST', body: JSON.stringify({ version, compose }) })
+const sent = () => JSON.parse(String(((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1) as [string, RequestInit])[1].body))
+
+describe('POST /api/updates/start: what was confirmed about the compose files', () => {
+  it('passes the confirmed hashes and the approval to the job, and nothing else of what the browser sent', async () => {
+    helperSays(202)
+    const { POST } = await import('../start/route')
+    const compose = { files: { 'docker-compose.yml': H1 }, approval: { flowId: 'flow-1', password: 'fake approval password', extra: 'x' }, other: 1 }
+    expect((await POST(withCompose(compose))).status).toBe(202)
+    expect(sent()).toEqual({ version: '1.2.0', compose: { files: { 'docker-compose.yml': H1 }, approval: { flowId: 'flow-1', password: 'fake approval password' } } })
+
+    expect((await POST(withCompose({ files: { 'docker-compose.egress.yml': H2 }, approval: { response: { id: 'cred', response: {} } } }))).status).toBe(202)
+    expect(sent().compose.approval).toEqual({ response: { id: 'cred', response: {} } })
+  })
+
+  it('sends no compose when none was given', async () => {
+    helperSays(202)
+    const { POST } = await import('../start/route')
+    await POST(start())
+    expect(sent()).toEqual({ version: '1.2.0' })
+  })
+
+  it('a malformed confirmation never reaches the job: COMPOSE_NEEDS_CONFIRM', async () => {
+    helperSays(202)
+    const { POST } = await import('../start/route')
+    for (const compose of [null, 'x', { files: { '.env': H1 } }, { files: { 'docker-compose.yml': 'short' } }, { files: {}, approval: { password: 'x' } }, { files: { 'docker-compose.yml': H1 }, approval: 7 }]) {
+      const res = await POST(withCompose(compose))
+      expect(res.status).toBe(409)
+      expect((await res.json()).code).toBe('COMPOSE_NEEDS_CONFIRM')
+    }
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [409, 'COMPOSE_NEEDS_CONFIRM', 409],
+    [409, 'COMPOSE_CHANGED', 409],
+    [502, 'COMPOSE_FETCH_FAILED', 502],
+    [403, 'BAD_PASSWORD', 403],
+    [429, 'LOCKED', 429],
+    [403, 'BAD_SIGNATURE', 403],
+    [409, 'CHALLENGE_UNKNOWN', 409],
+  ])('the job refusing with %i %s says it in Hebrew with the same code (even a 403 is not "no helper")', async (helperStatus, helperCode, status) => {
+    helperSays(helperStatus, 'English detail from the job', helperCode)
+    const { POST } = await import('../start/route')
+    const res = await POST(withCompose({ files: { 'docker-compose.yml': H1 } }))
+    const body = await res.json()
+    expect(res.status).toBe(status)
+    expect(body.code).toBe(helperCode)
+    expect(body.error).toMatch(/[֐-׿]/)
+    expect(body.error).not.toMatch(/English detail/)
+  })
+
+  it('a locked password says until when', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ code: 'LOCKED', until: '2030-01-01T10:15:00.000Z' }), { status: 429 }))))
+    const { POST } = await import('../start/route')
+    const body = await (await POST(withCompose({ files: { 'docker-compose.yml': H1 } }))).json()
+    expect(body).toMatchObject({ code: 'LOCKED', until: '2030-01-01T10:15:00.000Z' })
+  })
+
+  it('the log keeps only the keys of this route (it may carry an approval password)', async () => {
+    const { isSensitiveRoute } = await import('@/lib/log/route')
+    expect(isSensitiveRoute('/api/updates/start')).toBe(true)
+    expect(isSensitiveRoute('/api/updates/plan')).toBe(false)
+  })
+})
+
+describe('POST /api/updates/plan', () => {
+  const plan = (version: unknown = '1.2.0') => new Request('http://localhost/api/updates/plan', { method: 'POST', body: JSON.stringify({ version }) })
+  const PLAN = {
+    version: '1.2.0',
+    applicable: true,
+    files: [
+      { name: 'docker-compose.yml', action: 'replace', diff: '-a\n+b', sha256: H1, secret: 'LEAK' },
+      { name: '.env', action: 'replace', diff: 'LEAK', sha256: H2 },
+    ],
+    needsApproval: true,
+    approvers: true,
+    step: true,
+    leak: 'LEAK',
+  }
+  const jobSays = (status: number, json: unknown) => vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(json), { status }))))
+
+  it('asks the update-plan job and answers the plan with its known fields only', async () => {
+    jobSays(200, PLAN)
+    const { POST } = await import('../plan/route')
+    const res = await POST(plan())
+    expect(res.status).toBe(200)
+    const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(new URL(url).pathname).toBe('/v1/jobs/update-plan')
+    expect(JSON.parse(String(init.body))).toEqual({ version: '1.2.0' })
+    const body = await res.json()
+    expect(body).toEqual({
+      version: '1.2.0',
+      applicable: true,
+      files: [{ name: 'docker-compose.yml', action: 'replace', diff: '-a\n+b', sha256: H1 }],
+      needsApproval: true,
+      approvers: true,
+      step: true,
+    })
+    expect(JSON.stringify(body)).not.toContain('LEAK')
+  })
+
+  it('only the version the check found, and a real version', async () => {
+    jobSays(200, PLAN)
+    const { POST } = await import('../plan/route')
+    expect((await (await POST(plan('1.3.0'))).json()).code).toBe('NOT_LATEST')
+    expect((await POST(plan('1.2'))).status).toBe(400)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('says COMPOSE_FETCH_FAILED (502) when GitHub does not answer the job, and NO_HELPER without a helper', async () => {
+    jobSays(502, { code: 'COMPOSE_FETCH_FAILED', error: 'timed out' })
+    const { POST } = await import('../plan/route')
+    const res = await POST(plan())
+    expect(res.status).toBe(502)
+    const body = await res.json()
+    expect(body.code).toBe('COMPOSE_FETCH_FAILED')
+    expect(body.error).toMatch(/[֐-׿]/)
+
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('down'))))
+    const none = await POST(plan())
+    expect(none.status).toBe(503)
+    expect((await none.json()).code).toBe('NO_HELPER')
+  })
+
+  it('an old job container that does not know update-plan is no helper for this', async () => {
+    jobSays(404, { error: 'UNKNOWN_JOB' })
+    const { POST } = await import('../plan/route')
+    expect((await (await POST(plan())).json()).code).toBe('NO_HELPER')
+  })
+})

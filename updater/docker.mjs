@@ -294,9 +294,9 @@ export function createDocker({
 
   return {
     /** The one `tazrim` service container in the helper's own compose project (not a `-previous` one) */
-    async findTarget() {
-      const self = await inspect(selfId)
-      const project = self?.Config?.Labels?.['com.docker.compose.project']
+    async findTarget({ project: known } = {}) {
+      // `known`: a job that recreated the launcher itself (ENG-137) can no longer look it up
+      const project = known ?? (await inspect(selfId))?.Config?.Labels?.['com.docker.compose.project']
       if (!project) throw new Error('the updater is not running under docker compose')
       const filters = JSON.stringify({ label: [`com.docker.compose.project=${project}`, `com.docker.compose.service=${service}`] })
       const list = await call('GET', `/containers/json?all=true&filters=${enc(filters)}`)

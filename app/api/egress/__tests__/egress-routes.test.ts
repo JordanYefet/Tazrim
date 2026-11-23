@@ -130,6 +130,23 @@ describe('POST relays', () => {
     expect(res.status).toBe(200)
     expect(calls[0].body).toEqual({ change: { action: 'turn-off' }, rpId: 'tazrim.test' })
   })
+  it('approve/begin takes an update\'s compose files too (ENG-137): the version and the hashes, cut down to known names', async () => {
+    const H = 'c'.repeat(64)
+    const calls = helper({ '/v1/jobs/egress-approve-begin': { status: 200, json: { flowId: 'f1', options: null, passwordAllowed: true, change: { action: 'update-compose' } } } })
+    const { POST } = await import('../approve/begin/route')
+    const res = await POST(post('approve/begin', { change: { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': H }, extra: 1 } }, { host: 'tazrim.test' }))
+    expect(res.status).toBe(200)
+    expect(calls[0].body).toEqual({ change: { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': H } }, rpId: 'tazrim.test' })
+    for (const change of [
+      { action: 'update-compose', version: 'latest', files: { 'docker-compose.yml': H } },
+      { action: 'update-compose', version: '1.2.0', files: { '.env': H } },
+      { action: 'update-compose', version: '1.2.0', files: {} },
+      { action: 'update-compose', version: '1.2.0' },
+    ]) {
+      expect((await POST(post('approve/begin', { change }))).status).toBe(400)
+    }
+    expect(calls).toHaveLength(1)
+  })
   it('a bad change never reaches the helper', async () => {
     const calls = helper({})
     const { POST } = await import('../approve/begin/route')

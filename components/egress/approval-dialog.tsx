@@ -4,13 +4,16 @@
  * Approving a change that loosens the filter (ENG-134): begin → the passkey prompt, or the approval
  * password → finish. The window says what is being approved, in words the app wrote; the updater
  * keeps its own record of what the signature was for (the change log on this page).
+ *
+ * The same window approves an update that replaces the compose files (ENG-137): there `finish` just
+ * hands the proof back, and the update job checks it itself (updater/compose-update + egress.verifyApproval).
  */
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { passkeyBlocker } from '@/components/auth/passkey-client'
 import type { ChangeRequest } from '@/lib/egress/types'
-import { call, approveWithPasskey, approveWithPassword, type Approved, type Begin } from './api'
+import { call, finishApproval, proveWithPasskey, proveWithPassword, type Approved, type Begin, type Proof } from './api'
 import { Busy, Host, INPUT, PRIMARY, SECONDARY } from './ui'
 
 export function describeChange(c: ChangeRequest): React.ReactNode {
@@ -23,12 +26,34 @@ export function describeChange(c: ChangeRequest): React.ReactNode {
       return 'לכבות את בידוד הרשת'
     case 'remove-approver':
       return 'להסיר מפתח אישור'
+    case 'update-compose':
+      return <>להחליף את קובצי ההתקנה בגרסה <Host>v{c.version}</Host></>
   }
+}
+
+/** Why this needs an approval, under the change */
+function whyText(c: ChangeRequest | null): string {
+  return c?.action === 'update-compose'
+    ? 'הקבצים האלה קובעים מה רץ על המחשב ומה מותר לו ברשת, ולכן ההחלפה שלהם צריכה אישור.'
+    : 'השינוי מרחיב את מה שהאפליקציה יכולה לעשות ברשת, ולכן הוא צריך אישור.'
 }
 
 type Phase = { s: 'loading' } | { s: 'ready'; begin: Begin } | { s: 'failed'; error: string }
 
-export function ApprovalDialog({ change, onClose, onApproved }: { change: ChangeRequest | null; onClose: () => void; onApproved: (r: Approved, c: ChangeRequest) => void }) {
+export function ApprovalDialog<R = Approved>({
+  change,
+  onClose,
+  onApproved,
+  finish = finishApproval as unknown as (proof: Proof) => Promise<R>,
+  confirmLabel = 'אישור',
+}: {
+  change: ChangeRequest | null
+  onClose: () => void
+  onApproved: (r: R, c: ChangeRequest) => void
+  /** What happens with the proof: the egress default asks the updater to apply the change */
+  finish?: (proof: Proof) => Promise<R>
+  confirmLabel?: string
+}) {
   const [phase, setPhase] = useState<Phase>({ s: 'loading' })
   const [busy, setBusy] = useState<'key' | 'password' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,12 +81,12 @@ export function ApprovalDialog({ change, onClose, onApproved }: { change: Change
     }
   }, [change])
 
-  async function run(kind: 'key' | 'password', go: () => Promise<Approved>) {
+  async function run(kind: 'key' | 'password', prove: () => Promise<Proof>) {
     if (!change || busy) return
     setBusy(kind)
     setError(null)
     try {
-      const r = await go()
+      const r = await finish(await prove())
       onApproved(r, change)
     } catch (e) {
       setError((e as Error).message)
@@ -76,7 +101,7 @@ export function ApprovalDialog({ change, onClose, onApproved }: { change: Change
     <AppDialog open={!!change} onOpenChange={o => !o && !busy && onClose()} title="אישור שינוי" className="sm:max-w-md">
       <div className="mt-3 space-y-4 text-sm leading-relaxed">
         <p className="text-pretty">
-          {shown && describeChange(shown)}. השינוי מרחיב את מה שהאפליקציה יכולה לעשות ברשת, ולכן הוא צריך אישור.
+          {shown && describeChange(shown)}. {whyText(shown)}
         </p>
 
         {/* The area keeps its height while the challenge loads */}
@@ -94,7 +119,7 @@ export function ApprovalDialog({ change, onClose, onApproved }: { change: Change
           )}
           {begin?.options && (
             <div className="space-y-2">
-              <button type="button" className={`${PRIMARY} w-full`} disabled={!!busy || !!blocker} onClick={() => void run('key', () => approveWithPasskey(begin))}>
+              <button type="button" className={`${PRIMARY} w-full`} disabled={!!busy || !!blocker} onClick={() => void run('key', () => proveWithPasskey(begin))}>
                 <Busy busy={busy === 'key'}>אישור עם מפתח (Face ID, Touch ID)</Busy>
               </button>
               {blocker && <p className="text-xs text-muted-foreground text-pretty">{blocker}</p>}
@@ -106,7 +131,7 @@ export function ApprovalDialog({ change, onClose, onApproved }: { change: Change
               className="space-y-2"
               onSubmit={e => {
                 e.preventDefault()
-                if (password) void run('password', () => approveWithPassword(begin, password))
+                if (password) void run('password', () => proveWithPassword(begin, password))
               }}
             >
               <label htmlFor="egress-approve-password" className="text-sm font-medium">
@@ -123,7 +148,7 @@ export function ApprovalDialog({ change, onClose, onApproved }: { change: Change
                   disabled={!!busy}
                 />
                 <button type="submit" className={SECONDARY} disabled={!password || !!busy}>
-                  <Busy busy={busy === 'password'}>אישור</Busy>
+                  <Busy busy={busy === 'password'}>{confirmLabel}</Busy>
                 </button>
               </div>
               <p className="text-xs text-muted-foreground text-pretty">מפתח בטוח יותר: את הסיסמה מקלידים בתוך האפליקציה עצמה.</p>

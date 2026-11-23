@@ -3,6 +3,7 @@
  * owns the trusted state and checks every passkey signature; the app only relays. Anything the
  * updater says is reduced to fixed codes and known fields: its English and `detail` stay here.
  */
+import { parseConfirm } from '@/lib/updates/compose'
 import { helperConfigJob, helperHealth, helperIsReady, runJob } from '@/lib/updates/helper'
 import { egressActive } from './config'
 import { cleanApprovers, cleanChanges, cleanExtras, readChanges, readExtraDomains } from './files'
@@ -110,7 +111,7 @@ export async function relay(job: keyof typeof KEEP, body: unknown): Promise<Rela
 
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.length > 0 && v.length <= max ? v : null)
 
-/** A change as the browser sent it, cut down to the four shapes the updater knows; null when it is none of them */
+/** A change as the browser sent it, cut down to the five shapes the updater knows; null when it is none of them */
 export function parseChange(v: unknown): ChangeRequest | null {
   if (!v || typeof v !== 'object') return null
   const c = v as Record<string, unknown>
@@ -129,6 +130,11 @@ export function parseChange(v: unknown): ChangeRequest | null {
     case 'remove-approver': {
       const id = text(c.id, 400)
       return id ? { action: 'remove-approver', id } : null
+    }
+    case 'update-compose': {
+      const confirm = parseConfirm({ files: c.files })
+      const version = text(c.version, 20)
+      return confirm && version && /^\d+\.\d+\.\d+$/.test(version) && Object.keys(confirm.files).length ? { action: 'update-compose', version, files: confirm.files } : null
     }
     default:
       return null
