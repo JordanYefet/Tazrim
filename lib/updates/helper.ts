@@ -10,6 +10,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { cleanPlan, type ComposeConfirm, type UpdatePlan } from './compose'
 import { dataDir } from './paths'
 import { CONFIG_JOBS, CONFIG_STATUS_FILE, currentJob, UPDATE_JOBS, UPDATE_STATUS_FILE } from './status'
 
@@ -19,8 +20,10 @@ const HEALTH_CACHE_MS = 60_000
 /** Above the launcher's own 60 s wait for a job's answer */
 const JOB_TIMEOUT_MS = 70_000
 const CALL_TIMEOUT_MS = 10_000
+/** Up to four GitHub requests of 5 s each, and the job's own start */
+const PLAN_TIMEOUT_MS = 45_000
 
-export type StepId = 'backup' | 'download' | 'restart' | 'migrate' | 'check' | 'restore'
+export type StepId = 'backup' | 'download' | 'restart' | 'migrate' | 'check' | 'restore' | 'compose'
 export interface JobStep {
   id: StepId
   state: 'waiting' | 'running' | 'done' | 'failed'
@@ -40,6 +43,10 @@ export interface JobStatus {
   /** Path of the pre-update backup, in the helper's words; never sent to the browser */
   backup?: string
   previousImage?: string
+  /** A fixed code of what failed beyond the steps: COMPOSE_FAILED (the new version runs, the compose files stayed as they were) */
+  code?: string
+  /** The compose files the update brought (ENG-137) */
+  compose?: { files: { name: string; action: string }[]; backups?: Record<string, string>; pin?: boolean }
 }
 
 /** The launcher's own answer. Any api but 2 is an older updater: the page tells how to refresh it once. */
@@ -166,19 +173,25 @@ export async function helperConfigJob(): Promise<unknown> {
 }
 
 /** Why the helper said no, as a fixed code (its own text is English and may carry Docker output, so it never leaves the server) */
-export type HelperRefusal = 'NO_HELPER' | 'BUSY' | 'NOT_NEWER' | 'NOT_UPDATABLE' | 'NO_ROLLBACK' | 'HELPER_ERROR'
+export type HelperRefusal = 'NO_HELPER' | 'BUSY' | 'NOT_NEWER' | 'NOT_UPDATABLE' | 'NO_ROLLBACK' | 'HELPER_ERROR' | (typeof COMPOSE_CODES)[number] | (typeof APPROVAL_CODES)[number]
 
 export interface HelperResult {
   status: number
   code?: HelperRefusal
+  /** A locked password: until when (ISO) */
+  until?: string
 }
 
-const HELPER_CODES: readonly HelperRefusal[] = ['BUSY', 'NOT_NEWER', 'NOT_UPDATABLE', 'NO_ROLLBACK']
+/** The compose files (ENG-137) and the approval of their replacement (the egress approvals' own codes) */
+export const COMPOSE_CODES = ['COMPOSE_FETCH_FAILED', 'COMPOSE_CHANGED', 'COMPOSE_NEEDS_CONFIRM'] as const
+export const APPROVAL_CODES = ['BAD_PASSWORD', 'LOCKED', 'BAD_SIGNATURE', 'CHALLENGE_UNKNOWN', 'CHALLENGE_EXPIRED', 'UNKNOWN_CREDENTIAL', 'BAD_CLIENT_DATA', 'BAD_CHANGE', 'NO_APPROVER'] as const
+const HELPER_CODES: readonly string[] = ['BUSY', 'NOT_NEWER', 'NOT_UPDATABLE', 'NO_ROLLBACK', ...COMPOSE_CODES, ...APPROVAL_CODES]
 
 /** By the job's `code`; a launcher or job that sends none is a plain helper error (except the auth failures) */
 function refusal(status: number, code: unknown): HelperRefusal {
+  // A coded refusal is the job speaking, even a 403 (a wrong approval password)
+  if (typeof code === 'string' && HELPER_CODES.includes(code)) return code as HelperRefusal
   if (status === 401 || status === 403 || status === 404) return 'NO_HELPER'
-  if (typeof code === 'string' && (HELPER_CODES as readonly string[]).includes(code)) return code as HelperRefusal
   return 'HELPER_ERROR'
 }
 
@@ -186,10 +199,21 @@ async function post(name: 'update' | 'rollback', input: unknown): Promise<Helper
   const r = await runJob(name, input)
   if (!r) return { status: 503, code: 'NO_HELPER' }
   if (r.status === 202) return { status: 202 }
-  const j = r.json as { code?: unknown } | null
+  const j = r.json as { code?: unknown; until?: unknown } | null
   const code = refusal(r.status, j?.code)
-  return { status: code === 'NO_HELPER' ? 503 : r.status, code }
+  return { status: code === 'NO_HELPER' ? 503 : r.status, code, ...(code === 'LOCKED' && typeof j?.until === 'string' ? { until: j.until.slice(0, 40) } : {}) }
 }
 
-export const helperStart = (version: string) => post('update', { version })
+/** `compose`: what the person confirmed about the compose files (see lib/updates/compose.ts), when the plan had something to replace */
+export const helperStart = (version: string, compose?: ComposeConfirm) => post('update', compose ? { version, compose } : { version })
+
+/** The plan for the compose files of an update to `version`: { plan } or { code, status } (a refusal or no answer) */
+export async function helperPlan(version: string): Promise<{ plan: UpdatePlan } | { code: HelperRefusal; status: number }> {
+  const r = await runJob('update-plan', { version }, { timeoutMs: PLAN_TIMEOUT_MS })
+  if (!r) return { code: 'NO_HELPER', status: 503 }
+  const plan = r.status === 200 ? cleanPlan(r.json) : null
+  if (plan) return { plan }
+  const code = refusal(r.status, (r.json as { code?: unknown } | null)?.code)
+  return { code, status: code === 'NO_HELPER' ? 503 : r.status === 200 ? 502 : r.status }
+}
 export const helperRollback = () => post('rollback', {})

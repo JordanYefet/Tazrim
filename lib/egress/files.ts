@@ -31,7 +31,7 @@ export function cleanApprovers(v: unknown): Approver[] {
     .map(a => ({ id: str(a.id, 400), name: str(a.name, 80), rpId: str(a.rpId, 253), createdAt: str(a.createdAt, 40), kind: a.kind === 'password' ? ('password' as const) : ('passkey' as const) }))
 }
 
-const ACTIONS: readonly string[] = ['add-domain', 'remove-domain', 'turn-on', 'turn-off', 'add-approver', 'remove-approver']
+const ACTIONS: readonly string[] = ['add-domain', 'remove-domain', 'turn-on', 'turn-off', 'add-approver', 'remove-approver', 'update-compose']
 
 export function cleanChanges(v: unknown): EgressChange[] {
   if (!Array.isArray(v)) return []
