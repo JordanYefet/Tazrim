@@ -10,8 +10,6 @@ import crypto from 'node:crypto'
 import { GITHUB_API, getWithTimeout, TIMEOUT_MS } from './latest.mjs'
 
 export const MANAGED = Object.freeze(['docker-compose.yml', 'docker-compose.egress.yml'])
-/** Only this one may be created when it is missing (isolation switches it on later) */
-export const CREATABLE = 'docker-compose.egress.yml'
 export const RECORD_FILE = '.tazrim-managed.json'
 export const MAX_FILE_BYTES = 256 * 1024
 export const MAX_DIFF_LINES = 400
@@ -112,7 +110,8 @@ export const renderRecord = files => `${JSON.stringify({ files }, null, 2)}\n`
 export function decide({ name, local, next, recorded, base }) {
   if (next === null) return 'skip'
   if (local === next) return 'same'
-  if (local === null) return name === CREATABLE ? 'create' : 'skip'
+  // Missing: never created here. The isolation switch copies the egress file from the image when it turns on
+  if (local === null) return 'skip'
   if (recorded !== undefined ? sha256(local) === recorded : base !== null && base !== undefined && local === base) return 'replace'
   return 'edited'
 }

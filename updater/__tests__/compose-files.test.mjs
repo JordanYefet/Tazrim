@@ -67,8 +67,8 @@ describe('decide', () => {
   it('local equals the release: same', () => {
     expect(d({ local: B })).toBe('same')
   })
-  it('local missing: create for the egress file only', () => {
-    expect(d({ local: null }, 'docker-compose.egress.yml')).toBe('create')
+  it('local missing: skip, also for the egress file (isolation brings it when it turns on)', () => {
+    expect(d({ local: null }, 'docker-compose.egress.yml')).toBe('skip')
     expect(d({ local: null }, 'docker-compose.yml')).toBe('skip')
   })
   it('with a record: replace when the local hash is the recorded one, edited otherwise', () => {

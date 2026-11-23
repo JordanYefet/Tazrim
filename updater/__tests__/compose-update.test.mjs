@@ -63,7 +63,7 @@ function setup({ releases = RELEASES, context = { ctx: CTX }, upFails = 0, upHea
 }
 
 describe('plan', () => {
-  it('untouched since Tazrim wrote it (recorded hash): replace, with a diff and the new hash; the egress file is created when missing', async () => {
+  it('untouched since Tazrim wrote it (recorded hash): replace, with a diff and the new hash; a missing egress file is left missing', async () => {
     write(Y, RELEASES['1.0.0'][Y])
     write(RECORD_FILE, JSON.stringify({ files: { [Y]: sha256(RELEASES['1.0.0'][Y]) } }))
     const { c, fetches } = setup()
@@ -73,8 +73,8 @@ describe('plan', () => {
     expect(y).toMatchObject({ action: 'replace', sha256: sha256(RELEASES['1.2.0'][Y]) })
     expect(y.diff).toContain('-    image: app:1.0.0')
     expect(y.diff).toContain('+    image: app:1.2.0')
-    expect(view.files.find(f => f.name === E)).toMatchObject({ action: 'create', sha256: sha256(RELEASES['1.2.0'][E]) })
-    expect(work.changing.map(i => i.name)).toEqual([Y, E])
+    expect(view.files.find(f => f.name === E)).toMatchObject({ action: 'skip' })
+    expect(work.changing.map(i => i.name)).toEqual([Y])
     // the record was there: the current tag is not asked for
     expect(fetches.every(([v]) => v === '1.2.0')).toBe(true)
   })
@@ -192,14 +192,13 @@ describe('apply', () => {
     expect(fs.statSync(path.join(dir, RECORD_FILE)).mode & 0o777).toBe(0o644)
   })
 
-  it('creates a missing egress file and records it; no backup for what did not exist', async () => {
+  it('never creates a missing egress file (the isolation switch brings it): no confirmation needed', async () => {
     write(Y, RELEASES['1.2.0'][Y])
     const { c } = setup()
-    const { work } = await c.plan('1.2.0', '1.0.0')
-    const r = await c.apply(work)
-    expect(read(E)).toBe(RELEASES['1.2.0'][E])
-    expect(record()).toEqual({ [Y]: sha256(RELEASES['1.2.0'][Y]), [E]: sha256(RELEASES['1.2.0'][E]) })
-    expect(Object.keys(r.backups)).toEqual([RECORD_FILE])
+    const { view } = await c.plan('1.2.0', '1.0.0')
+    expect(view.needsApproval).toBe(false)
+    expect(view.files.find(f => f.name === E)).toMatchObject({ action: 'skip' })
+    expect(fs.existsSync(path.join(dir, E))).toBe(false)
   })
 
   it('keeps the newest 5 backups of each file', async () => {
