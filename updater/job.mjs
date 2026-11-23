@@ -5,7 +5,10 @@
  * Update: download -> backup -> restart -> migrate -> check. Download runs first so nothing
  * saved during a long download is lost; the backup is taken right before the stop. A failure
  * before the stop changes nothing; a failure after it puts the old container and the backup back.
+ * When the release brings new compose files (ENG-137, compose-update.mjs), a last step `compose`
+ * writes them and runs `docker compose up -d`: the app update stays whatever happens there.
  */
+import { updateChange } from './compose-files.mjs'
 
 export const IMAGE = 'ghcr.io/jordanyefet/tazrim'
 export const VERSION_RE = /^\d+\.\d+\.\d+$/
@@ -13,6 +16,8 @@ export const HEALTH_TIMEOUT_MS = 3 * 60 * 1000
 
 const UPDATE_STEPS = ['backup', 'download', 'restart', 'migrate', 'check']
 const ROLLBACK_STEPS = ['restore', 'restart', 'check']
+/** The step that follows when compose files are involved */
+const COMPOSE_STEP = 'compose'
 /** Download progress is kept in memory on every event but written to the status file at most this often */
 const PROGRESS_SAVE_MS = 1000
 
@@ -52,7 +57,7 @@ async function quietly(fn) {
 /** A refusal: HTTP status, a fixed machine code the app maps to its own words, and English detail */
 const refuse = (status, code, error) => ({ status, code, error })
 
-export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH_TIMEOUT_MS, now = () => new Date() }) {
+export function createJobs({ docker, app, status, lock, compose = null, egress = null, healthTimeoutMs = HEALTH_TIMEOUT_MS, now = () => new Date() }) {
   // `lock` (lock.mjs) is shared with the settings jobs (config.mjs): one job at a time, whatever its kind.
 
   const save = job => status.save(job)
@@ -137,7 +142,29 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
     }
   }
 
-  async function runUpdate(job, target) {
+  /** The compose step of an update: its own failure never undoes the app update (it was healthy before) */
+  async function composeStep(job, work) {
+    try {
+      await step(job, COMPOSE_STEP, 'The compose files were not brought up to date', async () => {
+        const r = await compose.apply(work, {
+          onBackups: backups => {
+            job.compose = { files: [], backups }
+            save(job)
+          },
+        })
+        job.compose = { files: r.files, backups: r.backups, ...(r.pin ? { pin: true } : {}) }
+      })
+      return true
+    } catch (e) {
+      job.code = 'COMPOSE_FAILED'
+      job.restored = e?.restored === true
+      if (e?.backups) job.compose = { files: [], backups: e.backups }
+      save(job)
+      return false
+    }
+  }
+
+  async function runUpdate(job, target, work) {
     const ref = `${IMAGE}:${job.to}`
     let stopping = false
     let renamed = false
@@ -182,11 +209,16 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
       return
     }
     await quietly(() => docker.remove(target.id))
+    if (work?.steps && !(await composeStep(job, work))) {
+      await quietly(() => app.clearFlag())
+      finish(job, 'failed')
+      return
+    }
     await quietly(() => app.clearFlag())
     finish(job, 'done')
   }
 
-  async function runRollback(job, target) {
+  async function runRollback(job, target, undo) {
     const knownVersion = VERSION_RE.test(job.to)
     const ref = `${IMAGE}:${knownVersion ? job.to : 'latest'}`
     let stopping = false
@@ -224,6 +256,15 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
       return
     }
     await quietly(() => docker.remove(target.id))
+    if (undo) {
+      try {
+        await step(job, COMPOSE_STEP, 'Putting the compose files back failed', () => compose.restore(undo.compose, undo.versions))
+      } catch {
+        job.code = 'COMPOSE_FAILED'
+        finish(job, 'failed')
+        return
+      }
+    }
     finish(job, 'done')
   }
 
@@ -233,6 +274,35 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
       .catch(e => console.error('updater: job crashed', e)) // e.g. the status file can't be written
       .finally(() => lock.release())
     return { status: 202, job: structuredClone(job), done }
+  }
+
+  /**
+   * The compose files before an update starts: plans again (the person confirmed what they saw
+   * minutes ago), and lets nothing through that is not what they confirmed and approved.
+   * { work } (null: no compose step) or { refused }
+   */
+  async function composeGate(version, target, confirmed) {
+    let p
+    try {
+      p = await compose.plan(version, target.version)
+    } catch (e) {
+      return { refused: refuse(502, e?.code ?? 'COMPOSE_FETCH_FAILED', short(e)) }
+    }
+    const work = p.work
+    if (!work || work.changing.length === 0) return { work }
+    const sent = confirmed?.files
+    if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return { refused: refuse(409, 'COMPOSE_NEEDS_CONFIRM', 'The compose files need to be confirmed first.') }
+    const now = Object.fromEntries(work.changing.map(i => [i.name, p.view.files.find(f => f.name === i.name).sha256]))
+    if (JSON.stringify(Object.entries(sent).sort()) !== JSON.stringify(Object.entries(now).sort())) {
+      return { refused: refuse(409, 'COMPOSE_CHANGED', 'The compose files changed since they were shown.') }
+    }
+    if (egress?.hasApprovers()) {
+      const approval = confirmed?.approval
+      if (!approval || typeof approval !== 'object') return { refused: refuse(409, 'COMPOSE_NEEDS_CONFIRM', 'The compose files need an approval.') }
+      const r = await egress.verifyApproval(approval, updateChange(version, now))
+      if (r.status) return { refused: { status: r.status, code: r.body.error, error: r.body.detail ?? r.body.error, ...(r.body.until ? { until: r.body.until } : {}) } }
+    }
+    return { work }
   }
 
   return {
@@ -245,8 +315,35 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
     /** The current or last job, or null */
     current: () => status.get(),
 
-    /** 202 {job, done} | 400 bad or not newer | 409 a job runs | 422 not updatable */
-    async startUpdate(version) {
+    /**
+     * What an update to `version` would do to the compose files (ENG-137), for the person to see
+     * first. 200 { version, applicable, reason?, files, needsApproval, approvers } | 400 | 502 COMPOSE_FETCH_FAILED
+     */
+    async planUpdate(version) {
+      if (typeof version !== 'string' || !VERSION_RE.test(version)) return refuse(400, 'INVALID_VERSION', 'The version must look like 1.2.3.')
+      const none = reason => ({ status: 200, body: { version, applicable: false, reason, files: [], needsApproval: false, approvers: false } })
+      if (!compose) return none('NO_INSTALL_MOUNT')
+      let target
+      try {
+        target = await docker.findTarget()
+      } catch {
+        return none('NO_DOCKER')
+      }
+      if (!target.updatable) return none('NOT_UPDATABLE')
+      try {
+        return { status: 200, body: (await compose.plan(version, target.version)).view }
+      } catch (e) {
+        return refuse(502, e?.code ?? 'COMPOSE_FETCH_FAILED', short(e))
+      }
+    },
+
+    /**
+     * 202 {job, done} | 400 bad or not newer | 409 a job runs, or the compose files need a
+     * confirmation (COMPOSE_NEEDS_CONFIRM) or changed since it (COMPOSE_CHANGED) | 422 not updatable
+     * | an approval's own refusal | 502 COMPOSE_FETCH_FAILED
+     * `confirmed`: { files: { name: sha256 }, approval?: { flowId, password } | { response } }
+     */
+    async startUpdate(version, confirmed = undefined) {
       if (typeof version !== 'string' || !VERSION_RE.test(version)) return refuse(400, 'INVALID_VERSION', 'The version must look like 1.2.3.')
       if (!(await lock.acquire())) return refuse(409, 'BUSY', 'An update or rollback is already running.')
       try {
@@ -265,8 +362,15 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
           lock.release()
           return refuse(400, 'NOT_NEWER', `Version ${version} is not newer than the running ${target.version}.`)
         }
-        const job = begin('update', target.version ?? 'unknown', version, UPDATE_STEPS)
-        return launch(job, () => runUpdate(job, target))
+        const gate = compose ? await composeGate(version, target, confirmed) : { work: null }
+        if (gate.refused) {
+          lock.release()
+          return gate.refused
+        }
+        const work = gate.work
+        const steps = work?.steps ? [...UPDATE_STEPS, COMPOSE_STEP] : UPDATE_STEPS
+        const job = begin('update', target.version ?? 'unknown', version, steps)
+        return launch(job, () => runUpdate(job, target, work))
       } catch (e) {
         lock.release()
         throw e
@@ -304,8 +408,10 @@ export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH
           lock.release()
           return refuse(409, 'NO_ROLLBACK', `Can't find the Tazrim container: ${short(e)}`)
         }
-        const job = begin('rollback', last.to, last.from, ROLLBACK_STEPS, { backup: last.backup, previousImage: last.previousImage })
-        return launch(job, () => runRollback(job, target))
+        // The update's files, put back too (the names are checked in compose-update.mjs: this file is the app's to write)
+        const undo = compose && last.compose?.backups && Object.keys(last.compose.backups).length ? { compose: last.compose, versions: { from: last.from, to: last.to } } : null
+        const job = begin('rollback', last.to, last.from, undo ? [...ROLLBACK_STEPS, COMPOSE_STEP] : ROLLBACK_STEPS, { backup: last.backup, previousImage: last.previousImage })
+        return launch(job, () => runRollback(job, target, undo))
       } catch (e) {
         lock.release()
         throw e

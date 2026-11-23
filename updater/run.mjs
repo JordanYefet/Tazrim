@@ -11,6 +11,7 @@ import nodeFs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.mjs'
+import { createComposeUpdate } from './compose-update.mjs'
 import { createConfig } from './config.mjs'
 import { createDocker, selfIdFromEnv } from './docker.mjs'
 import { createEgress } from './egress.mjs'
@@ -32,7 +33,7 @@ async function started(respond, r, refusal) {
   } else respond(r.status, refusal(r))
 }
 
-const plain = r => ({ code: r.code, error: r.error })
+const plain = r => ({ code: r.code, error: r.error, ...(r.until ? { until: r.until } : {}) })
 
 /**
  * The fixed map from a job name to what it does. Nothing here depends on the request but its
@@ -54,7 +55,11 @@ export function createHandlers({ jobs, config, egress, latest, helperVersion }) 
         respond(200, { updatable: false, image: '', runningVersion: null, error: String(e?.message ?? e) })
       }
     },
-    update: async (respond, input) => started(respond, await jobs.startUpdate(input?.version), plain),
+    'update-plan': async (respond, input) => {
+      const r = await jobs.planUpdate(input?.version)
+      respond(r.status, r.status === 200 ? r.body : plain(r))
+    },
+    update: async (respond, input) => started(respond, await jobs.startUpdate(input?.version, input?.compose), plain),
     rollback: async respond => started(respond, await jobs.startRollback(), plain),
     'config-info': async respond => respond(200, await config.info()),
     config: async (respond, input) => started(respond, await config.start(input?.changes), r => ({ code: r.code, key: r.key, reason: r.reason, error: r.error })),
@@ -76,9 +81,10 @@ export function buildHandlers({ jobId, name, env = process.env, fs = nodeFs }) {
   const lock = createFileLock({ dir: jobsDirOf(dataDir), jobId, name, isRunning: id => docker.jobRunning(id), fs })
   const app = createApp({ url: env.TAZRIM_APP_URL || 'http://tazrim:3000', token, dbFile })
   const status = createStatusStore(path.join(dataDir, '.update-status.json'))
-  const jobs = createJobs({ docker, app, status, lock })
   const config = createConfig({ docker, lock, status: createStatusStore(path.join(dataDir, '.config-status.json')) })
   const egress = createEgress({ config, docker, lock })
+  const compose = createComposeUpdate({ config, docker, egress, helperVersion: versionFromPackage() })
+  const jobs = createJobs({ docker, app, status, lock, compose, egress })
   return createHandlers({ jobs, config, egress, latest: fetchLatest, helperVersion: versionFromPackage() })
 }
 
@@ -124,7 +130,7 @@ export async function runJob({ name, jobId, dataDir, handlers = null, fs = nodeF
 }
 
 /** The names the fixed map answers to (kept next to createHandlers) */
-export const KNOWN = ['latest', 'health', 'update', 'rollback', 'config-info', 'config', 'egress-info', 'egress-on', 'egress-register-begin', 'egress-register-finish', 'egress-approve-begin', 'egress-approve-finish']
+export const KNOWN = ['latest', 'health', 'update-plan', 'update', 'rollback', 'config-info', 'config', 'egress-info', 'egress-on', 'egress-register-begin', 'egress-register-finish', 'egress-approve-begin', 'egress-approve-finish']
 
 async function main() {
   const [name, jobId] = process.argv.slice(2)

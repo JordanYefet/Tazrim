@@ -625,3 +625,66 @@ describe('state across job containers (ENG-136)', () => {
     await expect(r.done).resolves.toBeUndefined()
   })
 })
+
+describe('approving an update\'s compose files (ENG-137)', () => {
+  const H = crypto.createHash('sha256').update('new file').digest('hex')
+  const change = { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': H } }
+
+  it('has approvers only once one is registered', async () => {
+    expect(egress.hasApprovers()).toBe(false)
+    await registerPassword()
+    expect(egress.hasApprovers()).toBe(true)
+  })
+
+  it('begin takes the change in its one shape and refuses a malformed one', async () => {
+    await registerPassword()
+    const b = await begin({ ...change, files: { 'docker-compose.yml': H, '.env': H } })
+    expect(b.body.error).toBe('BAD_CHANGE')
+    expect((await begin({ ...change, version: 'latest' })).body.error).toBe('BAD_CHANGE')
+    const ok = await begin(change)
+    expect(ok.body.change).toEqual(change)
+    expect(ok.body.passwordAllowed).toBe(true)
+  })
+
+  it('a password approval for exactly this change passes, once, and is logged with its approver', async () => {
+    await registerPassword('Home password')
+    const b = await begin(change)
+    const r = await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)
+    expect(r).toEqual({ ok: true, approver: 'Home password (סיסמה)' })
+    expect(logLines().at(-1)).toMatchObject({ action: 'update-compose', detail: 'v1.2.0: docker-compose.yml' })
+    // single use: the same flow again is gone
+    expect((await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)).body.error).toBe('CHALLENGE_UNKNOWN')
+  })
+
+  it('a passkey approval passes; one for another change or another set of files does not', async () => {
+    const key = makeKey('es256')
+    await registerPasskey(key)
+    const b = await begin(change)
+    expect((await egress.verifyApproval({ response: assertion(key, { challenge: b.body.options.challenge }) }, change)).ok).toBe(true)
+
+    const other = await begin(change)
+    const r = await egress.verifyApproval({ response: assertion(key, { challenge: other.body.options.challenge }) }, { ...change, files: { 'docker-compose.egress.yml': H } })
+    expect(r.body.error).toBe('BAD_CHANGE')
+    // an approval for a different kind of change cannot be reused here either
+    const domain = await begin(addDomain())
+    expect((await egress.verifyApproval({ response: assertion(key, { challenge: domain.body.options.challenge }) }, change)).body.error).toBe('BAD_CHANGE')
+  })
+
+  it('a wrong password counts toward the lock, and the lock applies here too', async () => {
+    await registerPassword()
+    for (let i = 0; i < 5; i++) {
+      const b = await begin(change)
+      expect((await egress.verifyApproval({ flowId: b.body.flowId, password: 'wrong password value' }, change)).body.error).toBe('BAD_PASSWORD')
+    }
+    const b = await begin(change)
+    const r = await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)
+    expect(r.body.error).toBe('LOCKED')
+  })
+
+  it('finishing it through the egress approval applies nothing', async () => {
+    await registerPassword()
+    const b = await begin(change)
+    const r = await egress.approveFinish({ flowId: b.body.flowId, password: PASSWORD })
+    expect(r.body.error).toBe('BAD_CHANGE')
+  })
+})

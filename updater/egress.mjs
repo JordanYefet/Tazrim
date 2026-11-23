@@ -30,6 +30,7 @@ import nodeFs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { EGRESS_FILE } from './config.mjs'
+import { updateChange } from './compose-files.mjs'
 import { checkDomain, covers } from './egress-rules.mjs'
 import { copyNew, isRealDir, isRealFile, readPlain, realDir, writeText } from './files.mjs'
 import { challengeOf, checkPassword, credentialIdOf, b64u, hashPassword, MIN_PASSWORD, verifyAssertion, verifyRegistration } from './passkey.mjs'
@@ -45,7 +46,7 @@ export const KEEP_CHANGES = 50
 const STATE_LOCK_WAIT_MS = 5000
 const STATE_LOCK_STALE_MS = 30 * 1000
 
-const ACTIONS = ['add-domain', 'remove-domain', 'turn-on', 'turn-off', 'add-approver', 'remove-approver']
+const ACTIONS = ['add-domain', 'remove-domain', 'turn-on', 'turn-off', 'add-approver', 'remove-approver', 'update-compose']
 const STATUS = { BAD_SIGNATURE: 403, BAD_PASSWORD: 403, LOCKED: 429, NOT_FOUND: 404, BUSY: 409, ALREADY_ALLOWED: 409, ALREADY_ON: 409, ALREADY_OFF: 409, NO_APPROVER: 409, NOT_AVAILABLE: 422, RECONFIGURE_FAILED: 500, INTERNAL: 500 }
 const HOST_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/
 
@@ -436,6 +437,11 @@ export function createEgress({
         if (!ctx.configFiles.some(f => f.endsWith(`/${EGRESS_FILE}`))) return fail('ALREADY_OFF')
         return { change: { action: 'turn-off' } }
       }
+      case 'update-compose': {
+        // ENG-137: replacing the install folder's compose files (the update job takes this approval itself)
+        const u = updateChange(c.version, c.files)
+        return u ? { change: u } : fail('BAD_CHANGE')
+      }
       default:
         return fail('BAD_CHANGE')
     }
@@ -483,7 +489,8 @@ export function createEgress({
       return { flow }
     })
 
-  async function approveFinish(body) {
+  /** Checks a passkey answer or the approval password, once: { flow, approverName } or a refusal */
+  async function prove(body) {
     const usingPassword = typeof body?.password === 'string' && !body?.response
     let approverName
     let flow
@@ -545,6 +552,14 @@ export function createEgress({
       approverName = approver.name
     }
 
+    return { flow, approverName }
+  }
+
+  async function approveFinish(body) {
+    const proved = await prove(body)
+    if (proved.status) return proved
+    const { flow, approverName } = proved
+
     // Things may have changed during the minutes the person took
     const again = await validateChange(flow.change)
     if (again.status) return again
@@ -591,8 +606,28 @@ export function createEgress({
     return fail('BAD_CHANGE')
   }
 
+  /**
+   * Did the person approve exactly `change`? Takes the approval (single use, password lock and all)
+   * and compares what it was for; { ok, approver } or a refusal. For jobs that apply the change
+   * themselves (the update's compose files, ENG-137), so the signature is checked in here, not in the app.
+   */
+  async function verifyApproval(body, change) {
+    const proved = await prove(body)
+    if (proved.status) return proved
+    if (JSON.stringify(proved.flow.change) !== JSON.stringify(change)) return fail('BAD_CHANGE')
+    try {
+      log(change.action, `v${change.version}: ${Object.keys(change.files).join(', ')}`, proved.approverName)
+    } catch (e) {
+      console.error('updater: could not log an approval', e)
+    }
+    return { ok: true, approver: proved.approverName }
+  }
+
   return {
     files,
+    verifyApproval,
+    /** Is there any way to approve (a passkey or the password)? */
+    hasApprovers: () => approvers().length > 0,
 
     /** GET /v1/egress */
     async info() {

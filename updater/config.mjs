@@ -60,6 +60,15 @@ c up -d $up
  */
 export const COMPOSE_SCRIPT_ISOLATION = COMPOSE_SCRIPT.replace('c up -d $up', 'c up -d --remove-orphans $up')
 
+/**
+ * The same, for an update that brings new compose files (ENG-137): every service, the helper
+ * included (its own definition may have changed), and `--remove-orphans` for what the release
+ * dropped. The job is not a compose container, so recreating the helper does not stop it.
+ */
+export const COMPOSE_SCRIPT_RELEASE = `set -u
+docker compose --project-directory "$TAZRIM_WD" up -d --remove-orphans
+`
+
 /** What the helper does once the app is back after a switch: its own networks changed, so it is recreated (not waited for) */
 export const RECREATE_SCRIPT = `sleep 3
 docker compose --project-directory "$TAZRIM_WD" up -d --no-deps --force-recreate "$TAZRIM_SELF"
@@ -80,6 +89,15 @@ function short(e) {
 export function failureCode(output) {
   if (/port is already allocated|address already in use|ports are not available|bind for .* failed/i.test(output)) return 'PORT_BUSY'
   return 'APPLY_FAILED'
+}
+
+/** Runs `script` in a CLI container for `ctx`; throws with a fixed `code` (see failureCode) when compose fails */
+export async function runCompose(docker, ctx, cliImage, script) {
+  const r = await docker.runCli(ctx, cliImage, script)
+  if (r.exitCode !== 0) {
+    const lines = r.output.trim().split('\n').filter(Boolean)
+    throw Object.assign(new Error(lines.slice(-3).join(' ') || `docker compose exited with ${r.exitCode}`), { code: failureCode(r.output) })
+  }
 }
 
 /**
@@ -171,13 +189,7 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
     }
   }
 
-  async function apply(ctx, script = COMPOSE_SCRIPT) {
-    const r = await docker.runCli(ctx, cliImage, script)
-    if (r.exitCode !== 0) {
-      const lines = r.output.trim().split('\n').filter(Boolean)
-      throw Object.assign(new Error(lines.slice(-3).join(' ') || `docker compose exited with ${r.exitCode}`), { code: failureCode(r.output) })
-    }
-  }
+  const apply = (ctx, script = COMPOSE_SCRIPT) => runCompose(docker, ctx, cliImage, script)
 
   async function checkApp() {
     const t = await docker.findTarget()

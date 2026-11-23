@@ -97,8 +97,9 @@ describe('the fixed map', () => {
     const seen = []
     const jobs = {
       health: async () => ({ updatable: true, image: 'x', runningVersion: '1.0.0' }),
-      startUpdate: async v => (seen.push(['update', v]), v === '1.2.0' ? { status: 202, job: { kind: 'update' }, done: Promise.resolve().then(() => seen.push(['update done'])) } : { status: 400, code: 'NOT_NEWER', error: 'x' }),
+      startUpdate: async (v, compose) => (seen.push(['update', v, compose]), v === '1.2.0' ? { status: 202, job: { kind: 'update' }, done: Promise.resolve().then(() => seen.push(['update done'])) } : { status: 400, code: 'NOT_NEWER', error: 'x' }),
       startRollback: async () => ({ status: 409, code: 'NO_ROLLBACK', error: 'x' }),
+      planUpdate: async v => (seen.push(['plan', v]), v === '1.2.0' ? { status: 200, body: { version: v, applicable: true } } : { status: 502, code: 'COMPOSE_FETCH_FAILED', error: 'x' }),
     }
     const config = {
       info: async () => ({ available: true }),
@@ -131,6 +132,19 @@ describe('the fixed map', () => {
     expect(seen).toContainEqual(['update done'])
     expect(await run(handlers.update, { version: '0.0.1' })).toEqual([[400, { code: 'NOT_NEWER', error: 'x' }]])
     expect(await run(handlers.rollback)).toEqual([[409, { code: 'NO_ROLLBACK', error: 'x' }]])
+  })
+
+  it('update-plan answers the plan as it is, or { code, error }', async () => {
+    const { handlers, seen } = make()
+    expect(await run(handlers['update-plan'], { version: '1.2.0' })).toEqual([[200, { version: '1.2.0', applicable: true }]])
+    expect(await run(handlers['update-plan'], { version: '9.9.9' })).toEqual([[502, { code: 'COMPOSE_FETCH_FAILED', error: 'x' }]])
+    expect(seen).toContainEqual(['plan', '1.2.0'])
+  })
+
+  it('update hands what was confirmed to the job and passes a lock time of a refused approval on', async () => {
+    const { handlers, seen } = make()
+    await run(handlers.update, { version: '1.2.0', compose: { files: { a: 'b' } } })
+    expect(seen).toContainEqual(['update', '1.2.0', { files: { a: 'b' } }])
   })
 
   it('config and config-info', async () => {
