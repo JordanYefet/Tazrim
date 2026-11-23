@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CLI_IMAGE, COMPOSE_SCRIPT_ISOLATION, createConfig, EGRESS_FILE, RECREATE_SCRIPT } from '../config.mjs'
-import { memStore } from './fakes.mjs'
+import { memLock, memStore } from './fakes.mjs'
 
 const WD = '/home/someone/tazrim'
 const ctxWith = files => ({ project: 'tazrim-test', selfService: 'updater', workingDir: WD, configFiles: files.map(n => (n.startsWith('/') ? n : `${WD}/${n}`)), socket: '/var/run/docker.sock' })
@@ -41,7 +41,7 @@ function setup({ files = ['docker-compose.yml'], results = [], unhealthy = false
     },
   }
   const status = memStore()
-  const config = createConfig({ docker, status, lock: { busy: false }, installDir: dir, healthTimeoutMs: 1000 })
+  const config = createConfig({ docker, status, lock: memLock(), installDir: dir, healthTimeoutMs: 1000 })
   return { config, status, calls }
 }
 const read = () => fs.readFileSync(path.join(dir, '.env'), 'utf8')
@@ -152,7 +152,7 @@ describe('startEgress: turning isolation off', () => {
   it('refuses when it is already off, and while another job runs', async () => {
     const { config } = setup()
     expect(await config.startEgress(false)).toMatchObject({ status: 409, code: 'ALREADY_OFF' })
-    const busy = createConfig({ docker: {}, status: memStore(), lock: { busy: true }, installDir: dir })
+    const busy = createConfig({ docker: {}, status: memStore(), lock: memLock(true), installDir: dir })
     expect(await busy.startEgress(true)).toMatchObject({ status: 409, code: 'BUSY' })
   })
 })

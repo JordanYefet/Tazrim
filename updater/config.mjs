@@ -155,7 +155,7 @@ export function createEnvFile(dir, { fs = nodeFs, now = () => new Date() } = {})
 
 /**
  * The config port of the helper. `docker`: composeContext, runCli, findTarget, waitHealthy;
- * `lock`: the busy flag shared with the update jobs; `status`: its own store.
+ * `lock`: the file lock shared with the update jobs (lock.mjs); `status`: its own store.
  */
 export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, fs = nodeFs, now = () => new Date(), healthTimeoutMs = 3 * 60 * 1000, cliImage = CLI_IMAGE }) {
   const env = createEnvFile(installDir, { fs, now })
@@ -255,24 +255,23 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
 
   /** The shared start: lock, context, .env, then `build(read, ctx)` decides; one job at a time */
   async function begin(build) {
-    if (lock.busy) return { status: 409, code: 'BUSY', error: 'An update, a rollback or a settings change is already running.' }
-    lock.busy = true
+    if (!(await lock.acquire())) return { status: 409, code: 'BUSY', error: 'An update, a rollback or a settings change is already running.' }
     try {
       const { ctx, reason, detail } = await context()
       if (!ctx) {
-        lock.busy = false
+        lock.release()
         return { status: 422, code: 'NOT_AVAILABLE', reason, error: detail ?? reason }
       }
       let read
       try {
         read = env.read()
       } catch (e) {
-        lock.busy = false
+        lock.release()
         return { status: 422, code: 'NOT_AVAILABLE', reason: e?.code ?? 'ENV_NOT_FILE', error: short(e) }
       }
       const b = await build(read, ctx)
       if (b.refused) {
-        lock.busy = false
+        lock.release()
         return b.refused
       }
       const job = {
@@ -287,12 +286,10 @@ export function createConfig({ docker, status, lock, installDir = INSTALL_DIR, f
       save(job)
       const done = run(job, ctx, read.text, read.exists, b.text, b.opts)
         .catch(e => console.error('updater: config job crashed', e))
-        .finally(() => {
-          lock.busy = false
-        })
+        .finally(() => lock.release())
       return { status: 202, job: structuredClone(job), done }
     } catch (e) {
-      lock.busy = false
+      lock.release()
       throw e
     }
   }

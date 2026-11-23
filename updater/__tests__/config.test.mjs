@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CLI_IMAGE, COMPOSE_SCRIPT, createConfig, failureCode, KEEP_BACKUPS } from '../config.mjs'
-import { memStore } from './fakes.mjs'
+import { memLock, memStore } from './fakes.mjs'
 
 const ENV = '# fake install\nTAZRIM_PORT=3000\nCOMPOSE_PROFILES=updater\nTAZRIM_TZ=Asia/Jerusalem\n'
 const CTX = { project: 'tazrim-test', selfService: 'updater', workingDir: '/home/someone/tazrim', configFiles: ['/home/someone/tazrim/docker-compose.yml'], socket: '/var/run/docker.sock' }
@@ -48,7 +48,7 @@ function setup(opts = {}) {
   if (opts.env !== null) fs.writeFileSync(path.join(dir, '.env'), opts.env ?? ENV, { mode: 0o640 })
   const docker = fakeDocker(opts)
   const status = memStore()
-  const lock = opts.lock ?? { busy: false }
+  const lock = opts.lock ?? memLock()
   let t = Date.parse('2026-11-14T10:00:00Z')
   const config = createConfig({ docker, status, lock, installDir: dir, now: () => new Date((t += 1000)), healthTimeoutMs: 1000 })
   return { docker, status, lock, config }
@@ -70,7 +70,7 @@ describe('GET info', () => {
   it('is unavailable without the /install mount or compose labels', async () => {
     const { config } = setup({ context: Object.assign(new Error('/install is not mounted'), { code: 'NO_INSTALL_MOUNT' }) })
     expect(await config.info()).toMatchObject({ available: false, reason: 'NO_INSTALL_MOUNT', installDir: null })
-    const missing = createConfig({ docker: fakeDocker(), status: memStore(), lock: { busy: false }, installDir: path.join(dir, 'nope') })
+    const missing = createConfig({ docker: fakeDocker(), status: memStore(), lock: memLock(), installDir: path.join(dir, 'nope') })
     expect(await missing.info()).toMatchObject({ available: false, reason: 'NO_INSTALL_MOUNT' })
   })
 
@@ -171,7 +171,7 @@ describe('start', () => {
   })
 
   it('one job at a time, shared with updates', async () => {
-    const lock = { busy: true }
+    const lock = memLock(true)
     const { config } = setup({ lock })
     expect(await config.start({ TAZRIM_PORT: '3005' })).toMatchObject({ status: 409, code: 'BUSY' })
     lock.busy = false

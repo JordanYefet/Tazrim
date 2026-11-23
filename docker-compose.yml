@@ -86,7 +86,7 @@ services:
   updater:
     profiles: [updater]
     image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
-    entrypoint: ["node", "/app/updater/server.mjs"]
+    entrypoint: ["node", "/app/updater/launcher.mjs"]
     # Root: it writes the token the app reads, and uses the Docker socket
     user: root
     environment:

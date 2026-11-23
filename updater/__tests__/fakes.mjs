@@ -125,3 +125,22 @@ export const doneUpdate = {
   previousImage: OLD_IMAGE,
   finishedAt: '2026-11-13T12:05:00.000Z',
 }
+
+/** An in-memory stand-in for lock.mjs: `busy` is readable and settable, so tests can say another job holds it */
+export function memLock(busy = false) {
+  const lock = {
+    busy,
+    async acquire() {
+      if (lock.busy) return false
+      lock.busy = true
+      return true
+    },
+    release() {
+      lock.busy = false
+    },
+    async isBusy() {
+      return lock.busy
+    },
+  }
+  return lock
+}

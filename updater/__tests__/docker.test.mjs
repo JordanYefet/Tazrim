@@ -2,10 +2,11 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { containerIdFrom, createBody, createDocker, negotiateApi, PULL_IDLE_MS, PULL_TOTAL_MS, repoOf } from '../docker.mjs'
+import { afterEach, describe, expect, it } from 'vitest'
+import { containerIdFrom, createBody, createDocker, negotiateApi, PULL_IDLE_MS, PULL_TOTAL_MS, repoOf, selfIdFromEnv } from '../docker.mjs'
 import { createJobs } from '../job.mjs'
-import { createServer } from '../server.mjs'
+import { createHandlers } from '../run.mjs'
+import { memLock } from './fakes.mjs'
 
 const ID = 'abc123def4567890'.padEnd(64, '0')
 
@@ -167,18 +168,16 @@ describe('API version', () => {
     }
   })
 
-  it('a daemon older than 1.44 makes /v1/health report not updatable, with the reason', async () => {
+  it('a daemon older than 1.44 makes the health job report not updatable, with the reason', async () => {
     const daemon = await fakeDaemon(() => [500, { message: 'should not be called' }], { ApiVersion: '1.43', MinAPIVersion: '1.12' })
-    const docker = createDocker({ socketPath: daemon.socketPath, selfId: 'x' })
-    const jobs = createJobs({ docker, app: {}, status: { get: () => null, save() {} } })
-    const server = createServer({ jobs, token: 't'.repeat(64), helperVersion: '9.9.9' })
-    await new Promise(r => server.listen(0, '127.0.0.1', r))
     try {
-      const r = await fetch(`http://127.0.0.1:${server.address().port}/v1/health`, { headers: { Authorization: `Bearer ${'t'.repeat(64)}` } })
-      expect(await r.json()).toMatchObject({ ok: true, updatable: false, runningVersion: null, error: expect.stringMatching(/older than 1\.44/) })
+      const docker = createDocker({ socketPath: daemon.socketPath, selfId: 'x' })
+      const jobs = createJobs({ docker, app: {}, status: { get: () => null, save() {} }, lock: memLock() })
+      const answers = []
+      await createHandlers({ jobs }).health((status, body) => answers.push([status, body]))
+      expect(answers).toEqual([[200, { updatable: false, image: '', runningVersion: null, error: expect.stringMatching(/older than 1\.44/) }]])
       expect(daemon.seen).toEqual(['GET /version'])
     } finally {
-      await new Promise(r => server.close(r))
       await daemon.close()
     }
   })
@@ -223,6 +222,55 @@ describe('timeouts', () => {
     try {
       const docker = createDocker({ socketPath: daemon.socketPath, selfId: 'x', timeouts: { callMs: 100 } })
       await expect(docker.inspect('c')).rejects.toThrow(/did not answer/)
+    } finally {
+      await daemon.close()
+    }
+  })
+})
+
+describe('inside a job container (ENG-136)', () => {
+  afterEach(() => {
+    delete process.env.TAZRIM_LAUNCHER_ID
+  })
+
+  it('TAZRIM_LAUNCHER_ID is "self": the compose project, service and mounts come from the launcher', async () => {
+    expect(selfIdFromEnv({ TAZRIM_LAUNCHER_ID: 'abc' })).toBe('abc')
+    expect(selfIdFromEnv({})).toBe('')
+    process.env.TAZRIM_LAUNCHER_ID = 'launcher1'
+    const daemon = await fakeDaemon((m, url) => (url.includes('/containers/json') ? [200, [{ Id: 'squid1' }]] : [200, { Config: { Labels: { 'com.docker.compose.project': 'tazrim' } } }]))
+    try {
+      const docker = createDocker({ socketPath: daemon.socketPath })
+      expect(await docker.findService('squid')).toBe('squid1')
+      expect(daemon.seen).toContain('GET /v1.47/containers/launcher1/json')
+    } finally {
+      await daemon.close()
+    }
+  })
+
+  it('finds running jobs and a job by its id through the tazrim.job labels', async () => {
+    const daemon = await fakeDaemon((method, url) => {
+      if (url.includes('tazrim.job.id')) return [200, [{ Id: 'j1' }]]
+      return [200, [{ Id: 'j1', Created: 1790000000, Labels: { 'tazrim.job': 'update', 'tazrim.job.id': 'a'.repeat(16) } }]]
+    })
+    try {
+      const docker = createDocker({ socketPath: daemon.socketPath, selfId: 'x' })
+      expect(await docker.jobRunning('a'.repeat(16))).toBe(true)
+      expect(await docker.runningJobs()).toEqual([{ name: 'update', id: 'a'.repeat(16), startedAt: new Date(1790000000 * 1000).toISOString() }])
+    } finally {
+      await daemon.close()
+    }
+  })
+
+  it('removeFinishedCli removes exited job containers as well as the compose ones', async () => {
+    const daemon = await fakeDaemon(method => (method === 'DELETE' ? [204] : [200, [{ Id: 'dead1' }]]))
+    try {
+      const docker = createDocker({ socketPath: daemon.socketPath, selfId: 'x' })
+      expect(await docker.removeFinishedCli()).toBe(2)
+      const lists = daemon.seen.filter(x => x.startsWith('GET /v1.47/containers/json')).map(x => decodeURIComponent(x))
+      expect(lists).toHaveLength(2)
+      expect(lists[0]).toContain('"label":["tazrim.updater=compose"]')
+      expect(lists[1]).toContain('"label":["tazrim.job"]')
+      expect(lists[1]).toContain('"status":["exited","created","dead"]')
     } finally {
       await daemon.close()
     }
