@@ -52,11 +52,8 @@ async function quietly(fn) {
 /** A refusal: HTTP status, a fixed machine code the app maps to its own words, and English detail */
 const refuse = (status, code, error) => ({ status, code, error })
 
-export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEOUT_MS, now = () => new Date(), lock = { busy: false } }) {
-  /**
-   * Set synchronously before the first await, so a second request can't slip in. Shared with the
-   * settings jobs (config.mjs): one job at a time, whatever its kind.
-   */
+export function createJobs({ docker, app, status, lock, healthTimeoutMs = HEALTH_TIMEOUT_MS, now = () => new Date() }) {
+  // `lock` (lock.mjs) is shared with the settings jobs (config.mjs): one job at a time, whatever its kind.
 
   const save = job => status.save(job)
 
@@ -230,13 +227,11 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
     finish(job, 'done')
   }
 
-  /** Runs `run` as the one job; `busy` is already true */
+  /** Runs `run` as the one job; the lock is already taken */
   function launch(job, run) {
     const done = run()
       .catch(e => console.error('updater: job crashed', e)) // e.g. the status file can't be written
-      .finally(() => {
-        lock.busy = false
-      })
+      .finally(() => lock.release())
     return { status: 202, job: structuredClone(job), done }
   }
 
@@ -253,64 +248,66 @@ export function createJobs({ docker, app, status, healthTimeoutMs = HEALTH_TIMEO
     /** 202 {job, done} | 400 bad or not newer | 409 a job runs | 422 not updatable */
     async startUpdate(version) {
       if (typeof version !== 'string' || !VERSION_RE.test(version)) return refuse(400, 'INVALID_VERSION', 'The version must look like 1.2.3.')
-      if (lock.busy) return refuse(409, 'BUSY', 'An update or rollback is already running.')
-      lock.busy = true
+      if (!(await lock.acquire())) return refuse(409, 'BUSY', 'An update or rollback is already running.')
       try {
         let target
         try {
           target = await docker.findTarget()
         } catch (e) {
-          lock.busy = false
+          lock.release()
           return refuse(422, 'NOT_UPDATABLE', `Can't find the Tazrim container: ${short(e)}`)
         }
         if (!target.updatable) {
-          lock.busy = false
+          lock.release()
           return refuse(422, 'NOT_UPDATABLE', `This install doesn't run an ${IMAGE} image, so it can only be updated by hand.`)
         }
         if (target.version && !isNewer(version, target.version)) {
-          lock.busy = false
+          lock.release()
           return refuse(400, 'NOT_NEWER', `Version ${version} is not newer than the running ${target.version}.`)
         }
         const job = begin('update', target.version ?? 'unknown', version, UPDATE_STEPS)
         return launch(job, () => runUpdate(job, target))
       } catch (e) {
-        lock.busy = false
+        lock.release()
         throw e
       }
     },
 
     /** 202 {job, done} | 409 no finished update, its backup is gone, or a job runs */
     async startRollback() {
-      if (lock.busy) return refuse(409, 'BUSY', 'An update or rollback is already running.')
-      const last = status.get()
-      if (!last || last.kind !== 'update' || last.state !== 'done' || !last.backup || !last.previousImage) {
-        return refuse(409, 'NO_ROLLBACK', 'There is no finished update to roll back.')
-      }
-      // The status file sits on the app's volume: only ever run an image that is really ours
-      if (!IMAGE_ID_RE.test(last.previousImage)) return refuse(409, 'NO_ROLLBACK', 'The previous version is not a known image.')
-      lock.busy = true
+      if (!(await lock.acquire())) return refuse(409, 'BUSY', 'An update or rollback is already running.')
       try {
+        const last = status.get()
+        if (!last || last.kind !== 'update' || last.state !== 'done' || !last.backup || !last.previousImage) {
+          lock.release()
+          return refuse(409, 'NO_ROLLBACK', 'There is no finished update to roll back.')
+        }
+        // The status file sits on the app's volume: only ever run an image that is really ours
+        if (!IMAGE_ID_RE.test(last.previousImage)) {
+          lock.release()
+          return refuse(409, 'NO_ROLLBACK', 'The previous version is not a known image.')
+        }
         const img = await docker.inspectImage(last.previousImage).catch(() => null)
         const refs = [...(img?.RepoTags ?? []), ...(img?.RepoDigests ?? [])]
         if (!refs.some(r => repoOf(r) === IMAGE)) {
-          lock.busy = false
+          lock.release()
           return refuse(409, 'NO_ROLLBACK', `The previous version's image is gone or is not a ${IMAGE} image.`)
         }
         if (!(await app.backupExists(last.backup))) {
-          lock.busy = false
+          lock.release()
           return refuse(409, 'NO_ROLLBACK', 'The backup from before the update is gone.')
         }
         let target
         try {
           target = await docker.findTarget()
         } catch (e) {
-          lock.busy = false
+          lock.release()
           return refuse(409, 'NO_ROLLBACK', `Can't find the Tazrim container: ${short(e)}`)
         }
         const job = begin('rollback', last.to, last.from, ROLLBACK_STEPS, { backup: last.backup, previousImage: last.previousImage })
         return launch(job, () => runRollback(job, target))
       } catch (e) {
-        lock.busy = false
+        lock.release()
         throw e
       }
     },

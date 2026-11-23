@@ -41,6 +41,7 @@ function view(j: JobStatus | null, current = '9.1.0'): UpdateView {
     error: null,
     auto: true,
     canUpdate: true,
+    helperOld: false,
     syncRunning: false,
     job: j,
     lastUpdate: null,

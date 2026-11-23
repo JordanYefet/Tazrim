@@ -1,21 +1,11 @@
 /**
- * The current or last job (ENG-98): kept in memory and mirrored to <dataDir>/.update-status.json,
- * so the app, coming back up as the new version, can read the outcome even if the helper restarted.
+ * The current or last job (ENG-98): a file, <dataDir>/.update-status.json (or .config-status.json),
+ * so whichever process asks (a job container, the app) reads the same thing. Nothing is kept in
+ * memory (ENG-136): a job runs in its own short-lived container. A job that died in the middle
+ * leaves "running" behind; the app settles that on its side (lib/updates/status.ts).
  */
 import nodeFs from 'node:fs'
 import { readPlain, writeText } from './files.mjs'
-
-/** A job that was running when the helper stopped can't be resumed: it reads as failed */
-function settle(s) {
-  if (!s || typeof s !== 'object' || s.state !== 'running') return s
-  return {
-    ...s,
-    state: 'failed',
-    error: s.error ?? 'The updater stopped in the middle of the job.',
-    steps: (s.steps ?? []).map(step => (step.state === 'running' ? { ...step, state: 'failed' } : step)),
-    finishedAt: new Date().toISOString(),
-  }
-}
 
 export function createStatusStore(file, { fs = nodeFs } = {}) {
   // The folder belongs to the app's user: the temp file is created afresh (never through a planted
@@ -26,21 +16,16 @@ export function createStatusStore(file, { fs = nodeFs } = {}) {
     fs.renameSync(tmp, file)
   }
 
-  let current = null
-  try {
-    const loaded = JSON.parse(readPlain(file, fs) ?? 'null')
-    current = settle(loaded)
-    if (current && current !== loaded) write(current)
-  } catch {
-    current = null
-  }
-
   return {
     /** A copy of the current or last job, or null */
-    get: () => (current ? structuredClone(current) : null),
-    save(s) {
-      current = structuredClone(s)
-      write(current)
+    get() {
+      try {
+        const v = JSON.parse(readPlain(file, fs) ?? 'null')
+        return v && typeof v === 'object' ? v : null
+      } catch {
+        return null
+      }
     },
+    save: write,
   }
 }

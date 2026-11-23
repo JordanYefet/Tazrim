@@ -71,13 +71,17 @@ services:
   # Optional: updating from inside the app (Settings -> Updates, docs/updates.md).
   # Off unless .env turns it on:
   #   COMPOSE_PROFILES=updater        (together with the others: https,dns,updater)
-  # A small helper that, when you press "עדכון לגרסה vX" in the app (Settings -> Updates), downloads the new release, backs
-  # the data up, and restarts Tazrim on it (and puts the old version back if the new one does
-  # not start). It uses the same image as the app.
+  # A small launcher. When you press "עדכון לגרסה vX" in the app (Settings -> Updates), it starts a
+  # short-lived job container from the APP's own image (so a job is always the app's version) that
+  # downloads the new release, backs the data up, and restarts Tazrim on it (and puts the old
+  # version back if the new one does not start). The launcher itself has no features and keeps no
+  # state, so it never needs updating by hand (an older one: docker compose pull updater &&
+  # docker compose up -d updater, once). It uses the same image as the app.
   # It holds the Docker socket. A container with the socket can control Docker on this
-  # computer; this one only accepts "update Tazrim to a release", "go back" and "change one of
-  # these settings in .env" (ports, this computer's address, host names, the https/dns
-  # profiles: checked values only), and only from the app, with a token kept in the data volume.
+  # computer; this one only starts jobs from a fixed list ("update Tazrim to a release", "go
+  # back", "change one of these settings in .env" (ports, this computer's address, host names,
+  # the https/dns profiles: checked values only), network isolation, the release check), never an
+  # image or a command from the request, and only for the app, with a token kept in the data volume.
   # Leave it off to update by hand with
   #   docker compose pull && docker compose up -d
   # Its own settings must never use those .env values: a change would recreate it mid-job.
@@ -86,7 +90,7 @@ services:
   updater:
     profiles: [updater]
     image: ghcr.io/jordanyefet/tazrim:${TAZRIM_VERSION:-latest}
-    entrypoint: ["node", "/app/updater/server.mjs"]
+    entrypoint: ["node", "/app/updater/launcher.mjs"]
     # Root: it writes the token the app reads, and uses the Docker socket
     user: root
     environment:

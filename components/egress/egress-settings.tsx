@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, KeyRound, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Disclosure, CopyLine, SectionHeading, sectionClass } from '@/components/install/guide'
+import { Disclosure, CopyLine, OldUpdaterNote, SectionHeading, sectionClass } from '@/components/install/guide'
 import { SwitchButton } from '@/components/install/container-settings'
 import { INSTALL_MESSAGES } from '@/lib/install/messages'
 import { PROVIDERS } from '@/lib/egress/allowlist'
@@ -166,6 +166,8 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
             הקובץ <bdi dir="ltr">docker-compose.egress.yml</bdi> בתיקייה של תזרים שונה מזה שבגרסה הזאת. תזרים לא דורס אותו; אם משהו לא עובד, מוחקים אותו והוא יוחלף.
           </p>
         )}
+        {view.helper === 'old' && <OldUpdaterNote />}
+        {view.helper === 'unavailable' && <p className="text-sm text-muted-foreground text-pretty">{INSTALL_MESSAGES.NOT_AVAILABLE}</p>}
         {!ready && (
           <Disclosure label="הצגת שלבים ידניים">
             <div className="mt-1 space-y-2 rounded-xl bg-muted/60 p-3">

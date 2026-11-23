@@ -3,14 +3,15 @@
  * owns the trusted state and checks every passkey signature; the app only relays. Anything the
  * updater says is reduced to fixed codes and known fields: its English and `detail` stay here.
  */
-import { helperCall, helperHealth } from '@/lib/updates/helper'
+import { helperConfigJob, helperHealth, helperIsReady, runJob } from '@/lib/updates/helper'
 import { egressActive } from './config'
 import { cleanApprovers, cleanChanges, cleanExtras, readChanges, readExtraDomains } from './files'
 import { recentDenied } from './squid-log'
 import { egressMessage } from './messages'
 import type { ChangeRequest, EgressJob, EgressView } from './types'
 
-const CALL_MS = 5000
+const INFO_MS = 15_000
+const CALL_MS = 30_000
 
 /** The updater's job without its paths and text */
 export function safeJob(j: unknown): EgressJob | null {
@@ -49,9 +50,9 @@ export async function getEgressView(): Promise<EgressView> {
   const health = await helperHealth()
   let fromHelper = false
   if (health) {
-    if (!health.features?.includes('egress')) view.helper = 'old'
+    if (!helperIsReady(health)) view.helper = 'old'
     else {
-      const r = await helperCall('GET', '/v1/egress', { timeoutMs: CALL_MS })
+      const [r, configJob] = await Promise.all([runJob('egress-info', {}, { timeoutMs: INFO_MS }), helperConfigJob()])
       const j = r?.status === 200 && r.json && typeof r.json === 'object' ? (r.json as Record<string, unknown>) : null
       if (!j) view.helper = 'unavailable'
       else if (j.available !== true) {
@@ -65,7 +66,9 @@ export async function getEgressView(): Promise<EgressView> {
         view.extraDomains = cleanExtras(j.extraDomains)
         view.approvers = cleanApprovers(j.approvers)
         view.changes = cleanChanges(j.changes).slice(0, 50)
-        view.job = safeJob(j.job)
+        // The settings job's file is shared with settings; it is the isolation switch's when it says so
+        const job = configJob && typeof configJob === 'object' && (configJob as { egress?: unknown }).egress ? configJob : null
+        view.job = safeJob(job)
       }
     }
   }
@@ -79,24 +82,24 @@ export async function getEgressView(): Promise<EgressView> {
 
 export type Relay = { status: number; body: Record<string, unknown> }
 
-const KEEP: Record<string, readonly string[]> = {
-  '/v1/egress/on': ['job'],
-  '/v1/egress/approvers/register/begin': ['options', 'codeFile', 'expiresAt'],
-  '/v1/egress/approvers/register/finish': ['ok', 'approver'],
-  '/v1/egress/approve/begin': ['flowId', 'options', 'passwordAllowed', 'change'],
-  '/v1/egress/approve/finish': ['ok', 'change', 'job'],
-}
+const KEEP = {
+  'egress-on': ['job'],
+  'egress-register-begin': ['options', 'codeFile', 'expiresAt'],
+  'egress-register-finish': ['ok', 'approver'],
+  'egress-approve-begin': ['flowId', 'options', 'passwordAllowed', 'change'],
+  'egress-approve-finish': ['ok', 'change', 'job'],
+} as const satisfies Record<string, readonly string[]>
 
-/** One POST to the updater; its success body keeps only the known fields, a refusal becomes { code, error } in Hebrew */
-export async function relay(route: keyof typeof KEEP, body: unknown): Promise<Relay> {
-  const r = await helperCall('POST', route, { body, timeoutMs: 20_000 })
+/** One job run in the updater; its success body keeps only the known fields, a refusal becomes { code, error } in Hebrew */
+export async function relay(job: keyof typeof KEEP, body: unknown): Promise<Relay> {
+  const r = await runJob(job, body, { timeoutMs: CALL_MS })
   const j = (r?.json && typeof r.json === 'object' ? r.json : {}) as Record<string, unknown>
   const coded = typeof j.error === 'string' && /^[A-Z_]{3,40}$/.test(j.error)
   // No answer, or a token/route the helper doesn't know (an old helper): no helper. A coded refusal (even a 403) is the helper speaking.
   if (!r || ((r.status === 401 || r.status === 403 || r.status === 404) && !coded)) return { status: 503, body: { code: 'NO_HELPER', error: egressMessage('NO_HELPER') } }
   if (r.status >= 200 && r.status < 300) {
     const out: Record<string, unknown> = {}
-    for (const k of KEEP[route]) if (k in j) out[k] = k === 'job' ? safeJob(j[k]) : k === 'approver' ? cleanApprovers([j[k]])[0] : j[k]
+    for (const k of KEEP[job]) if (k in j) out[k] = k === 'job' ? safeJob(j[k]) : k === 'approver' ? cleanApprovers([j[k]])[0] : j[k]
     return { status: r.status, body: out }
   }
   // The updater's `error` is the code

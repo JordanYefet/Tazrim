@@ -66,7 +66,9 @@ services:
     networks: [updater-net, inside]
     depends_on: [squid]
     environment:
-      # Only for the release check (api.github.com); Squid refuses everything else from here
+      # Only for the release check (api.github.com); Squid refuses everything else from here.
+      # The short-lived job containers the updater starts (ENG-136) copy this service's networks
+      # and environment, so they reach exactly what it reaches and nothing more.
       NODE_USE_ENV_PROXY: "1"
       HTTP_PROXY: "http://squid:3128"
       HTTPS_PROXY: "http://squid:3128"

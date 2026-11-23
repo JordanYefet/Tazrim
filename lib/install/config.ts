@@ -1,10 +1,10 @@
 /**
- * Container-level settings, the app's side (ENG-121): asks the updater helper (updater/config.mjs)
- * for the install's `.env` values and to change them. Without a helper that can, the values are
+ * Container-level settings, the app's side (ENG-121): asks the updater (the `config-info` and `config`
+ * jobs, updater/config.mjs) for the install's `.env` values and to change them. Without a helper that can, the values are
  * the ones compose passed in for display (docker-compose.yml), and the page shows manual steps.
  */
 import { CONFIG_DEFAULTS, effectiveValues, validateChanges } from '@/updater/env-file.mjs'
-import { helperCall, helperHealth } from '@/lib/updates/helper'
+import { helperConfigJob, helperHealth, helperIsReady, runJob } from '@/lib/updates/helper'
 import type { ConfigChanges, ConfigJob, ConfigKey, ConfigValues, InstallView } from './types'
 import { CONFIG_KEY_LIST } from './types'
 
@@ -30,6 +30,8 @@ function cleanValues(v: unknown): FileValues {
   return Object.fromEntries(CONFIG_KEY_LIST.map(k => [k, typeof o[k] === 'string' ? o[k] : null])) as FileValues
 }
 
+const INFO_MS = 15_000
+
 /** The helper's job without its paths and English text */
 function safeJob(j: unknown): ConfigJob | null {
   if (!j || typeof j !== 'object') return null
@@ -53,9 +55,9 @@ export async function getInstallView(): Promise<InstallView> {
   const fallback: InstallView = { helper: 'none', reason: null, values: envValues(), fileValues: null, installDir: null, job: null }
   const health = await helperHealth()
   if (!health) return fallback
-  if (!health.features?.includes('config')) return { ...fallback, helper: 'old' }
-  const [info, status] = await Promise.all([helperCall('GET', '/v1/config', { timeoutMs: 5000 }), helperCall('GET', '/v1/status?kind=config', { timeoutMs: 2000 })])
-  const job = status?.status === 200 ? safeJob(status.json) : null
+  if (!helperIsReady(health)) return { ...fallback, helper: 'old' }
+  const [info, status] = await Promise.all([runJob('config-info', {}, { timeoutMs: INFO_MS }), helperConfigJob()])
+  const job = safeJob(status)
   const j = info?.status === 200 ? (info.json as { available?: unknown; reason?: unknown; values?: unknown; installDir?: unknown }) : null
   if (!j) return { ...fallback, helper: 'unavailable', reason: 'HELPER_ERROR', job }
   if (j.available !== true) return { ...fallback, helper: 'unavailable', reason: typeof j.reason === 'string' ? j.reason : 'HELPER_ERROR', job }
@@ -76,7 +78,7 @@ export type StartResult = { status: 202; job: ConfigJob | null } | { status: num
 export async function startConfigChange(changes: unknown, fileValues: FileValues | null): Promise<StartResult> {
   const v = validateChanges(changes, fileValues ?? {})
   if (!v.ok) return { status: 400, code: v.code, ...(v.key ? { key: v.key as ConfigKey } : {}) }
-  const r = await helperCall('POST', '/v1/config', { body: { changes: v.changes } })
+  const r = await runJob('config', { changes: v.changes })
   if (!r) return { status: 503, code: 'NO_HELPER' }
   const j = (r.json ?? {}) as { job?: unknown; code?: unknown; key?: unknown }
   if (r.status === 202) return { status: 202, job: safeJob(j.job) }

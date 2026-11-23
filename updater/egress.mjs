@@ -17,6 +17,13 @@
  *    the app can read egress/, and the password approver's hash must stay out of its reach)
  * And <install>/tazrim-approval-code.txt (outside egress/: the app never sees it) holds the
  * one-time code that proves the person is at this computer when they register an approver.
+ *
+ * Nothing is kept in memory (ENG-136): every call runs in its own short-lived job container. What
+ * has to survive from one call to the next lives in <install>/.tazrim-approvers/ (0700, root):
+ *   pending-registration.json  { challenge, rpId, code, expires, tries }
+ *   pending-approvals.json     { <flowId>: { challenge, change, rpId, expires } }
+ *   password-lock.json         { fails: [ms], until }
+ * Expiry is checked when a file is read; a stale code file is removed by the next call that sees it.
  */
 import crypto from 'node:crypto'
 import nodeFs from 'node:fs'
@@ -35,6 +42,8 @@ export const APPROVAL_TTL_MS = 2 * 60 * 1000
 export const PASSWORD_TRIES = 5
 export const PASSWORD_LOCK_MS = 15 * 60 * 1000
 export const KEEP_CHANGES = 50
+const STATE_LOCK_WAIT_MS = 5000
+const STATE_LOCK_STALE_MS = 30 * 1000
 
 const ACTIONS = ['add-domain', 'remove-domain', 'turn-on', 'turn-off', 'add-approver', 'remove-approver']
 const STATUS = { BAD_SIGNATURE: 403, BAD_PASSWORD: 403, LOCKED: 429, NOT_FOUND: 404, BUSY: 409, ALREADY_ALLOWED: 409, ALREADY_ON: 409, ALREADY_OFF: 409, NO_APPROVER: 409, NOT_AVAILABLE: 422, RECONFIGURE_FAILED: 500, INTERNAL: 500 }
@@ -97,6 +106,10 @@ export function createEgress({
     // NOT in egress/ (the app mounts that read-only): the password approver's hash would be
     // open to offline guessing by app code. This folder is mounted only in the updater.
     approvers: path.join(installDir, KEYS_DIR, 'approvers.json'),
+    registration: path.join(installDir, KEYS_DIR, 'pending-registration.json'),
+    approvals: path.join(installDir, KEYS_DIR, 'pending-approvals.json'),
+    passwordLock: path.join(installDir, KEYS_DIR, 'password-lock.json'),
+    stateLock: path.join(installDir, KEYS_DIR, 'state.lock'),
     code: path.join(installDir, CODE_FILE),
     override: path.join(installDir, EGRESS_FILE),
   }
@@ -139,7 +152,8 @@ export function createEgress({
 
   const extras = () => readJson(files.json, [])
   const approvers = () => readJson(files.approvers, [])
-  function saveApprovers(list) {
+
+  function ensureKeys() {
     // Only the updater and the computer's own user may look inside (0700)
     const keys = path.dirname(files.approvers)
     const existed = isRealDir(keys, fs)
@@ -149,7 +163,58 @@ export function createEgress({
       fs.chownSync(keys, o.uid, o.gid)
       fs.chmodSync(keys, 0o700)
     }
+  }
+
+  function saveApprovers(list) {
+    ensureKeys()
     writeAtomic(files.approvers, `${JSON.stringify(list, null, 2)}\n`, 0o600)
+  }
+
+  /** A state file's JSON object, or null (missing, not a plain file, not an object) */
+  function readState(file) {
+    try {
+      const v = JSON.parse(readPlain(file, fs) ?? 'null')
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : null
+    } catch {
+      return null
+    }
+  }
+
+  function writeState(file, value) {
+    ensureKeys()
+    writeAtomic(file, `${JSON.stringify(value)}\n`, 0o600)
+  }
+
+  /**
+   * Runs `fn` while holding the state lock (a file, O_EXCL): two job containers at the same time
+   * must not both take the same one-use challenge or both count the same password try. Held for
+   * a read-modify-write only, never across a password check or a Docker call.
+   */
+  async function exclusive(fn) {
+    ensureKeys()
+    const { O_WRONLY, O_CREAT, O_EXCL, O_NOFOLLOW } = nodeFs.constants
+    const deadline = Date.now() + STATE_LOCK_WAIT_MS
+    for (;;) {
+      try {
+        fs.closeSync(fs.openSync(files.stateLock, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600))
+        break
+      } catch (e) {
+        if (e?.code !== 'EEXIST') throw e
+        try {
+          // a lock left by a job that died
+          if (Date.now() - fs.lstatSync(files.stateLock).mtimeMs > STATE_LOCK_STALE_MS) fs.rmSync(files.stateLock, { force: true })
+        } catch {
+          // gone already
+        }
+        if (Date.now() > deadline) throw new Error('the approval state is busy')
+        await new Promise(r => setTimeout(r, 20))
+      }
+    }
+    try {
+      return await fn()
+    } finally {
+      fs.rmSync(files.stateLock, { force: true })
+    }
   }
 
   function log(action, detail, approver) {
@@ -238,17 +303,17 @@ export function createEgress({
 
   // ---- registration of approvers -----------------------------------------------------------------
 
-  let pending = null // { challenge, rpId, code, expires, tries }
-  let timer = null
-
   function cancelRegistration() {
-    pending = null
-    clearTimeout(timer)
+    fs.rmSync(files.registration, { force: true })
     fs.rmSync(files.code, { force: true })
   }
 
-  function sweep() {
-    if (pending && now().getTime() >= pending.expires) cancelRegistration()
+  /** The open registration, or null; an expired one (and its code file) is removed here */
+  function pendingRegistration() {
+    const p = readState(files.registration)
+    if (p && now().getTime() < p.expires) return p
+    if (p || isRealFile(files.code, fs)) cancelRegistration()
+    return null
   }
 
   const validRpId = v => typeof v === 'string' && HOST_RE.test(v)
@@ -257,16 +322,12 @@ export function createEgress({
     if (!validRpId(body?.rpId)) return fail('BAD_RPID')
     const userName = typeof body?.userName === 'string' && body.userName.trim() ? body.userName.trim().slice(0, 64) : 'Tazrim'
     const rpName = typeof body?.rpName === 'string' && body.rpName.trim() ? body.rpName.trim().slice(0, 64) : 'Tazrim'
-    sweep()
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
     const expires = now().getTime() + CODE_TTL_MS
     // The code file goes in the install folder itself, not in egress/: the app never mounts that
     writeText(files.code, `${code}\n`, { mode: 0o600, owner: owner(), fs })
-    clearTimeout(timer)
-    timer = setTimeout(sweep, CODE_TTL_MS + 1000)
-    timer.unref?.()
     const challenge = b64u(crypto.randomBytes(32))
-    pending = { challenge, rpId: body.rpId, code, expires, tries: 0 }
+    writeState(files.registration, { challenge, rpId: body.rpId, code, expires, tries: 0 })
     const options = {
       challenge,
       rp: { id: body.rpId, name: rpName },
@@ -287,17 +348,23 @@ export function createEgress({
   }
 
   async function registerFinish(body) {
-    sweep()
+    const pending = pendingRegistration()
     if (!pending) return fail('NO_REGISTRATION')
     const name = typeof body?.name === 'string' ? body.name.trim() : ''
     if (!name || name.length > 60) return fail('BAD_NAME')
     if (typeof body?.code !== 'string' || !same(body.code.trim(), pending.code)) {
-      pending.tries++
-      if (pending.tries >= CODE_TRIES) {
-        cancelRegistration()
-        return fail('TOO_MANY_TRIES')
-      }
-      return fail('BAD_CODE')
+      const refused = await exclusive(() => {
+        const cur = pendingRegistration()
+        if (!cur) return fail('NO_REGISTRATION')
+        cur.tries++
+        if (cur.tries >= CODE_TRIES) {
+          cancelRegistration()
+          return fail('TOO_MANY_TRIES')
+        }
+        writeState(files.registration, cur)
+        return fail('BAD_CODE')
+      })
+      return refused
     }
     const at = now().toISOString()
     const list = approvers()
@@ -329,14 +396,19 @@ export function createEgress({
 
   // ---- approvals ---------------------------------------------------------------------------------
 
-  const flows = new Map() // flowId -> { challenge, change, rpId, expires }
-  // `pending`: password checks still running (scrypt is async), counted against the limit so a
-  // burst of parallel tries can't all slip in before the first wrong one is recorded
-  const lockState = { fails: [], until: 0, pending: 0 }
-
-  function sweepFlows() {
+  /** { flowId: { challenge, change, rpId, expires } }, without what is long past */
+  function readFlows() {
     const t = now().getTime()
-    for (const [id, f] of flows) if (t >= f.expires + APPROVAL_TTL_MS) flows.delete(id)
+    const flows = readState(files.approvals) ?? {}
+    for (const [id, f] of Object.entries(flows)) if (!f || typeof f.expires !== 'number' || t >= f.expires + APPROVAL_TTL_MS) delete flows[id]
+    return flows
+  }
+
+  /** The password tries: { fails: [ms], until: ms }; a try is counted when it starts (see approveFinish) */
+  function readPasswordLock() {
+    const t = now().getTime()
+    const l = readState(files.passwordLock) ?? {}
+    return { fails: (Array.isArray(l.fails) ? l.fails : []).filter(x => typeof x === 'number' && t - x < PASSWORD_LOCK_MS), until: typeof l.until === 'number' ? l.until : 0 }
   }
 
   /** Checks a requested change against what is true now; { change } (normalised) or a refusal */
@@ -371,17 +443,20 @@ export function createEgress({
 
   async function approveBegin(body) {
     if (!validRpId(body?.rpId)) return fail('BAD_RPID')
-    if (lock.busy) return fail('BUSY')
+    if (await lock.isBusy()) return fail('BUSY')
     const v = await validateChange(body?.change)
     if (v.status) return v
     const all = approvers()
     const passkeys = all.filter(a => isPasskey(a) && a.rpId === body.rpId)
     const passwordAllowed = all.some(a => a.kind === 'password')
     if (!passkeys.length && !passwordAllowed) return fail('NO_APPROVER')
-    sweepFlows()
     const flowId = b64u(crypto.randomBytes(16))
     const challenge = b64u(crypto.randomBytes(32))
-    flows.set(flowId, { challenge, change: v.change, rpId: body.rpId, expires: now().getTime() + APPROVAL_TTL_MS })
+    await exclusive(() => {
+      const flows = readFlows()
+      flows[flowId] = { challenge, change: v.change, rpId: body.rpId, expires: now().getTime() + APPROVAL_TTL_MS }
+      writeState(files.approvals, flows)
+    })
     const options = passkeys.length
       ? {
           challenge,
@@ -394,57 +469,72 @@ export function createEgress({
     return ok({ flowId, options, passwordAllowed, change: v.change })
   }
 
-  /** Takes the pending approval out (single use); { flow } or a refusal */
-  function takeFlow({ flowId, challenge }) {
-    let id = flowId
-    if (!id && challenge) id = [...flows].find(([, f]) => f.challenge === challenge)?.[0]
-    const flow = typeof id === 'string' ? flows.get(id) : undefined
-    if (!flow || (challenge && flow.challenge !== challenge)) return fail('CHALLENGE_UNKNOWN')
-    flows.delete(id)
-    if (now().getTime() >= flow.expires) return fail('CHALLENGE_EXPIRED')
-    return { flow }
-  }
+  /** Takes the pending approval out (single use, even across job containers); { flow } or a refusal */
+  const takeFlow = ({ flowId, challenge }) =>
+    exclusive(() => {
+      const flows = readFlows()
+      let id = flowId
+      if (!id && challenge) id = Object.entries(flows).find(([, f]) => f.challenge === challenge)?.[0]
+      const flow = typeof id === 'string' && Object.hasOwn(flows, id) ? flows[id] : undefined
+      if (!flow || (challenge && flow.challenge !== challenge)) return fail('CHALLENGE_UNKNOWN')
+      delete flows[id]
+      writeState(files.approvals, flows)
+      if (now().getTime() >= flow.expires) return fail('CHALLENGE_EXPIRED')
+      return { flow }
+    })
 
   async function approveFinish(body) {
-    sweepFlows()
     const usingPassword = typeof body?.password === 'string' && !body?.response
     let approverName
     let flow
     if (usingPassword) {
       if (typeof body.flowId !== 'string') return fail('CHALLENGE_UNKNOWN')
       const t = now().getTime()
-      lockState.fails = lockState.fails.filter(x => t - x < PASSWORD_LOCK_MS)
-      if (lockState.until > t) return fail('LOCKED', undefined, { until: new Date(lockState.until).toISOString() })
-      if (lockState.fails.length + lockState.pending >= PASSWORD_TRIES) {
-        return fail('LOCKED', undefined, { until: new Date(t + PASSWORD_LOCK_MS).toISOString() })
+      // The try is counted as a failure the moment it starts: a burst of parallel tries (also from
+      // several job containers) can't all slip in before the first wrong one is recorded
+      const locked = await exclusive(() => {
+        const l = readPasswordLock()
+        if (l.until > t) return { until: l.until }
+        if (l.fails.length >= PASSWORD_TRIES) return { until: t + PASSWORD_LOCK_MS }
+        writeState(files.passwordLock, { fails: [...l.fails, t], until: l.until })
+        return null
+      })
+      if (locked) return fail('LOCKED', undefined, { until: new Date(locked.until).toISOString() })
+      // A try that never reached the password check isn't a failure
+      const unreserve = () =>
+        exclusive(() => {
+          const l = readPasswordLock()
+          const i = l.fails.indexOf(t)
+          if (i >= 0) l.fails.splice(i, 1)
+          writeState(files.passwordLock, l)
+        })
+      const taken = await takeFlow({ flowId: body.flowId })
+      if (!taken.flow) {
+        await unreserve()
+        return taken
       }
-      const taken = takeFlow({ flowId: body.flowId })
-      if (!taken.flow) return taken
       flow = taken.flow
       const pw = approvers().find(a => a.kind === 'password')
-      if (!pw) return fail('NO_APPROVER')
-      lockState.pending++
-      let right
-      try {
-        right = await checkPassword(body.password, pw)
-      } finally {
-        lockState.pending--
+      if (!pw) {
+        await unreserve()
+        return fail('NO_APPROVER')
       }
+      const right = await checkPassword(body.password, pw)
       if (!right) {
-        lockState.fails.push(t)
-        if (lockState.fails.length >= PASSWORD_TRIES) {
-          lockState.until = t + PASSWORD_LOCK_MS
-          lockState.fails = []
-        }
+        await exclusive(() => {
+          const l = readPasswordLock()
+          if (l.fails.length >= PASSWORD_TRIES) writeState(files.passwordLock, { fails: [], until: t + PASSWORD_LOCK_MS })
+          else writeState(files.passwordLock, l)
+        })
         return fail('BAD_PASSWORD')
       }
-      lockState.fails = []
+      await exclusive(() => writeState(files.passwordLock, { fails: [], until: 0 }))
       approverName = `${pw.name} (סיסמה)`
     } else {
       const response = body?.response
       const challenge = challengeOf(response)
       if (!challenge) return fail('BAD_CLIENT_DATA')
-      const taken = takeFlow({ challenge })
+      const taken = await takeFlow({ challenge })
       if (!taken.flow) return taken
       flow = taken.flow
       const credId = credentialIdOf(response)
@@ -464,7 +554,7 @@ export function createEgress({
   async function applyChange(c, approverName) {
     switch (c.action) {
       case 'add-domain': {
-        if (lock.busy) return fail('BUSY')
+        if (await lock.isBusy()) return fail('BUSY')
         const list = [...extras(), { domain: c.domain, note: c.note, addedAt: now().toISOString(), approver: approverName }]
         try {
           await applyDomains(list)
@@ -475,7 +565,7 @@ export function createEgress({
         return ok({ ok: true, change: c })
       }
       case 'remove-domain': {
-        if (lock.busy) return fail('BUSY')
+        if (await lock.isBusy()) return fail('BUSY')
         try {
           await applyDomains(extras().filter(e => e.domain !== c.domain))
         } catch (e) {
@@ -495,7 +585,7 @@ export function createEgress({
         const r = await config.startEgress(false)
         if (r.status !== 202) return fail(r.code ?? 'INTERNAL', r.error)
         log('turn-off', '', approverName)
-        return ok({ ok: true, change: c, job: r.job }, 200)
+        return { ...ok({ ok: true, change: c, job: r.job }, 200), done: r.done }
       }
     }
     return fail('BAD_CHANGE')
@@ -506,7 +596,7 @@ export function createEgress({
 
     /** GET /v1/egress */
     async info() {
-      sweep()
+      const pending = pendingRegistration()
       const { ctx, reason } = await config.context()
       const job = config.current()
       return ok({
@@ -531,7 +621,7 @@ export function createEgress({
       } catch (e) {
         console.error('updater: could not log turn-on', e)
       }
-      return ok({ job: r.job }, 202)
+      return { ...ok({ job: r.job }, 202), done: r.done }
     },
 
     registerBegin,

@@ -30,8 +30,13 @@ describe('InstallSettings', () => {
     expect(html).toContain('רכיב העדכון לא פועל')
   })
 
-  it('an older helper says it will work after the next update', () => {
-    expect(renderToStaticMarkup(<InstallSettings initial={view({ helper: 'old' })} />)).toContain('אחרי העדכון הבא')
+  it('an older updater says so, with the one command that refreshes it, beside the manual steps', () => {
+    const html = renderToStaticMarkup(<InstallSettings initial={view({ helper: 'old' })} />)
+    expect(html).toContain('שירות העזר ישן. עדכון חד-פעמי, בתיקייה של תזרים:')
+    expect(html).toContain('docker compose pull updater &amp;&amp; docker compose up -d updater')
+    expect(html).toContain('הצגת שלבים ידניים')
+    expect(html).not.toContain('>שמירה<')
+    expect(renderToStaticMarkup(<InstallSettings initial={view({ helper: 'none' })} />)).not.toContain('שירות העזר ישן')
   })
 })
 

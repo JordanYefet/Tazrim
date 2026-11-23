@@ -46,12 +46,19 @@ const enc = encodeURIComponent
 const encName = s => enc(s).replace(/%2F/gi, '/').replace(/%3A/gi, ':')
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 
+/**
+ * "Self" for everything below that reads the helper's own container (compose project and service,
+ * the /install mount, the socket, where to recreate it): the launcher. A job container is started
+ * with TAZRIM_LAUNCHER_ID (ENG-136) and is itself no compose container, so it points at the launcher.
+ */
+export const selfIdFromEnv = env => env.TAZRIM_LAUNCHER_ID || ''
+
 /** The helper's own container id: from /proc/self/mountinfo (/etc/hostname is mounted from the container's folder), else HOSTNAME */
 export function containerIdFrom(mountinfo, fallback) {
   return /\/containers\/([0-9a-f]{64})\//.exec(mountinfo)?.[1] ?? fallback
 }
 
-function ownContainerId() {
+export function ownContainerId() {
   let mountinfo = ''
   try {
     mountinfo = fs.readFileSync('/proc/self/mountinfo', 'utf8')
@@ -112,7 +119,7 @@ export function createBody(c, oldImage, image) {
 
 export function createDocker({
   socketPath = '/var/run/docker.sock',
-  selfId = ownContainerId(),
+  selfId = selfIdFromEnv(process.env) || ownContainerId(),
   service = 'tazrim',
   image = 'ghcr.io/jordanyefet/tazrim',
   timeouts = {},
@@ -442,13 +449,36 @@ export function createDocker({
       return created.Id
     },
 
-    /** Removes the short-lived compose containers (label tazrim.updater=compose) that have exited; returns how many */
+    /**
+     * Removes the short-lived containers that have exited: the compose ones (label
+     * tazrim.updater=compose) and the job containers (label tazrim.job); returns how many
+     */
     async removeFinishedCli() {
-      const filters = JSON.stringify({ label: ['tazrim.updater=compose'], status: ['exited', 'created', 'dead'] })
-      const list = (await call('GET', `/containers/json?all=true&filters=${enc(filters)}`)) ?? []
-      for (const c of list) await call('DELETE', `/containers/${enc(c.Id)}?force=true&v=true`).catch(() => {})
-      return list.length
+      let n = 0
+      for (const label of ['tazrim.updater=compose', 'tazrim.job']) {
+        const filters = JSON.stringify({ label: [label], status: ['exited', 'created', 'dead'] })
+        const list = (await call('GET', `/containers/json?all=true&filters=${enc(filters)}`)) ?? []
+        for (const c of list) await call('DELETE', `/containers/${enc(c.Id)}?force=true&v=true`).catch(() => {})
+        n += list.length
+      }
+      return n
     },
+
+    /** Is a job container with this id (label tazrim.job.id) still running or about to? */
+    async jobRunning(jobId) {
+      const filters = JSON.stringify({ label: [`tazrim.job.id=${jobId}`], status: ['running', 'created', 'restarting'] })
+      return ((await call('GET', `/containers/json?filters=${enc(filters)}`)) ?? []).length > 0
+    },
+
+    /** The running job containers: [{ name, id, startedAt }] */
+    async runningJobs() {
+      const filters = JSON.stringify({ label: ['tazrim.job'], status: ['running'] })
+      const list = (await call('GET', `/containers/json?filters=${enc(filters)}`)) ?? []
+      return list.map(c => ({ name: c.Labels?.['tazrim.job'] ?? '', id: c.Labels?.['tazrim.job.id'] ?? '', startedAt: new Date((c.Created ?? 0) * 1000).toISOString() }))
+    },
+
+    /** The Engine API itself, for the launcher (which starts job containers; the jobs never need it) */
+    call,
 
     /** The running container of compose service `service` in the helper's own project, or null */
     async findService(service) {

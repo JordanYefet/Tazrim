@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createJobs, IMAGE } from '../job.mjs'
 import { createStatusStore } from '../status.mjs'
-import { BACKUP, doneUpdate, fakes, memStore, OLD_IMAGE } from './fakes.mjs'
+import { BACKUP, doneUpdate, fakes, memLock, memStore, OLD_IMAGE } from './fakes.mjs'
 
 const names = calls => calls.map(c => c[0])
 const indexOf = (calls, ...call) => calls.findIndex(c => JSON.stringify(c) === JSON.stringify(call))
@@ -13,7 +13,7 @@ const stepStates = job => Object.fromEntries(job.steps.map(s => [s.id, s.state])
 function setup(opts) {
   const f = fakes(opts)
   const status = memStore(opts?.last)
-  const jobs = createJobs({ docker: f.docker, app: f.app, status, healthTimeoutMs: 1000 })
+  const jobs = createJobs({ docker: f.docker, app: f.app, status, lock: memLock(), healthTimeoutMs: 1000 })
   return { ...f, status, jobs }
 }
 
@@ -298,7 +298,7 @@ describe('status file', () => {
       onDisk.push(JSON.parse(fs.readFileSync(file, 'utf8')))
     }
     const f = fakes()
-    const jobs = createJobs({ docker: f.docker, app: f.app, status: store, healthTimeoutMs: 1000 })
+    const jobs = createJobs({ docker: f.docker, app: f.app, status: store, lock: memLock(), healthTimeoutMs: 1000 })
     await (await jobs.startUpdate('1.2.0')).done
 
     const seen = []
@@ -312,15 +312,18 @@ describe('status file', () => {
     expect(createStatusStore(file).get()).toEqual(jobs.current())
   })
 
-  it('a job left running by a restarted helper reads as failed', () => {
+  it('reads the file every time: a job in another container sees what this one wrote', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tazrim-updater-'))
     const file = path.join(dir, '.update-status.json')
-    const running = { ...doneUpdate, state: 'running', steps: [{ id: 'backup', state: 'done' }, { id: 'download', state: 'running' }] }
-    fs.writeFileSync(file, JSON.stringify(running))
-    const s = createStatusStore(file).get()
-    expect(s.state).toBe('failed')
-    expect(s.steps[1].state).toBe('failed')
-    expect(s.error).toEqual(expect.any(String))
+    const a = createStatusStore(file)
+    const b = createStatusStore(file)
+    expect(b.get()).toBeNull()
+    a.save(doneUpdate)
+    expect(b.get()).toEqual(doneUpdate)
+    // nothing is settled here: a job left running stays as it is until the app judges it
+    const running = { ...doneUpdate, state: 'running' }
+    a.save(running)
+    expect(createStatusStore(file).get()).toEqual(running)
   })
 })
 

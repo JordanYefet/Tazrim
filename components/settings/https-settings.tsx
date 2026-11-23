@@ -23,6 +23,7 @@ import { ContainerApplyStatus, ManualEnvSteps, SwitchButton, useContainerSetting
 import {
   AddressLine,
   CopyLine,
+  OldUpdaterNote,
   GuideList,
   GuideWindow,
   InstallLoading,
@@ -282,6 +283,7 @@ export function HttpsSection({
         </div>
       )}
 
+      {!settings.canApply && settings.view.helper === 'old' && <OldUpdaterNote />}
       {!settings.canApply && (
         <ManualEnvSteps
           lines={inSetup ? [`COMPOSE_PROFILES=${nextProfiles}`] : [`COMPOSE_PROFILES=${nextProfiles}`, `TAZRIM_DNS_BIND=${lanDns ? '127.0.0.1' : '0.0.0.0'}`]}

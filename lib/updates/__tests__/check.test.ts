@@ -2,8 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
 
 let db: TestDb
-const helperCall = vi.hoisted(() => vi.fn())
-vi.mock('../helper', () => ({ helperCall }))
+const runJob = vi.hoisted(() => vi.fn())
+vi.mock('../helper', () => ({ runJob }))
 
 const RELEASE = {
   tag_name: 'v9.1.0',
@@ -25,7 +25,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllEnvs()
-  helperCall.mockReset()
+  runJob.mockReset()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
@@ -40,41 +40,41 @@ describe('checkNow behind the egress proxy (TAZRIM_UPDATE_CHECK_VIA=helper)', ()
 
   it('asks the updater, not GitHub, and parses its answer like a direct one', async () => {
     via()
-    helperCall.mockResolvedValue({ status: 200, json: { release: RELEASE } })
+    runJob.mockResolvedValue({ status: 200, json: { release: RELEASE } })
     const { checkNow } = await import('../check')
     const res = await checkNow(never as unknown as typeof fetch)
     expect(res.error).toBeNull()
     expect(res.latest?.version).toBe('9.1.0')
     expect(never).not.toHaveBeenCalled()
-    expect(helperCall.mock.calls[0].slice(0, 2)).toEqual(['GET', '/v1/latest'])
+    expect(runJob.mock.calls[0][0]).toBe('latest')
   })
 
   it('reports the failure the updater names, and keeps the previous release', async () => {
     via()
     const { checkNow } = await import('../check')
-    helperCall.mockResolvedValueOnce({ status: 200, json: { release: RELEASE } })
+    runJob.mockResolvedValueOnce({ status: 200, json: { release: RELEASE } })
     await checkNow(never as unknown as typeof fetch)
-    helperCall.mockResolvedValueOnce({ status: 200, json: { error: 'RATE_LIMIT' } })
+    runJob.mockResolvedValueOnce({ status: 200, json: { error: 'RATE_LIMIT' } })
     const res = await checkNow(never as unknown as typeof fetch)
     expect(res.error).toBe('RATE_LIMIT')
     expect(res.latest?.version).toBe('9.1.0')
   })
 
-  it('says NETWORK when the updater is down, has no token or refuses', async () => {
+  it('says NETWORK when the updater is down, has no token, refuses or is an older one that knows no jobs', async () => {
     via()
     const { checkNow } = await import('../check')
-    helperCall.mockResolvedValueOnce(null)
+    runJob.mockResolvedValueOnce(null)
     expect((await checkNow(never as unknown as typeof fetch)).error).toBe('NETWORK')
-    helperCall.mockResolvedValueOnce({ status: 404, json: { error: 'not found' } })
+    runJob.mockResolvedValueOnce({ status: 404, json: { error: 'not found' } })
     expect((await checkNow(never as unknown as typeof fetch)).error).toBe('NETWORK')
   })
 
   it('says BAD_RESPONSE for an answer that is not a release, or an error code it does not know', async () => {
     via()
     const { checkNow } = await import('../check')
-    helperCall.mockResolvedValueOnce({ status: 200, json: { release: { nope: true } } })
+    runJob.mockResolvedValueOnce({ status: 200, json: { release: { nope: true } } })
     expect((await checkNow(never as unknown as typeof fetch)).error).toBe('BAD_RESPONSE')
-    helperCall.mockResolvedValueOnce({ status: 200, json: { error: 'weird' } })
+    runJob.mockResolvedValueOnce({ status: 200, json: { error: 'weird' } })
     expect((await checkNow(never as unknown as typeof fetch)).error).toBe('BAD_RESPONSE')
   })
 
@@ -84,7 +84,7 @@ describe('checkNow behind the egress proxy (TAZRIM_UPDATE_CHECK_VIA=helper)', ()
     const res = await checkNow(fetchMock as unknown as typeof fetch)
     expect(res.latest?.version).toBe('9.1.0')
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(helperCall).not.toHaveBeenCalled()
+    expect(runJob).not.toHaveBeenCalled()
   })
 })
 

@@ -14,7 +14,7 @@ async function handlePOST(req: Request) {
   const name = typeof body?.name === 'string' ? body.name.trim().slice(0, 60) : ''
   const rpId = rpIdOf(req.headers)
   if (!name || !rpId) return NextResponse.json({ code: 'INVALID', error: egressMessage('INVALID') }, { status: 400 })
-  const r = await relay('/v1/egress/approvers/register/begin', { rpId, rpName: 'תזרים', userName: name })
+  const r = await relay('egress-register-begin', { rpId, rpName: 'תזרים', userName: name })
   return NextResponse.json(r.body, { status: r.status })
 }
 

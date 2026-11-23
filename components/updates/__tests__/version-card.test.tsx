@@ -17,6 +17,7 @@ function view(extra: Partial<UpdateView> = {}): UpdateView {
     error: null,
     auto: true,
     canUpdate: true,
+    helperOld: false,
     syncRunning: false,
     job: null,
     lastUpdate: null,
@@ -41,6 +42,14 @@ describe('VersionCard', () => {
     expect(h).toContain('הערה בדויה אחת')
     expect(h).toContain('href="https://example.invalid/r"')
     expect(h).toContain('בדיקת עדכונים')
+  })
+
+  it('an older updater says why, with the one command that refreshes it; no updater at all says nothing of the kind', () => {
+    const old = html(newer({ canUpdate: false, helperOld: true }))
+    expect(old).toContain('שירות העזר ישן. עדכון חד-פעמי, בתיקייה של תזרים:')
+    expect(old).toContain('docker compose pull updater &amp;&amp; docker compose up -d updater')
+    expect(html(newer({ canUpdate: false }))).not.toContain('שירות העזר ישן')
+    expect(html(newer())).not.toContain('שירות העזר ישן')
   })
 
   it('without the helper there is no update button; the commands hide behind a toggle', () => {

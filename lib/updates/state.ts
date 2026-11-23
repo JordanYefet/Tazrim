@@ -4,7 +4,7 @@ import path from 'node:path'
 import { prisma } from '@/lib/db/client'
 import { isSyncActive } from '@/lib/sync/runs'
 import { CURRENT_VERSION, getUpdateCache, type UpdateCache } from './check'
-import { cachedHealth, helperHealth, helperJob, type JobStatus } from './helper'
+import { cachedHealth, helperHealth, helperIsReady, helperJob, helperTarget, type JobStatus } from './helper'
 import { dataDir, isUpdating, setUpdating } from './paths'
 import { getAutoCheck } from './settings'
 import { isNewer, type ReleaseInfo } from './version'
@@ -31,6 +31,8 @@ export interface UpdateView {
   error: UpdateCache['error']
   auto: boolean
   canUpdate: boolean
+  /** The updater answers but is older than this version's API (api 1): one command refreshes it, then it never needs one again */
+  helperOld: boolean
   syncRunning: boolean
   job: JobStatus | null
   lastUpdate: LastUpdate | null
@@ -96,19 +98,21 @@ async function savedSince(backupAt: string): Promise<LastUpdate['since']> {
 }
 
 export async function getUpdateView(): Promise<UpdateView> {
-  // A helper known to be down costs no call; otherwise health and status are asked together
+  // An updater known to be down costs no call; otherwise its health and its running jobs are asked together
   const down = cachedHealth() === null
   const [cache, auto, health, { job, live }] = await Promise.all([getUpdateCache(), getAutoCheck(), helperHealth(), helperJob(down)])
   await recordFinished(job)
 
-  // Self-heal: a flag left behind (the helper died before clearing it) would pause saving for good.
-  // Only on the helper's own live answer: the status file can be stale while a job really runs.
-  if (live && health && isUpdating() && job?.state !== 'running') {
+  const ready = helperIsReady(health)
+
+  // Self-heal: a flag left behind (the job died before clearing it) would pause saving for good.
+  // Only when the launcher answered (so a job that really runs is known): the status file can be stale.
+  if (live && ready && isUpdating() && job?.state !== 'running') {
     console.warn('updates: the updating flag was left behind and no job runs; clearing it')
     setUpdating(false)
   }
 
-  const canUpdate = !!health && health.updatable
+  const canUpdate = ready && !!(await helperTarget())?.updatable
   const stored = await readLast()
   const lastUpdate: LastUpdate | null = stored
     ? {
@@ -128,6 +132,7 @@ export async function getUpdateView(): Promise<UpdateView> {
     error: cache.error,
     auto,
     canUpdate,
+    helperOld: !!health && !ready,
     syncRunning: isSyncActive(),
     job: safeJob ? (safeJob as unknown as JobStatus) : null,
     lastUpdate,
