@@ -18,7 +18,7 @@ async function handlePOST(req: Request) {
   const password = typeof body?.flowId === 'string' && typeof body.password === 'string' && body.password && body.password.length <= 500 ? { flowId: body.flowId.slice(0, 200), password: body.password } : null
   const answer = passkey ?? password
   if (!answer) return NextResponse.json({ code: 'INVALID', error: egressMessage('INVALID') }, { status: 400 })
-  const r = await relay('/v1/egress/approve/finish', answer)
+  const r = await relay('egress-approve-finish', answer)
   return NextResponse.json(r.body, { status: r.status })
 }
 

@@ -44,13 +44,15 @@ const start = (version: unknown = '1.2.0') =>
 
 describe('POST /api/updates/start', () => {
   it.each([
-    [400, 'Version 1.2.0 is not newer than the running 1.2.0.', 400, 'NOT_NEWER'],
-    [409, 'An update or rollback is already running.', 409, 'BUSY'],
-    [422, "Can't find the Tazrim container: docker said no", 422, 'NOT_UPDATABLE'],
-    [500, 'boom', 500, 'HELPER_ERROR'],
-    [401, 'unauthorized', 503, 'NO_HELPER'],
-  ])('maps the helper %i to %s', async (helperStatus, text, status, code) => {
-    helperSays(helperStatus, text)
+    [400, 'Version 1.2.0 is not newer than the running 1.2.0.', 'NOT_NEWER', 400, 'NOT_NEWER'],
+    [409, 'An update or rollback is already running.', 'BUSY', 409, 'BUSY'],
+    [422, "Can't find the Tazrim container: docker said no", 'NOT_UPDATABLE', 422, 'NOT_UPDATABLE'],
+    [500, 'boom', undefined, 500, 'HELPER_ERROR'],
+    [401, 'unauthorized', undefined, 503, 'NO_HELPER'],
+    // a launcher that doesn't know the job (or an older one) is no helper for this
+    [404, 'not found', undefined, 503, 'NO_HELPER'],
+  ])('maps the job answer %i to %s', async (helperStatus, text, helperCode, status, code) => {
+    helperSays(helperStatus, text, helperCode)
     const { POST } = await import('../start/route')
     const res = await POST(start())
     const body = await res.json()
@@ -68,10 +70,13 @@ describe('POST /api/updates/start', () => {
     expect((await res.json()).code).toBe('NO_HELPER')
   })
 
-  it('answers 202 when the helper accepts, and 400 for a bad version without calling it', async () => {
+  it('answers 202 when the helper accepts, asking for the update job, and 400 for a bad version without calling it', async () => {
     helperSays(202)
     const { POST } = await import('../start/route')
     expect((await POST(start())).status).toBe(202)
+    const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(new URL(url).pathname).toBe('/v1/jobs/update')
+    expect(JSON.parse(String(init.body))).toEqual({ version: '1.2.0' })
     const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length
     expect((await POST(start('1.2'))).status).toBe(400)
     expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(calls)
@@ -100,6 +105,7 @@ describe('the helper code wins over its text', () => {
     ['rollback', 409, 'The backup from before the update is gone.', 'BUSY', 'BUSY'],
     ['rollback', 409, 'An update or rollback is already running.', 'NO_ROLLBACK', 'NO_ROLLBACK'],
     ['start', 400, 'Version 1.2.0 is not newer than the running 1.2.0.', 'INVALID_VERSION', 'HELPER_ERROR'],
+    ['start', 500, 'whatever', 'JOB_FAILED', 'HELPER_ERROR'],
     ['start', 409, 'whatever', 'BUSY', 'BUSY'],
     ['start', 400, 'whatever', 'NOT_NEWER', 'NOT_NEWER'],
     ['start', 422, 'whatever', 'NOT_UPDATABLE', 'NOT_UPDATABLE'],
@@ -114,11 +120,11 @@ describe('the helper code wins over its text', () => {
 
 describe('POST /api/updates/rollback', () => {
   it.each([
-    [409, 'An update or rollback is already running.', 'BUSY'],
-    [409, 'The backup from before the update is gone.', 'NO_ROLLBACK'],
-    [422, 'x', 'NOT_UPDATABLE'],
-  ])('maps the helper %i (%s) to %s', async (helperStatus, text, code) => {
-    helperSays(helperStatus, text)
+    [409, 'An update or rollback is already running.', 'BUSY', 'BUSY'],
+    [409, 'The backup from before the update is gone.', 'NO_ROLLBACK', 'NO_ROLLBACK'],
+    [422, 'x', 'NOT_UPDATABLE', 'NOT_UPDATABLE'],
+  ])('maps the helper %i (%s) with code %s to %s', async (helperStatus, text, helperCode, code) => {
+    helperSays(helperStatus, text, helperCode)
     const { POST } = await import('../rollback/route')
     const res = await POST()
     const body = await res.json()
@@ -130,5 +136,6 @@ describe('POST /api/updates/rollback', () => {
     helperSays(202)
     const { POST } = await import('../rollback/route')
     expect((await POST()).status).toBe(202)
+    expect(new URL((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string).pathname).toBe('/v1/jobs/rollback')
   })
 })

@@ -4,13 +4,13 @@
  * Never throws: a failed check keeps the last known release and records why.
  *
  * Behind the egress proxy (ENG-131, TAZRIM_UPDATE_CHECK_VIA=helper) this container cannot reach
- * GitHub, so the updater helper makes the same GET for it (GET /v1/latest) and the app parses
+ * GitHub, so the updater helper makes the same GET for it (the `latest` job) and the app parses
  * its answer the same way. Without that variable nothing here changes: the app asks GitHub itself.
  */
 import pkg from '@/package.json'
 import { prisma } from '@/lib/db/client'
 import { describeError } from '@/lib/log/redact'
-import { helperCall } from './helper'
+import { runJob } from './helper'
 import { parseRelease, type ReleaseInfo } from './version'
 import { CACHE_KEY, getAutoCheck } from './settings'
 
@@ -85,10 +85,10 @@ async function fetchLatest(fetchImpl: typeof fetch): Promise<Outcome> {
 
 const FAILURES: readonly string[] = ['NETWORK', 'RATE_LIMIT', 'BAD_RESPONSE']
 
-/** The helper's answer to GET /v1/latest: { release: <GitHub's JSON> } or { error: <one of the three> } */
+/** The `latest` job's answer: { release: <GitHub's JSON> } or { error: <one of the three> } */
 async function fetchViaHelper(): Promise<Outcome> {
-  // A little longer than the helper's own 5 s limit, so its verdict arrives
-  const r = await helperCall('GET', '/v1/latest', { timeoutMs: TIMEOUT_MS + 2000 })
+  // Longer than the job's own 5 s limit plus starting its container, so its verdict arrives
+  const r = await runJob('latest', {}, { timeoutMs: TIMEOUT_MS + 15_000 })
   if (!r || r.status !== 200) return { error: 'NETWORK' }
   const j = r.json as { release?: unknown; error?: unknown } | null
   if (j && typeof j.error === 'string') return { error: (FAILURES.includes(j.error) ? j.error : 'BAD_RESPONSE') as NonNullable<UpdateCache['error']> }
