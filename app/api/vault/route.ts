@@ -20,7 +20,7 @@ async function handleGET() {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true, label: true, personId: true, person: { select: { name: true } } },
     }),
-    prisma.person.findUnique({ where: { id: session.personId }, select: { passwordHash: true } }),
+    prisma.person.findUnique({ where: { id: session.personId }, select: { passwordHash: true, vaultPasswordOff: true } }),
   ])
   return NextResponse.json({
     vault: { ...vault, passkeys: undefined, passwords: undefined },
