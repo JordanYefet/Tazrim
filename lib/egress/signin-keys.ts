@@ -16,7 +16,7 @@ export interface SigninKey {
 const b64u = (b: Uint8Array) => Buffer.from(b).toString('base64url')
 
 /** A COSE key (EC2 P-256, OKP Ed25519 or RSA) as { SPKI DER b64url, alg }; null for anything else or a broken key */
-export function coseToSpki(bytes: Uint8Array): { publicKey: string; alg: SigninKey['alg'] } | null {
+export function coseToSpki(bytes: Uint8Array<ArrayBuffer>): { publicKey: string; alg: SigninKey['alg'] } | null {
   try {
     const key = decodeCredentialPublicKey(bytes)
     let jwk: Record<string, string>

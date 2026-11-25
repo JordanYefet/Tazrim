@@ -84,4 +84,29 @@ export async function registerPasskey(
 
 export const registerPassword = (code: string, name: string, password: string) => call('/approvers/register/finish', { code, name, password })
 
+/** What the signed-in person can adopt as an approval key: how many sign-in passkeys, and whether they have a sign-in password */
+export interface SigninChoices {
+  passkeys: number
+  password: boolean
+}
+export const fetchSignin = () => call<SigninChoices>('/approvers/signin')
+
+/** Adopting the sign-in passkey: it signs the challenge the updater issued (the same Face ID prompt as an approval); the name is made by the app */
+export async function adoptPasskey(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  options: any,
+  code: string
+) {
+  let assertion
+  try {
+    assertion = await startAuthentication({ optionsJSON: options })
+  } catch (e) {
+    throw friendly(e)
+  }
+  return call('/approvers/register/finish', { code, assertion })
+}
+
+/** Adopting the sign-in password: the app checks it is the person's own before the updater hears of it */
+export const adoptPassword = (code: string, password: string) => call('/approvers/register/finish', { code, source: 'signin-password', password })
+
 export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
