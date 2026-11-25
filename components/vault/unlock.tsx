@@ -52,7 +52,7 @@ export function VaultUnlockHost() {
       setHasPassword(false)
       fetch('/api/vault', { cache: 'no-store' })
         .then(r => r.json())
-        .then(d => setHasPassword(!!d?.password?.opensVault))
+        .then(d => setHasPassword(!!d?.password?.has && !d.password.optedOut))
         .catch(() => {})
     }
     window.addEventListener(EVENT, onRequest)

@@ -24,8 +24,8 @@ async function handleGET() {
   ])
   return NextResponse.json({
     vault: { ...vault, passkeys: undefined, passwords: undefined },
-    /** The signed-in person's password: whether they have one, and whether it opens the vault (ENG-135) */
-    password: { has: !!me?.passwordHash, opensVault: vault.passwords.includes(session.personId) },
+    /** The signed-in person's password: whether they have one, and whether it opens the vault (ENG-135), and whether they turned it off (ENG-139) */
+    password: { has: !!me?.passwordHash, opensVault: vault.passwords.includes(session.personId), optedOut: !!me?.vaultPasswordOff },
     credentials,
     passkeys: passkeys.map(p => ({
       id: p.id,

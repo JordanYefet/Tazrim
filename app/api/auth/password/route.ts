@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { allow, fail, passwordTransportOr400, rpOr400, signedIn, TOO_MANY } from '@/lib/auth/http'
 import { checkPassword } from '@/lib/auth/household'
 import { createSession } from '@/lib/auth/session'
+import { passwordSeen } from '@/lib/vault/vault'
 import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +17,7 @@ async function handlePOST(req: Request) {
   const body = (await req.json().catch(() => null)) as { name?: unknown; password?: unknown } | null
   const person = await checkPassword(body?.name, body?.password)
   if (!person) return fail(401, 'השם או הסיסמה שגויים', 'BAD_PASSWORD')
+  await passwordSeen(person.id, body!.password as string)
   const token = await createSession(person.id, null)
   return signedIn({ ok: true }, token, rp)
 }

@@ -19,7 +19,7 @@ interface VaultInfo {
   credentials: Credential[]
   passkeys: Passkey[]
   /** The signed-in person's password: whether they have one, and whether it opens the vault */
-  password: { has: boolean; opensVault: boolean }
+  password: { has: boolean; opensVault: boolean; optedOut: boolean }
 }
 
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '')
@@ -199,7 +199,9 @@ export function VaultSettings() {
                       ? 'עוד אין לך סיסמה. מגדירים אותה בהגדרות ← אנשים.'
                       : password.opensVault
                         ? 'פועל: אפשר לפתוח את הכספת עם הסיסמה שבה נכנסים.'
-                        : 'כבוי. להפעלה צריך שהכספת תהיה פתוחה ולהקליד את הסיסמה.'}
+                        : password.optedOut
+                          ? 'כבוי. להפעלה צריך שהכספת תהיה פתוחה ולהקליד את הסיסמה.'
+                          : 'תופעל מעצמה בפעם הבאה שנכנסים עם הסיסמה והכספת פתוחה. אפשר להפעיל עכשיו: הכספת צריכה להיות פתוחה, ומקלידים את הסיסמה.'}
                   </span>
                 </span>
                 {password.opensVault ? (
