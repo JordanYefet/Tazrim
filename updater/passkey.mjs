@@ -92,6 +92,22 @@ export function challengeOf(resp) {
   return cd.ok && typeof cd.data.challenge === 'string' ? cd.data.challenge : null
 }
 
+/**
+ * An assertion by a sign-in passkey that is being adopted as an approver (ENG-139): the key is
+ * known (`{ publicKey, alg, rpId }`) but the origin was never stored, so it is taken from the
+ * assertion's own clientData once it passes the same origin-under-rpId rule registration applies.
+ * Everything else is verifyAssertion's. -> { ok, origin } or { ok: false, code }
+ */
+export function verifyAdoptedAssertion(resp, { publicKey, alg, rpId }, challenge) {
+  const parts = split(resp)
+  if (!parts) return fail('BAD_RESPONSE')
+  const cd = clientDataOf(parts.inner, 'webauthn.get')
+  if (!cd.ok) return cd
+  if (typeof cd.data.origin !== 'string' || !originOk(cd.data.origin, rpId)) return fail('BAD_ORIGIN')
+  const v = verifyAssertion(resp, { publicKey, alg, rpId, origin: cd.data.origin }, challenge)
+  return v.ok ? { ok: true, origin: cd.data.origin } : v
+}
+
 /** The credential id of an assertion */
 export const credentialIdOf = resp => split(resp)?.id ?? null
 
@@ -125,7 +141,7 @@ export function verifyAssertion(resp, approver, challenge) {
 
 /** Approval passwords: scrypt, parameters stored with the hash so they can be raised later */
 export const SCRYPT = Object.freeze({ N: 2 ** 15, r: 8, p: 1, keylen: 64 })
-export const MIN_PASSWORD = 12
+export const MIN_PASSWORD = 10
 
 const scrypt = (password, salt, { N, r, p, keylen }) =>
   new Promise((resolve, reject) => crypto.scrypt(password.normalize('NFKC'), salt, keylen, { N, r, p, maxmem: 128 * N * r * 2 }, (e, k) => (e ? reject(e) : resolve(k))))

@@ -20,7 +20,7 @@
  *
  * Nothing is kept in memory (ENG-136): every call runs in its own short-lived job container. What
  * has to survive from one call to the next lives in <install>/.tazrim-approvers/ (0700, root):
- *   pending-registration.json  { challenge, rpId, code, expires, tries }
+ *   pending-registration.json  { challenge, rpId, code, expires, tries, adopt? }
  *   pending-approvals.json     { <flowId>: { challenge, change, rpId, expires } }
  *   password-lock.json         { fails: [ms], until }
  * Expiry is checked when a file is read; a stale code file is removed by the next call that sees it.
@@ -33,12 +33,14 @@ import { EGRESS_FILE } from './config.mjs'
 import { updateChange } from './compose-files.mjs'
 import { checkDomain, covers } from './egress-rules.mjs'
 import { copyNew, isRealDir, isRealFile, readPlain, realDir, writeText } from './files.mjs'
-import { challengeOf, checkPassword, credentialIdOf, b64u, hashPassword, MIN_PASSWORD, verifyAssertion, verifyRegistration } from './passkey.mjs'
+import { challengeOf, checkPassword, credentialIdOf, b64u, hashPassword, MIN_PASSWORD, verifyAdoptedAssertion, verifyAssertion, verifyRegistration, ALGS } from './passkey.mjs'
 
 export const INSTALL_DIR = '/install'
 export const CODE_FILE = 'tazrim-approval-code.txt'
 export const CODE_TTL_MS = 10 * 60 * 1000
 export const CODE_TRIES = 5
+const ADOPT_MAX = 20
+const B64U_RE = /^[A-Za-z0-9_-]+$/
 export const APPROVAL_TTL_MS = 2 * 60 * 1000
 export const PASSWORD_TRIES = 5
 export const PASSWORD_LOCK_MS = 15 * 60 * 1000
@@ -319,8 +321,30 @@ export function createEgress({
 
   const validRpId = v => typeof v === 'string' && HOST_RE.test(v)
 
+  /** The sign-in passkeys the app offers to adopt (ENG-139), checked strictly: null when any entry is off */
+  function cleanAdopt(list) {
+    if (!Array.isArray(list) || list.length === 0 || list.length > ADOPT_MAX) return null
+    const out = []
+    for (const e of list) {
+      if (!e || typeof e !== 'object') return null
+      const { id, publicKey, alg } = e
+      if (typeof id !== 'string' || !id || id.length > 400 || !B64U_RE.test(id)) return null
+      if (typeof publicKey !== 'string' || !B64U_RE.test(publicKey) || !ALGS[String(alg)]) return null
+      try {
+        const key = crypto.createPublicKey({ key: Buffer.from(publicKey, 'base64url'), format: 'der', type: 'spki' })
+        if (key.asymmetricKeyType !== ALGS[String(alg)]) return null
+        out.push({ id, publicKey: key.export({ format: 'der', type: 'spki' }).toString('base64url'), alg })
+      } catch {
+        return null
+      }
+    }
+    return out
+  }
+
   function registerBegin(body) {
     if (!validRpId(body?.rpId)) return fail('BAD_RPID')
+    const adopt = body?.adopt === undefined ? null : cleanAdopt(body.adopt)
+    if (body?.adopt !== undefined && !adopt) return fail('BAD_ADOPT')
     const userName = typeof body?.userName === 'string' && body.userName.trim() ? body.userName.trim().slice(0, 64) : 'Tazrim'
     const rpName = typeof body?.rpName === 'string' && body.rpName.trim() ? body.rpName.trim().slice(0, 64) : 'Tazrim'
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
@@ -328,7 +352,12 @@ export function createEgress({
     // The code file goes in the install folder itself, not in egress/: the app never mounts that
     writeText(files.code, `${code}\n`, { mode: 0o600, owner: owner(), fs })
     const challenge = b64u(crypto.randomBytes(32))
-    writeState(files.registration, { challenge, rpId: body.rpId, code, expires, tries: 0 })
+    writeState(files.registration, { challenge, rpId: body.rpId, code, expires, tries: 0, ...(adopt ? { adopt } : {}) })
+    if (adopt) {
+      // Signing in already proved who these keys belong to: they answer the challenge instead of being made again
+      const options = { challenge, rpId: body.rpId, allowCredentials: adopt.map(a => ({ type: 'public-key', id: a.id })), userVerification: 'required', timeout: 120000 }
+      return ok({ options, mode: 'adopt', codeFile: CODE_FILE, expiresAt: new Date(expires).toISOString() })
+    }
     const options = {
       challenge,
       rp: { id: body.rpId, name: rpName },
@@ -345,7 +374,7 @@ export function createEgress({
         .filter(a => isPasskey(a) && a.rpId === body.rpId)
         .map(a => ({ type: 'public-key', id: a.id })),
     }
-    return ok({ options, codeFile: CODE_FILE, expiresAt: new Date(expires).toISOString() })
+    return ok({ options, mode: 'create', codeFile: CODE_FILE, expiresAt: new Date(expires).toISOString() })
   }
 
   async function registerFinish(body) {
@@ -371,7 +400,17 @@ export function createEgress({
     const list = approvers()
     let entry
     let detail = name
-    if ('password' in (body ?? {}) && !body.response) {
+    if (pending.adopt || body?.assertion) {
+      // A sign-in passkey, adopted: the person proves it by signing this registration's challenge
+      if (!pending.adopt || !body?.assertion || body.response || 'password' in body) return fail('BAD_REGISTRATION')
+      const found = pending.adopt.find(a => a.id === credentialIdOf(body.assertion))
+      if (!found) return fail('NOT_FOUND')
+      const v = verifyAdoptedAssertion(body.assertion, { publicKey: found.publicKey, alg: found.alg, rpId: pending.rpId }, pending.challenge)
+      if (!v.ok) return fail(v.code)
+      entry = { id: found.id, kind: 'passkey', name, publicKey: found.publicKey, alg: found.alg, rpId: pending.rpId, origin: v.origin, createdAt: at, adopted: true }
+      const dup = list.findIndex(a => a.id === entry.id)
+      if (dup >= 0) list.splice(dup, 1)
+    } else if ('password' in (body ?? {}) && !body.response) {
       const pw = body.password
       if (typeof pw !== 'string' || [...pw].length < MIN_PASSWORD || pw.length > 256) return fail('WEAK_PASSWORD')
       const h = await hashPassword(pw)
