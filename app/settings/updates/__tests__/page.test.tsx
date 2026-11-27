@@ -8,6 +8,7 @@ const redirect = vi.fn((url: string) => {
 })
 const getUpdateView = vi.fn()
 vi.mock('next/navigation', () => ({ redirect: (url: string) => redirect(url) }))
+vi.mock('@/lib/auth/http', () => ({ viewerIsAdmin: async () => true }))
 vi.mock('@/lib/updates/state', () => ({ getUpdateView: () => getUpdateView() }))
 vi.mock('@/components/updates/version-card', () => ({
   VersionCard: ({ initial }: { initial: { current: string } }) => <p>version card {initial.current}</p>,
@@ -43,5 +44,17 @@ describe('Settings → Updates', () => {
     const html = renderToStaticMarkup(await UpdatesPage())
     expect(html).not.toContain('version card')
     expect(html).toContain(pkg.version)
+  })
+
+  it('a member sees the card dimmed under a line why (ENG-140)', async () => {
+    vi.stubEnv('TAZRIM_READ_ONLY', '0')
+    getUpdateView.mockResolvedValue({ current: '9.1.0' })
+    const http = await import('@/lib/auth/http')
+    vi.spyOn(http, 'viewerIsAdmin').mockResolvedValue(false)
+    const { default: UpdatesPage } = await import('../page')
+    const html = renderToStaticMarkup(await UpdatesPage())
+    expect(html).toContain('version card 9.1.0')
+    expect(html).toContain('משנים מנהלים ומנהלות')
+    expect(html).toContain('inert')
   })
 })

@@ -41,9 +41,10 @@ function RowIcon({ icon: Icon, muted = false }: { icon: LucideIcon; muted?: bool
 /**
  * Settings → the vault (ENG-90): whether it is open and until when, which
  * passkeys can open it, the recovery key and starting over. The sign-ins it
- * holds are managed on their accounts (Settings → accounts).
+ * holds are managed on their accounts (Settings → accounts). A new recovery key and starting
+ * over are for admins (ENG-140): a member sees them dimmed, with a line why.
  */
-export function VaultSettings() {
+export function VaultSettings({ isAdmin = true }: { isAdmin?: boolean }) {
   const [info, setInfo] = useState<VaultInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -225,7 +226,7 @@ export function VaultSettings() {
                   <span className="block text-[0.9375rem] font-medium">מפתח שחזור לכספת</span>
                   <span className="block text-[0.8125rem] text-muted-foreground text-pretty">פותח את הכספת בלי מפתח, כדי להוסיף מפתח חדש.</span>
                 </span>
-                <button type="button" disabled={!open} onClick={() => setRenewing(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>מפתח חדש</button>
+                <button type="button" disabled={!open || !isAdmin} onClick={() => setRenewing(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>מפתח חדש</button>
               </div>
               <div className={ROW}>
                 <RowIcon icon={RotateCcw} />
@@ -233,12 +234,13 @@ export function VaultSettings() {
                   <span className="block text-[0.9375rem] font-medium">התחלה מחדש</span>
                   <span className="block text-[0.8125rem] text-muted-foreground text-pretty">מוחק את הכספת ואת פרטי הכניסה שבה. החשבונות והתנועות נשארים.</span>
                 </span>
-                <button type="button" disabled={busy} onClick={() => setResetting(true)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
+                <button type="button" disabled={busy || !isAdmin} onClick={() => setResetting(true)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
               </div>
             </div>
             <p className="px-1 text-[0.78125rem] leading-relaxed text-muted-foreground text-pretty">
               בלי מפתח ובלי מפתח השחזור אי אפשר לפתוח את הכספת, גם לא מהשרת. אז מתחילים מחדש ומקלידים את פרטי הכניסה שוב: התנועות לא נפגעות.
             </p>
+            {!isAdmin && <p className="px-1 text-[0.78125rem] leading-relaxed text-muted-foreground text-pretty">מפתח שחזור חדש ומחיקת הכספת: רק מנהל/ת.</p>}
           </section>
         </>
       )}
