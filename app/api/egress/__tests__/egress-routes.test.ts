@@ -7,7 +7,22 @@ import { isSensitiveRoute, logged } from '@/lib/log/route'
 import { resetHelperCache } from '@/lib/updates/helper'
 
 // These test what each route does; who may call it (admins only, ENG-140) is tested in lib/auth/__tests__/roles-routes.test.ts
-vi.mock('@/lib/auth/http', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/auth/http')>()), adminRefusal: async () => null }))
+const mocks = vi.hoisted(() => ({
+  session: null as null | { personId: string; personName: string },
+  keys: [] as { id: string; label: string; publicKey: string; alg: number }[],
+  hasPassword: false,
+  password: 'fake-signin-password-1',
+  checked: [] as string[],
+}))
+vi.mock('@/lib/auth/http', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/auth/http')>()), adminRefusal: async () => null, currentSession: async () => mocks.session }))
+vi.mock('@/lib/auth/household', () => ({
+  hasOwnPassword: async () => mocks.hasPassword,
+  checkOwnPassword: async (_id: string, pw: string) => {
+    mocks.checked.push(pw)
+    return pw === mocks.password
+  },
+}))
+vi.mock('@/lib/egress/signin-keys', () => ({ signinKeysFor: async () => mocks.keys }))
 
 let dir: string
 const post = (route: string, body: unknown, headers: Record<string, string> = {}) =>
@@ -31,6 +46,10 @@ function helper(answers: Record<string, { status: number; json: unknown }>) {
 const HEALTH = { '/v1/health': { status: 200, json: { ok: true, api: 2, launcherVersion: '1.30.0' } } }
 
 beforeEach(() => {
+  mocks.session = null
+  mocks.keys = []
+  mocks.hasPassword = false
+  mocks.checked = []
   resetLog()
   resetHelperCache()
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'egress-routes-'))
@@ -232,5 +251,120 @@ describe('the passkey routes log keys only', () => {
     const { POST } = await import('../approve/begin/route')
     const body = await (await POST(post('approve/begin', { change: { action: 'turn-off' } }))).json()
     expect(body).toEqual({ flowId: 'f1', options: null, passwordAllowed: true, change: { action: 'turn-off' } })
+  })
+})
+
+describe('approve/begin and finish: the first approval and add-approver (ENG-141)', () => {
+  const BEGIN = '/v1/jobs/egress-approve-begin'
+  const FINISH = '/v1/jobs/egress-approve-finish'
+  const KEYS = [
+    { id: 'cred-a', label: 'iPhone', publicKey: 'AAAA', alg: -7 },
+    { id: 'cred-b', label: 'Mac', publicKey: 'BBBB', alg: -8 },
+  ]
+  beforeEach(() => {
+    mocks.session = { personId: 'p1', personName: 'Dana' }
+    mocks.keys = KEYS
+    mocks.hasPassword = true
+  })
+
+  it('begin sends the signed-in admin\'s keys (named person · device), whether they have a password, and their name', async () => {
+    const calls = helper({ [BEGIN]: { status: 200, json: { flowId: 'f', options: {}, passwordAllowed: true, bootstrap: true, change: { action: 'turn-off' }, junk: 1 } } })
+    const { POST } = await import('../approve/begin/route')
+    const res = await POST(post('approve/begin', { change: { action: 'turn-off' } }))
+    expect(await res.json()).toEqual({ flowId: 'f', options: {}, passwordAllowed: true, bootstrap: true, change: { action: 'turn-off' } })
+    expect(calls[0].body).toEqual({
+      change: { action: 'turn-off' },
+      rpId: 'localhost',
+      adopt: [
+        { id: 'cred-a', publicKey: 'AAAA', alg: -7, name: 'Dana · iPhone' },
+        { id: 'cred-b', publicKey: 'BBBB', alg: -8, name: 'Dana · Mac' },
+      ],
+      adoptPassword: true,
+      userName: 'Dana',
+    })
+  })
+
+  it('without a session or keys nothing is offered', async () => {
+    const calls = helper({ [BEGIN]: { status: 200, json: { flowId: 'f' } } })
+    const { POST } = await import('../approve/begin/route')
+    mocks.session = null
+    await POST(post('approve/begin', { change: { action: 'turn-off' } }))
+    mocks.session = { personId: 'p1', personName: 'Dana' }
+    mocks.keys = []
+    mocks.hasPassword = false
+    await POST(post('approve/begin', { change: { action: 'turn-off' } }))
+    expect(calls[0].body).toEqual({ change: { action: 'turn-off' }, rpId: 'localhost' })
+    expect(calls[1].body).toEqual({ change: { action: 'turn-off' }, rpId: 'localhost', adoptPassword: false, userName: 'Dana' })
+  })
+
+  it('add-approver sends the plain change plus only the kind being added', async () => {
+    const calls = helper({ [BEGIN]: { status: 200, json: { flowId: 'f' } } })
+    const { POST } = await import('../approve/begin/route')
+    await POST(post('approve/begin', { change: { action: 'add-approver', kind: 'passkey' } }))
+    await POST(post('approve/begin', { change: { action: 'add-approver', kind: 'password' } }))
+    expect(calls[0].body).toMatchObject({ change: { action: 'add-approver' }, adoptPassword: false, adopt: [{ id: 'cred-a' }, { id: 'cred-b' }] })
+    expect(calls[1].body).toMatchObject({ change: { action: 'add-approver' }, adoptPassword: true })
+    expect(calls[1].body).not.toHaveProperty('adopt')
+    for (const change of [{ action: 'add-approver' }, { action: 'add-approver', kind: 'both' }]) expect((await POST(post('approve/begin', { change }))).status).toBe(400)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('add-approver for a kind the person does not have is refused before the helper', async () => {
+    const calls = helper({ [BEGIN]: { status: 200, json: {} } })
+    const { POST } = await import('../approve/begin/route')
+    mocks.keys = []
+    expect((await POST(post('approve/begin', { change: { action: 'add-approver', kind: 'passkey' } }))).status).toBe(409)
+    mocks.hasPassword = false
+    expect((await POST(post('approve/begin', { change: { action: 'add-approver', kind: 'password' } }))).status).toBe(409)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('finish with { signin } checks the sign-in password first: a wrong one is not relayed, the right one is', async () => {
+    const calls = helper({ [FINISH]: { status: 200, json: { ok: true, adoptToken: 'tok', adoptOptions: { challenge: 'c' }, junk: 1 } } })
+    const { POST } = await import('../approve/finish/route')
+    const wrong = await POST(post('approve/finish', { flowId: 'f1', password: 'not it', signin: true }))
+    expect(wrong.status).toBe(403)
+    expect((await wrong.json()).code).toBe('BAD_PASSWORD')
+    expect(calls).toHaveLength(0)
+    const right = await POST(post('approve/finish', { flowId: 'f1', password: mocks.password, signin: true }))
+    expect(await right.json()).toEqual({ ok: true, adoptToken: 'tok', adoptOptions: { challenge: 'c' } })
+    expect(calls[0].body).toEqual({ flowId: 'f1', password: mocks.password })
+    expect(mocks.checked).toEqual(['not it', mocks.password])
+  })
+
+  it('finish without { signin } relays the password as it is (it is checked against the pinned one in the updater)', async () => {
+    const calls = helper({ [FINISH]: { status: 200, json: { ok: true } } })
+    const { POST } = await import('../approve/finish/route')
+    await POST(post('approve/finish', { flowId: 'f1', password: 'whatever' }))
+    expect(calls[0].body).toEqual({ flowId: 'f1', password: 'whatever' })
+    expect(mocks.checked).toEqual([])
+  })
+
+  it('finish with { signin } and no session is 401', async () => {
+    helper({ [FINISH]: { status: 200, json: { ok: true } } })
+    mocks.session = null
+    const { POST } = await import('../approve/finish/route')
+    expect((await POST(post('approve/finish', { flowId: 'f1', password: 'x', signin: true }))).status).toBe(401)
+  })
+
+  it('the first-approval refusals have their Hebrew lines', async () => {
+    helper({ [FINISH]: { status: 409, json: { error: 'BOOTSTRAP_TAKEN', detail: 'x' } } })
+    const { POST } = await import('../approve/finish/route')
+    const body = await (await POST(post('approve/finish', { response: { id: 'c' } }))).json()
+    expect(body.code).toBe('BOOTSTRAP_TAKEN')
+    expect(body.error).toMatch(/[֐-׿]/)
+  })
+
+  it('register/finish takes a token instead of the code, and passes no code or name with it', async () => {
+    const calls = helper({ '/v1/jobs/egress-register-finish': { status: 200, json: { ok: true, approver: { id: 'a', name: 'n', rpId: 'localhost', createdAt: 'x', kind: 'passkey' } } } })
+    const { POST } = await import('../approvers/register/finish/route')
+    expect((await POST(post('approvers/register/finish', { token: 'tok', assertion: { id: 'cred-a' } }))).status).toBe(200)
+    expect(calls[0].body).toEqual({ token: 'tok', assertion: { id: 'cred-a' } })
+    expect((await POST(post('approvers/register/finish', { token: 'tok', source: 'signin-password', password: 'wrong' }))).status).toBe(403)
+    expect(calls).toHaveLength(1)
+    expect((await POST(post('approvers/register/finish', { token: 'tok', source: 'signin-password', password: mocks.password }))).status).toBe(200)
+    expect(calls[1].body).toEqual({ token: 'tok', password: mocks.password })
+    expect((await POST(post('approvers/register/finish', { token: 'tok', password: 'x', name: 'n' }))).status).toBe(400)
+    expect((await POST(post('approvers/register/finish', { name: 'n' }))).status).toBe(400)
   })
 })

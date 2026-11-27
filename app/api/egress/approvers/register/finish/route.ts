@@ -12,7 +12,9 @@ export const dynamic = 'force-dynamic'
 const refuse = (status: number, code: string) => NextResponse.json({ code, error: egressMessage(code) }, { status })
 
 /**
- * POST { code, name, ... }: the code is the one typed from the file. 200 { ok, approver }. Keys-only in the log.
+ * POST { code, name, ... }: the code is the one typed from the file (recovery, ENG-141). 200 { ok, approver }. Keys-only in the log.
+ * POST { token, assertion } or { token, source: 'signin-password', password }: the second half of add-approver: the
+ * token came from the approval an existing approver signed, so there is no code and no file.
  * - { response }: a new passkey
  * - { password }: a new approval password (10 characters or more)
  * - { assertion }: the signed-in person's sign-in passkey, signing the challenge; `name` may be left out
@@ -25,10 +27,13 @@ async function handlePOST(req: Request) {
   if (refused) return refused
   const notAdmin = await adminRefusal()
   if (notAdmin) return notAdmin
-  const body = (await req.json().catch(() => null)) as { code?: unknown; name?: unknown; response?: unknown; assertion?: unknown; password?: unknown; source?: unknown } | null
+  const body = (await req.json().catch(() => null)) as { code?: unknown; name?: unknown; response?: unknown; assertion?: unknown; password?: unknown; source?: unknown; token?: unknown } | null
   const code = typeof body?.code === 'string' ? body.code.trim().slice(0, 12) : ''
+  const token = typeof body?.token === 'string' ? body.token.trim().slice(0, 100) : ''
   let name = typeof body?.name === 'string' ? body.name.trim().slice(0, 60) : ''
-  if (!code) return refuse(400, 'INVALID')
+  if (!code && !token) return refuse(400, 'INVALID')
+  // With a token the updater has the name (made when the approval began); the code carries none
+  const proofOf = (extra: Record<string, unknown>) => (token ? { token, ...extra } : { code, name, ...extra })
 
   const wantsAssertion = !!body?.assertion && typeof body.assertion === 'object'
   const signinPassword = body?.source === 'signin-password'
@@ -36,12 +41,12 @@ async function handlePOST(req: Request) {
     const session = await currentSession()
     if (!session) return refuse(401, 'SIGNED_OUT')
     if (wantsAssertion) {
-      if (!name) {
+      if (!name && !token) {
         const id = (body!.assertion as { id?: unknown }).id
         const key = typeof id === 'string' ? await prisma.passkey.findFirst({ where: { personId: session.personId, credentialId: id }, select: { label: true } }) : null
         name = key ? `${key.label} של ${session.personName}`.slice(0, 60) : session.personName.slice(0, 60)
       }
-      const r = await relay('egress-register-finish', { code, name, assertion: body!.assertion })
+      const r = await relay('egress-register-finish', proofOf({ assertion: body!.assertion }))
       return NextResponse.json(r.body, { status: r.status })
     }
     const password = typeof body?.password === 'string' && body.password && body.password.length <= 500 ? body.password : null
@@ -52,13 +57,13 @@ async function handlePOST(req: Request) {
     if (insecure) return insecure
     if (!allow(req, 'egress-password', 10, 15 * 60 * 1000)) return TOO_MANY()
     if (!(await checkOwnPassword(session.personId, password))) return refuse(403, 'BAD_PASSWORD')
-    const r = await relay('egress-register-finish', { code, name: name || session.personName.slice(0, 60), password })
+    const r = await relay('egress-register-finish', token ? { token, password } : { code, name: name || session.personName.slice(0, 60), password })
     return NextResponse.json(r.body, { status: r.status })
   }
 
   const proof =
     body?.response && typeof body.response === 'object' ? { response: body.response } : typeof body?.password === 'string' && body.password && body.password.length <= 500 ? { password: body.password } : null
-  if (!name || !proof) return refuse(400, 'INVALID')
+  if (token || !name || !proof) return refuse(400, 'INVALID')
   const r = await relay('egress-register-finish', { code, name, ...proof })
   return NextResponse.json(r.body, { status: r.status })
 }

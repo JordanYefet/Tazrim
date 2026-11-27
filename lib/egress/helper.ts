@@ -87,8 +87,8 @@ const KEEP = {
   'egress-on': ['job'],
   'egress-register-begin': ['options', 'mode', 'codeFile', 'expiresAt'],
   'egress-register-finish': ['ok', 'approver'],
-  'egress-approve-begin': ['flowId', 'options', 'passwordAllowed', 'change'],
-  'egress-approve-finish': ['ok', 'change', 'job'],
+  'egress-approve-begin': ['flowId', 'options', 'passwordAllowed', 'change', 'bootstrap'],
+  'egress-approve-finish': ['ok', 'change', 'job', 'adoptToken', 'adoptOptions'],
 } as const satisfies Record<string, readonly string[]>
 
 /** One job run in the updater; its success body keeps only the known fields, a refusal becomes { code, error } in Hebrew */
@@ -111,7 +111,7 @@ export async function relay(job: keyof typeof KEEP, body: unknown): Promise<Rela
 
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.length > 0 && v.length <= max ? v : null)
 
-/** A change as the browser sent it, cut down to the five shapes the updater knows; null when it is none of them */
+/** A change as the browser sent it, cut down to the shapes the updater knows; null when it is none of them */
 export function parseChange(v: unknown): ChangeRequest | null {
   if (!v || typeof v !== 'object') return null
   const c = v as Record<string, unknown>
@@ -131,6 +131,8 @@ export function parseChange(v: unknown): ChangeRequest | null {
       const id = text(c.id, 400)
       return id ? { action: 'remove-approver', id } : null
     }
+    case 'add-approver':
+      return c.kind === 'passkey' || c.kind === 'password' ? { action: 'add-approver', kind: c.kind } : null
     case 'update-compose': {
       const confirm = parseConfirm({ files: c.files })
       const version = text(c.version, 20)

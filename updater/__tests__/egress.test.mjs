@@ -811,3 +811,249 @@ describe('approving an update\'s compose files (ENG-137)', () => {
     expect(r.body.error).toBe('BAD_CHANGE')
   })
 })
+
+describe('the first approval pins the approver (ENG-141)', () => {
+  const entry = (key, id = 'signin-1', name) => ({ id, publicKey: spki(key), alg: key.alg, ...(name ? { name } : {}) })
+  const first = (adopt, extra = {}) => egress.approveBegin({ change: addDomain(), rpId: RP, userName: 'דנה', ...(adopt ? { adopt } : {}), ...extra })
+  const pinned = () => (fs.existsSync(path.join(dir, '.tazrim-approvers/approvers.json')) ? readJson('approvers.json') : [])
+
+  it('without approvers, an offered sign-in passkey gets a bootstrap flow with exactly that credential', async () => {
+    const r = await first([entry(makeKey('es256'), 'signin-1', 'דנה · iPhone')])
+    expect(r.status).toBe(200)
+    expect(r.body).toMatchObject({ bootstrap: true, passwordAllowed: false, change: { action: 'add-domain' } })
+    expect(r.body.options).toMatchObject({ rpId: RP, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: 'signin-1' }] })
+    expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
+  })
+
+  it('nothing offered and nothing to adopt is NO_APPROVER, a broken adopt list is BAD_ADOPT', async () => {
+    expect((await first(null)).body.error).toBe('NO_APPROVER')
+    expect((await first([{ id: 'x', publicKey: 'zz', alg: -7 }])).body.error).toBe('BAD_ADOPT')
+  })
+
+  for (const kind of ['es256', 'eddsa', 'rs256']) {
+    it(`one ${kind} assertion pins the key, applies the change and logs both`, async () => {
+      const key = makeKey(kind)
+      const b = await first([entry(key, 'signin-1', 'דנה · iPhone')])
+      const r = await egress.approveFinish({ flowId: b.body.flowId, response: assertion(key, { id: 'signin-1', challenge: b.body.options.challenge, origin: `https://app.${RP}:3443` }) })
+      expect(r.body.ok).toBe(true)
+      expect(pinned()).toHaveLength(1)
+      expect(pinned()[0]).toMatchObject({ id: 'signin-1', kind: 'passkey', name: 'דנה · iPhone', publicKey: spki(key), rpId: RP, origin: `https://app.${RP}:3443`, adopted: true, pinnedBy: 'first-use' })
+      expect(readJson('extra-domains.json')[0]).toMatchObject({ domain: '.shop.example', approver: 'דנה · iPhone' })
+      const lines = logLines()
+      expect(lines.at(-2)).toMatchObject({ action: 'add-approver', detail: 'דנה · iPhone (first use)' })
+      expect(lines.at(-1)).toMatchObject({ action: 'add-domain', approver: 'דנה · iPhone' })
+      // the pinned key approves the next change the usual way
+      const next = await begin(addDomain('.other.example'))
+      expect(next.body.bootstrap).toBeUndefined()
+      expect((await egress.approveFinish({ flowId: next.body.flowId, response: assertion(key, { id: 'signin-1', challenge: next.body.options.challenge, origin: `https://app.${RP}:3443` }) })).body.ok).toBe(true)
+    })
+  }
+
+  it('a key that was not offered, another key\'s signature or another challenge pins nothing', async () => {
+    const key = makeKey('es256')
+    const b = await first([entry(key)])
+    expect((await egress.approveFinish({ response: assertion(key, { id: 'other-id', challenge: b.body.options.challenge }) })).body.error).toBe('UNKNOWN_CREDENTIAL')
+    expect(pinned()).toEqual([])
+    const b2 = await first([entry(key)])
+    expect((await egress.approveFinish({ response: assertion(key, { id: 'signin-1', challenge: b2.body.options.challenge, signer: makeKey('es256') }) })).body.error).toBe('BAD_SIGNATURE')
+    const b3 = await first([entry(key)])
+    expect((await egress.approveFinish({ response: assertion(key, { id: 'signin-1', challenge: 'not-the-challenge' }) })).body.error).toBe('CHALLENGE_UNKNOWN')
+    expect(b3.status).toBe(200)
+    expect(pinned()).toEqual([])
+    expect(fs.existsSync(path.join(dir, 'egress/extra-domains.json'))).toBe(false)
+  })
+
+  it('the sign-in password is hashed and pinned, and the change applied; the password is never stored or logged', async () => {
+    const b = await first(null, { adoptPassword: true })
+    expect(b.body).toMatchObject({ bootstrap: true, options: null, passwordAllowed: true })
+    const r = await egress.approveFinish({ flowId: b.body.flowId, password: PASSWORD })
+    expect(r.body.ok).toBe(true)
+    expect(pinned()[0]).toMatchObject({ kind: 'password', name: 'דנה', adopted: true, pinnedBy: 'first-use' })
+    expect(JSON.stringify(pinned())).not.toContain(PASSWORD)
+    expect(JSON.stringify(logLines())).not.toContain(PASSWORD)
+    expect(logLines().at(-2)).toMatchObject({ action: 'add-approver', detail: 'דנה (first use)' })
+    expect(readJson('extra-domains.json')[0]).toMatchObject({ approver: 'דנה (סיסמה)' })
+    // it then approves like any approval password
+    const next = await begin(addDomain('.other.example'))
+    expect((await egress.approveFinish({ flowId: next.body.flowId, password: PASSWORD })).body.ok).toBe(true)
+  })
+
+  it('a password cannot finish a flow that did not offer one, and a short one pins nothing', async () => {
+    const key = makeKey('es256')
+    const b = await first([entry(key)])
+    expect((await egress.approveFinish({ flowId: b.body.flowId, password: PASSWORD })).body.error).toBe('NO_APPROVER')
+    const b2 = await first(null, { adoptPassword: true })
+    expect((await egress.approveFinish({ flowId: b2.body.flowId, password: 'short' })).body.error).toBe('WEAK_PASSWORD')
+    expect(pinned()).toEqual([])
+  })
+
+  it('once an approver exists the app cannot start it: adopt is ignored and an unknown credential refused', async () => {
+    await registerPasskey(makeKey('es256'))
+    const mine = makeKey('es256')
+    const b = await first([entry(mine, 'app-own-key')], { adoptPassword: true })
+    expect(b.body.bootstrap).toBeUndefined()
+    expect(b.body.passwordAllowed).toBe(false)
+    expect(b.body.options.allowCredentials).toEqual([{ type: 'public-key', id: 'cred-1' }])
+    const r = await egress.approveFinish({ response: assertion(mine, { id: 'app-own-key', challenge: b.body.options.challenge }) })
+    expect(r.body.error).toBe('UNKNOWN_CREDENTIAL')
+    expect(pinned()).toHaveLength(1)
+  })
+
+  it('an approver pinned while the person was answering is BOOTSTRAP_TAKEN, and nothing is applied', async () => {
+    const key = makeKey('es256')
+    const b = await first([entry(key)])
+    await registerPasskey(makeKey('es256'), { id: 'cred-9', name: 'Other' })
+    const r = await egress.approveFinish({ response: assertion(key, { id: 'signin-1', challenge: b.body.options.challenge }) })
+    expect(r.body.error).toBe('BOOTSTRAP_TAKEN')
+    expect(pinned().map(a => a.id)).toEqual(['cred-9'])
+    expect(fs.existsSync(path.join(dir, 'egress/extra-domains.json'))).toBe(false)
+  })
+
+  it('a bootstrap flow is no approval for an update (verifyApproval is unchanged), and updates get no bootstrap', async () => {
+    const change = { action: 'update-compose', version: '1.2.0', files: { 'docker-compose.yml': 'c'.repeat(64) } }
+    expect((await egress.approveBegin({ change, rpId: RP, adoptPassword: true })).body.error).toBe('NO_APPROVER')
+    const b = await first(null, { adoptPassword: true })
+    const r = await egress.verifyApproval({ flowId: b.body.flowId, password: PASSWORD }, change)
+    expect(r.body.error).toBe('CHALLENGE_UNKNOWN')
+    expect(pinned()).toEqual([])
+  })
+
+  it('works from another job container: begin in one instance, finish in the next', async () => {
+    const key = makeKey('es256')
+    const b = await first([entry(key)])
+    const r = await restart().approveFinish({ response: assertion(key, { id: 'signin-1', challenge: b.body.options.challenge }) })
+    expect(r.body.ok).toBe(true)
+  })
+})
+
+describe('adding an approver needs an existing one (ENG-141)', () => {
+  const entry = (key, id = 'signin-2', name) => ({ id, publicKey: spki(key), alg: key.alg, ...(name ? { name } : {}) })
+  const start = extra => egress.approveBegin({ change: { action: 'add-approver' }, rpId: RP, userName: 'דנה', ...extra })
+  const pinned = () => readJson('approvers.json')
+
+  it('with no approver there is nothing to approve it with', async () => {
+    expect((await start({ adopt: [entry(makeKey('es256'))] })).body.error).toBe('NO_APPROVER')
+  })
+
+  it('a pinned passkey approves, then the new key signs a fresh challenge: pinned and logged under the approver', async () => {
+    const old = makeKey('es256')
+    await registerPasskey(old, { id: 'cred-1', name: 'Mac' })
+    const fresh = makeKey('eddsa')
+    const b = await start({ adopt: [entry(fresh, 'signin-2', 'דנה · iPhone')] })
+    expect(b.body.options.allowCredentials).toEqual([{ type: 'public-key', id: 'cred-1' }])
+    const a = await egress.approveFinish({ flowId: b.body.flowId, response: assertion(old, { id: 'cred-1', challenge: b.body.options.challenge }) })
+    expect(a.body).toMatchObject({ ok: true, change: { action: 'add-approver' } })
+    expect(a.body.adoptToken).toBeTruthy()
+    expect(a.body.adoptOptions).toMatchObject({ rpId: RP, allowCredentials: [{ type: 'public-key', id: 'signin-2' }] })
+    expect(a.body.adoptOptions.challenge).not.toBe(b.body.options.challenge)
+    expect(pinned()).toHaveLength(1)
+    const r = await egress.registerFinish({ token: a.body.adoptToken, assertion: assertion(fresh, { id: 'signin-2', challenge: a.body.adoptOptions.challenge }) })
+    expect(r.body.approver).toMatchObject({ id: 'signin-2', kind: 'passkey', name: 'דנה · iPhone' })
+    expect(pinned().map(x => x.id)).toEqual(['cred-1', 'signin-2'])
+    expect(logLines().at(-1)).toMatchObject({ action: 'add-approver', detail: 'דנה · iPhone', approver: 'Mac' })
+    // single use
+    const again = await egress.registerFinish({ token: a.body.adoptToken, assertion: assertion(fresh, { id: 'signin-2', challenge: a.body.adoptOptions.challenge }) })
+    expect(again.body.error).toBe('CHALLENGE_UNKNOWN')
+  })
+
+  it('a forged new-key assertion (another key, another challenge, a key not offered) pins nothing', async () => {
+    const old = makeKey('es256')
+    await registerPasskey(old)
+    const fresh = makeKey('es256')
+    const tries = [
+      (o, c) => assertion(fresh, { id: 'signin-2', challenge: o.challenge, signer: makeKey('es256') }),
+      (o, c) => assertion(fresh, { id: 'signin-2', challenge: c }),
+      (o, c) => assertion(fresh, { id: 'attacker-key', challenge: o.challenge }),
+    ]
+    for (const forge of tries) {
+      const b = await start({ adopt: [entry(fresh)] })
+      const a = await egress.approveFinish({ flowId: b.body.flowId, response: assertion(old, { id: 'cred-1', challenge: b.body.options.challenge }) })
+      const r = await egress.registerFinish({ token: a.body.adoptToken, assertion: forge(a.body.adoptOptions, b.body.options.challenge) })
+      expect(r.status).toBeGreaterThanOrEqual(400)
+      expect(pinned()).toHaveLength(1)
+    }
+  })
+
+  it('no token, a made-up token or an expired one adds nothing; the file code still does not take a token', async () => {
+    const old = makeKey('es256')
+    await registerPasskey(old)
+    const fresh = makeKey('es256')
+    expect((await egress.registerFinish({ token: 'nope', assertion: assertion(fresh, { id: 'signin-2', challenge: 'x' }) })).body.error).toBe('CHALLENGE_UNKNOWN')
+    const b = await start({ adopt: [entry(fresh)] })
+    const a = await egress.approveFinish({ flowId: b.body.flowId, response: assertion(old, { id: 'cred-1', challenge: b.body.options.challenge }) })
+    clock.t += 3 * 60 * 1000
+    expect((await egress.registerFinish({ token: a.body.adoptToken, assertion: assertion(fresh, { id: 'signin-2', challenge: a.body.adoptOptions.challenge }) })).body.error).toBe('CHALLENGE_UNKNOWN')
+    expect(pinned()).toHaveLength(1)
+  })
+
+  it('a key that is already pinned is ALREADY_PINNED; only the new ones are offered', async () => {
+    const old = makeKey('es256')
+    await registerPasskey(old, { id: 'signin-1' })
+    expect((await start({ adopt: [entry(old, 'signin-1')] })).body.error).toBe('ALREADY_PINNED')
+    const b = await start({ adopt: [entry(old, 'signin-1'), entry(makeKey('es256'), 'signin-2')] })
+    const a = await egress.approveFinish({ flowId: b.body.flowId, response: assertion(old, { id: 'signin-1', challenge: b.body.options.challenge }) })
+    expect(a.body.adoptOptions.allowCredentials).toEqual([{ type: 'public-key', id: 'signin-2' }])
+  })
+
+  it('adopt and adoptPassword together, or neither, are BAD_ADOPT', async () => {
+    await registerPasskey(makeKey('es256'))
+    expect((await start({ adopt: [entry(makeKey('es256'))], adoptPassword: true })).body.error).toBe('BAD_ADOPT')
+    expect((await start({})).body.error).toBe('BAD_ADOPT')
+  })
+
+  it('the sign-in password is added, approved by a pinned passkey', async () => {
+    const old = makeKey('es256')
+    await registerPasskey(old, { name: 'Mac' })
+    const b = await start({ adoptPassword: true })
+    const a = await egress.approveFinish({ flowId: b.body.flowId, response: assertion(old, { id: 'cred-1', challenge: b.body.options.challenge }) })
+    expect(a.body.adoptOptions).toBeUndefined()
+    expect((await egress.registerFinish({ token: a.body.adoptToken, password: 'short' })).body.error).toBe('WEAK_PASSWORD')
+    const b2 = await start({ adoptPassword: true })
+    const a2 = await egress.approveFinish({ flowId: b2.body.flowId, response: assertion(old, { id: 'cred-1', challenge: b2.body.options.challenge }) })
+    const r = await egress.registerFinish({ token: a2.body.adoptToken, password: PASSWORD })
+    expect(r.body.approver).toMatchObject({ kind: 'password', name: 'דנה' })
+    expect(JSON.stringify(pinned())).not.toContain(PASSWORD)
+    expect(logLines().at(-1)).toMatchObject({ action: 'add-approver', approver: 'Mac' })
+  })
+
+  it('a changed sign-in password replaces the old one, approved by the OLD password', async () => {
+    await registerPassword('Home', PASSWORD)
+    const b = await start({ adoptPassword: true })
+    const a = await egress.approveFinish({ flowId: b.body.flowId, password: PASSWORD })
+    expect(a.body.adoptToken).toBeTruthy()
+    const NEW = 'a different fake password'
+    const r = await egress.registerFinish({ token: a.body.adoptToken, password: NEW })
+    expect(r.body.ok).toBe(true)
+    expect(pinned().filter(x => x.kind === 'password')).toHaveLength(1)
+    expect(logLines().at(-1)).toMatchObject({ action: 'add-approver', detail: 'דנה (password replaced)', approver: 'Home (סיסמה)' })
+    const next = await begin(addDomain())
+    expect((await egress.approveFinish({ flowId: next.body.flowId, password: PASSWORD })).body.error).toBe('BAD_PASSWORD')
+    const next2 = await begin(addDomain())
+    expect((await egress.approveFinish({ flowId: next2.body.flowId, password: NEW })).body.ok).toBe(true)
+  })
+
+  it('a password token cannot take an assertion, nor a passkey token a password', async () => {
+    const old = makeKey('es256')
+    await registerPasskey(old)
+    const fresh = makeKey('es256')
+    const pb = await start({ adoptPassword: true })
+    const pa = await egress.approveFinish({ flowId: pb.body.flowId, response: assertion(old, { id: 'cred-1', challenge: pb.body.options.challenge }) })
+    expect((await egress.registerFinish({ token: pa.body.adoptToken, assertion: assertion(fresh, { id: 'signin-2', challenge: 'x' }) })).body.error).toBe('BAD_REGISTRATION')
+    const kb = await start({ adopt: [entry(fresh)] })
+    const ka = await egress.approveFinish({ flowId: kb.body.flowId, response: assertion(old, { id: 'cred-1', challenge: kb.body.options.challenge }) })
+    expect((await egress.registerFinish({ token: ka.body.adoptToken, password: PASSWORD })).body.error).toBe('BAD_REGISTRATION')
+    expect(pinned()).toHaveLength(1)
+  })
+})
+
+describe('the code file stays as recovery (ENG-141)', () => {
+  it('registers a passkey, adopts a sign-in key and a password with the code even when approvers exist', async () => {
+    await registerPasskey(makeKey('es256'))
+    const key = makeKey('es256')
+    const b = await egress.registerBegin({ rpId: RP, adopt: [{ id: 'signin-3', publicKey: spki(key), alg: key.alg }] })
+    const r = await egress.registerFinish({ code: codeOnDisk(), name: 'Recovered', assertion: assertion(key, { id: 'signin-3', challenge: b.body.options.challenge }) })
+    expect(r.body.approver).toMatchObject({ id: 'signin-3', name: 'Recovered' })
+    expect((await registerPassword('Recovered pw')).body.ok).toBe(true)
+    expect(readJson('approvers.json')).toHaveLength(3)
+  })
+})
