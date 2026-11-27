@@ -368,11 +368,8 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
             </button>
           </div>
           <p className="min-h-5 text-xs text-muted-foreground text-pretty">
-            {signin && !signin.passkeys && !signin.password ? 'עוד אין לך מפתח או סיסמה לכניסה. אפשר להוסיף אחד בהגדרות ← אנשים, או ליצור מפתח או סיסמה רק לאישורים.' : signin && !signin.passkeys ? 'אין לך מפתח כניסה (Face ID, Touch ID).' : signin && !signin.password ? 'אין לך סיסמת כניסה.' : ''}
+            {signin && !signin.passkeys && !signin.password ? 'עוד אין לך מפתח או סיסמה לכניסה. מוסיפים אותם בהגדרות ← אנשים.' : signin && !signin.passkeys ? 'אין לך מפתח כניסה (Face ID, Touch ID).' : signin && !signin.password ? 'אין לך סיסמת כניסה.' : ''}
           </p>
-          <button type="button" className="min-h-11 text-sm text-primary underline-offset-4 hover-fine:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" disabled={!canEdit} onClick={() => setRegister('other')}>
-            מפתח או סיסמה אחרים
-          </button>
           <p className="text-xs text-muted-foreground text-pretty">מפתח בטוח יותר מסיסמה: את הסיסמה מקלידים בתוך האפליקציה. גם מפתח לא מראה למה הוא מאשר, ולכן היומן שלמטה הוא הרשומה של מה שאושר בפועל.</p>
         </section>
       )}

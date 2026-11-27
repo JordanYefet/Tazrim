@@ -1,6 +1,6 @@
 'use client'
 
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import { startAuthentication } from '@simplewebauthn/browser'
 import type { EgressJob, EgressView } from '@/lib/egress/types'
 
 /** A refusal from /api/egress: the route's own Hebrew line, and its fixed code */
@@ -65,24 +65,6 @@ export const proveWithPassword = async (begin: Begin, password: string): Promise
 
 /** The default end of an approval: the updater checks the proof and applies the change */
 export const finishApproval = (proof: Proof) => call<Approved>('/approve/finish', proof)
-
-/** Creates the passkey for the options the updater issued and registers it with the code from the file */
-export async function registerPasskey(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  options: any,
-  code: string,
-  name: string
-) {
-  let response
-  try {
-    response = await startRegistration({ optionsJSON: options })
-  } catch (e) {
-    throw friendly(e)
-  }
-  return call('/approvers/register/finish', { code, name, response })
-}
-
-export const registerPassword = (code: string, name: string, password: string) => call('/approvers/register/finish', { code, name, password })
 
 /** What the signed-in person can adopt as an approval key: how many sign-in passkeys, and whether they have a sign-in password */
 export interface SigninChoices {
