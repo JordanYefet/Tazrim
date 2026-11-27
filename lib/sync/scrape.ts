@@ -4,6 +4,8 @@
  * starts from a fresh temporary profile, so no cookies or sessions are kept.
  * The login is used for this run only: it is never stored or logged.
  *
+ * Behind the egress proxy each company's browser uses that company's own port (providerProxyArgs).
+ *
  * TAZRIM_FAKE_SYNC=1 swaps the site for made-up data (development, the demo
  * of the flow, tests); TAZRIM_SYNC_SHOW_BROWSER=1 shows the browser window
  * while debugging a login.
@@ -17,6 +19,8 @@ import type { SyncCompany } from './providers'
 import { redact } from '@/lib/log/redact'
 import { showSyncBrowser } from '@/lib/log/browser-flag'
 import { log } from '@/lib/log/logger'
+import { MAIN_PORT, portOfProvider } from '@/lib/egress/provider-ports'
+import { pushHouseholdProviders } from '@/lib/egress/household'
 
 export type ScrapeStep = 'starting' | 'logging-in' | 'fetching' | 'done'
 
@@ -63,6 +67,35 @@ export function syncProxyArgs(value: string | undefined): string[] {
   return /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?\/?$/.test(v) ? [`--proxy-server=${v.replace(/\/$/, '')}`] : []
 }
 
+/**
+ * The browser of one company behind the proxy (ENG-142): the same address, on that company's own
+ * Squid port, so the proxy lets it reach that company's sites and nothing else. Only a proxy on the
+ * default port (our Squid, TAZRIM_SYNC_PROXY=http://squid:3128) is moved; any other address is the
+ * person's own proxy and stays as it is. Without TAZRIM_SYNC_PROXY: nothing.
+ */
+export function providerProxyArgs(value: string | undefined, companyId: string): string[] {
+  const args = syncProxyArgs(value)
+  const port = portOfProvider(companyId)
+  if (!args.length || port === null) return args
+  const url = new URL(args[0].slice('--proxy-server='.length))
+  if (url.port !== String(MAIN_PORT)) return args
+  url.port = String(port)
+  return [`--proxy-server=${url.origin}`]
+}
+
+/**
+ * Chrome's own background traffic, off for the sync browser when it runs behind the proxy (ENG-142): the
+ * production proxy log showed it asking for update, autofill, sign-in and password-leak servers
+ * that no login needs, all refused. The library's launcher (puppeteer) already passes
+ * --disable-background-networking, --disable-sync, --disable-client-side-phishing-detection and
+ * --disable-features=Translate,MediaRouter,OptimizationHints; these are the ones it leaves on.
+ * (puppeteer merges every --disable-features it is given into one list.) Nothing without a proxy.
+ */
+export function quietBrowserArgs(proxy: string | undefined): string[] {
+  if (!syncProxyArgs(proxy).length) return []
+  return ['--disable-component-update', '--no-pings', '--disable-domain-reliability', '--no-default-browser-check', '--disable-features=AutofillServerCommunication,OptimizationHints,MediaRouter,Translate']
+}
+
 const ERROR_CODES: Record<string, ScrapeErrorCode> = {
   INVALID_PASSWORD: 'INVALID_PASSWORD',
   CHANGE_PASSWORD: 'CHANGE_PASSWORD',
@@ -78,13 +111,15 @@ export function scrape(req: ScrapeRequest): Promise<ScrapeResult> {
 async function realScrape({ company, credentials, startDate, onStep, requestOtp, runNo }: ScrapeRequest): Promise<ScrapeResult> {
   // Loaded on demand: the package pulls in puppeteer, which only the server needs
   const { createScraper } = await import('israeli-bank-scrapers')
+  // Behind the proxy: this company's port must list its domains (the household's providers go to the updater first; ENG-142)
+  if (syncProxyArgs(process.env.TAZRIM_SYNC_PROXY).length) await pushHouseholdProviders({ include: [company.id] })
   const scraper = createScraper({
     companyId: company.id as Parameters<typeof createScraper>[0]['companyId'],
     startDate,
     combineInstallments: false,
     showBrowser: showSyncBrowser(),
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: [...chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS), ...syncProxyArgs(process.env.TAZRIM_SYNC_PROXY)],
+    args: [...chromiumArgs(process.env.TAZRIM_CHROMIUM_ARGS), ...providerProxyArgs(process.env.TAZRIM_SYNC_PROXY, company.id), ...quietBrowserArgs(process.env.TAZRIM_SYNC_PROXY)],
     verbose: false,
   })
   scraper.onProgress((_id, { type }) => {

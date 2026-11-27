@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chromiumArgs, safeReason, syncProxyArgs } from '../scrape'
+import { chromiumArgs, providerProxyArgs, quietBrowserArgs, safeReason, syncProxyArgs } from '../scrape'
 
 // Made-up card digits and messages only.
 describe('safeReason', () => {
@@ -36,5 +36,32 @@ describe('syncProxyArgs', () => {
     expect(syncProxyArgs('squid:3128')).toEqual([])
     expect(syncProxyArgs('http://squid:3128 --disable-web-security')).toEqual([])
     expect(syncProxyArgs('socks5://squid:1080')).toEqual([])
+  })
+})
+
+describe('providerProxyArgs (ENG-142)', () => {
+  it('the browser of a company uses that company\'s own port on the same host', () => {
+    expect(providerProxyArgs('http://squid:3128', 'leumi')).toEqual(['--proxy-server=http://squid:3212'])
+    expect(providerProxyArgs('http://squid:3128/', 'visaCal')).toEqual(['--proxy-server=http://squid:3206'])
+    expect(providerProxyArgs('http://squid:3128', 'max')).toEqual(['--proxy-server=http://squid:3207'])
+  })
+  it('nothing without TAZRIM_SYNC_PROXY, and a proxy that is not our Squid port stays as the person wrote it', () => {
+    expect(providerProxyArgs(undefined, 'leumi')).toEqual([])
+    expect(providerProxyArgs('', 'leumi')).toEqual([])
+    expect(providerProxyArgs('http://proxy.example.com:8080', 'leumi')).toEqual(['--proxy-server=http://proxy.example.com:8080'])
+    expect(providerProxyArgs('--no-sandbox', 'leumi')).toEqual([])
+  })
+  it('a company without a port keeps the proxy as given', () => {
+    expect(providerProxyArgs('http://squid:3128', 'unknownBank')).toEqual(['--proxy-server=http://squid:3128'])
+  })
+})
+
+describe('quietBrowserArgs (ENG-142)', () => {
+  it('turns off Chrome\'s own background traffic behind the proxy, and adds nothing without one', () => {
+    const args = quietBrowserArgs('http://squid:3128')
+    expect(args).toEqual(expect.arrayContaining(['--disable-component-update', '--no-pings', '--disable-domain-reliability']))
+    expect(args.join(' ')).toContain('--disable-features=AutofillServerCommunication,OptimizationHints,MediaRouter,Translate')
+    expect(quietBrowserArgs(undefined)).toEqual([])
+    expect(quietBrowserArgs('nonsense')).toEqual([])
   })
 })

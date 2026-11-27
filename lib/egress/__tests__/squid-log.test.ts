@@ -88,3 +88,43 @@ describe('blockedDuring', () => {
     expect(blockedDuring((T + 100) * 1000, (T + 110) * 1000, file)).toEqual([])
   })
 })
+
+describe('the port a line ends with (ENG-142)', () => {
+  const withPort = (t: number, client: string, url: string, port: number | string) => `${line(t, client, 'TCP_DENIED/403', 'CONNECT', url)} ${port}`
+
+  it('reads the Squid port, and the provider whose port it is', () => {
+    expect(parseDenied(withPort(T, '172.31.1.5', 'chrome.example.test:443', 3212))).toEqual({ at: T * 1000, who: 'app', host: 'chrome.example.test', port: 3212, provider: 'leumi' })
+    expect(parseDenied(withPort(T, '172.31.1.5', 'chrome.example.test:443', 3207))).toMatchObject({ port: 3207, provider: 'max' })
+  })
+  it('the main port is a port with no provider', () => {
+    const d = parseDenied(withPort(T, '172.31.1.5', 'x.example.test:443', 3128))
+    expect(d).toMatchObject({ port: 3128 })
+    expect(d?.provider).toBeUndefined()
+  })
+  it('lines from before it (10 fields), or with a last field that is no port, parse as they did', () => {
+    const old = parseDenied(line(T, '172.31.1.5', 'TCP_DENIED/403', 'CONNECT', 'x.example.test:443'))
+    expect(old).toEqual({ at: T * 1000, who: 'app', host: 'x.example.test' })
+    expect(parseDenied(`${line(T, '172.31.1.5', 'TCP_DENIED/403', 'CONNECT', 'x.example.test:443')} oops`)).toEqual(old)
+    expect(parseDenied(withPort(T, '172.31.1.5', 'x.example.test:443', '99999999'))).toEqual(old)
+  })
+
+  it('blockedDuring for a company: its own port, lines without a port, and One Zero also on the main port; never another company\'s', () => {
+    fs.writeFileSync(
+      file,
+      [
+        withPort(T + 1, '172.31.1.5', 'leumi-only.example.test:443', 3212),
+        withPort(T + 2, '172.31.1.5', 'max-only.example.test:443', 3207),
+        withPort(T + 3, '172.31.1.5', 'main.example.test:443', 3128),
+        line(T + 4, '172.31.1.5', 'TCP_DENIED/403', 'CONNECT', 'old-line.example.test:443'),
+      ].join('\n')
+    )
+    const win = [T * 1000, (T + 10) * 1000] as const
+    expect(blockedDuring(...win, file, 'leumi')).toEqual(['leumi-only.example.test', 'old-line.example.test'])
+    expect(blockedDuring(...win, file, 'max')).toEqual(['max-only.example.test', 'old-line.example.test'])
+    expect(blockedDuring(...win, file, 'oneZero')).toEqual(['main.example.test', 'old-line.example.test'])
+    expect(blockedDuring(...win, file, 'visaCal')).toEqual(['old-line.example.test'])
+    // without a company: everything, as before
+    expect(blockedDuring(...win, file)).toHaveLength(4)
+  })
+})
+

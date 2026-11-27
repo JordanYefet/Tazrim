@@ -2,7 +2,7 @@
  * Runs once when the server starts (Next.js instrumentation): the "this computer"
  * door (lib/local-door.ts, when TAZRIM_LOCAL_PORT is set), the app settings and the
  * clock (lib/settings/app-settings.ts), the page-request log hook (lib/log/pages.ts), the one-time data updates a release needs
- * (lib/db/backfills.ts) and the daily update check. Never in the read-only demo
+ * (lib/db/backfills.ts), the household's providers for the egress proxy (lib/egress/household.ts) and the daily update check. Never in the read-only demo
  * (except the time zone), and a failure is logged, never fatal.
  */
 export async function register() {
@@ -48,6 +48,13 @@ export async function register() {
     if (res.ran) console.log(`backfills: text rules applied to notes (${res.changed} rows updated)`)
   } catch (e) {
     console.warn('backfills: failed, will try again on the next start', describeError(e))
+  }
+  // Network isolation (ENG-142): the proxy's per-provider lists follow the household's accounts
+  try {
+    const { startHouseholdSync } = await import('./lib/egress/household')
+    startHouseholdSync()
+  } catch (e) {
+    console.warn('network isolation: could not start telling the updater the household\'s providers', describeError(e))
   }
   try {
     const { startDailyCheck } = await import('./lib/updates/check')

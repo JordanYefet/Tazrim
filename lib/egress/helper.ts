@@ -6,6 +6,8 @@
 import { parseConfirm } from '@/lib/updates/compose'
 import { helperConfigJob, helperHealth, helperIsReady, runJob } from '@/lib/updates/helper'
 import { egressActive } from './config'
+import { householdProviderIds } from './household'
+import { isProviderId } from './provider-ports'
 import { cleanApprovers, cleanChanges, cleanExtras, readChanges, readExtraDomains } from './files'
 import { recentDenied } from './squid-log'
 import { egressMessage } from './messages'
@@ -43,6 +45,7 @@ export async function getEgressView(): Promise<EgressView> {
     on: envOn,
     overrideDiffers: false,
     extraDomains: [],
+    household: [],
     approvers: [],
     changes: [],
     blocked: null,
@@ -77,6 +80,7 @@ export async function getEgressView(): Promise<EgressView> {
     view.extraDomains = readExtraDomains()
     view.changes = readChanges()
   }
+  view.household = await householdProviderIds().catch(() => [])
   if (view.on) view.blocked = recentDenied()
   return view
 }
@@ -109,6 +113,9 @@ export async function relay(job: keyof typeof KEEP, body: unknown): Promise<Rela
   return { status: r.status >= 400 && r.status < 500 ? r.status : 502, body: { code, error: egressMessage(code), ...(until ? { until } : {}) } }
 }
 
+/** The provider a change names: its id, null for "all of them" (none given), false for an id that is not one we know */
+const providerOf = (v: unknown): string | null | false => (v === undefined || v === null || v === '' ? null : isProviderId(v) ? v : false)
+
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.length > 0 && v.length <= max ? v : null)
 
 /** A change as the browser sent it, cut down to the shapes the updater knows; null when it is none of them */
@@ -119,11 +126,13 @@ export function parseChange(v: unknown): ChangeRequest | null {
     case 'add-domain': {
       const domain = text(c.domain, 253)
       const note = c.note === undefined || c.note === '' ? '' : text(c.note, 200)
-      return domain && note !== null ? { action: 'add-domain', domain, ...(note ? { note } : {}) } : null
+      const provider = providerOf(c.provider)
+      return domain && note !== null && provider !== false ? { action: 'add-domain', domain, ...(note ? { note } : {}), ...(provider ? { provider } : {}) } : null
     }
     case 'remove-domain': {
       const domain = text(c.domain, 253)
-      return domain ? { action: 'remove-domain', domain } : null
+      const provider = providerOf(c.provider)
+      return domain && provider !== false ? { action: 'remove-domain', domain, ...(provider ? { provider } : {}) } : null
     }
     case 'turn-off':
       return { action: 'turn-off' }

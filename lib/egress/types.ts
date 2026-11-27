@@ -7,6 +7,8 @@ export interface ExtraDomain {
   note: string
   addedAt: string
   approver: string
+  /** The provider (israeli-bank-scrapers company id) it was added for; none = all of them */
+  provider?: string
 }
 
 export interface Approver {
@@ -32,6 +34,10 @@ export interface Denied {
   at: number
   who: 'app' | 'updater' | 'other'
   host: string
+  /** The Squid port the client used (ENG-142); old log lines have none */
+  port?: number
+  /** The provider whose port it was, when it was one's own */
+  provider?: string
 }
 
 export interface EgressJob {
@@ -53,6 +59,8 @@ export interface EgressView {
   /** docker-compose.egress.yml in the install folder differs from the one the image carries */
   overrideDiffers: boolean
   extraDomains: ExtraDomain[]
+  /** The household's providers (company ids of its accounts that are not archived): the ones with a list that is not empty */
+  household: string[]
   approvers: Approver[]
   changes: EgressChange[]
   /** Last refusals, newest first; null while isolation is off */
@@ -62,8 +70,8 @@ export interface EgressView {
 
 /** What a change asks the updater to do; the updater checks it again */
 export type ChangeRequest =
-  | { action: 'add-domain'; domain: string; note?: string }
-  | { action: 'remove-domain'; domain: string }
+  | { action: 'add-domain'; domain: string; note?: string; provider?: string }
+  | { action: 'remove-domain'; domain: string; provider?: string }
   | { action: 'turn-off' }
   | { action: 'remove-approver'; id: string }
   /** The signed-in person's own sign-in passkey or password becomes an approver (ENG-141); an existing approver signs this first */

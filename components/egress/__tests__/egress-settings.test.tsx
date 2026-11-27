@@ -9,6 +9,7 @@ const view = (extra: Partial<EgressView> = {}): EgressView => ({
   on: false,
   overrideDiffers: false,
   extraDomains: [],
+  household: [],
   approvers: [],
   changes: [],
   blocked: null,
