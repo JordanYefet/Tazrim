@@ -59,9 +59,9 @@ async function call(url: string, method: string, body?: unknown) {
  * (the one who installed it is always an admin). A member sees those controls dimmed.
  * `open` (from the profile menu) opens adding a device for me, or my password, at once.
  */
-export function PeopleSettings({ recovered, open }: { recovered: boolean; open?: 'device' | 'password' }) {
+export function PeopleSettings({ initial, recovered, open }: { initial: PeopleInfo; recovered: boolean; open?: 'device' | 'password' }) {
   const router = useRouter()
-  const [info, setInfo] = useState<PeopleInfo | null>(null)
+  const [info, setInfo] = useState<PeopleInfo | null>(initial)
   const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invite, setInvite] = useState<{ title: string; url: string; qr: string; expiresAt: string } | null>(null)
