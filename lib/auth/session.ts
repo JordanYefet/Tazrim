@@ -1,12 +1,17 @@
 import { prisma } from '@/lib/db/client'
 import { SESSION_COOKIE, SESSION_IDLE_MS, SESSION_TOUCH_MS } from './config'
 import { hashToken, randomToken } from './tokens'
+import { toRole, type Role } from './roles'
 
 export interface SignedIn {
   sessionId: string
   personId: string
   personName: string
   passkeyId: string | null
+  /** Their permission level (ENG-140), read on every request so a change applies at once */
+  role: Role
+  /** The person who installed it: always an admin */
+  owner: boolean
 }
 
 /** Opens a session and returns the cookie token (only its hash is stored). */
@@ -24,7 +29,7 @@ export async function readSession(token: string | undefined, now = new Date()): 
   if (!token) return null
   const row = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { person: { select: { name: true } } },
+    include: { person: { select: { name: true, role: true, owner: true } } },
   })
   if (!row) return null
   const idle = now.getTime() - row.lastSeenAt.getTime()
@@ -35,7 +40,8 @@ export async function readSession(token: string | undefined, now = new Date()): 
   if (idle > SESSION_TOUCH_MS) {
     await prisma.session.update({ where: { id: row.id }, data: { lastSeenAt: now } }).catch(() => {})
   }
-  return { sessionId: row.id, personId: row.personId, personName: row.person.name, passkeyId: row.passkeyId }
+  const owner = row.person.owner
+  return { sessionId: row.id, personId: row.personId, personName: row.person.name, passkeyId: row.passkeyId, role: owner ? 'admin' : toRole(row.person.role), owner }
 }
 
 export async function endSession(token: string | undefined) {

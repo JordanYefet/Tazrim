@@ -349,6 +349,11 @@ model Person {
   /// when they sign in with the password while the vault is open, unless they turned it off here (ENG-139)
   vaultWrap        VaultKeyWrap?
   vaultPasswordOff Boolean            @default(false)
+  /// What they may do (ENG-140): "admin" or "member" (lib/auth/roles.ts). Members have the household's money
+  /// and their own sign-in; admins also manage people, updates, network and the vault's reset
+  role             String             @default("member")
+  /// The person who installed it: exactly one, always an admin, who can't be demoted or removed
+  owner            Boolean            @default(false)
   passkeys         Passkey[]
   sessions         Session[]
   preferences      PersonPreference[]

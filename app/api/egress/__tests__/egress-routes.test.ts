@@ -6,6 +6,9 @@ import { entriesAfter, resetLog } from '@/lib/log/buffer'
 import { isSensitiveRoute, logged } from '@/lib/log/route'
 import { resetHelperCache } from '@/lib/updates/helper'
 
+// These test what each route does; who may call it (admins only, ENG-140) is tested in lib/auth/__tests__/roles-routes.test.ts
+vi.mock('@/lib/auth/http', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/auth/http')>()), adminRefusal: async () => null }))
+
 let dir: string
 const post = (route: string, body: unknown, headers: Record<string, string> = {}) =>
   new Request(`http://localhost:3000/api/egress/${route}`, { method: 'POST', headers: { 'content-type': 'application/json', host: 'localhost:3000', ...headers }, body: JSON.stringify(body) })

@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
   checked: [] as string[],
 }))
 
-vi.mock('@/lib/auth/http', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/auth/http')>()), currentSession: async () => mocks.session }))
+vi.mock('@/lib/auth/http', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/auth/http')>()), currentSession: async () => mocks.session,
+  // Who may call it (admins only, ENG-140) is tested in lib/auth/__tests__/roles-routes.test.ts
+  adminRefusal: async () => null,
+}))
 vi.mock('@/lib/auth/household', () => ({
   hasOwnPassword: async () => mocks.hasPassword,
   checkOwnPassword: async (_id: string, pw: string) => {
