@@ -65,6 +65,7 @@ export function createHandlers({ jobs, config, egress, latest, helperVersion }) 
     config: async (respond, input) => started(respond, await config.start(input?.changes), r => ({ code: r.code, key: r.key, reason: r.reason, error: r.error })),
     'egress-info': respond => pair(respond, egress.info()),
     'egress-on': respond => pair(respond, egress.turnOn()),
+    'egress-providers': (respond, input) => pair(respond, egress.setProviders(input)),
     'egress-register-begin': (respond, input) => pair(respond, egress.registerBegin(input)),
     'egress-register-finish': (respond, input) => pair(respond, egress.registerFinish(input)),
     'egress-approve-begin': (respond, input) => pair(respond, egress.approveBegin(input)),
@@ -130,7 +131,7 @@ export async function runJob({ name, jobId, dataDir, handlers = null, fs = nodeF
 }
 
 /** The names the fixed map answers to (kept next to createHandlers) */
-export const KNOWN = ['latest', 'health', 'update-plan', 'update', 'rollback', 'config-info', 'config', 'egress-info', 'egress-on', 'egress-register-begin', 'egress-register-finish', 'egress-approve-begin', 'egress-approve-finish']
+export const KNOWN = ['latest', 'health', 'update-plan', 'update', 'rollback', 'config-info', 'config', 'egress-info', 'egress-on', 'egress-providers', 'egress-register-begin', 'egress-register-finish', 'egress-approve-begin', 'egress-approve-finish']
 
 async function main() {
   const [name, jobId] = process.argv.slice(2)

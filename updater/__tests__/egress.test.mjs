@@ -12,6 +12,11 @@ const ORIGIN = `https://${RP}`
 const sha = d => crypto.createHash('sha256').update(d).digest()
 const b64u = b => Buffer.from(b).toString('base64url')
 const PASSWORD = 'correct horse battery'
+// Two made-up providers (ENG-142): what the updater ships is allowlist.json, these stand in for it
+const PROVIDERS = {
+  alpha: { name: 'Alpha Bank', domains: ['.bank-one.example'], thirdParty: [{ domain: '.captcha.example', why: 'the login page captcha' }] },
+  beta: { name: 'Beta Card', domains: ['.bank-two.example'], thirdParty: [] },
+}
 
 function makeKey(kind) {
   if (kind === 'es256') return { alg: -7, ...crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }) }
@@ -80,12 +85,13 @@ beforeEach(() => {
       return squid.running ? 'squid-id' : null
     },
     async exec(id, cmd) {
-      squid.execs.push({ id, cmd, txt: fs.readFileSync(path.join(dir, 'egress/extra-domains.txt'), 'utf8') })
+      const txtFile = path.join(dir, 'egress/extra-domains.txt')
+      squid.execs.push({ id, cmd, txt: fs.existsSync(txtFile) ? fs.readFileSync(txtFile, 'utf8') : null })
       const code = typeof squid.exitCode === 'function' ? squid.exitCode(squid.execs.length) : squid.exitCode
       return { exitCode: code }
     },
   }
-  restart = () => createEgress({ config, docker, lock, installDir: dir, now: () => new Date(clock.t), bankDomains: ['.bank-one.example', '.bank-two.example'], overrideSource: path.join(dir, 'missing.yml') })
+  restart = () => createEgress({ config, docker, lock, installDir: dir, now: () => new Date(clock.t), providers: PROVIDERS, overrideSource: path.join(dir, 'missing.yml') })
   egress = restart()
 })
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
@@ -1055,5 +1061,144 @@ describe('the code file stays as recovery (ENG-141)', () => {
     expect(r.body.approver).toMatchObject({ id: 'signin-3', name: 'Recovered' })
     expect((await registerPassword('Recovered pw')).body.ok).toBe(true)
     expect(readJson('approvers.json')).toHaveLength(3)
+  })
+})
+
+describe('the household\'s providers (ENG-142)', () => {
+  const file = f => path.join(dir, 'egress/providers', f)
+  const read = f => fs.readFileSync(file(f), 'utf8')
+  const domainsIn = f => read(f).split('\n').filter(l => l.trim() && !l.startsWith('#'))
+  const reconfigures = () => squid.execs.filter(e => e.cmd.join(' ') === 'squid -k reconfigure')
+
+  it('writes the household\'s providers their domains and every other provider an empty list, then tells Squid', async () => {
+    const r = await egress.setProviders({ ids: ['alpha'] })
+    expect(r).toMatchObject({ status: 200, body: { ok: true } })
+    expect(domainsIn('alpha.txt')).toEqual(['.bank-one.example', '.captcha.example'])
+    expect(read('alpha.txt')).toContain('# third-party: the login page captcha')
+    expect(domainsIn('beta.txt')).toEqual([])
+    expect(read('beta.txt')).toMatch(/Not in use/)
+    expect(reconfigures()).toHaveLength(1)
+    // Squid is told AFTER the files hold the new lists
+    expect(fs.existsSync(file('alpha.txt'))).toBe(true)
+  })
+
+  it('tells Squid only when something changed', async () => {
+    await egress.setProviders({ ids: ['alpha', 'beta'] })
+    squid.execs.length = 0
+    expect((await egress.setProviders({ ids: ['beta', 'alpha', 'alpha'] })).body).toEqual({ ok: true, changed: [] })
+    expect(reconfigures()).toHaveLength(0)
+    const r = await egress.setProviders({ ids: ['beta'] })
+    expect(r.body).toEqual({ ok: true, changed: ['alpha'] })
+    expect(domainsIn('alpha.txt')).toEqual([])
+    expect(domainsIn('beta.txt')).toEqual(['.bank-two.example'])
+    expect(reconfigures()).toHaveLength(1)
+  })
+
+  it('needs no approval and no approver: the answer is always one of the shipped lists', async () => {
+    expect(egress.hasApprovers()).toBe(false)
+    expect((await egress.setProviders({ ids: ['alpha', 'beta'] })).status).toBe(200)
+    expect(domainsIn('alpha.txt').length + domainsIn('beta.txt').length).toBe(3)
+  })
+
+  it('refuses ids the updater does not ship, and a body that is not a list of strings, and writes nothing', async () => {
+    for (const ids of [['gamma'], ['alpha', '__proto__'], ['alpha', 7], 'alpha', null, undefined, { 0: 'alpha' }]) {
+      const r = await egress.setProviders({ ids })
+      expect(r.status, JSON.stringify(ids)).toBe(400)
+    }
+    expect((await egress.setProviders({ ids: ['alpha', 'gamma'] })).body.error).toBe('UNKNOWN_PROVIDER')
+    expect((await egress.setProviders(null)).body.error).toBe('BAD_PROVIDERS')
+    expect(fs.existsSync(file('alpha.txt'))).toBe(false)
+    expect(squid.execs).toHaveLength(0)
+  })
+
+  it('an empty household empties every list', async () => {
+    await egress.setProviders({ ids: ['alpha', 'beta'] })
+    await egress.setProviders({ ids: [] })
+    expect(domainsIn('alpha.txt')).toEqual([])
+    expect(domainsIn('beta.txt')).toEqual([])
+  })
+
+  it('when Squid fails to reload, the old files come back and Squid is told again', async () => {
+    await egress.setProviders({ ids: ['alpha'] })
+    const before = read('alpha.txt')
+    squid.execs.length = 0
+    squid.exitCode = n => (n === 1 ? 1 : 0)
+    const r = await egress.setProviders({ ids: ['beta'] })
+    expect(r).toMatchObject({ status: 500, body: { error: 'RECONFIGURE_FAILED' } })
+    expect(read('alpha.txt')).toBe(before)
+    expect(domainsIn('beta.txt')).toEqual([])
+    expect(squid.execs).toHaveLength(2)
+  })
+
+  it('only writes the files when Squid is not running (isolation off), and waits for a running update', async () => {
+    squid.running = false
+    expect((await egress.setProviders({ ids: ['beta'] })).body.ok).toBe(true)
+    expect(domainsIn('beta.txt')).toEqual(['.bank-two.example'])
+    expect(squid.execs).toHaveLength(0)
+    lock.busy = true
+    expect((await egress.setProviders({ ids: ['alpha'] })).body.error).toBe('BUSY')
+  })
+
+  describe('the owner\'s additions for one provider', () => {
+    let key
+    beforeEach(async () => {
+      key = makeKey('es256')
+      await registerPasskey(key)
+    })
+    const approve = async change => {
+      const b = await begin(change)
+      expect(b.body.error, JSON.stringify(b.body)).toBeUndefined()
+      return egress.approveFinish({ response: assertion(key, { challenge: b.body.options.challenge }) })
+    }
+
+    it('go to that provider\'s file only, the global ones to extra-domains.txt', async () => {
+      expect((await approve({ action: 'add-domain', domain: '.alpha-extra.example', note: 'x', provider: 'alpha' })).body).toMatchObject({ ok: true, change: { provider: 'alpha' } })
+      expect((await approve(addDomain('.everyone.example'))).body.ok).toBe(true)
+      expect(readJson('extra-domains.json')).toMatchObject([{ domain: '.alpha-extra.example', provider: 'alpha' }, { domain: '.everyone.example' }])
+      expect(domainsIn('extra-alpha.txt')).toEqual(['.alpha-extra.example'])
+      expect(domainsIn('extra-beta.txt')).toEqual([])
+      expect(fs.readFileSync(path.join(dir, 'egress/extra-domains.txt'), 'utf8')).toMatch(/^\.everyone\.example$/m)
+      expect(fs.readFileSync(path.join(dir, 'egress/extra-domains.txt'), 'utf8')).not.toContain('alpha-extra')
+      expect(logLines().at(-2)).toMatchObject({ action: 'add-domain', detail: '.alpha-extra.example · alpha' })
+      // Squid heard of it after the provider file held the domain
+      expect(squid.execs[0].cmd).toEqual(['squid', '-k', 'reconfigure'])
+    })
+
+    it('the same site can be added for two providers, and removing one leaves the other', async () => {
+      await approve({ action: 'add-domain', domain: '.shared.example', provider: 'alpha' })
+      await approve({ action: 'add-domain', domain: '.shared.example', provider: 'beta' })
+      expect(domainsIn('extra-alpha.txt')).toEqual(['.shared.example'])
+      expect(domainsIn('extra-beta.txt')).toEqual(['.shared.example'])
+      expect((await approve({ action: 'remove-domain', domain: '.shared.example', provider: 'alpha' })).body.ok).toBe(true)
+      expect(domainsIn('extra-alpha.txt')).toEqual([])
+      expect(domainsIn('extra-beta.txt')).toEqual(['.shared.example'])
+      // the global entry with that name does not exist
+      expect((await begin({ action: 'remove-domain', domain: '.shared.example' })).body.error).toBe('NOT_FOUND')
+    })
+
+    it('refuses an unknown provider and what the provider (or everyone) already reaches', async () => {
+      expect((await begin({ action: 'add-domain', domain: '.x.example', provider: 'gamma' })).body.error).toBe('BAD_PROVIDER')
+      expect((await begin({ action: 'remove-domain', domain: '.x.example', provider: 'gamma' })).body.error).toBe('BAD_PROVIDER')
+      // alpha's own list covers it; beta's does not
+      expect((await begin({ action: 'add-domain', domain: 'www.bank-one.example', provider: 'alpha' })).body.error).toBe('ALREADY_ALLOWED')
+      expect((await begin({ action: 'add-domain', domain: 'www.bank-one.example', provider: 'beta' })).body.error).toBeUndefined()
+      await approve({ action: 'add-domain', domain: '.wide.example' })
+      expect((await begin({ action: 'add-domain', domain: 'a.wide.example', provider: 'alpha' })).body.error).toBe('ALREADY_ALLOWED')
+      await approve({ action: 'add-domain', domain: '.narrow.example', provider: 'alpha' })
+      expect((await begin({ action: 'add-domain', domain: 'a.narrow.example', provider: 'alpha' })).body.error).toBe('ALREADY_ALLOWED')
+      // an addition for alpha does not make it allowed for beta, nor for "all"
+      expect((await begin({ action: 'add-domain', domain: 'a.narrow.example', provider: 'beta' })).body.error).toBeUndefined()
+      expect((await begin(addDomain('a.narrow.example'))).body.error).toBeUndefined()
+    })
+
+    it('when Squid fails to reload, the provider file comes back too', async () => {
+      await approve({ action: 'add-domain', domain: '.one.example', provider: 'beta' })
+      squid.exitCode = n => (n === 1 ? 1 : 0)
+      squid.execs.length = 0
+      const r = await approve({ action: 'add-domain', domain: '.two.example', provider: 'beta' })
+      expect(r.body.error).toBe('RECONFIGURE_FAILED')
+      expect(domainsIn('extra-beta.txt')).toEqual(['.one.example'])
+      expect(readJson('extra-domains.json').map(e => e.domain)).toEqual(['.one.example'])
+    })
   })
 })

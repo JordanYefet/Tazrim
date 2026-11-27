@@ -10,8 +10,11 @@
  * (changes.jsonl), written here, records exactly what each approval was for.
  *
  * Files in <install>/egress/ (updater-owned; the app gets the folder read-only):
- *   extra-domains.json  [{ domain, note, addedAt, approver }]
- *   extra-domains.txt   generated from it: what Squid reads (acl extra)
+ *   extra-domains.json  [{ domain, note, addedAt, approver, provider? }]  (no provider = all of them)
+ *   extra-domains.txt   generated from it: the additions for ALL providers, what Squid reads (acl extra)
+ *   providers/<id>.txt  one allowlist per provider (ENG-142): the provider's domains when the household
+ *                       has an account with it, an empty list when not (acl dst_<id>)
+ *   providers/extra-<id>.txt  the owner's additions for that provider only (acl extra_<id>)
  *   changes.jsonl       append-only { at, action, detail, approver }
  *   (approvers: <install>/.tazrim-approvers/approvers.json, outside egress/ on purpose:
  *    the app can read egress/, and the password approver's hash must stay out of its reach)
@@ -45,7 +48,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { EGRESS_FILE } from './config.mjs'
 import { updateChange } from './compose-files.mjs'
-import { checkDomain, covers } from './egress-rules.mjs'
+import { checkDomain, covers, renderProviderTxt } from './egress-rules.mjs'
 import { copyNew, isRealDir, isRealFile, readPlain, realDir, writeText } from './files.mjs'
 import { challengeOf, checkPassword, credentialIdOf, b64u, hashPassword, MIN_PASSWORD, verifyAdoptedAssertion, verifyAssertion, verifyRegistration, ALGS } from './passkey.mjs'
 
@@ -91,15 +94,17 @@ export function renderExtraTxt(list) {
   return `${lines.join('\n')}\n`
 }
 
-function defaultBankDomains() {
+/** The providers this version ships (docker/squid/allowlist.json, the same file the app reads): { id: { name, domains, thirdParty } } */
+function defaultProviders() {
   try {
     const file = fileURLToPath(new URL('../docker/squid/allowlist.json', import.meta.url))
-    const list = JSON.parse(nodeFs.readFileSync(file, 'utf8'))
-    return Object.values(list.providers).flatMap(p => [...p.domains, ...(p.thirdParty ?? []).map(t => t.domain)])
+    return JSON.parse(nodeFs.readFileSync(file, 'utf8')).providers ?? {}
   } catch {
-    return []
+    return {}
   }
 }
+
+const ownDomains = p => [...p.domains, ...(p.thirdParty ?? []).map(t => t.domain)]
 
 /** Where approvers live, next to the compose file, never mounted into the app */
 export const KEYS_DIR = '.tazrim-approvers'
@@ -112,13 +117,15 @@ export function createEgress({
   fs = nodeFs,
   now = () => new Date(),
   overrideSource = fileURLToPath(new URL('../docker/docker-compose.egress.yml', import.meta.url)),
-  bankDomains = defaultBankDomains(),
+  providers = defaultProviders(),
+  bankDomains = Object.values(providers).flatMap(ownDomains),
   squidService = 'squid',
 }) {
   const dir = path.join(installDir, 'egress')
   const files = {
     json: path.join(dir, 'extra-domains.json'),
     txt: path.join(dir, 'extra-domains.txt'),
+    providers: path.join(dir, 'providers'),
     log: path.join(dir, 'changes.jsonl'),
     // NOT in egress/ (the app mounts that read-only): the password approver's hash would be
     // open to offline guessing by app code. This folder is mounted only in the updater.
@@ -143,6 +150,17 @@ export function createEgress({
     if (!existed) {
       const o = owner()
       fs.chownSync(dir, o.uid, o.gid)
+    }
+  }
+
+  /** egress/providers/ (the per-provider lists Squid reads), made like egress/ */
+  function ensureProvidersDir() {
+    ensureDir()
+    const existed = isRealDir(files.providers, fs)
+    realDir(files.providers, fs)
+    if (!existed) {
+      const o = owner()
+      fs.chownSync(files.providers, o.uid, o.gid)
     }
   }
 
@@ -274,25 +292,72 @@ export function createEgress({
     return { ran: true }
   }
 
-  function putFiles(list) {
-    writeAtomic(files.json, `${JSON.stringify(list, null, 2)}\n`)
-    writeAtomic(files.txt, renderExtraTxt(list))
+  const providerFile = id => path.join(files.providers, `${id}.txt`)
+  const extraFile = id => path.join(files.providers, `extra-${id}.txt`)
+
+  /** Every file the owner's additions end up in: { path: text }. The global list, and one per provider (empty when it has none) */
+  function extraTexts(list) {
+    const out = { [files.txt]: renderExtraTxt(list.filter(e => !e.provider)) }
+    for (const id of Object.keys(providers)) out[extraFile(id)] = renderExtraTxt(list.filter(e => e.provider === id))
+    return out
   }
 
-  /** Writes the new list, tells Squid; on a failure the old files come back (and Squid is told again) */
+  /** Replaces `file`'s text, or removes it when `text` is null */
+  function putText(file, text) {
+    if (text === null) fs.rmSync(file, { force: true })
+    else writeAtomic(file, text)
+  }
+
+  /** Writes the new list and every file made from it, tells Squid; on a failure the old files come back (and Squid is told again) */
   async function applyDomains(list) {
-    const before = { json: readPlain(files.json, fs), txt: readPlain(files.txt, fs) }
-    putFiles(list)
+    ensureProvidersDir()
+    const texts = extraTexts(list)
+    const before = Object.fromEntries([files.json, ...Object.keys(texts)].map(f => [f, readPlain(f, fs)]))
+    writeAtomic(files.json, `${JSON.stringify(list, null, 2)}\n`)
+    for (const [f, t] of Object.entries(texts)) if (before[f] !== t) writeAtomic(f, t)
     try {
       await reload()
     } catch (e) {
-      for (const k of ['json', 'txt']) {
-        if (before[k] === null) fs.rmSync(files[k], { force: true })
-        else writeAtomic(files[k], before[k])
-      }
+      for (const [f, t] of Object.entries(before)) putText(f, t)
       await reload().catch(() => {})
       throw Object.assign(new Error(String(e?.message ?? e)), { code: 'RECONFIGURE_FAILED' })
     }
+  }
+
+  // ---- the household's providers (ENG-142) ----------------------------------------------------------
+
+  /**
+   * POST /v1/egress/providers { ids }: which scraper companies the household has an account with.
+   * Each provider's file gets its domains when it is in `ids` and an empty list when it is not, so
+   * the port of a provider nobody uses refuses everything. Squid is told only when a file changed.
+   *
+   * Needs only the helper's token, no approval, and that is on purpose: whatever `ids` says, the
+   * result is a subset of the providers this version ships (anything else is refused), so an app
+   * that is already compromised and claims every provider gets back exactly the full default list,
+   * the reach isolation had before per-provider lists. It cannot name a domain, only choose among
+   * the shipped ones. Tightening (fewer providers) is therefore free, and the most it can do
+   * the other way is undo that tightening. Additions of the owner's own stay behind an approval.
+   */
+  async function setProviders(body) {
+    const ids = body?.ids
+    if (!Array.isArray(ids) || ids.length > 200 || !ids.every(i => typeof i === 'string')) return fail('BAD_PROVIDERS')
+    if (!ids.every(i => Object.hasOwn(providers, i))) return fail('UNKNOWN_PROVIDER')
+    if (await lock.isBusy()) return fail('BUSY')
+    const use = new Set(ids)
+    ensureProvidersDir()
+    const want = Object.fromEntries(Object.entries(providers).map(([id, p]) => [providerFile(id), renderProviderTxt(id, p, use.has(id))]))
+    const before = Object.fromEntries(Object.keys(want).map(f => [f, readPlain(f, fs)]))
+    const changed = Object.keys(want).filter(f => before[f] !== want[f])
+    if (changed.length === 0) return ok({ ok: true, changed: [] })
+    for (const f of changed) writeAtomic(f, want[f])
+    try {
+      await reload()
+    } catch (e) {
+      for (const f of changed) putText(f, before[f])
+      await reload().catch(() => {})
+      return fail('RECONFIGURE_FAILED', String(e?.message ?? e))
+    }
+    return ok({ ok: true, changed: changed.map(f => path.basename(f, '.txt')) })
   }
 
   // ---- isolation on / off ----------------------------------------------------------------------
@@ -529,15 +594,21 @@ export function createEgress({
       case 'add-domain': {
         const d = checkDomain(c.domain)
         if (!d.ok) return fail(d.code)
+        const provider = providerOf(c)
+        if (provider === false) return fail('BAD_PROVIDER')
         const note = typeof c.note === 'string' ? c.note.trim().slice(0, 200) : ''
-        if (bankDomains.some(b => covers(b, d.domain)) || extras().some(e => covers(e.domain, d.domain))) return fail('ALREADY_ALLOWED')
-        return { change: { action: 'add-domain', domain: d.domain, note } }
+        // Already allowed where it is asked for: by the provider's own list (or any provider's, for "all"), or by an addition that reaches it
+        const own = provider ? ownDomains(providers[provider]) : bankDomains
+        if (own.some(b => covers(b, d.domain)) || extras().some(e => (!e.provider || e.provider === provider) && covers(e.domain, d.domain))) return fail('ALREADY_ALLOWED')
+        return { change: { action: 'add-domain', domain: d.domain, note, ...(provider ? { provider } : {}) } }
       }
       case 'remove-domain': {
         const d = checkDomain(c.domain)
         if (!d.ok) return fail(d.code)
-        if (!extras().some(e => e.domain === d.domain)) return fail('NOT_FOUND')
-        return { change: { action: 'remove-domain', domain: d.domain } }
+        const provider = providerOf(c)
+        if (provider === false) return fail('BAD_PROVIDER')
+        if (!extras().some(e => e.domain === d.domain && (e.provider ?? null) === provider)) return fail('NOT_FOUND')
+        return { change: { action: 'remove-domain', domain: d.domain, ...(provider ? { provider } : {}) } }
       }
       case 'remove-approver':
         if (typeof c.id !== 'string' || !approvers().some(a => a.id === c.id)) return fail('NOT_FOUND')
@@ -559,6 +630,12 @@ export function createEgress({
       default:
         return fail('BAD_CHANGE')
     }
+  }
+
+  /** The provider a change is for: its id, null for "all of them", false when it is none we ship */
+  const providerOf = c => {
+    if (c.provider === undefined || c.provider === null || c.provider === '') return null
+    return typeof c.provider === 'string' && Object.hasOwn(providers, c.provider) ? c.provider : false
   }
 
   const cleanName = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 60) : 'Tazrim')
@@ -745,23 +822,23 @@ export function createEgress({
     switch (c.action) {
       case 'add-domain': {
         if (await lock.isBusy()) return fail('BUSY')
-        const list = [...extras(), { domain: c.domain, note: c.note, addedAt: now().toISOString(), approver: approverName }]
+        const list = [...extras(), { domain: c.domain, note: c.note, addedAt: now().toISOString(), approver: approverName, ...(c.provider ? { provider: c.provider } : {}) }]
         try {
           await applyDomains(list)
         } catch (e) {
           return fail(e?.code ?? 'INTERNAL', e?.message)
         }
-        log('add-domain', c.domain, approverName)
+        log('add-domain', c.provider ? `${c.domain} · ${c.provider}` : c.domain, approverName)
         return ok({ ok: true, change: c })
       }
       case 'remove-domain': {
         if (await lock.isBusy()) return fail('BUSY')
         try {
-          await applyDomains(extras().filter(e => e.domain !== c.domain))
+          await applyDomains(extras().filter(e => !(e.domain === c.domain && (e.provider ?? null) === (c.provider ?? null))))
         } catch (e) {
           return fail(e?.code ?? 'INTERNAL', e?.message)
         }
-        log('remove-domain', c.domain, approverName)
+        log('remove-domain', c.provider ? `${c.domain} · ${c.provider}` : c.domain, approverName)
         return ok({ ok: true, change: c })
       }
       case 'remove-approver': {
@@ -827,6 +904,7 @@ export function createEgress({
         on: Boolean(ctx?.configFiles.some(f => f.endsWith(`/${EGRESS_FILE}`))),
         ...overrideState(),
         extraDomains: extras(),
+        providers: Object.keys(providers),
         approvers: approvers().map(publicApprover),
         changes: changes(),
         registration: pending ? { pending: true, expiresAt: new Date(pending.expires).toISOString() } : null,
@@ -846,6 +924,8 @@ export function createEgress({
       return { ...ok({ job: r.job }, 202), done: r.done }
     },
 
+    /** POST /v1/egress/providers: the household's providers (token only, see setProviders) */
+    setProviders,
     registerBegin,
     registerFinish,
     approveBegin,
