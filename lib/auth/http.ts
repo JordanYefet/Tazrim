@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { SESSION_COOKIE } from './config'
+import { SESSION_COOKIE, isAuthRequired } from './config'
 import { clientKey, rateLimit } from './rate-limit'
-import { readSession, sessionCookie } from './session'
+import { readSession, sessionCookie, type SignedIn } from './session'
 import { relyingParty, type RelyingParty } from './webauthn'
 import { getRequireHttps } from '@/lib/settings/app-settings'
 import { isLoopbackHost, isThisComputer } from '@/lib/local-request'
@@ -50,4 +50,28 @@ export function signedIn(body: object, token: string, rp: RelyingParty) {
 export async function currentSession() {
   const jar = await cookies()
   return readSession(jar.get(SESSION_COOKIE)?.value)
+}
+
+export const ADMIN_ONLY = () => fail(403, 'רק מנהל/ת יכול/ה לעשות את זה', 'ADMIN_ONLY')
+
+/**
+ * Permission levels (ENG-140): null when this session may do an admin-only thing, else the
+ * response to answer with (401 signed out, 403 ADMIN_ONLY). With the login off (development
+ * on demo data) nobody is signed in and everything is allowed, as before. A session opened
+ * with the recovery code belongs to the owner, so it is an admin's.
+ */
+export function adminOr403(session: SignedIn | null): NextResponse | null {
+  if (!isAuthRequired()) return null
+  if (!session) return fail(401, 'צריך להתחבר מחדש', 'SIGNED_OUT')
+  return session.role === 'admin' ? null : ADMIN_ONLY()
+}
+
+/** The same, reading the session from the request's cookie: the first line of an admin-only route */
+export async function adminRefusal(): Promise<NextResponse | null> {
+  return adminOr403(isAuthRequired() ? await currentSession() : null)
+}
+
+/** Pages: may the viewer change admin-only settings? Everyone may with the login off (development on demo data). */
+export async function viewerIsAdmin(): Promise<boolean> {
+  return adminOr403(isAuthRequired() ? await currentSession() : null) === null
 }

@@ -13,13 +13,13 @@ import { post, vaultWithPasskey } from './vault-client'
 import { unlockVault } from './unlock'
 
 interface Credential { id: string; company: string; label: string; accountId: string | null; updatedAt: string }
-interface Passkey { id: string; label: string; personName: string; mine: boolean; thisDevice: boolean; opens: boolean }
+interface Passkey { id: string; label: string; personName: string; mine: boolean; thisDevice: boolean; opens: boolean; waiting: boolean }
 interface VaultInfo {
   vault: { exists: boolean; open: boolean; openedBy: string | null; openedAt: string | null; locksAt: string | null; hasRecoveryKey: boolean }
   credentials: Credential[]
   passkeys: Passkey[]
   /** The signed-in person's password: whether they have one, and whether it opens the vault */
-  password: { has: boolean; opensVault: boolean }
+  password: { has: boolean; opensVault: boolean; optedOut: boolean }
 }
 
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '')
@@ -41,9 +41,10 @@ function RowIcon({ icon: Icon, muted = false }: { icon: LucideIcon; muted?: bool
 /**
  * Settings → the vault (ENG-90): whether it is open and until when, which
  * passkeys can open it, the recovery key and starting over. The sign-ins it
- * holds are managed on their accounts (Settings → accounts).
+ * holds are managed on their accounts (Settings → accounts). A new recovery key and starting
+ * over are for admins (ENG-140): a member sees them dimmed, with a line why.
  */
-export function VaultSettings() {
+export function VaultSettings({ isAdmin = true }: { isAdmin?: boolean }) {
   const [info, setInfo] = useState<VaultInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -174,7 +175,13 @@ export function VaultSettings() {
                       {p.thisDevice && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">המכשיר הזה</span>}
                     </span>
                     <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
-                      {p.opens ? 'המפתח הזה פותח את הכספת' : p.mine ? 'עוד לא. מוסיפים כשהכספת פתוחה' : 'עוד לא. נוסף כשבעליו מוסיפים אותו, כשהכספת פתוחה'}
+                      {p.opens
+                        ? 'המפתח הזה פותח את הכספת'
+                        : p.waiting
+                          ? 'ממתין: יתווסף בפעם הבאה שמישהו יפתח את הכספת, ואז יפתח אותה'
+                          : p.mine
+                            ? 'עוד לא. כדי להירשם פותחים את הכספת עם המפתח הזה (או מוסיפים כשהכספת פתוחה)'
+                            : 'עוד לא. יירשם כשבעליו ינסה לפתוח את הכספת עם המפתח הזה'}
                     </span>
                   </span>
                 </li>
@@ -199,7 +206,9 @@ export function VaultSettings() {
                       ? 'עוד אין לך סיסמה. מגדירים אותה בהגדרות ← אנשים.'
                       : password.opensVault
                         ? 'פועל: אפשר לפתוח את הכספת עם הסיסמה שבה נכנסים.'
-                        : 'כבוי. להפעלה צריך שהכספת תהיה פתוחה ולהקליד את הסיסמה.'}
+                        : password.optedOut
+                          ? 'כבוי. להפעלה צריך שהכספת תהיה פתוחה ולהקליד את הסיסמה.'
+                          : 'תופעל מעצמה בפעם הבאה שנכנסים עם הסיסמה והכספת פתוחה. אפשר להפעיל עכשיו: הכספת צריכה להיות פתוחה, ומקלידים את הסיסמה.'}
                   </span>
                 </span>
                 {password.opensVault ? (
@@ -223,7 +232,7 @@ export function VaultSettings() {
                   <span className="block text-[0.9375rem] font-medium">מפתח שחזור לכספת</span>
                   <span className="block text-[0.8125rem] text-muted-foreground text-pretty">פותח את הכספת בלי מפתח, כדי להוסיף מפתח חדש.</span>
                 </span>
-                <button type="button" disabled={!open} onClick={() => setRenewing(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>מפתח חדש</button>
+                <button type="button" disabled={!open || !isAdmin} onClick={() => setRenewing(true)} className={cn(TEXT, 'text-primary hover:bg-primary/10')}>מפתח חדש</button>
               </div>
               <div className={ROW}>
                 <RowIcon icon={RotateCcw} />
@@ -231,12 +240,13 @@ export function VaultSettings() {
                   <span className="block text-[0.9375rem] font-medium">התחלה מחדש</span>
                   <span className="block text-[0.8125rem] text-muted-foreground text-pretty">מוחק את הכספת ואת פרטי הכניסה שבה. החשבונות והתנועות נשארים.</span>
                 </span>
-                <button type="button" disabled={busy} onClick={() => setResetting(true)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
+                <button type="button" disabled={busy || !isAdmin} onClick={() => setResetting(true)} className={cn(TEXT, QUIET_DANGER)}>מחיקה</button>
               </div>
             </div>
             <p className="px-1 text-[0.78125rem] leading-relaxed text-muted-foreground text-pretty">
               בלי מפתח ובלי מפתח השחזור אי אפשר לפתוח את הכספת, גם לא מהשרת. אז מתחילים מחדש ומקלידים את פרטי הכניסה שוב: התנועות לא נפגעות.
             </p>
+            {!isAdmin && <p className="px-1 text-[0.78125rem] leading-relaxed text-muted-foreground text-pretty">מפתח שחזור חדש ומחיקת הכספת: רק מנהל/ת.</p>}
           </section>
         </>
       )}

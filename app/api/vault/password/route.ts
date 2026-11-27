@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { allow, fail, passwordTransportOr400, rpOr400, TOO_MANY } from '@/lib/auth/http'
 import { isResponse, sessionOr401, whileOpen } from '@/lib/vault/http'
-import { disablePasswordUnlock, enablePasswordUnlock, unlockWithPassword } from '@/lib/vault/vault'
+import { disablePasswordUnlock, enablePasswordUnlock, hasPasswordCopy, unlockWithPassword } from '@/lib/vault/vault'
 import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,10 @@ function transportProblem(req: Request) {
  *
  * POST { password }: opens the vault with the signed-in person's password copy
  * PUT  { password }: turns it on while the vault is open: the password must be their sign-in one
- * DELETE:            turns it off (removes their copy)
+ * DELETE:            turns it off (removes their copy; sign-ins no longer make it again until PUT)
+ *
+ * The copy is also made by itself: at a password sign-in while the vault is open, and when the
+ * password is set or changed (lib/vault/vault.ts passwordSeen / passwordChanged).
  */
 async function handlePOST(req: Request) {
   const session = await sessionOr401()
@@ -31,6 +34,8 @@ async function handlePOST(req: Request) {
   if (tooMany(req)) return TOO_MANY()
   const body = (await req.json().catch(() => null)) as { password?: unknown } | null
   if (!(await unlockWithPassword(session.personId, body?.password, `${session.personName}, סיסמה`))) {
+    // Their own state only: no copy yet (it is made by the next password sign-in while the vault is open)
+    if (!(await hasPasswordCopy(session.personId))) return fail(403, 'הסיסמה עוד לא פותחת את הכספת. פותחים פעם אחת עם Face ID, ואחר כך נכנסים עם הסיסמה.', 'NO_PASSWORD_COPY')
     return fail(403, 'הסיסמה שגויה, או שהיא לא מוגדרת לפתיחת הכספת', 'WRONG_KEY')
   }
   return NextResponse.json({ ok: true })

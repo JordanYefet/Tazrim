@@ -15,9 +15,9 @@ import { SwitchButton } from '@/components/install/container-settings'
 import { INSTALL_MESSAGES } from '@/lib/install/messages'
 import { PROVIDERS } from '@/lib/egress/allowlist'
 import type { Approver, ChangeAction, ChangeRequest, EgressView } from '@/lib/egress/types'
-import { call, fetchView, sleep, type Approved } from './api'
+import { call, fetchSignin, fetchView, sleep, type Approved, type SigninChoices } from './api'
 import { ApprovalDialog } from './approval-dialog'
-import { RegisterDialog } from './register-dialog'
+import { RegisterDialog, type RegisterMode } from './register-dialog'
 import { Busy, Host, INPUT, PRIMARY, ROW_ACTION, SECONDARY, When } from './ui'
 
 const GIVE_UP_MS = 4 * 60 * 1000
@@ -46,7 +46,8 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
   const [working, setWorking] = useState(false)
   const [confirmOn, setConfirmOn] = useState(false)
   const [approve, setApprove] = useState<ChangeRequest | null>(null)
-  const [register, setRegister] = useState<'passkey' | 'password' | null>(null)
+  const [register, setRegister] = useState<RegisterMode | null>(null)
+  const [signin, setSignin] = useState<SigninChoices | null>(null)
   const [draft, setDraft] = useState({ domain: '', note: '' })
   const alive = useRef(true)
   const formRef = useRef<HTMLFormElement>(null)
@@ -55,6 +56,13 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
     return () => {
       alive.current = false
     }
+  }, [])
+
+  // What the signed-in person can adopt as an approval key; the buttons stay where they are, disabled, until it is known
+  useEffect(() => {
+    fetchSignin()
+      .then(r => alive.current && setSignin(r))
+      .catch(() => alive.current && setSignin({ passkeys: 0, password: false }))
   }, [])
 
   const refresh = useCallback(async () => {
@@ -352,13 +360,16 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
             </ul>
           )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={SECONDARY} disabled={!canEdit} onClick={() => setRegister('passkey')}>
-              <Busy busy={false}>הוספת מפתח</Busy>
+            <button type="button" className={PRIMARY} disabled={!canEdit || !signin?.passkeys} onClick={() => setRegister('signin-passkey')}>
+              המפתח שאיתו אני נכנס/ת
             </button>
-            <button type="button" className={SECONDARY} disabled={!canEdit} onClick={() => setRegister('password')}>
-              הגדרת סיסמת אישור
+            <button type="button" className={SECONDARY} disabled={!canEdit || !signin?.password} onClick={() => setRegister('signin-password')}>
+              סיסמת הכניסה שלי
             </button>
           </div>
+          <p className="min-h-5 text-xs text-muted-foreground text-pretty">
+            {signin && !signin.passkeys && !signin.password ? 'עוד אין לך מפתח או סיסמה לכניסה. מוסיפים אותם בהגדרות ← אנשים.' : signin && !signin.passkeys ? 'אין לך מפתח כניסה (Face ID, Touch ID).' : signin && !signin.password ? 'אין לך סיסמת כניסה.' : ''}
+          </p>
           <p className="text-xs text-muted-foreground text-pretty">מפתח בטוח יותר מסיסמה: את הסיסמה מקלידים בתוך האפליקציה. גם מפתח לא מראה למה הוא מאשר, ולכן היומן שלמטה הוא הרשומה של מה שאושר בפועל.</p>
         </section>
       )}

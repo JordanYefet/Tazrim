@@ -132,9 +132,10 @@ describe('the password changes', () => {
     expect(await vault.unlockWithPassword('p1', 'fake-new-password-3', 'x')).toBe(true)
   })
 
-  it("while open, someone who hadn't turned it on does not get a copy", async () => {
+  it("while open, someone who had no copy gets one under the new password (it turns on by itself)", async () => {
     await vault.passwordChanged('p2', 'fake-partner-new-4')
-    expect(wrapRows("\"personId\" = 'p2'")).toHaveLength(0)
+    expect(wrapRows("\"personId\" = 'p2'")).toHaveLength(1)
+    db.exec(`DELETE FROM "VaultKeyWrap" WHERE "personId" = 'p2'`)
   })
 
   it('while locked: their copy is deleted (and nothing else)', async () => {
@@ -151,6 +152,85 @@ describe('the password changes', () => {
     expect(await vault.enablePasswordUnlock('p1', PW)).toBe('ok')
     await vault.passwordChanged('p1', null)
     expect(wrapRows()).toHaveLength(0)
+  })
+})
+
+describe('it turns on by itself (ENG-139)', () => {
+  const flag = (id: string) => db.query<{ vaultPasswordOff: number }>(`SELECT "vaultPasswordOff" FROM "Person" WHERE "id" = '${id}'`)[0].vaultPasswordOff
+  const reset = () => db.exec(`DELETE FROM "VaultKeyWrap" WHERE "personId" IS NOT NULL; UPDATE "Person" SET "vaultPasswordOff" = 0`)
+
+  it('a password sign-in while the vault is open makes the missing copy, and that password then opens it', async () => {
+    reset()
+    await household.setPassword('p1', PW)
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', PW)
+    expect(wrapRows()).toHaveLength(1)
+    vault.lock()
+    expect(await vault.unlockWithPassword('p1', PW, 'x')).toBe(true)
+  })
+
+  it('does nothing while the vault is locked, and never throws', async () => {
+    reset()
+    vault.lock()
+    await expect(vault.passwordSeen('p1', PW)).resolves.toBeUndefined()
+    await expect(vault.passwordSeen('nobody', PW)).resolves.toBeUndefined()
+    expect(wrapRows()).toHaveLength(0)
+  })
+
+  it('leaves an existing copy alone', async () => {
+    reset()
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', PW)
+    const before = wrapRows()[0]
+    await vault.passwordSeen('p1', PW)
+    expect(wrapRows()[0].kdf).toBe(before.kdf)
+  })
+
+  it('turning it off is remembered: sign-ins and password changes do not make it again, until it is turned on', async () => {
+    reset()
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', PW)
+    await vault.disablePasswordUnlock('p1')
+    expect(wrapRows()).toHaveLength(0)
+    expect(flag('p1')).toBe(1)
+    await vault.passwordSeen('p1', PW)
+    await vault.passwordChanged('p1', PW)
+    expect(wrapRows()).toHaveLength(0)
+    expect(await vault.enablePasswordUnlock('p1', PW)).toBe('ok')
+    expect(flag('p1')).toBe(0)
+    expect(wrapRows()).toHaveLength(1)
+  })
+
+  it('removing the password removes the copy without counting as turning it off', async () => {
+    reset()
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', PW)
+    await vault.passwordChanged('p1', null)
+    expect(wrapRows()).toHaveLength(0)
+    expect(flag('p1')).toBe(0)
+  })
+
+  it('a password change while locked leaves nothing behind, and the next password sign-in while open makes it', async () => {
+    reset()
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', PW)
+    vault.lock()
+    await vault.passwordChanged('p1', 'fake-changed-password-6')
+    expect(wrapRows()).toHaveLength(0)
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', 'fake-changed-password-6')
+    expect(wrapRows()).toHaveLength(1)
+    await household.setPassword('p1', PW)
+    reset()
+  })
+
+  it('hasPasswordCopy tells only the person\'s own state', async () => {
+    reset()
+    expect(await vault.hasPasswordCopy('p1')).toBe(false)
+    expect(await vault.unlockWithPasskey(phone.id, phone.prf, 'x')).toBe(true)
+    await vault.passwordSeen('p1', PW)
+    expect(await vault.hasPasswordCopy('p1')).toBe(true)
+    expect(await vault.hasPasswordCopy('p2')).toBe(false)
   })
 })
 

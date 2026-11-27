@@ -1,6 +1,6 @@
 import { logged } from '@/lib/log/route'
 import { NextResponse } from 'next/server'
-import { currentSession } from '@/lib/auth/http'
+import { adminRefusal, currentSession } from '@/lib/auth/http'
 import { isAuthRequired } from '@/lib/auth/config'
 import { READ_ONLY_MESSAGE, isReadOnly } from '@/lib/read-only'
 import { SettingError, setAppSetting, type SettingName } from '@/lib/settings/app-settings'
@@ -13,6 +13,8 @@ const NAMES: SettingName[] = ['timeZone', 'vaultIdleMinutes', 'syncConcurrency',
 export const PUT = logged(async function PUT(req: Request) {
   if (isReadOnly()) return NextResponse.json({ error: READ_ONLY_MESSAGE, readOnly: true }, { status: 403 })
   if (isAuthRequired() && !(await currentSession())) return NextResponse.json({ error: 'צריך להתחבר', code: 'SIGNED_OUT' }, { status: 401 })
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const body = (await req.json().catch(() => null)) as { name?: unknown; value?: unknown } | null
   const name = NAMES.find(n => n === body?.name)
   const v = body?.value

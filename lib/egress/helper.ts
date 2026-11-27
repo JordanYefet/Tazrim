@@ -85,7 +85,7 @@ export type Relay = { status: number; body: Record<string, unknown> }
 
 const KEEP = {
   'egress-on': ['job'],
-  'egress-register-begin': ['options', 'codeFile', 'expiresAt'],
+  'egress-register-begin': ['options', 'mode', 'codeFile', 'expiresAt'],
   'egress-register-finish': ['ok', 'approver'],
   'egress-approve-begin': ['flowId', 'options', 'passwordAllowed', 'change'],
   'egress-approve-finish': ['ok', 'change', 'job'],

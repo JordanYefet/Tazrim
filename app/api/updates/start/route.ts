@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { adminRefusal } from '@/lib/auth/http'
 import { getUpdateCache } from '@/lib/updates/check'
 import { parseConfirm } from '@/lib/updates/compose'
 import { MESSAGES, messageFor } from '@/lib/updates/messages'
@@ -18,6 +19,8 @@ export const dynamic = 'force-dynamic'
  * the approval's own refusals (BAD_PASSWORD, LOCKED, ...)
  */
 async function handlePOST(req: Request) {
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const refused = readOnlyRefusal()
   if (refused) return refused
   const body = (await req.json().catch(() => null)) as { version?: unknown; compose?: unknown } | null

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { isAuthRequired } from '@/lib/auth/config'
 import { clearedSessionCookie } from '@/lib/auth/session'
 import { relyingParty } from '@/lib/auth/webauthn'
-import { fail } from '@/lib/auth/http'
+import { adminRefusal, fail } from '@/lib/auth/http'
 import { confirmSignedInPerson } from '@/lib/auth/confirm'
 import { isLocalRequest } from '@/lib/local-request'
 import { matchesDeleteAllPhrase } from '@/lib/data/delete-all-phrase'
@@ -32,6 +32,8 @@ interface Body {
  * 200 { ok, deleted: { <table>: rows } }.
  */
 async function handlePOST(req: Request) {
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const body = (await req.json().catch(() => null)) as Body | null
   if (isAuthRequired()) {
     const denied = await confirmSignedInPerson(req, body, 'delete-all')

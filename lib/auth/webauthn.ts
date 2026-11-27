@@ -197,17 +197,20 @@ export async function verifyAuthentication(p: Pending, response: AuthenticationR
 /**
  * A challenge for the vault (ENG-90), limited to the signed-in person's own
  * passkeys, each asked for its PRF output with a salt: for "unlock" the salt
- * stored with its copy of the vault key, for "create" and "add" a new one.
- * Null when none of their passkeys fits (no copy to open, or all have one).
+ * stored with its copy of the vault key or its mailbox (a new one when it has neither),
+ * for "create" and "add" a new one. Null when none of their passkeys fits (they have
+ * none, or for "add" all have a copy).
  */
 export async function vaultOptions(rp: RelyingParty, personId: string, purpose: VaultPurpose) {
   const mine = await prisma.passkey.findMany({
     where: { personId },
-    select: { credentialId: true, transports: true, vaultWrap: { select: { prfSalt: true } } },
+    select: { credentialId: true, transports: true, vaultWrap: { select: { prfSalt: true } }, vaultMailbox: { select: { prfSalt: true } } },
   })
-  const fit = mine.filter(c => (purpose === 'unlock' ? !!c.vaultWrap?.prfSalt : purpose === 'add' ? !c.vaultWrap : true))
+  // "unlock" is offered to every passkey (ENG-140): one with a copy, or a mailbox, is asked with the salt it
+  // has; one with neither gets a fresh salt, and its ceremony registers it (lib/vault/vault.ts)
+  const fit = mine.filter(c => (purpose === 'add' ? !c.vaultWrap : true))
   if (fit.length === 0) return null
-  const salts = Object.fromEntries(fit.map(c => [c.credentialId, purpose === 'unlock' ? c.vaultWrap!.prfSalt! : newPrfSalt()]))
+  const salts = Object.fromEntries(fit.map(c => [c.credentialId, purpose === 'unlock' ? c.vaultWrap?.prfSalt ?? c.vaultMailbox?.prfSalt ?? newPrfSalt() : newPrfSalt()]))
   const options = await generateAuthenticationOptions({
     rpID: rp.rpID,
     userVerification: 'required',

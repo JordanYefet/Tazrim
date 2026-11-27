@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server'
 import { allow, fail, TOO_MANY } from '@/lib/auth/http'
 import { takeChallenge, verifyAuthentication } from '@/lib/auth/webauthn'
 import { isResponse, sessionOr401, whileOpen } from '@/lib/vault/http'
-import { addPasskey, createVault, unlockWithPasskey } from '@/lib/vault/vault'
+import { addPasskey, createVault, unlockWithPasskeyOrRegister } from '@/lib/vault/vault'
 import { logged } from '@/lib/log/route'
 
 export const dynamic = 'force-dynamic'
+
+const VAULT_PENDING_MESSAGE = 'המפתח שלך נרשם. בפעם הבאה שמישהו יפתח את הכספת הוא יתווסף, ואז הוא יפתח אותה.'
 
 /**
  * POST { flowId, response, prf }: the passkey's answer to a vault challenge,
@@ -13,7 +15,8 @@ export const dynamic = 'force-dynamic'
  * was there; the PRF output, which the browser doesn't sign, must still open
  * this passkey's copy of the vault key. It is used and dropped, never stored.
  *   create: a new vault, open, and its recovery key (shown once)
- *   unlock: opens the vault
+ *   unlock: opens the vault. A passkey with no copy yet leaves its mailbox (or, when the vault is open, gets
+ *           its copy at once); then 409 VAULT_PENDING says the next opening will give it one (ENG-140)
  *   add:    gives this passkey its own copy (the vault must be open)
  */
 async function handlePOST(req: Request) {
@@ -42,8 +45,10 @@ async function handlePOST(req: Request) {
       return NextResponse.json({ ok: true, recoveryKey })
     }
     if (flow.purpose === 'unlock') {
-      if (!(await unlockWithPasskey(passkey.id, prf, by))) return fail(403, 'המפתח לא פתח את הכספת', 'WRONG_KEY')
-      return NextResponse.json({ ok: true })
+      const result = await unlockWithPasskeyOrRegister(passkey.id, prf, salt, by)
+      if (result === 'wrong-key') return fail(403, 'המפתח לא פתח את הכספת', 'WRONG_KEY')
+      if (result === 'pending') return fail(409, VAULT_PENDING_MESSAGE, 'VAULT_PENDING')
+      return NextResponse.json({ ok: true, result })
     }
     return await whileOpen(async () => {
       await addPasskey(passkey.id, prf, salt)

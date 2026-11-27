@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { adminRefusal } from '@/lib/auth/http'
 import { egressRefusal } from '@/lib/egress/access'
 import { parseChange, relay, rpIdOf } from '@/lib/egress/helper'
 import { egressMessage } from '@/lib/egress/messages'
@@ -14,6 +15,8 @@ export const dynamic = 'force-dynamic'
 async function handlePOST(req: Request) {
   const refused = egressRefusal(req.headers)
   if (refused) return refused
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const body = (await req.json().catch(() => null)) as { change?: unknown } | null
   const change = parseChange(body?.change)
   const rpId = rpIdOf(req.headers)

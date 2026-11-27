@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { adminRefusal } from '@/lib/auth/http'
 import { getInstallView, startConfigChange } from '@/lib/install/config'
 import { INSTALL_MESSAGES, INVALID_VALUE_BY_KEY } from '@/lib/install/messages'
 import { readOnlyRefusal } from '@/lib/updates/guard'
@@ -8,6 +9,8 @@ export const dynamic = 'force-dynamic'
 
 /** GET: container-level settings (ENG-121): values, whether the helper can change them, the last change */
 async function handleGET() {
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   return readOnlyRefusal() ?? NextResponse.json(await getInstallView())
 }
 
@@ -16,6 +19,8 @@ async function handleGET() {
  * or { code, key?, error } with a fixed code. Signed-in only (middleware); never in the demo.
  */
 async function handlePOST(req: Request) {
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const refused = readOnlyRefusal()
   if (refused) return refused
   const body = (await req.json().catch(() => null)) as { changes?: unknown } | null

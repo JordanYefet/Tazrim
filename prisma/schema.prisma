@@ -340,16 +340,23 @@ model SyncLink {
 
 /// Login (ENG-89): someone in the household. Everyone has the same rights.
 model Person {
-  id           String    @id @default(uuid())
-  name         String
+  id               String             @id @default(uuid())
+  name             String
   /// Optional second way in (scrypt, lib/auth/password.ts); null = passkeys only
-  passwordHash String?
-  createdAt    DateTime  @default(now())
-  /// Their own copy of the vault key under a key from their password (ENG-135), if they turned it on
-  vaultWrap    VaultKeyWrap?
-  passkeys     Passkey[]
-  sessions     Session[]
-  preferences  PersonPreference[]
+  passwordHash     String?
+  createdAt        DateTime           @default(now())
+  /// Their own copy of the vault key under a key from their password (ENG-135). It is made by itself
+  /// when they sign in with the password while the vault is open, unless they turned it off here (ENG-139)
+  vaultWrap        VaultKeyWrap?
+  vaultPasswordOff Boolean            @default(false)
+  /// What they may do (ENG-140): "admin" or "member" (lib/auth/roles.ts). Members have the household's money
+  /// and their own sign-in; admins also manage people, updates, network and the vault's reset
+  role             String             @default("member")
+  /// The person who installed it: exactly one, always an admin, who can't be demoted or removed
+  owner            Boolean            @default(false)
+  passkeys         Passkey[]
+  sessions         Session[]
+  preferences      PersonPreference[]
 }
 
 /// A person's own choices, the same on every device they sign in on (the page background).
@@ -366,22 +373,24 @@ model PersonPreference {
 
 /// A passkey (WebAuthn credential) a person signs in with; one per device or password manager.
 model Passkey {
-  id           String    @id @default(uuid())
+  id           String        @id @default(uuid())
   personId     String
-  person       Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person       Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
   /// The credential id, base64url, as the browser reports it
-  credentialId String    @unique
+  credentialId String        @unique
   /// The COSE public key
   publicKey    Bytes
-  counter      Int       @default(0)
+  counter      Int           @default(0)
   /// JSON array of AuthenticatorTransport values, e.g. ["internal","hybrid"]
   transports   String?
   /// What the owner calls the device, e.g. "iPhone"
   label        String
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime      @default(now())
   lastUsedAt   DateTime?
   sessions     Session[]
   vaultWrap    VaultKeyWrap?
+  /// Set while this passkey has no copy of the vault key yet (ENG-140)
+  vaultMailbox VaultMailbox?
 }
 
 /// A signed-in browser. The cookie holds a random token; only its SHA-256 is stored.
@@ -428,6 +437,26 @@ model VaultKeyWrap {
   /// The vault key, AES-256-GCM under the derived key: "v1.<iv>.<tag>.<ciphertext>", base64url
   wrappedKey String
   createdAt  DateTime @default(now())
+}
+
+/// A passkey that has no copy of the vault key yet (ENG-140), and a place for one to wait. Made at its
+/// first vault passkey ceremony: a fresh X25519 key pair, whose private half is sealed under a key from
+/// that ceremony's PRF output. Whenever the vault is open, the vault key is sealed to `publicKey` and kept
+/// in `pendingKey`; the passkey's next ceremony opens `sealedPrivate`, then `pendingKey`, and replaces
+/// all of it with a normal VaultKeyWrap. Deleted with its passkey.
+model VaultMailbox {
+  id            String    @id @default(uuid())
+  passkeyId     String    @unique
+  passkey       Passkey   @relation(fields: [passkeyId], references: [id], onDelete: Cascade)
+  /// The salt this passkey's PRF was asked with, base64url
+  prfSalt       String
+  /// The raw X25519 public key, base64url
+  publicKey     String
+  /// The raw private key, AES-256-GCM under a key from the PRF output: "v1.<iv>.<tag>.<ciphertext>"
+  sealedPrivate String
+  /// The vault key sealed to `publicKey`: "<ephemeral public key>.v1.<iv>.<tag>.<ciphertext>"; null until the vault was open
+  pendingKey    String?
+  createdAt     DateTime  @default(now())
 }
 
 /// A sign-in to a bank or card company's site (ENG-90), for the sync. Only the

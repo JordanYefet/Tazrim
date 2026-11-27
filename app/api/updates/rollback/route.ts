@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { adminRefusal } from '@/lib/auth/http'
 import { MESSAGES } from '@/lib/updates/messages'
 import { readOnlyRefusal } from '@/lib/updates/guard'
 import { helperRollback } from '@/lib/updates/helper'
@@ -8,6 +9,8 @@ export const dynamic = 'force-dynamic'
 
 /** POST: the helper puts the previous version and the pre-update backup back. 202, or 409 / 503 */
 async function handlePOST() {
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const refused = readOnlyRefusal()
   if (refused) return refused
   const r = await helperRollback()

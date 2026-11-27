@@ -5,6 +5,7 @@
 import { prisma } from '@/lib/db/client'
 import { INVITE_TTL_MS } from './config'
 import { burnPasswordCheck, hashPassword, verifyPassword } from './password'
+import { toRole } from './roles'
 import { hashToken, normalizeCode, randomToken, readableCode, sameHash } from './tokens'
 
 const RECOVERY_KEY = 'auth.recoveryCodeHash'
@@ -77,7 +78,7 @@ export async function newRecoveryCode(): Promise<string> {
 
 /**
  * Uses the recovery code: on a match it is deleted (it works once) and the
- * household's first person is returned, to sign in and add a new passkey.
+ * household's owner (the first person) is returned, to sign in and add a new passkey.
  */
 export async function useRecoveryCode(input: unknown): Promise<{ id: string } | null> {
   if (typeof input !== 'string' || !input.trim()) return null
@@ -86,7 +87,9 @@ export async function useRecoveryCode(input: unknown): Promise<{ id: string } | 
   // deleteMany so two requests racing with the same code can't both win
   const { count } = await prisma.setting.deleteMany({ where: { key: RECOVERY_KEY, value: row.value } })
   if (count !== 1) return null
-  return prisma.person.findFirst({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true } })
+  // The installer: the recovery code is their way back in, so the session is an admin's (ENG-140)
+  const owner = await prisma.person.findFirst({ where: { owner: true }, select: { id: true } })
+  return owner ?? prisma.person.findFirst({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true } })
 }
 
 export async function hasRecoveryCode(): Promise<boolean> {
@@ -129,6 +132,8 @@ export async function listPeople() {
     select: {
       id: true,
       name: true,
+      role: true,
+      owner: true,
       passwordHash: true,
       passkeys: {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -136,7 +141,7 @@ export async function listPeople() {
       },
     },
   })
-  return people.map(({ passwordHash, ...p }) => ({ ...p, hasPassword: passwordHash !== null }))
+  return people.map(({ passwordHash, role, owner, ...p }) => ({ ...p, role: owner ? 'admin' : toRole(role), owner, hasPassword: passwordHash !== null }))
 }
 
 /** A name as typed at sign-in: trimmed, spaces collapsed, any case */
@@ -219,7 +224,8 @@ export async function createFirstPerson(name: string, password: string): Promise
   const passwordHash = await hashPassword(password)
   return prisma.$transaction(async tx => {
     if ((await tx.person.count()) > 0) return 'already-set-up' as const
-    return tx.person.create({ data: { name, passwordHash }, select: { id: true } })
+    // The installer: the owner, always an admin (ENG-140)
+    return tx.person.create({ data: { name, passwordHash, owner: true, role: 'admin' }, select: { id: true } })
   })
 }
 
