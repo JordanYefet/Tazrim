@@ -1,14 +1,15 @@
 'use client'
 
 /**
- * Adding an approver (ENG-134, ENG-139): the person's sign-in passkey or sign-in password, never a
- * separate one. The updater first writes a one-time code to a file in the Tazrim folder, which only
- * someone at the computer can read, and the code is typed here.
+ * Recovery (ENG-134, ENG-139, ENG-141): for when nobody can approve any more. Adds the person's sign-in
+ * passkey or sign-in password, never a separate one. The updater first writes a one-time code to a
+ * file in the Tazrim folder, which only someone at the computer can read, and the code is typed here.
+ * The normal ways in need no file: the first approval, and add-approver (approval-dialog.tsx).
  */
 import { useEffect, useState } from 'react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { passkeyBlocker } from '@/components/auth/passkey-client'
-import { adoptPassword, adoptPasskey, call } from './api'
+import { adoptPassword, adoptPasskey, call, type SigninChoices } from './api'
 import { Busy, Host, INPUT, PRIMARY, SECONDARY } from './ui'
 
 export type RegisterMode = 'signin-passkey' | 'signin-password'
@@ -20,11 +21,24 @@ interface Begun {
 }
 
 const TITLES: Record<RegisterMode, string> = {
-  'signin-passkey': 'אישור עם מפתח הכניסה',
-  'signin-password': 'אישור עם סיסמת הכניסה',
+  'signin-passkey': 'שחזור עם מפתח הכניסה',
+  'signin-password': 'שחזור עם סיסמת הכניסה',
 }
 
-export function RegisterDialog({ mode, onClose, onDone }: { mode: RegisterMode | null; onClose: () => void; onDone: () => void }) {
+export function RegisterDialog({
+  mode,
+  choices = null,
+  onMode,
+  onClose,
+  onDone,
+}: {
+  mode: RegisterMode | null
+  /** What the person can use; with both, the first screen offers the choice */
+  choices?: SigninChoices | null
+  onMode?: (m: RegisterMode) => void
+  onClose: () => void
+  onDone: () => void
+}) {
   const [begun, setBegun] = useState<Begun | null>(null)
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
@@ -84,6 +98,17 @@ export function RegisterDialog({ mode, onClose, onDone }: { mode: RegisterMode |
       <div className="mt-3 space-y-4 text-sm leading-relaxed">
         {!begun ? (
           <form onSubmit={begin} className="space-y-3">
+            <p className="text-pretty">אם אין גישה לאף מפתח אישור, אפשר להוסיף את {isPassword ? 'סיסמת הכניסה' : 'מפתח הכניסה'} בעזרת קוד מהמחשב.</p>
+            {choices?.passkeys && choices.password ? (
+              <div className="flex gap-2" role="group" aria-label="במה להוסיף">
+                <button type="button" aria-pressed={!isPassword} className={isPassword ? SECONDARY : PRIMARY} onClick={() => onMode?.('signin-passkey')}>
+                  מפתח הכניסה
+                </button>
+                <button type="button" aria-pressed={isPassword} className={isPassword ? PRIMARY : SECONDARY} onClick={() => onMode?.('signin-password')}>
+                  סיסמת הכניסה
+                </button>
+              </div>
+            ) : null}
             <p className="text-pretty text-muted-foreground">
               כדי שרק מי שיושב ליד המחשב יוכל להוסיף {isPassword ? 'סיסמה' : 'מפתח'}, תזרים ישמור קוד בקובץ בתיקייה של תזרים במחשב. את הקוד מקלידים כאן בשלב הבא.
             </p>

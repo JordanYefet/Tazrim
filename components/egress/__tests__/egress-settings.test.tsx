@@ -37,4 +37,23 @@ describe('EgressSettings and the updater', () => {
     expect(html).not.toContain('שירות העזר ישן')
     expect(html).not.toContain('אי אפשר לשנות את זה מכאן')
   })
+
+  it('no approvers: approvals use the sign-in key or password, nothing to set up, no recovery link, no code file', () => {
+    const html = render(view())
+    expect(html).toContain('האישור הראשון קובע')
+    expect(html).not.toContain('אין גישה לאף מפתח אישור')
+    expect(html).not.toContain('tazrim-approval-code')
+    expect(html).not.toContain('המפתח שאיתו אני נכנס')
+  })
+
+  it('with approvers: the recovery link is there, and still no word about the file in the normal flow', () => {
+    const html = render(view({ approvers: [{ id: 'cred-1', name: 'Dana · iPhone', rpId: 'tazrim.test', createdAt: '2030-01-01T00:00:00Z', kind: 'passkey' }] }))
+    expect(html).toContain('אין גישה לאף מפתח אישור?')
+    expect(html).not.toContain('tazrim-approval-code')
+  })
+
+  it('isolation on with no approvers: the switch can still be used (the first approval pins one)', () => {
+    const html = render(view({ on: true }))
+    expect(html).toContain('כיבוי דורש אישור עם מפתח הכניסה או סיסמת הכניסה')
+  })
 })

@@ -5,6 +5,10 @@
  * approval keys and the change log. Turning isolation ON only tightens, so it needs a confirmation.
  * Anything that loosens the filter (off, add or remove a site, remove a key) needs an approval the
  * updater verifies itself: a passkey, or the approval password.
+ *
+ * Approvers (ENG-141): none to set up. The first approval pins the sign-in key or password used; a
+ * later key of the signed-in admin is added with `add-approver` (an existing approver signs first).
+ * The code file is only the recovery link at the bottom of the card.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, KeyRound, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
@@ -62,7 +66,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
   useEffect(() => {
     fetchSignin()
       .then(r => alive.current && setSignin(r))
-      .catch(() => alive.current && setSignin({ passkeys: 0, password: false }))
+      .catch(() => alive.current && setSignin({ passkeys: 0, password: false, ids: [] }))
   }, [])
 
   const refresh = useCallback(async () => {
@@ -121,7 +125,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
       void follow(false)
       return
     }
-    setLine({ tone: 'ok', text: c.action === 'add-domain' ? 'האתר נוסף' : c.action === 'remove-domain' ? 'האתר הוסר' : 'המפתח הוסר' })
+    setLine({ tone: 'ok', text: c.action === 'add-domain' ? 'האתר נוסף' : c.action === 'remove-domain' ? 'האתר הוסר' : c.action === 'add-approver' ? 'אישור נוסף' : 'המפתח הוסר' })
     if (c.action === 'add-domain') setDraft({ domain: '', note: '' })
     void refresh()
   }
@@ -129,10 +133,18 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
   const ready = view.helper === 'ready'
   const canEdit = ready && !working
   const hasApprover = view.approvers.length > 0
+  // The signed-in person's own key / password, against the approvers: nothing to add when they already are one
+  const approverIds = new Set(view.approvers.filter(a => a.kind === 'passkey').map(a => a.id))
+  const hasPasswordApprover = view.approvers.some(a => a.kind === 'password')
+  const newPasskey = !!signin && signin.ids.some(id => !approverIds.has(id))
+  const minePinned = !!signin && signin.ids.some(id => approverIds.has(id))
+  // The updater cannot tell whether a pinned password is still the sign-in one: with one pinned it is offered as an update
+  const newPassword = !!signin?.password && (hasPasswordApprover || !minePinned)
+  // The first approval needs no set-up: it is made with the sign-in key or password
   const switchHint = !ready
     ? null
     : view.on && !hasApprover
-      ? 'כדי לכבות מכאן, מוסיפים קודם מפתח אישור או סיסמת אישור'
+      ? 'כיבוי דורש אישור עם מפתח הכניסה או סיסמת הכניסה'
       : view.on
         ? 'כיבוי דורש אישור'
         : null
@@ -162,7 +174,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
             on={view.on}
             labelledBy="egress-switch-label"
             busy={working}
-            disabled={!ready || working || (view.on && !hasApprover)}
+            disabled={!ready || working}
             onClick={() => (view.on ? setApprove({ action: 'turn-off' }) : setConfirmOn(true))}
           />
         </div>
@@ -342,7 +354,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
             מפתחות אישור
           </SectionHeading>
           {view.approvers.length === 0 ? (
-            <p className="min-h-11 text-sm text-muted-foreground">עוד אין מפתח אישור.</p>
+            <p className="min-h-11 text-sm text-muted-foreground text-pretty">אישורים נעשים עם מפתח הכניסה (Face ID, Touch ID) או עם סיסמת הכניסה. האישור הראשון קובע אותם גם לשינויים הבאים, ואין צורך להגדיר כלום קודם.</p>
           ) : (
             <ul className="divide-y rounded-xl border">
               {view.approvers.map(a => (
@@ -359,18 +371,25 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
               ))}
             </ul>
           )}
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={PRIMARY} disabled={!canEdit || !signin?.passkeys} onClick={() => setRegister('signin-passkey')}>
-              המפתח שאיתו אני נכנס/ת
-            </button>
-            <button type="button" className={SECONDARY} disabled={!canEdit || !signin?.password} onClick={() => setRegister('signin-password')}>
-              סיסמת הכניסה שלי
-            </button>
+          {/* Only for someone whose own key or password is not an approver yet; the row keeps its height either way */}
+          <div className="flex min-h-11 flex-wrap items-center gap-2">
+            {hasApprover && newPasskey && (
+              <button type="button" className={PRIMARY} disabled={!canEdit} onClick={() => setApprove({ action: 'add-approver', kind: 'passkey' })}>
+                הוספת המפתח שלי
+              </button>
+            )}
+            {hasApprover && newPassword && (
+              <button type="button" className={newPasskey ? SECONDARY : PRIMARY} disabled={!canEdit} onClick={() => setApprove({ action: 'add-approver', kind: 'password' })}>
+                {hasPasswordApprover ? 'עדכון סיסמת האישור' : 'הוספת הסיסמה שלי'}
+              </button>
+            )}
           </div>
-          <p className="min-h-5 text-xs text-muted-foreground text-pretty">
-            {signin && !signin.passkeys && !signin.password ? 'עוד אין לך מפתח או סיסמה לכניסה. מוסיפים אותם בהגדרות ← אנשים.' : signin && !signin.passkeys ? 'אין לך מפתח כניסה (Face ID, Touch ID).' : signin && !signin.password ? 'אין לך סיסמת כניסה.' : ''}
-          </p>
           <p className="text-xs text-muted-foreground text-pretty">מפתח בטוח יותר מסיסמה: את הסיסמה מקלידים בתוך האפליקציה. גם מפתח לא מראה למה הוא מאשר, ולכן היומן שלמטה הוא הרשומה של מה שאושר בפועל.</p>
+          {hasApprover && (
+            <button type="button" className="min-h-11 text-start text-xs text-muted-foreground underline underline-offset-2 disabled:opacity-50" disabled={!canEdit || !signin || (!signin.passkeys && !signin.password)} onClick={() => setRegister(signin?.passkeys ? 'signin-passkey' : 'signin-password')}>
+              אין גישה לאף מפתח אישור?
+            </button>
+          )}
         </section>
       )}
 
@@ -416,6 +435,8 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
       <ApprovalDialog change={approve} onClose={() => setApprove(null)} onApproved={approved} />
       <RegisterDialog
         mode={register}
+        choices={signin}
+        onMode={setRegister}
         onClose={() => setRegister(null)}
         onDone={() => {
           setRegister(null)
