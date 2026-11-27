@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import pkg from '@/package.json'
 import { SettingsSection } from '@/components/settings/settings-section'
 import { VersionCard } from '@/components/updates/version-card'
+import { AdminOnly } from '@/components/settings/admin-only'
+import { viewerIsAdmin } from '@/lib/auth/http'
 import { isReadOnly } from '@/lib/read-only'
 import { getUpdateView } from '@/lib/updates/state'
 
@@ -17,15 +19,18 @@ export const metadata: Metadata = { title: 'עדכונים · תזרים' }
 export default async function UpdatesPage() {
   if (isReadOnly()) redirect('/settings')
   const update = await getUpdateView().catch(() => null)
+  const admin = await viewerIsAdmin()
   return (
     <SettingsSection title="עדכונים" description="הגרסה המותקנת, בדיקה אם יצאה גרסה חדשה ועדכון אליה.">
-      {update ? (
-        <VersionCard initial={update} />
-      ) : (
-        <p className="rounded-xl surface p-5 text-sm text-muted-foreground">
-          גרסה <span dir="ltr" className="tabular-nums">{pkg.version}</span>
-        </p>
-      )}
+      <AdminOnly admin={admin}>
+        {update ? (
+          <VersionCard initial={update} />
+        ) : (
+          <p className="rounded-xl surface p-5 text-sm text-muted-foreground">
+            גרסה <span dir="ltr" className="tabular-nums">{pkg.version}</span>
+          </p>
+        )}
+      </AdminOnly>
     </SettingsSection>
   )
 }

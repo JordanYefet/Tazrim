@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { allow, currentSession, passwordTransportOr400, rpOr400, TOO_MANY } from '@/lib/auth/http'
+import { adminRefusal, allow, currentSession, passwordTransportOr400, rpOr400, TOO_MANY } from '@/lib/auth/http'
 import { checkOwnPassword } from '@/lib/auth/household'
 import { prisma } from '@/lib/db/client'
 import { egressRefusal } from '@/lib/egress/access'
@@ -23,6 +23,8 @@ const refuse = (status: number, code: string) => NextResponse.json({ code, error
 async function handlePOST(req: Request) {
   const refused = egressRefusal(req.headers)
   if (refused) return refused
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const body = (await req.json().catch(() => null)) as { code?: unknown; name?: unknown; response?: unknown; assertion?: unknown; password?: unknown; source?: unknown } | null
   const code = typeof body?.code === 'string' ? body.code.trim().slice(0, 12) : ''
   let name = typeof body?.name === 'string' ? body.name.trim().slice(0, 60) : ''

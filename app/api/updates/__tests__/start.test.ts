@@ -3,6 +3,9 @@ import path from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, releasePrisma, usePrismaOn, type TestDb } from '@/lib/db/__tests__/test-db'
 
+// These test what each route does; who may call it (admins only, ENG-140) is tested in lib/auth/__tests__/roles-routes.test.ts
+vi.mock('@/lib/auth/http', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/auth/http')>()), adminRefusal: async () => null }))
+
 let db: TestDb
 
 beforeAll(() => {

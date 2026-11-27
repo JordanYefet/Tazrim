@@ -9,7 +9,7 @@
 import { prisma } from '@/lib/db/client'
 import { getVaultIdleMinutes } from '@/lib/settings/app-settings'
 import { checkOwnPassword } from '@/lib/auth/household'
-import { keyFromPassword, keyFromPrf, keyFromRecovery, newPasswordKdf, newRecoveryKey, newVaultKey, open, passwordWrapAad, seal, wrapAad } from './crypto'
+import { keyFromPassword, keyFromPrf, keyFromRecovery, newMailbox, newPasswordKdf, newRecoveryKey, newVaultKey, open, openFromMailbox, openMailboxPrivate, passwordWrapAad, seal, sealToMailbox, wrapAad } from './crypto'
 
 interface Unlocked {
   key: Buffer
@@ -73,11 +73,16 @@ export interface VaultStatus {
   passkeys: string[]
   /** People (ids) who have a password copy (ENG-135) */
   passwords: string[]
+  /** Passkey ids with no copy yet that are waiting for the next opening (ENG-140) */
+  waiting: string[]
 }
 
 export async function status(): Promise<VaultStatus> {
   expireIfIdle()
-  const wraps = await prisma.vaultKeyWrap.findMany({ select: { passkeyId: true, personId: true } })
+  const [wraps, boxes] = await Promise.all([
+    prisma.vaultKeyWrap.findMany({ select: { passkeyId: true, personId: true } }),
+    prisma.vaultMailbox.findMany({ select: { passkeyId: true } }),
+  ])
   const o = state.open
   return {
     exists: wraps.length > 0,
@@ -88,6 +93,7 @@ export async function status(): Promise<VaultStatus> {
     hasRecoveryKey: wraps.some(w => w.passkeyId === null && w.personId === null),
     passkeys: wraps.flatMap(w => (w.passkeyId ? [w.passkeyId] : [])),
     passwords: wraps.flatMap(w => (w.personId ? [w.personId] : [])),
+    waiting: boxes.map(b => b.passkeyId),
   }
 }
 
@@ -102,13 +108,15 @@ export async function createVault(passkeyId: string, prfOutput: Buffer, prfSalt:
     if ((await tx.vaultKeyWrap.count()) > 0) return false
     await tx.vaultKeyWrap.create({ data: { passkeyId, prfSalt, wrappedKey: seal(keyFromPrf(prfOutput, prfSalt), vaultKey, wrapAad(passkeyId)) } })
     await tx.vaultKeyWrap.create({ data: { passkeyId: null, wrappedKey: seal(keyFromRecovery(recovery), vaultKey, wrapAad(null)) } })
+    // It has a real copy now: no mailbox needed
+    await tx.vaultMailbox.deleteMany({ where: { passkeyId } })
     return true
   })
   if (!created) {
     vaultKey.fill(0)
     return 'exists'
   }
-  setOpen(vaultKey, by)
+  await opened(vaultKey, by)
   return recovery
 }
 
@@ -118,8 +126,87 @@ export async function unlockWithPasskey(passkeyId: string, prfOutput: Buffer, by
   if (!wrap?.prfSalt) return false
   const vaultKey = open(keyFromPrf(prfOutput, wrap.prfSalt), wrap.wrappedKey, wrapAad(passkeyId))
   if (!vaultKey) return false
-  setOpen(vaultKey, by)
+  await opened(vaultKey, by)
   return true
+}
+
+/** The vault was just opened by someone: wipes nothing, and leaves a copy in every waiting passkey's mailbox (ENG-140) */
+async function opened(key: Buffer, by: string) {
+  setOpen(key, by)
+  await fulfilMailboxes(key)
+}
+
+/**
+ * ENG-140: for every passkey that has a mailbox and no copy, seals the vault key to its public key and
+ * keeps it as the pending copy. Needs the vault open (someone just opened it), so it never runs without
+ * the key. Never throws: opening the vault never fails because of it.
+ *
+ * A compromised app could plant its own mailbox public key and receive the vault key at the next
+ * opening. But code running in the app already sees the vault key while it is open, so this adds no
+ * capability. Mailboxes are only made from a real PRF ceremony of a registered passkey of a household
+ * member (registerMailbox, reached only from the signed passkey answer in /api/vault/passkey).
+ */
+async function fulfilMailboxes(key: Buffer) {
+  try {
+    const boxes = await prisma.vaultMailbox.findMany({ where: { pendingKey: null }, select: { id: true, passkeyId: true, publicKey: true } })
+    for (const box of boxes) {
+      const pendingKey = sealToMailbox(box.publicKey, key, box.passkeyId)
+      await prisma.vaultMailbox.updateMany({ where: { id: box.id, pendingKey: null }, data: { pendingKey } })
+    }
+  } catch {
+    // opening the vault never fails because of a mailbox
+  }
+}
+
+export type PasskeyUnlock =
+  /** Its own copy opened the vault */
+  | 'opened'
+  /** A copy left in its mailbox opened the vault, and was replaced by a normal copy */
+  | 'converted'
+  /** The vault was already open: this passkey now has its own copy (the vault stays as it was) */
+  | 'added'
+  /** Nothing to open with yet: its mailbox is registered, and the next opening leaves it a copy */
+  | 'pending'
+  /** A PRF output that does not open this passkey's copy or mailbox */
+  | 'wrong-key'
+
+/**
+ * A passkey's ceremony for "unlock" (ENG-140): opens the vault the way this passkey can, or, when it
+ * can't yet, makes sure it will be able to next time.
+ *   copy of its own → open;  a copy waiting in its mailbox → open, then a normal copy replaces it;
+ *   vault already open → a normal copy right away;  otherwise → its mailbox is made (or kept).
+ * `prfSalt` is the salt this ceremony asked for (the stored one when there is a copy or a mailbox).
+ */
+export async function unlockWithPasskeyOrRegister(passkeyId: string, prfOutput: Buffer, prfSalt: string, by: string): Promise<PasskeyUnlock> {
+  if (await prisma.vaultKeyWrap.findUnique({ where: { passkeyId }, select: { id: true } })) {
+    return (await unlockWithPasskey(passkeyId, prfOutput, by)) ? 'opened' : 'wrong-key'
+  }
+  const box = await prisma.vaultMailbox.findUnique({ where: { passkeyId } })
+  if (box) {
+    // The salt this passkey's PRF output was asked with must be the mailbox's, or it opens nothing
+    const priv = openMailboxPrivate(passkeyId, box.sealedPrivate, prfOutput, box.prfSalt)
+    if (!priv) return 'wrong-key'
+    try {
+      if (key()) {
+        await addPasskey(passkeyId, prfOutput, box.prfSalt)
+        return 'added'
+      }
+      const vaultKey = box.pendingKey ? openFromMailbox(priv, box.pendingKey, passkeyId) : null
+      if (!vaultKey) return 'pending'
+      await opened(vaultKey, by)
+      await addPasskey(passkeyId, prfOutput, box.prfSalt)
+      return 'converted'
+    } finally {
+      priv.fill(0)
+    }
+  }
+  if (key()) {
+    await addPasskey(passkeyId, prfOutput, prfSalt)
+    return 'added'
+  }
+  const mailbox = newMailbox(passkeyId, prfOutput, prfSalt)
+  await prisma.vaultMailbox.upsert({ where: { passkeyId }, create: { passkeyId, prfSalt, ...mailbox }, update: {} })
+  return 'pending'
 }
 
 /** Opens the vault with the recovery key; false when it's wrong */
@@ -129,7 +216,7 @@ export async function unlockWithRecovery(recoveryKey: unknown, by: string): Prom
   if (!wrap) return false
   const vaultKey = open(keyFromRecovery(recoveryKey), wrap.wrappedKey, wrapAad(null))
   if (!vaultKey) return false
-  setOpen(vaultKey, by)
+  await opened(vaultKey, by)
   return true
 }
 
@@ -138,7 +225,11 @@ export async function addPasskey(passkeyId: string, prfOutput: Buffer, prfSalt: 
   const k = key()
   if (!k) throw new VaultLockedError()
   const wrappedKey = seal(keyFromPrf(prfOutput, prfSalt), k, wrapAad(passkeyId))
-  await prisma.vaultKeyWrap.upsert({ where: { passkeyId }, create: { passkeyId, prfSalt, wrappedKey }, update: { prfSalt, wrappedKey } })
+  await prisma.$transaction([
+    prisma.vaultKeyWrap.upsert({ where: { passkeyId }, create: { passkeyId, prfSalt, wrappedKey }, update: { prfSalt, wrappedKey } }),
+    // A passkey with its own copy needs no mailbox (ENG-140)
+    prisma.vaultMailbox.deleteMany({ where: { passkeyId } }),
+  ])
 }
 
 /** While open: a new recovery key (returned once); the old one stops working */
@@ -190,7 +281,7 @@ export async function unlockWithPassword(personId: string, password: unknown, by
   const vaultKey = open(derived, wrap.wrappedKey, passwordWrapAad(personId))
   derived.fill(0)
   if (!vaultKey) return false
-  setOpen(vaultKey, by)
+  await opened(vaultKey, by)
   return true
 }
 
@@ -261,7 +352,12 @@ export async function passwordChanged(personId: string, password: string | null)
  */
 export async function resetVault() {
   lock()
-  await prisma.$transaction([prisma.bankCredential.deleteMany(), prisma.vaultKeyWrap.deleteMany()])
+  await prisma.$transaction([
+    prisma.bankCredential.deleteMany(),
+    prisma.vaultKeyWrap.deleteMany(),
+    // Waiting passkeys stay (they are about the passkey), but a copy sealed to them was of the old key
+    prisma.vaultMailbox.updateMany({ data: { pendingKey: null } }),
+  ])
 }
 
 // ── Sign-ins ────────────────────────────────────────────────────────────

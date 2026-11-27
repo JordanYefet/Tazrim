@@ -102,6 +102,13 @@ async function joinWithPasskey(name: string, auth: ReturnType<typeof authenticat
   return token
 }
 
+/** The household's owner (an admin) signs in again with the password they set up with: inviting is for admins (ENG-140) */
+async function asOwner(name = 'Owner') {
+  ;(await import('../rate-limit')).resetRateLimits()
+  cookieJar = ''
+  expect((await call('/auth/password', { name, password: SETUP_PASSWORD })).status).toBe(200)
+}
+
 beforeEach(async () => {
   ;(await import('../rate-limit')).resetRateLimits()
 })
@@ -182,6 +189,7 @@ describe('passkey flow', () => {
 
   it("someone with a passkey and no password (from before ENG-119) still signs in", async () => {
     const legacy = authenticator()
+    await asOwner()
     await joinWithPasskey('Legacy', legacy, 'iPad')
     expect((await call('/people/password', undefined, 'DELETE')).status).toBe(200)
     cookieJar = ''
@@ -193,6 +201,7 @@ describe('passkey flow', () => {
 
   it('a link for another device of someone makes a passkey for them, once', async () => {
     const owner2 = authenticator()
+    await asOwner()
     const people = await call('/people', undefined, 'GET')
     const me = people.body.people.find((p: { id: string }) => p.id === people.body.me)
     const token = (await call('/people/invites', { personId: me.id })).body.url.split('/invite/')[1]
@@ -264,8 +273,7 @@ describe('passwords', () => {
   })
 
   it('an invite link joins with a password instead of a passkey: once, with a free name', async () => {
-    ;(await import('../rate-limit')).resetRateLimits()
-    await call('/auth/password', { name: 'Partner', password: PASSWORD })
+    await asOwner()
     const token = (await call('/people/invites', { personId: null })).body.url.split('/invite/')[1]
     const lan = { host: '192.168.1.20:3000' }
     cookieJar = ''
@@ -315,7 +323,12 @@ describe('confirming "delete all data" (ENG-89)', () => {
   const PHRASE = 'מחק הכל'
 
   it('needs the signed-in person to confirm: their passkey, or their password', async () => {
+    await asOwner()
     await joinWithPasskey('Deleter', me, 'Mac', 'deleter password')
+    // Deleting everything is for admins (ENG-140): a member is refused before anything is asked
+    expect((await call('/data/delete-all/options', {})).body.code).toBe('ADMIN_ONLY')
+    expect((await call('/data/delete-all', { confirm: PHRASE, password: 'deleter password' })).body.code).toBe('ADMIN_ONLY')
+    db.exec(`UPDATE "Person" SET "role" = 'admin' WHERE "name" = 'Deleter'`)
 
     // The phrase alone, a sign-in challenge, or a wrong password: refused, nothing deleted
     expect((await call('/data/delete-all', { confirm: PHRASE })).body.code).toBe('NOT_CONFIRMED')
@@ -408,5 +421,39 @@ describe('the vault (ENG-90) through its routes', () => {
     expect((await call('/vault', undefined, 'GET')).status).toBe(401)
     expect((await call('/vault/options', { purpose: 'unlock' })).status).toBe(401)
     ;(await import('@/lib/vault/vault')).lock()
+  })
+
+  it('a second passkey with no copy: pending while locked, collected after anyone opens it (ENG-140)', async () => {
+    const { lock } = await import('@/lib/vault/vault')
+    expect((await call('/auth/password', { name: 'Vault owner', password: SETUP_PASSWORD })).status).toBe(200)
+    const second = authenticator()
+    const prf2 = Buffer.alloc(32, 3).toString('base64url')
+    expect((await addPasskey(second, 'Mac')).status).toBe(200)
+    lock()
+
+    const ask = async (who: ReturnType<typeof authenticator>, prfValue: string) => {
+      const opts = await call('/vault/options', { purpose: 'unlock' })
+      expect(opts.status).toBe(200)
+      expect(Object.keys(opts.body.prf).sort()).toEqual([owner.id, second.id].sort())
+      return call('/vault/passkey', { flowId: opts.body.flowId, response: who.get(opts.body.options.challenge), prf: prfValue })
+    }
+    const pending = await ask(second, prf2)
+    expect(pending.status).toBe(409)
+    expect(pending.body.code).toBe('VAULT_PENDING')
+    expect(pending.body.error).toBe('המפתח שלך נרשם. בפעם הבאה שמישהו יפתח את הכספת הוא יתווסף, ואז הוא יפתח אותה.')
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "VaultMailbox"')[0].n).toBe(1)
+    const waiting = await call('/vault', undefined, 'GET')
+    expect(waiting.body.passkeys.filter((p: { waiting: boolean }) => p.waiting)).toHaveLength(1)
+
+    // The first passkey opens it: a copy is left for the second, which then opens with its own PRF output
+    expect((await ask(owner, prf)).status).toBe(200)
+    lock()
+    const collected = await ask(second, prf2)
+    expect(collected.status).toBe(200)
+    expect(collected.body.result).toBe('converted')
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "VaultMailbox"')[0].n).toBe(0)
+    lock()
+    expect((await ask(second, prf2)).body.result).toBe('opened')
+    lock()
   })
 })

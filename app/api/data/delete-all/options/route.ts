@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { currentSession, fail, rpOr400 } from '@/lib/auth/http'
+import { adminOr403, currentSession, fail, rpOr400 } from '@/lib/auth/http'
 import { confirmOptions } from '@/lib/auth/webauthn'
 import { logged } from '@/lib/log/route'
 
@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic'
 async function handlePOST(req: Request) {
   const session = await currentSession()
   if (!session) return fail(401, 'צריך להתחבר מחדש', 'SIGNED_OUT')
+  const notAdmin = adminOr403(session)
+  if (notAdmin) return notAdmin
   const rp = rpOr400(req)
   if (rp instanceof NextResponse) return rp
   return NextResponse.json({ passkey: await confirmOptions(rp, session.personId) })

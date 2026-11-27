@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { currentSession } from '@/lib/auth/http'
+import { adminRefusal, currentSession } from '@/lib/auth/http'
 import { hasOwnPassword } from '@/lib/auth/household'
 import { egressRefusal } from '@/lib/egress/access'
 import { relay, rpIdOf } from '@/lib/egress/helper'
@@ -24,6 +24,8 @@ const refuse = (status: number, code: string) => NextResponse.json({ code, error
 async function handlePOST(req: Request) {
   const refused = egressRefusal(req.headers)
   if (refused) return refused
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const body = (await req.json().catch(() => null)) as { name?: unknown; source?: unknown } | null
   const source: Source | null = body?.source === undefined ? 'new-passkey' : SOURCES.find(s => s === body.source) ?? null
   const rpId = rpIdOf(req.headers)

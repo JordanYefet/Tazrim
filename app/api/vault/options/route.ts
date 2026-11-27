@@ -27,11 +27,9 @@ async function handlePOST(req: Request) {
   if (purpose !== 'create' && !vault.exists) return fail(409, 'עוד אין כספת', 'NO_VAULT')
   const options = await vaultOptions(rp, session.personId, purpose)
   if (!options) {
-    return purpose === 'unlock'
-      ? fail(409, 'לאף מפתח שלך אין עדיין גישה לכספת. פתחו אותה עם מפתח השחזור, או ממכשיר שכבר פותח אותה', 'NO_COPY')
-      : purpose === 'create'
-        ? fail(409, 'הכספת נפתחת רק עם מפתח (passkey), ולך עוד אין. הוסיפו מפתח במכשיר הזה (תפריט אישי ← הוספת מכשיר) ונסו שוב', 'NO_PASSKEY')
-        : fail(409, 'כל המפתחות שלך כבר פותחים את הכספת', 'NO_PASSKEY')
+    return purpose === 'add'
+      ? fail(409, 'כל המפתחות שלך כבר פותחים את הכספת', 'NO_PASSKEY')
+      : fail(409, 'הכספת נפתחת רק עם מפתח (passkey), ולך עוד אין. הוסיפו מפתח במכשיר הזה (תפריט אישי ← הוספת מכשיר) ונסו שוב. אפשר גם לפתוח אותה עם הסיסמה או עם מפתח השחזור', 'NO_PASSKEY')
   }
   return NextResponse.json(options)
 }

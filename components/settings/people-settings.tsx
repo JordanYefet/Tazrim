@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, KeyRound, Laptop, LockKeyhole, LogOut, Pencil, ShieldCheck, Smartphone, UserPlus, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, KeyRound, Laptop, LockKeyhole, LogOut, Pencil, ShieldCheck, Smartphone, UserPlus, UserRound, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -15,10 +15,14 @@ import { PersonAvatar } from '@/components/avatar/person-avatar'
 import { AvatarPicker } from './avatar-picker'
 import type { Avatar } from '@/lib/avatar/options'
 import { PASSWORD_MIN } from '@/lib/auth/password-rules'
+import { SegmentedTabs } from '@/components/ui/segmented-tabs'
+import type { Role } from '@/lib/auth/roles'
 
 interface Device { id: string; label: string; createdAt: string; lastUsedAt: string | null }
-interface Person { id: string; name: string; hasPassword: boolean; passkeys: Device[]; avatar: Avatar | null }
-interface PeopleInfo { people: Person[]; me: string | null; thisDevice: string | null; hasRecoveryCode: boolean }
+interface Person { id: string; name: string; role: Role; owner: boolean; hasPassword: boolean; passkeys: Device[]; avatar: Avatar | null }
+interface PeopleInfo { people: Person[]; me: string | null; myRole: Role | null; thisDevice: string | null; hasRecoveryCode: boolean }
+
+const ROLE_LABEL: Record<Role, string> = { admin: 'מנהל/ת', member: 'חבר/ת משק בית' }
 
 const date = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -50,12 +54,14 @@ async function call(url: string, method: string, body?: unknown) {
  * Settings → People (ENG-89): everyone in the household and their devices,
  * invite links (a new person or another device), revoking a device, a passkey
  * on this device, your own password (a way in on a device without a passkey),
- * a new recovery code, and signing out. Everyone has the same rights.
+ * a new recovery code, and signing out. Everyone sees and edits the same money; the household's
+ * people, invitations and recovery code are for admins (ENG-140), each person's level is set here
+ * (the one who installed it is always an admin). A member sees those controls dimmed.
  * `open` (from the profile menu) opens adding a device for me, or my password, at once.
  */
-export function PeopleSettings({ recovered, open }: { recovered: boolean; open?: 'device' | 'password' }) {
+export function PeopleSettings({ initial, recovered, open }: { initial: PeopleInfo; recovered: boolean; open?: 'device' | 'password' }) {
   const router = useRouter()
-  const [info, setInfo] = useState<PeopleInfo | null>(null)
+  const [info, setInfo] = useState<PeopleInfo | null>(initial)
   const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invite, setInvite] = useState<{ title: string; url: string; qr: string; expiresAt: string } | null>(null)
@@ -68,6 +74,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
   const [repeatPassword, setRepeatPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [removingPassword, setRemovingPassword] = useState(false)
+  const [removingPerson, setRemovingPerson] = useState<Person | null>(null)
 
   const load = useCallback(() => {
     call('/api/people', 'GET').then(setInfo, e => setError(e.message))
@@ -124,6 +131,34 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
       setError((e as Error).message)
       setRevoking(null)
     }
+    setBusy(false)
+  }
+
+  const isAdmin = info?.myRole === 'admin'
+
+  async function setLevel(person: Person, role: Role) {
+    if (person.role === role) return
+    setError(null)
+    setBusy(true)
+    try {
+      await call(`/api/people/${person.id}`, 'PUT', { role })
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    setBusy(false)
+  }
+
+  async function removeSomeone() {
+    if (!removingPerson) return
+    setBusy(true)
+    try {
+      await call(`/api/people/${removingPerson.id}`, 'DELETE')
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    setRemovingPerson(null)
     setBusy(false)
   }
 
@@ -218,13 +253,42 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                 <span className="truncate text-[1.0625rem] font-semibold">{p.name}</span>
                 {p.id === info.me && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">את/ה</span>}
               </span>
-              <button type="button" onClick={() => makeInvite(p)} aria-label={`מכשיר נוסף עבור ${p.name}`} className={secondaryButton}>
+              <button type="button" onClick={() => makeInvite(p)} disabled={!isAdmin && p.id !== info.me} aria-label={`מכשיר נוסף עבור ${p.name}`} className={cn(secondaryButton, 'disabled:opacity-40')}>
                 <Smartphone className="h-4 w-4" aria-hidden />
                 {/* Icon only on a narrow phone, so the name keeps its room */}
                 <span className="max-[420px]:sr-only">מכשיר נוסף</span>
               </button>
             </div>
             <ul className="border-t">
+              <li className={ROW}>
+                <RowIcon icon={UserRound} muted />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[0.9375rem] font-medium">{p.owner ? 'מתקין/ה · מנהל/ת' : 'רמת הרשאה'}</span>
+                  <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
+                    {p.owner ? 'מי שהתקין/ה את תזרים הוא/היא תמיד מנהל/ת' : p.role === 'admin' ? 'מנהל/ת: גם מנהל/ת אנשים, עדכונים ורשת' : 'חבר/ת משק בית: הכסף והכניסה האישית'}
+                  </span>
+                </span>
+                {p.owner ? null : isAdmin ? (
+                  <span className={cn('w-52 shrink-0', busy && 'pointer-events-none opacity-60')}>
+                    <SegmentedTabs<Role>
+                      ariaLabel={`רמת ההרשאה של ${p.name}`}
+                      value={p.role}
+                      onChange={role => void setLevel(p, role)}
+                      options={[
+                        { key: 'admin', label: ROLE_LABEL.admin },
+                        { key: 'member', label: 'חבר/ת בית' },
+                      ]}
+                    />
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[0.9375rem] font-medium">{ROLE_LABEL[p.role]}</span>
+                )}
+                {isAdmin && !p.owner && p.id !== info.me && (
+                  <button type="button" onClick={() => setRemovingPerson(p)} aria-label={`הסרת ${p.name}`} className={cn(TEXT_BUTTON, QUIET_DANGER)}>
+                    הסרה
+                  </button>
+                )}
+              </li>
               {p.passkeys.map(d => (
                 <li key={d.id} className={ROW}>
                   <RowIcon icon={isComputer(d.label) ? Laptop : Smartphone} />
@@ -237,7 +301,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                       מפתח. נוסף ב-{date(d.createdAt)}, {d.lastUsedAt ? `שימוש אחרון ${date(d.lastUsedAt)}` : 'עוד לא בשימוש'}
                     </span>
                   </span>
-                  <button type="button" onClick={() => setRevoking(d)} aria-label={`ביטול ${d.label}`} className={cn(TEXT_BUTTON, QUIET_DANGER)}>
+                  <button type="button" onClick={() => setRevoking(d)} disabled={!isAdmin && p.id !== info.me} aria-label={`ביטול ${d.label}`} className={cn(TEXT_BUTTON, QUIET_DANGER, 'disabled:opacity-40')}>
                     ביטול
                   </button>
                 </li>
@@ -280,7 +344,7 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
         <h2 id="household-title" className="px-1 text-[0.8125rem] font-semibold text-muted-foreground">משק הבית</h2>
         <ul className="overflow-hidden rounded-2xl surface">
           <li className="border-b">
-            <button type="button" onClick={() => makeInvite(null)} className={ROW_BUTTON}>
+            <button type="button" onClick={() => makeInvite(null)} disabled={!isAdmin} className={ROW_BUTTON}>
               <RowIcon icon={UserPlus} />
               <span className="min-w-0 flex-1">
                 <span className="block text-[0.9375rem] font-medium">הזמנת אדם</span>
@@ -307,11 +371,12 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
                 {info && !info.hasRecoveryCode ? 'אין קוד בתוקף. כדאי ליצור אחד' : 'בתוקף. כניסה אחת אם אין גישה לאף מכשיר'}
               </span>
             </span>
-            <button type="button" onClick={() => setConfirmRecovery(true)} className={cn(TEXT_BUTTON, 'text-primary hover:bg-primary/10')}>
+            <button type="button" onClick={() => setConfirmRecovery(true)} disabled={!isAdmin} className={cn(TEXT_BUTTON, 'text-primary hover:bg-primary/10 disabled:opacity-40')}>
               קוד חדש
             </button>
           </li>
         </ul>
+        {info && !isAdmin && <p className="px-1 text-[0.8125rem] text-muted-foreground text-pretty">הזמנת אנשים, מכשירים של אחרים, רמות הרשאה וקוד השחזור: רק למנהלים ולמנהלות.</p>}
       </section>
 
       <button type="button" onClick={signOut} className={secondaryButton}>
@@ -392,6 +457,16 @@ export function PeopleSettings({ recovered, open }: { recovered: boolean; open?:
         title={`לבטל את "${revoking?.label}"?`}
         description={revoking?.id === info?.thisDevice ? 'זה המכשיר הזה: תצאו מיד.' : 'המכשיר יצא בבקשה הבאה שלו ולא יוכל להיכנס שוב בלי הזמנה חדשה.'}
         confirmLabel="ביטול המכשיר"
+        cancelLabel="השארה"
+      />
+      <ConfirmDialog
+        open={!!removingPerson}
+        onOpenChange={o => !o && setRemovingPerson(null)}
+        onConfirm={removeSomeone}
+        busy={busy}
+        title={`להסיר את ${removingPerson?.name ?? ''}?`}
+        description="המכשירים והסיסמה שלו/ה יימחקו, והכניסות ייסגרו. הכסף והנתונים של משק הבית נשארים."
+        confirmLabel="הסרה"
         cancelLabel="השארה"
       />
       <ConfirmDialog

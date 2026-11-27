@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { adminRefusal } from '@/lib/auth/http'
 import { checkNow } from '@/lib/updates/check'
 import { readOnlyRefusal } from '@/lib/updates/guard'
 import { getUpdateView } from '@/lib/updates/state'
@@ -8,6 +9,8 @@ export const dynamic = 'force-dynamic'
 
 /** POST: ask GitHub now, answer with the refreshed state */
 async function handlePOST() {
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const refused = readOnlyRefusal()
   if (refused) return refused
   await checkNow()

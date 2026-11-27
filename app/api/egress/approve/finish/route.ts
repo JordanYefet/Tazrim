@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { adminRefusal } from '@/lib/auth/http'
 import { egressRefusal } from '@/lib/egress/access'
 import { relay } from '@/lib/egress/helper'
 import { egressMessage } from '@/lib/egress/messages'
@@ -13,6 +14,8 @@ export const dynamic = 'force-dynamic'
 async function handlePOST(req: Request) {
   const refused = egressRefusal(req.headers)
   if (refused) return refused
+  const notAdmin = await adminRefusal()
+  if (notAdmin) return notAdmin
   const body = (await req.json().catch(() => null)) as { response?: unknown; flowId?: unknown; password?: unknown } | null
   const passkey = body?.response && typeof body.response === 'object' ? { response: body.response } : null
   const password = typeof body?.flowId === 'string' && typeof body.password === 'string' && body.password && body.password.length <= 500 ? { flowId: body.flowId.slice(0, 200), password: body.password } : null
