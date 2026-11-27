@@ -23,10 +23,12 @@ async function handleGET() {
     prisma.person.findUnique({ where: { id: session.personId }, select: { passwordHash: true, vaultPasswordOff: true } }),
   ])
   return NextResponse.json({
-    vault: { ...vault, passkeys: undefined, passwords: undefined },
+    vault: { ...vault, passkeys: undefined, passwords: undefined, waiting: undefined },
     /** The signed-in person's password: whether they have one, and whether it opens the vault (ENG-135), and whether they turned it off (ENG-139) */
     password: { has: !!me?.passwordHash, opensVault: vault.passwords.includes(session.personId), optedOut: !!me?.vaultPasswordOff },
     credentials,
+    /** The signed-in person's level, for what is for admins (ENG-140) */
+    isAdmin: session.role === 'admin',
     passkeys: passkeys.map(p => ({
       id: p.id,
       label: p.label,
@@ -34,6 +36,8 @@ async function handleGET() {
       mine: p.personId === session.personId,
       thisDevice: p.id === session.passkeyId,
       opens: vault.passkeys.includes(p.id),
+      /** No copy yet, but it has registered: the next opening leaves it one (ENG-140) */
+      waiting: vault.waiting.includes(p.id),
     })),
   })
 }

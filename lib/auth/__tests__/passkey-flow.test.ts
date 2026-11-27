@@ -422,4 +422,38 @@ describe('the vault (ENG-90) through its routes', () => {
     expect((await call('/vault/options', { purpose: 'unlock' })).status).toBe(401)
     ;(await import('@/lib/vault/vault')).lock()
   })
+
+  it('a second passkey with no copy: pending while locked, collected after anyone opens it (ENG-140)', async () => {
+    const { lock } = await import('@/lib/vault/vault')
+    expect((await call('/auth/password', { name: 'Vault owner', password: SETUP_PASSWORD })).status).toBe(200)
+    const second = authenticator()
+    const prf2 = Buffer.alloc(32, 3).toString('base64url')
+    expect((await addPasskey(second, 'Mac')).status).toBe(200)
+    lock()
+
+    const ask = async (who: ReturnType<typeof authenticator>, prfValue: string) => {
+      const opts = await call('/vault/options', { purpose: 'unlock' })
+      expect(opts.status).toBe(200)
+      expect(Object.keys(opts.body.prf).sort()).toEqual([owner.id, second.id].sort())
+      return call('/vault/passkey', { flowId: opts.body.flowId, response: who.get(opts.body.options.challenge), prf: prfValue })
+    }
+    const pending = await ask(second, prf2)
+    expect(pending.status).toBe(409)
+    expect(pending.body.code).toBe('VAULT_PENDING')
+    expect(pending.body.error).toBe('המפתח שלך נרשם. בפעם הבאה שמישהו יפתח את הכספת הוא יתווסף, ואז הוא יפתח אותה.')
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "VaultMailbox"')[0].n).toBe(1)
+    const waiting = await call('/vault', undefined, 'GET')
+    expect(waiting.body.passkeys.filter((p: { waiting: boolean }) => p.waiting)).toHaveLength(1)
+
+    // The first passkey opens it: a copy is left for the second, which then opens with its own PRF output
+    expect((await ask(owner, prf)).status).toBe(200)
+    lock()
+    const collected = await ask(second, prf2)
+    expect(collected.status).toBe(200)
+    expect(collected.body.result).toBe('converted')
+    expect(db.query<{ n: number }>('SELECT COUNT(*) AS n FROM "VaultMailbox"')[0].n).toBe(0)
+    lock()
+    expect((await ask(second, prf2)).body.result).toBe('opened')
+    lock()
+  })
 })

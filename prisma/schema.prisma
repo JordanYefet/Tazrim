@@ -389,6 +389,8 @@ model Passkey {
   lastUsedAt   DateTime?
   sessions     Session[]
   vaultWrap    VaultKeyWrap?
+  /// Set while this passkey has no copy of the vault key yet (ENG-140)
+  vaultMailbox VaultMailbox?
 }
 
 /// A signed-in browser. The cookie holds a random token; only its SHA-256 is stored.
@@ -435,6 +437,26 @@ model VaultKeyWrap {
   /// The vault key, AES-256-GCM under the derived key: "v1.<iv>.<tag>.<ciphertext>", base64url
   wrappedKey String
   createdAt  DateTime @default(now())
+}
+
+/// A passkey that has no copy of the vault key yet (ENG-140), and a place for one to wait. Made at its
+/// first vault passkey ceremony: a fresh X25519 key pair, whose private half is sealed under a key from
+/// that ceremony's PRF output. Whenever the vault is open, the vault key is sealed to `publicKey` and kept
+/// in `pendingKey`; the passkey's next ceremony opens `sealedPrivate`, then `pendingKey`, and replaces
+/// all of it with a normal VaultKeyWrap. Deleted with its passkey.
+model VaultMailbox {
+  id            String    @id @default(uuid())
+  passkeyId     String    @unique
+  passkey       Passkey   @relation(fields: [passkeyId], references: [id], onDelete: Cascade)
+  /// The salt this passkey's PRF was asked with, base64url
+  prfSalt       String
+  /// The raw X25519 public key, base64url
+  publicKey     String
+  /// The raw private key, AES-256-GCM under a key from the PRF output: "v1.<iv>.<tag>.<ciphertext>"
+  sealedPrivate String
+  /// The vault key sealed to `publicKey`: "<ephemeral public key>.v1.<iv>.<tag>.<ciphertext>"; null until the vault was open
+  pendingKey    String?
+  createdAt     DateTime  @default(now())
 }
 
 /// A sign-in to a bank or card company's site (ENG-90), for the sync. Only the

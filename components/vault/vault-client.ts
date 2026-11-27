@@ -17,10 +17,19 @@ const toB64u = (buf: ArrayBuffer | ArrayBufferView) => {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+/**
+ * The passkey is registered but the vault can't open for it yet (ENG-140): the next opening by anyone
+ * leaves it a copy. Not a failure of this attempt, so screens show it as a note, in the server's words.
+ */
+export class VaultPendingError extends Error {}
+
 export async function post<T = Record<string, unknown>>(url: string, body?: unknown, method = 'POST'): Promise<T> {
   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error ?? 'משהו השתבש. נסו שוב')
+  if (!res.ok) {
+    const message = data.error ?? 'משהו השתבש. נסו שוב'
+    throw data.code === 'VAULT_PENDING' ? new VaultPendingError(message) : new Error(message)
+  }
   return data
 }
 

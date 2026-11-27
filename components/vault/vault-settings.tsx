@@ -13,7 +13,7 @@ import { post, vaultWithPasskey } from './vault-client'
 import { unlockVault } from './unlock'
 
 interface Credential { id: string; company: string; label: string; accountId: string | null; updatedAt: string }
-interface Passkey { id: string; label: string; personName: string; mine: boolean; thisDevice: boolean; opens: boolean }
+interface Passkey { id: string; label: string; personName: string; mine: boolean; thisDevice: boolean; opens: boolean; waiting: boolean }
 interface VaultInfo {
   vault: { exists: boolean; open: boolean; openedBy: string | null; openedAt: string | null; locksAt: string | null; hasRecoveryKey: boolean }
   credentials: Credential[]
@@ -175,7 +175,13 @@ export function VaultSettings({ isAdmin = true }: { isAdmin?: boolean }) {
                       {p.thisDevice && <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">המכשיר הזה</span>}
                     </span>
                     <span className="block text-[0.8125rem] text-muted-foreground text-pretty">
-                      {p.opens ? 'המפתח הזה פותח את הכספת' : p.mine ? 'עוד לא. מוסיפים כשהכספת פתוחה' : 'עוד לא. נוסף כשבעליו מוסיפים אותו, כשהכספת פתוחה'}
+                      {p.opens
+                        ? 'המפתח הזה פותח את הכספת'
+                        : p.waiting
+                          ? 'ממתין: יתווסף בפעם הבאה שמישהו יפתח את הכספת, ואז יפתח אותה'
+                          : p.mine
+                            ? 'עוד לא. כדי להירשם פותחים את הכספת עם המפתח הזה (או מוסיפים כשהכספת פתוחה)'
+                            : 'עוד לא. יירשם כשבעליו ינסה לפתוח את הכספת עם המפתח הזה'}
                     </span>
                   </span>
                 </li>
