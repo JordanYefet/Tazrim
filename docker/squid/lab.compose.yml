@@ -9,8 +9,13 @@
 #       ... exec updater curl -x http://squid:3128 -I https://api.github.com                                   (allowed)
 #       ... exec updater curl -x http://squid:3128 -I https://www.max.co.il                                    (403)
 #
-# lab-extra/ (git-ignored) stands in for ./egress: add ".example.com" to lab-extra/extra-domains.txt, then
+# lab-extra/ (git-ignored) stands in for ./egress. Every provider has its own port (docker/squid/allowlist.json,
+# ENG-142) and its own list, lab-extra/providers/<id>.txt, which starts FULL here (nothing tells the lab which
+# providers a household uses). Empty one to see a port refuse everything, then
 #       docker compose -f docker/squid/lab.compose.yml exec squid squid -k reconfigure
+#       ... exec app curl -x http://squid:3207 -I https://www.max.co.il              (the max port: allowed)
+#       ... exec app curl -x http://squid:3207 -I https://www.bankleumi.co.il        (the max port, a bank it does not serve: 403)
+# lab-extra/extra-domains.txt holds additions for all providers: add ".example.com" and reconfigure.
 #
 # "app" stands in for the tazrim container and "updater" for the updater. Each sits ONLY on
 # its own internal network, so its only way out is Squid, which sits on all three. Squid tells
@@ -20,16 +25,13 @@ name: squid-lab
 services:
   squid:
     image: ubuntu/squid:6.13-25.04_beta
-    # Same wrapper as docker-compose.egress.yml: creates the empty extra file when missing
-    entrypoint:
-      - sh
-      - -c
-      - '[ -e /etc/squid/extra/extra-domains.txt ] || : > /etc/squid/extra/extra-domains.txt; exec entrypoint.sh "$$@"'
-      - squid
+    # Same wrapper as docker-compose.egress.yml: creates the files squid.conf names when they are missing
+    entrypoint: ["sh", "/squid-init.sh"]
     command: ["-f", "/etc/squid/squid.conf", "-NYC"]
     volumes:
       - ./squid.conf:/etc/squid/squid.conf:ro
       - ./banks.txt:/etc/squid/banks.txt:ro
+      - ./init.sh:/squid-init.sh:ro
       - ./lab-extra:/etc/squid/extra
     networks: [app-net, updater-net, outside]
 
