@@ -17,7 +17,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Disclosure, CopyLine, OldUpdaterNote, SectionHeading, sectionClass } from '@/components/install/guide'
 import { SwitchButton } from '@/components/install/container-settings'
 import { INSTALL_MESSAGES } from '@/lib/install/messages'
-import { PROVIDERS } from '@/lib/egress/allowlist'
+import { PROVIDERS, providerLabel, type ProviderEntry } from '@/lib/egress/allowlist'
 import type { Approver, ChangeAction, ChangeRequest, EgressView } from '@/lib/egress/types'
 import { call, fetchSignin, fetchView, sleep, type Approved, type SigninChoices } from './api'
 import { ApprovalDialog } from './approval-dialog'
@@ -52,7 +52,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
   const [approve, setApprove] = useState<ChangeRequest | null>(null)
   const [register, setRegister] = useState<RegisterMode | null>(null)
   const [signin, setSignin] = useState<SigninChoices | null>(null)
-  const [draft, setDraft] = useState({ domain: '', note: '' })
+  const [draft, setDraft] = useState({ domain: '', note: '', provider: '' })
   const alive = useRef(true)
   const formRef = useRef<HTMLFormElement>(null)
   useEffect(() => {
@@ -126,10 +126,13 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
       return
     }
     setLine({ tone: 'ok', text: c.action === 'add-domain' ? 'האתר נוסף' : c.action === 'remove-domain' ? 'האתר הוסר' : c.action === 'add-approver' ? 'אישור נוסף' : 'המפתח הוסר' })
-    if (c.action === 'add-domain') setDraft({ domain: '', note: '' })
+    if (c.action === 'add-domain') setDraft({ domain: '', note: '', provider: '' })
     void refresh()
   }
 
+  const inUse = new Set(view.household)
+  const active = PROVIDERS.filter(p => inUse.has(p.id))
+  const idle = PROVIDERS.filter(p => !inUse.has(p.id))
   const ready = view.helper === 'ready'
   const canEdit = ready && !working
   const hasApprover = view.approvers.length > 0
@@ -212,29 +215,12 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
 
       {/* 2. Allowed sites */}
       <section aria-labelledby="egress-allowed" className={cn('space-y-4', sectionClass(false))}>
-        <SectionHeading id="egress-allowed" line="אלה האתרים שהאפליקציה יכולה להגיע אליהם. כל השאר חסום.">
+        <SectionHeading id="egress-allowed" line="לכל בנק וחברת אשראי יש רשימה משלו, והסנכרון שלו מגיע רק אליה. ספק שאין לך חשבון בו חסום לגמרי. כל השאר חסום.">
           אתרים מותרים
         </SectionHeading>
-        <Disclosure label={`אתרי הבנקים וחברות האשראי (${PROVIDERS.length})`}>
-          <ul className="mt-1 divide-y rounded-xl border">
-            {PROVIDERS.map(p => (
-              <li key={p.id} className="space-y-1 px-3 py-2.5 text-sm">
-                <span className="block font-medium">{p.name}</span>
-                <span className="flex flex-wrap gap-x-3 gap-y-0.5">
-                  {p.domains.map(d => (
-                    <Host key={d}>{d}</Host>
-                  ))}
-                </span>
-                {p.thirdParty.map(t => (
-                  <span key={t.domain} className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
-                    <Host className="text-xs">{t.domain}</Host>
-                    <span>{t.why}</span>
-                  </span>
-                ))}
-              </li>
-            ))}
-          </ul>
-        </Disclosure>
+        {/* One list per provider (ENG-142): the household's providers are open, every other provider's port is closed. Both lists are always there, so nothing moves */}
+        <ProviderList label={`בשימוש (${active.length})`} providers={active} state="active" empty="עוד אין חשבונות שמסתנכרנים מול בנק או חברת אשראי." />
+        <ProviderList label={`לא בשימוש: חסום (${idle.length})`} providers={idle} state="idle" empty="כל הספקים בשימוש." />
 
         <div className="space-y-2 border-t pt-4">
           <h3 className="text-sm font-semibold">הוספות שלך</h3>
@@ -243,16 +229,17 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
           ) : (
             <ul className="divide-y rounded-xl border">
               {view.extraDomains.map(d => (
-                <li key={d.domain} className="flex min-h-14 items-center justify-between gap-3 px-3 py-2">
+                <li key={`${d.provider ?? ''}|${d.domain}`} className="flex min-h-14 items-center justify-between gap-3 px-3 py-2">
                   <span className="min-w-0 space-y-0.5">
                     <Host className="block">{d.domain}</Host>
                     <span className="block text-xs text-muted-foreground text-pretty">
+                      {d.provider ? <>{providerLabel(d.provider) ?? d.provider} · </> : <>כל הספקים · </>}
                       {d.note && <>{d.note} · </>}
                       {d.approver && <>אושר על ידי {d.approver} · </>}
                       <When at={d.addedAt} />
                     </span>
                   </span>
-                  <button type="button" className={ROW_ACTION} disabled={!canEdit} onClick={() => setApprove({ action: 'remove-domain', domain: d.domain })} aria-label={`הסרת ${d.domain}`}>
+                  <button type="button" className={ROW_ACTION} disabled={!canEdit} onClick={() => setApprove({ action: 'remove-domain', domain: d.domain, ...(d.provider ? { provider: d.provider } : {}) })} aria-label={`הסרת ${d.domain}`}>
                     הסרה
                   </button>
                 </li>
@@ -268,15 +255,29 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
           onSubmit={e => {
             e.preventDefault()
             const domain = draft.domain.trim()
-            if (domain && canEdit) setApprove({ action: 'add-domain', domain, ...(draft.note.trim() ? { note: draft.note.trim() } : {}) })
+            if (domain && canEdit) setApprove({ action: 'add-domain', domain, ...(draft.note.trim() ? { note: draft.note.trim() } : {}), ...(draft.provider ? { provider: draft.provider } : {}) })
           }}
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <label htmlFor="egress-domain" className="text-sm font-medium">
                 אתר להוספה
               </label>
               <input id="egress-domain" dir="ltr" className={INPUT} value={draft.domain} onChange={e => setDraft(d => ({ ...d, domain: e.target.value }))} placeholder="example.com" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} disabled={!canEdit} />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="egress-provider" className="text-sm font-medium">
+                לאיזה ספק
+              </label>
+              <select id="egress-provider" className={INPUT} value={draft.provider} onChange={e => setDraft(d => ({ ...d, provider: e.target.value }))} disabled={!canEdit}>
+                <option value="">כל הספקים</option>
+                {/* The household's providers; one picked from a blocked line stays listed even if it is not one */}
+                {PROVIDERS.filter(p => inUse.has(p.id) || p.id === draft.provider).map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1.5">
               <label htmlFor="egress-note" className="text-sm font-medium">
@@ -315,7 +316,8 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
                   <span className="min-w-0 flex-1 space-y-0.5">
                     <Host className="block text-right">{b.host}</Host>
                     <span className="block text-xs text-muted-foreground">
-                      {b.who === 'app' ? 'האפליקציה' : b.who === 'updater' ? 'רכיב העדכון' : 'אחר'} · <When at={b.at} />
+                      {b.who === 'app' ? 'האפליקציה' : b.who === 'updater' ? 'רכיב העדכון' : 'אחר'}
+                      {b.provider && <> · {providerLabel(b.provider) ?? b.provider}</>} · <When at={b.at} />
                     </span>
                   </span>
                   {b.who === 'app' ? (
@@ -323,7 +325,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
                       type="button"
                       className={ROW_ACTION}
                       onClick={() => {
-                        setDraft({ domain: b.host, note: '' })
+                        setDraft({ domain: b.host, note: '', provider: b.provider ?? '' })
                         document.getElementById('egress-domain')?.focus()
                         formRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
                       }}
@@ -407,7 +409,7 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
                 <li key={`${c.at}-${i}`} className="space-y-0.5 px-3 py-2 text-sm">
                   <span className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-medium">{ACTION_TEXT[c.action]}</span>
-                    {c.detail && (c.action === 'add-domain' || c.action === 'remove-domain' ? <Host>{c.detail}</Host> : <span className="text-muted-foreground">{c.detail}</span>)}
+                    {c.detail && (c.action === 'add-domain' || c.action === 'remove-domain' ? <ChangedSite detail={c.detail} /> : <span className="text-muted-foreground">{c.detail}</span>)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     <When at={c.at} />
@@ -445,6 +447,50 @@ export function EgressSettings({ initial }: { initial: EgressView }) {
         }}
       />
     </div>
+  )
+}
+
+/** "domain" or "domain · provider" (what the updater logs): the site, and the provider's Hebrew name */
+function ChangedSite({ detail }: { detail: string }) {
+  const [site, provider] = detail.split(' · ')
+  return (
+    <>
+      <Host>{site}</Host>
+      <span className="text-muted-foreground">{provider ? (providerLabel(provider) ?? provider) : 'כל הספקים'}</span>
+    </>
+  )
+}
+
+/** A disclosure with each provider's own sites: open ones plainly, closed ones dimmed (the layout is the same either way) */
+function ProviderList({ label, providers, state, empty }: { label: string; providers: ProviderEntry[]; state: 'active' | 'idle'; empty: string }) {
+  return (
+    <Disclosure label={label}>
+      {providers.length === 0 ? (
+        <p className="mt-1 min-h-11 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className={cn('mt-1 divide-y rounded-xl border', state === 'idle' && 'opacity-60')}>
+          {providers.map(p => (
+            <li key={p.id} className="space-y-1 px-3 py-2.5 text-sm">
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-medium">{p.label}</span>
+                <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs', state === 'active' ? 'bg-primary/10 font-medium text-primary' : 'bg-muted text-muted-foreground')}>{state === 'active' ? 'פעיל' : 'חסום'}</span>
+              </span>
+              <span className="flex flex-wrap gap-x-3 gap-y-0.5">
+                {p.domains.map(d => (
+                  <Host key={d}>{d}</Host>
+                ))}
+              </span>
+              {p.thirdParty.map(t => (
+                <span key={t.domain} className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                  <Host className="text-xs">{t.domain}</Host>
+                  <span>{t.why}</span>
+                </span>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Disclosure>
   )
 }
 

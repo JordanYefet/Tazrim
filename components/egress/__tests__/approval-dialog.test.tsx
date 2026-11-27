@@ -36,4 +36,11 @@ describe('the approval window', () => {
       expect(renderToStaticMarkup(<>{describeChange(c)}</>).length).toBeGreaterThan(5)
     }
   })
+
+  it('an addition says whose list it goes to: one provider\'s, or everyone\'s (ENG-142)', () => {
+    const html = (c: Parameters<typeof describeChange>[0]) => renderToStaticMarkup(<>{describeChange(c)}</>)
+    expect(html({ action: 'add-domain', domain: 'cdn.example.test', provider: 'leumi' })).toContain('של בנק לאומי')
+    expect(html({ action: 'add-domain', domain: 'cdn.example.test' })).toContain('של כל הספקים')
+    expect(html({ action: 'remove-domain', domain: 'cdn.example.test', provider: 'max' })).toContain('של מקס')
+  })
 })
