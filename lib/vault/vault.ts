@@ -168,6 +168,7 @@ export async function enablePasswordUnlock(personId: string, password: unknown):
     return (await prisma.person.findUnique({ where: { id: personId }, select: { passwordHash: true } }))?.passwordHash ? 'wrong-password' : 'no-password'
   }
   await wrapWithPassword(personId, password, k)
+  await prisma.person.updateMany({ where: { id: personId }, data: { vaultPasswordOff: false } })
   return 'ok'
 }
 
@@ -193,28 +194,64 @@ export async function unlockWithPassword(personId: string, password: unknown, by
   return true
 }
 
-/** Turns "open with my password" off: removes this person's copy */
+/** Turns "open with my password" off: removes this person's copy, and it stays off (sign-ins no longer remake it) */
 export async function disablePasswordUnlock(personId: string) {
-  await prisma.vaultKeyWrap.deleteMany({ where: { personId } })
+  await prisma.$transaction([
+    prisma.vaultKeyWrap.deleteMany({ where: { personId } }),
+    prisma.person.updateMany({ where: { id: personId }, data: { vaultPasswordOff: true } }),
+  ])
+}
+
+/** Does this person have a copy under their password? (Their own state only.) */
+export async function hasPasswordCopy(personId: string): Promise<boolean> {
+  return !!(await prisma.vaultKeyWrap.findUnique({ where: { personId }, select: { id: true } }))
+}
+
+async function optedOut(personId: string): Promise<boolean> {
+  return !!(await prisma.person.findUnique({ where: { id: personId }, select: { vaultPasswordOff: true } }))?.vaultPasswordOff
 }
 
 /**
- * After a person's password changed: while the vault is open their copy is made again under the
- * new password (if they had one); while it is locked the copy can't be re-made, so it is deleted
- * (they turn it on again later). Removing the password removes the copy too (`password` null).
+ * A person's correct sign-in password was just seen (the caller checked it): while the vault is
+ * open, and they did not turn this off, their copy is made when it is missing, so the password
+ * opens the vault from then on without a step in Settings (ENG-139). Never throws, and the
+ * password goes nowhere else.
+ */
+export async function passwordSeen(personId: string, password: string): Promise<void> {
+  try {
+    const k = key()
+    if (!k || typeof password !== 'string' || !password) return
+    if (await hasPasswordCopy(personId)) return
+    if (await optedOut(personId)) return
+    await wrapWithPassword(personId, password, k)
+  } catch {
+    // signing in never fails because of this
+  }
+}
+
+/**
+ * After a person's password was set or changed: while the vault is open their copy is made again
+ * under the new password, or made now when they had none (unless they turned it off); while it is
+ * locked a copy can't be re-made, so an old one is deleted (the next password sign-in with the
+ * vault open makes it). Removing the password removes the copy too (`password` null), without
+ * counting as turning it off.
  */
 export async function passwordChanged(personId: string, password: string | null) {
-  const had = await prisma.vaultKeyWrap.findUnique({ where: { personId }, select: { id: true } })
-  if (!had) return
-  const k = password ? key() : null
-  if (k && password) {
+  if (!password) {
+    await prisma.vaultKeyWrap.deleteMany({ where: { personId } })
+    return
+  }
+  const had = await hasPasswordCopy(personId)
+  if (!had && (await optedOut(personId))) return
+  const k = key()
+  if (k) {
     try {
       return await wrapWithPassword(personId, password, k)
     } catch {
       // never leave a copy that the old password still opens
     }
   }
-  await disablePasswordUnlock(personId)
+  await prisma.vaultKeyWrap.deleteMany({ where: { personId } })
 }
 
 /**

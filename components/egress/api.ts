@@ -1,6 +1,6 @@
 'use client'
 
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import { startAuthentication } from '@simplewebauthn/browser'
 import type { EgressJob, EgressView } from '@/lib/egress/types'
 
 /** A refusal from /api/egress: the route's own Hebrew line, and its fixed code */
@@ -66,22 +66,29 @@ export const proveWithPassword = async (begin: Begin, password: string): Promise
 /** The default end of an approval: the updater checks the proof and applies the change */
 export const finishApproval = (proof: Proof) => call<Approved>('/approve/finish', proof)
 
-/** Creates the passkey for the options the updater issued and registers it with the code from the file */
-export async function registerPasskey(
+/** What the signed-in person can adopt as an approval key: how many sign-in passkeys, and whether they have a sign-in password */
+export interface SigninChoices {
+  passkeys: number
+  password: boolean
+}
+export const fetchSignin = () => call<SigninChoices>('/approvers/signin')
+
+/** Adopting the sign-in passkey: it signs the challenge the updater issued (the same Face ID prompt as an approval); the name is made by the app */
+export async function adoptPasskey(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: any,
-  code: string,
-  name: string
+  code: string
 ) {
-  let response
+  let assertion
   try {
-    response = await startRegistration({ optionsJSON: options })
+    assertion = await startAuthentication({ optionsJSON: options })
   } catch (e) {
     throw friendly(e)
   }
-  return call('/approvers/register/finish', { code, name, response })
+  return call('/approvers/register/finish', { code, assertion })
 }
 
-export const registerPassword = (code: string, name: string, password: string) => call('/approvers/register/finish', { code, name, password })
+/** Adopting the sign-in password: the app checks it is the person's own before the updater hears of it */
+export const adoptPassword = (code: string, password: string) => call('/approvers/register/finish', { code, source: 'signin-password', password })
 
 export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))

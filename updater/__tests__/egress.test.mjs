@@ -224,6 +224,12 @@ describe('registration of the approval password', () => {
     expect((await egress.registerFinish({ code: codeOnDisk(), name: 'x', password: PASSWORD })).body.ok).toBe(true)
   })
 
+  it('takes ten characters, the same minimum as signing in', async () => {
+    await egress.registerBegin({ rpId: RP })
+    expect((await egress.registerFinish({ code: codeOnDisk(), name: 'x', password: 'a'.repeat(9) })).body.error).toBe('WEAK_PASSWORD')
+    expect((await egress.registerFinish({ code: codeOnDisk(), name: 'x', password: 'a'.repeat(10) })).body.ok).toBe(true)
+  })
+
   it('refuses a wrong code', async () => {
     await egress.registerBegin({ rpId: RP })
     const code = codeOnDisk()
@@ -238,6 +244,123 @@ describe('registration of the approval password', () => {
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Second')
     expect(logLines().at(-1)).toMatchObject({ action: 'add-approver', detail: 'Second (password replaced)' })
+  })
+})
+
+describe('adopting a sign-in passkey (ENG-139)', () => {
+  const entry = (key, id = 'signin-1') => ({ id, publicKey: spki(key), alg: key.alg })
+  const adoptBegin = list => egress.registerBegin({ rpId: RP, adopt: list })
+
+  it('begin answers with assertion options for the offered credentials, and the code file', async () => {
+    const key = makeKey('es256')
+    const r = await adoptBegin([entry(key), entry(makeKey('eddsa'), 'signin-2')])
+    expect(r.status).toBe(200)
+    expect(r.body.mode).toBe('adopt')
+    expect(r.body.options).toMatchObject({
+      rpId: RP,
+      userVerification: 'required',
+      timeout: 120000,
+      allowCredentials: [
+        { type: 'public-key', id: 'signin-1' },
+        { type: 'public-key', id: 'signin-2' },
+      ],
+    })
+    expect(r.body.options.rp).toBeUndefined()
+    expect(codeOnDisk()).toMatch(/^\d{6}$/)
+  })
+
+  for (const kind of ['es256', 'eddsa', 'rs256']) {
+    it(`finish stores the adopted ${kind} key with the origin of the assertion, and logs it`, async () => {
+      const key = makeKey(kind)
+      const b = await adoptBegin([entry(key)])
+      const r = await egress.registerFinish({ code: codeOnDisk(), name: 'iPhone של דנה', assertion: assertion(key, { id: 'signin-1', challenge: b.body.options.challenge, origin: `https://app.${RP}:3443` }) })
+      expect(r.body.approver).toMatchObject({ id: 'signin-1', kind: 'passkey', name: 'iPhone של דנה', rpId: RP })
+      const stored = readJson('approvers.json')[0]
+      expect(stored).toMatchObject({ id: 'signin-1', publicKey: spki(key), alg: key.alg, rpId: RP, origin: `https://app.${RP}:3443`, adopted: true })
+      expect(logLines().at(-1)).toMatchObject({ action: 'add-approver', detail: 'iPhone של דנה' })
+      expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
+    })
+  }
+
+  it('an adopted key then approves a change like any other', async () => {
+    const key = makeKey('es256')
+    const b = await adoptBegin([entry(key)])
+    await egress.registerFinish({ code: codeOnDisk(), name: 'Phone', assertion: assertion(key, { id: 'signin-1', challenge: b.body.options.challenge }) })
+    const ab = await begin(addDomain())
+    const r = await egress.approveFinish({ flowId: ab.body.flowId, response: assertion(key, { id: 'signin-1', challenge: ab.body.options.challenge }) })
+    expect(r.body.ok).toBe(true)
+  })
+
+  it('adopting a key already registered replaces it', async () => {
+    const key = makeKey('es256')
+    await registerPasskey(key, { id: 'signin-1', name: 'Old' })
+    const b = await adoptBegin([entry(key)])
+    await egress.registerFinish({ code: codeOnDisk(), name: 'New', assertion: assertion(key, { id: 'signin-1', challenge: b.body.options.challenge }) })
+    const list = readJson('approvers.json')
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({ name: 'New', adopted: true })
+  })
+
+  it('a credential that was not offered is NOT_FOUND', async () => {
+    const key = makeKey('es256')
+    const b = await adoptBegin([entry(key)])
+    const r = await egress.registerFinish({ code: codeOnDisk(), name: 'x', assertion: assertion(key, { id: 'other-credential', challenge: b.body.options.challenge }) })
+    expect(r.body.error).toBe('NOT_FOUND')
+    expect(fs.existsSync(path.join(dir, '.tazrim-approvers', 'approvers.json'))).toBe(false)
+  })
+
+  it('a signature by another key, or over another challenge, is refused and nothing is stored', async () => {
+    const key = makeKey('es256')
+    const b = await adoptBegin([entry(key)])
+    const go = a => egress.registerFinish({ code: codeOnDisk(), name: 'x', assertion: a }).then(r => r.body.error)
+    expect(await go(assertion(key, { id: 'signin-1', challenge: b.body.options.challenge, signer: makeKey('es256') }))).toBe('BAD_SIGNATURE')
+    expect(await go(assertion(key, { id: 'signin-1', challenge: 'another-challenge' }))).toBe('BAD_CHALLENGE')
+    expect(await go(assertion(key, { id: 'signin-1', challenge: b.body.options.challenge, rpId: 'other.example' }))).toBe('BAD_RPID_HASH')
+    expect(await go(assertion(key, { id: 'signin-1', challenge: b.body.options.challenge, origin: 'https://evil.example' }))).toBe('BAD_ORIGIN')
+    expect(await go(assertion(key, { id: 'signin-1', challenge: b.body.options.challenge, flags: 0x01 }))).toBe('NO_USER_VERIFICATION')
+    expect(fs.existsSync(path.join(dir, '.tazrim-approvers', 'approvers.json'))).toBe(false)
+  })
+
+  it('a wrong code counts tries like any registration, and the fifth cancels it', async () => {
+    const key = makeKey('es256')
+    const b = await adoptBegin([entry(key)])
+    const right = codeOnDisk()
+    const wrong = right === '000000' ? '111111' : '000000'
+    const a = assertion(key, { id: 'signin-1', challenge: b.body.options.challenge })
+    for (let i = 0; i < 4; i++) expect((await egress.registerFinish({ code: wrong, name: 'x', assertion: a })).body.error).toBe('BAD_CODE')
+    expect((await egress.registerFinish({ code: wrong, name: 'x', assertion: a })).body.error).toBe('TOO_MANY_TRIES')
+    expect((await egress.registerFinish({ code: right, name: 'x', assertion: a })).body.error).toBe('NO_REGISTRATION')
+  })
+
+  it('an assertion cannot finish a registration that was not an adoption, nor a key a password adoption', async () => {
+    const key = makeKey('es256')
+    const b = await egress.registerBegin({ rpId: RP })
+    const a = assertion(key, { id: 'signin-1', challenge: b.body.options.challenge })
+    expect((await egress.registerFinish({ code: codeOnDisk(), name: 'x', assertion: a })).body.error).toBe('BAD_REGISTRATION')
+    const c = await adoptBegin([entry(key)])
+    expect((await egress.registerFinish({ code: codeOnDisk(), name: 'x', password: PASSWORD })).body.error).toBe('BAD_REGISTRATION')
+    expect((await egress.registerFinish({ code: codeOnDisk(), name: 'x', response: registration(key, { challenge: c.body.options.challenge }) })).body.error).toBe('BAD_REGISTRATION')
+  })
+
+  it('refuses a bad adopt list and writes no code file', async () => {
+    const key = makeKey('es256')
+    const good = entry(key)
+    const bad = [
+      [],
+      'nope',
+      [null],
+      Array.from({ length: 21 }, (_, i) => entry(key, `c${i}`)),
+      [{ ...good, id: '' }],
+      [{ ...good, id: 'has space' }],
+      [{ ...good, id: 'a'.repeat(401) }],
+      [{ ...good, publicKey: 'AAAA' }],
+      [{ ...good, publicKey: 12 }],
+      [{ ...good, alg: -999 }],
+      [{ ...good, alg: -8 }], // an EC key offered as EdDSA
+    ]
+    for (const list of bad) expect((await adoptBegin(list)).body.error).toBe('BAD_ADOPT')
+    expect(fs.existsSync(path.join(dir, CODE_FILE))).toBe(false)
+    expect((await adoptBegin(Array.from({ length: 20 }, (_, i) => entry(key, `c${i}`)))).status).toBe(200)
   })
 })
 

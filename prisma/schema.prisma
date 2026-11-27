@@ -340,16 +340,18 @@ model SyncLink {
 
 /// Login (ENG-89): someone in the household. Everyone has the same rights.
 model Person {
-  id           String    @id @default(uuid())
-  name         String
+  id               String             @id @default(uuid())
+  name             String
   /// Optional second way in (scrypt, lib/auth/password.ts); null = passkeys only
-  passwordHash String?
-  createdAt    DateTime  @default(now())
-  /// Their own copy of the vault key under a key from their password (ENG-135), if they turned it on
-  vaultWrap    VaultKeyWrap?
-  passkeys     Passkey[]
-  sessions     Session[]
-  preferences  PersonPreference[]
+  passwordHash     String?
+  createdAt        DateTime           @default(now())
+  /// Their own copy of the vault key under a key from their password (ENG-135). It is made by itself
+  /// when they sign in with the password while the vault is open, unless they turned it off here (ENG-139)
+  vaultWrap        VaultKeyWrap?
+  vaultPasswordOff Boolean            @default(false)
+  passkeys         Passkey[]
+  sessions         Session[]
+  preferences      PersonPreference[]
 }
 
 /// A person's own choices, the same on every device they sign in on (the page background).
@@ -366,19 +368,19 @@ model PersonPreference {
 
 /// A passkey (WebAuthn credential) a person signs in with; one per device or password manager.
 model Passkey {
-  id           String    @id @default(uuid())
+  id           String        @id @default(uuid())
   personId     String
-  person       Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person       Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
   /// The credential id, base64url, as the browser reports it
-  credentialId String    @unique
+  credentialId String        @unique
   /// The COSE public key
   publicKey    Bytes
-  counter      Int       @default(0)
+  counter      Int           @default(0)
   /// JSON array of AuthenticatorTransport values, e.g. ["internal","hybrid"]
   transports   String?
   /// What the owner calls the device, e.g. "iPhone"
   label        String
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime      @default(now())
   lastUsedAt   DateTime?
   sessions     Session[]
   vaultWrap    VaultKeyWrap?

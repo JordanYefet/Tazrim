@@ -1,17 +1,17 @@
 'use client'
 
 /**
- * Adding an approver (ENG-134): a passkey or an approval password. Either way the updater first
- * writes a one-time code to a file in the Tazrim folder, which only someone at the computer can
- * read, and the code is typed here.
+ * Adding an approver (ENG-134, ENG-139): the person's sign-in passkey or sign-in password, never a
+ * separate one. The updater first writes a one-time code to a file in the Tazrim folder, which only
+ * someone at the computer can read, and the code is typed here.
  */
 import { useEffect, useState } from 'react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { passkeyBlocker } from '@/components/auth/passkey-client'
-import { call, registerPasskey, registerPassword } from './api'
+import { adoptPassword, adoptPasskey, call } from './api'
 import { Busy, Host, INPUT, PRIMARY, SECONDARY } from './ui'
 
-export const MIN_PASSWORD = 12
+export type RegisterMode = 'signin-passkey' | 'signin-password'
 
 interface Begun {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,39 +19,40 @@ interface Begun {
   codeFile: string
 }
 
-export function RegisterDialog({ mode, onClose, onDone }: { mode: 'passkey' | 'password' | null; onClose: () => void; onDone: () => void }) {
-  const [name, setName] = useState('')
+const TITLES: Record<RegisterMode, string> = {
+  'signin-passkey': 'אישור עם מפתח הכניסה',
+  'signin-password': 'אישור עם סיסמת הכניסה',
+}
+
+export function RegisterDialog({ mode, onClose, onDone }: { mode: RegisterMode | null; onClose: () => void; onDone: () => void }) {
   const [begun, setBegun] = useState<Begun | null>(null)
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
-  const [again, setAgain] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [blocker, setBlocker] = useState<string | null>(null)
   const [shown, setShown] = useState(mode)
   if (mode && mode !== shown) setShown(mode)
-  const isPassword = (mode ?? shown) === 'password'
+
+  const kind = mode ?? shown ?? 'signin-passkey'
+  const isPassword = kind === 'signin-password'
 
   useEffect(() => setBlocker(passkeyBlocker()), [])
   useEffect(() => {
     if (!mode) return
-    setName('')
     setBegun(null)
     setCode('')
     setPassword('')
-    setAgain('')
     setError(null)
   }, [mode])
 
-  const userName = isPassword ? 'סיסמת אישור' : name.trim()
-
   async function begin(e: React.FormEvent) {
     e.preventDefault()
-    if (busy || !userName) return
+    if (busy) return
     setBusy(true)
     setError(null)
     try {
-      const r = await call<Begun>('/approvers/register/begin', { name: userName })
+      const r = await call<Begun>('/approvers/register/begin', { source: kind })
       setBegun({ options: r.options, codeFile: typeof r.codeFile === 'string' ? r.codeFile : 'tazrim-approval-code.txt' })
     } catch (err) {
       setError((err as Error).message)
@@ -60,8 +61,7 @@ export function RegisterDialog({ mode, onClose, onDone }: { mode: 'passkey' | 'p
     }
   }
 
-  const passwordProblem = isPassword && password.length > 0 && password.length < MIN_PASSWORD ? `עוד ${MIN_PASSWORD - password.length} תווים` : isPassword && again && again !== password ? 'שתי הסיסמאות צריכות להיות זהות' : null
-  const canFinish = !!code.trim() && (!isPassword || (password.length >= MIN_PASSWORD && password === again))
+  const canFinish = !!code.trim() && (!isPassword || !!password)
 
   async function finish(e: React.FormEvent) {
     e.preventDefault()
@@ -69,8 +69,8 @@ export function RegisterDialog({ mode, onClose, onDone }: { mode: 'passkey' | 'p
     setBusy(true)
     setError(null)
     try {
-      if (isPassword) await registerPassword(code.trim(), userName, password)
-      else await registerPasskey(begun.options, code.trim(), userName)
+      if (isPassword) await adoptPassword(code.trim(), password)
+      else await adoptPasskey(begun.options, code.trim())
       onDone()
     } catch (err) {
       setError((err as Error).message)
@@ -80,24 +80,15 @@ export function RegisterDialog({ mode, onClose, onDone }: { mode: 'passkey' | 'p
   }
 
   return (
-    <AppDialog open={!!mode} onOpenChange={o => !o && !busy && onClose()} title={isPassword ? 'הגדרת סיסמת אישור' : 'הוספת מפתח אישור'} className="sm:max-w-md">
+    <AppDialog open={!!mode} onOpenChange={o => !o && !busy && onClose()} title={TITLES[kind]} className="sm:max-w-md">
       <div className="mt-3 space-y-4 text-sm leading-relaxed">
         {!begun ? (
           <form onSubmit={begin} className="space-y-3">
             <p className="text-pretty text-muted-foreground">
               כדי שרק מי שיושב ליד המחשב יוכל להוסיף {isPassword ? 'סיסמה' : 'מפתח'}, תזרים ישמור קוד בקובץ בתיקייה של תזרים במחשב. את הקוד מקלידים כאן בשלב הבא.
-              {isPassword && ' סיסמה חדשה מחליפה את הקודמת.'}
             </p>
-            {!isPassword && (
-              <div className="space-y-1.5">
-                <label htmlFor="egress-key-name" className="font-medium">
-                  שם למפתח
-                </label>
-                <input id="egress-key-name" className={INPUT} value={name} onChange={e => setName(e.target.value)} maxLength={60} placeholder="למשל: האייפון של דנה" autoComplete="off" />
-              </div>
-            )}
             {!isPassword && blocker && <p className="text-xs text-muted-foreground text-pretty">{blocker}</p>}
-            <button type="submit" className={`${PRIMARY} w-full`} disabled={busy || !userName || (!isPassword && !!blocker)}>
+            <button type="submit" className={`${PRIMARY} w-full`} disabled={busy || (!isPassword && !!blocker)}>
               <Busy busy={busy}>המשך: קבלת קוד</Busy>
             </button>
           </form>
@@ -113,26 +104,17 @@ export function RegisterDialog({ mode, onClose, onDone }: { mode: 'passkey' | 'p
               <input id="egress-code" dir="ltr" inputMode="numeric" autoComplete="off" maxLength={6} className={`${INPUT} tabular-nums tracking-widest`} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} />
             </div>
             {isPassword && (
-              <>
-                <div className="space-y-1.5">
-                  <label htmlFor="egress-new-password" className="font-medium">
-                    סיסמה חדשה
-                  </label>
-                  <input id="egress-new-password" type="password" autoComplete="new-password" className={INPUT} value={password} onChange={e => setPassword(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">לפחות {MIN_PASSWORD} תווים.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="egress-new-password-again" className="font-medium">
-                    הסיסמה שוב
-                  </label>
-                  <input id="egress-new-password-again" type="password" autoComplete="new-password" className={INPUT} value={again} onChange={e => setAgain(e.target.value)} />
-                </div>
-                <p className="min-h-5 text-xs text-destructive">{passwordProblem}</p>
+              <div className="space-y-1.5">
+                <label htmlFor="egress-signin-password" className="font-medium">
+                  סיסמת הכניסה שלי
+                </label>
+                <input id="egress-signin-password" type="password" autoComplete="current-password" className={INPUT} value={password} onChange={e => setPassword(e.target.value)} />
+                <p className="text-xs text-muted-foreground text-pretty">אם תשנו את סיסמת הכניסה, סיסמת האישור נשארת הקודמת עד שתוסיפו אותה שוב.</p>
                 <p className="text-xs text-muted-foreground text-pretty">מפתח בטוח יותר: את הסיסמה מקלידים בתוך האפליקציה עצמה, ולכן קוד זדוני בתוכה יכול לראות אותה.</p>
-              </>
+              </div>
             )}
             <button type="submit" className={`${PRIMARY} w-full`} disabled={busy || !canFinish}>
-              <Busy busy={busy}>{isPassword ? 'שמירת הסיסמה' : 'יצירת המפתח'}</Busy>
+              <Busy busy={busy}>{isPassword ? 'אישור עם הסיסמה' : 'אישור עם Face ID'}</Busy>
             </button>
           </form>
         )}
