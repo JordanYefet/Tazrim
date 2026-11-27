@@ -7,7 +7,10 @@ export const EGRESS_MESSAGES: Record<string, string> = {
   ALREADY_ALLOWED: 'האתר הזה כבר מותר',
   NOT_FOUND: 'לא נמצא ברשימה',
   // The approval
-  NO_APPROVER: 'עוד אין מפתח אישור לכתובת הזאת. מוסיפים אחד קודם',
+  NO_APPROVER: 'אי אפשר לאשר עם המפתח או הסיסמה האלה. נסו שוב עם מפתח הכניסה או סיסמת הכניסה שלכם',
+  BOOTSTRAP_TAKEN: 'בינתיים כבר נקבע מפתח אישור. סוגרים ומנסים שוב, והפעם מאשרים עם המפתח הקיים',
+  ALREADY_PINNED: 'המפתח הזה כבר מאשר',
+  UNKNOWN_CREDENTIAL: 'המפתח הזה לא מוכר לאישור. נסו עם מפתח הכניסה שלכם',
   CHALLENGE_UNKNOWN: 'האישור לא תקף יותר. מתחילים מחדש',
   CHALLENGE_EXPIRED: 'עבר יותר מדי זמן. מתחילים מחדש',
   BAD_SIGNATURE: 'האישור לא התקבל: המפתח לא תקין',

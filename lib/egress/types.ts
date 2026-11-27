@@ -66,5 +66,7 @@ export type ChangeRequest =
   | { action: 'remove-domain'; domain: string }
   | { action: 'turn-off' }
   | { action: 'remove-approver'; id: string }
+  /** The signed-in person's own sign-in passkey or password becomes an approver (ENG-141); an existing approver signs this first */
+  | { action: 'add-approver'; kind: 'passkey' | 'password' }
   /** An update that replaces compose files in the install folder (ENG-137): the version and the hashes of the files */
   | { action: 'update-compose'; version: string; files: Record<string, string> }

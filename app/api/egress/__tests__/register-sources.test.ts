@@ -189,11 +189,11 @@ describe('register/finish', () => {
 })
 
 describe('GET approvers/signin', () => {
-  it('counts only', async () => {
+  it('counts and credential ids only', async () => {
     const { GET } = await import('../approvers/signin/route')
     const res = await GET(new Request('http://localhost:3000/api/egress/approvers/signin', { headers: { host: 'localhost:3000' } }))
-    expect(await res.json()).toEqual({ passkeys: 2, password: true })
+    expect(await res.json()).toEqual({ passkeys: 2, password: true, ids: ['cred-a', 'cred-b'] })
     mocks.session = null
-    expect(await (await GET(new Request('http://localhost:3000/api/egress/approvers/signin', { headers: { host: 'localhost:3000' } }))).json()).toEqual({ passkeys: 0, password: false })
+    expect(await (await GET(new Request('http://localhost:3000/api/egress/approvers/signin', { headers: { host: 'localhost:3000' } }))).json()).toEqual({ passkeys: 0, password: false, ids: [] })
   })
 })

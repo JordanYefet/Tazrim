@@ -42,15 +42,21 @@ export interface Begin {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: any | null
   passwordAllowed: boolean
+  /** The first approval (ENG-141): the key or sign-in password used now is pinned and approves the next changes too */
+  bootstrap?: boolean
 }
 
 export interface Approved {
   ok: true
   job?: EgressJob | null
+  /** add-approver (ENG-141): the approval is made; the new key now proves it is the person's, with this token */
+  adoptToken?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adoptOptions?: any
 }
 
 /** What the person gave to approve: a signed passkey answer, or the approval password for the flow the begin call opened */
-export type Proof = { response: object } | { flowId: string | undefined; password: string }
+export type Proof = { response: object } | { flowId: string | undefined; password: string; signin?: true }
 
 /** The passkey half of an approval: the browser signs the challenge */
 export async function proveWithPasskey(begin: Begin): Promise<Proof> {
@@ -61,7 +67,8 @@ export async function proveWithPasskey(begin: Begin): Promise<Proof> {
   }
 }
 
-export const proveWithPassword = async (begin: Begin, password: string): Promise<Proof> => ({ flowId: begin.flowId, password })
+/** On a first approval the password is the sign-in password: the app checks it before the updater pins it */
+export const proveWithPassword = async (begin: Begin, password: string): Promise<Proof> => ({ flowId: begin.flowId, password, ...(begin.bootstrap ? { signin: true as const } : {}) })
 
 /** The default end of an approval: the updater checks the proof and applies the change */
 export const finishApproval = (proof: Proof) => call<Approved>('/approve/finish', proof)
@@ -70,6 +77,8 @@ export const finishApproval = (proof: Proof) => call<Approved>('/approve/finish'
 export interface SigninChoices {
   passkeys: number
   password: boolean
+  /** Credential ids of the sign-in passkeys: those already approvers need no adding */
+  ids: string[]
 }
 export const fetchSignin = () => call<SigninChoices>('/approvers/signin')
 
@@ -87,6 +96,23 @@ export async function adoptPasskey(
   }
   return call('/approvers/register/finish', { code, assertion })
 }
+
+/** The second step of adding an approver: the new key signs what the approval returned (the same Face ID prompt) */
+export async function adoptPasskeyWithToken(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  options: any,
+  token: string
+) {
+  let assertion
+  try {
+    assertion = await startAuthentication({ optionsJSON: options })
+  } catch (e) {
+    throw friendly(e)
+  }
+  return call('/approvers/register/finish', { token, assertion })
+}
+
+export const adoptPasswordWithToken = (token: string, password: string) => call('/approvers/register/finish', { token, source: 'signin-password', password })
 
 /** Adopting the sign-in password: the app checks it is the person's own before the updater hears of it */
 export const adoptPassword = (code: string, password: string) => call('/approvers/register/finish', { code, source: 'signin-password', password })

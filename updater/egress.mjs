@@ -23,7 +23,21 @@
  *   pending-registration.json  { challenge, rpId, code, expires, tries, adopt? }
  *   pending-approvals.json     { <flowId>: { challenge, change, rpId, expires } }
  *   password-lock.json         { fails: [ms], until }
+ *  pending-adoptions.json     { <token>: { challenge, rpId, adopt?, adoptPassword, userName, approver, expires } }
  * Expiry is checked when a file is read; a stale code file is removed by the next call that sees it.
+ *
+ * Who may become an approver (ENG-141), in the order the person meets it:
+ *  1. The FIRST approval, when approvers.json is empty: trust on first use. The app offers the
+ *     signed-in admin's sign-in passkeys (or says they have a sign-in password); the key or password
+ *     they use for that approval is pinned and the change is applied. No code file, no extra step.
+ *     Known limit, the same trade as an SSH host key: an app that is already compromised at that very
+ *     first approval could offer its own key. The app cannot make this flow once an approver exists
+ *     (this file decides, not the app).
+ *  2. After that nothing the app says can add a key without an existing approver's signature:
+ *     `add-approver` is approved by a pinned passkey or the pinned password, and only then does the
+ *     updater hand out a one-use adoption token; the new key signs a fresh challenge (or the sign-in
+ *     password, checked by the app, is pinned) against that token.
+ *  3. The one-time code in tazrim-approval-code.txt stays as the recovery path (nobody can approve).
  */
 import crypto from 'node:crypto'
 import nodeFs from 'node:fs'
@@ -49,7 +63,7 @@ const STATE_LOCK_WAIT_MS = 5000
 const STATE_LOCK_STALE_MS = 30 * 1000
 
 const ACTIONS = ['add-domain', 'remove-domain', 'turn-on', 'turn-off', 'add-approver', 'remove-approver', 'update-compose']
-const STATUS = { BAD_SIGNATURE: 403, BAD_PASSWORD: 403, LOCKED: 429, NOT_FOUND: 404, BUSY: 409, ALREADY_ALLOWED: 409, ALREADY_ON: 409, ALREADY_OFF: 409, NO_APPROVER: 409, NOT_AVAILABLE: 422, RECONFIGURE_FAILED: 500, INTERNAL: 500 }
+const STATUS = { BAD_SIGNATURE: 403, BAD_PASSWORD: 403, LOCKED: 429, NOT_FOUND: 404, BUSY: 409, ALREADY_ALLOWED: 409, ALREADY_ON: 409, ALREADY_OFF: 409, NO_APPROVER: 409, BOOTSTRAP_TAKEN: 409, ALREADY_PINNED: 409, NOT_AVAILABLE: 422, RECONFIGURE_FAILED: 500, INTERNAL: 500 }
 const HOST_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/
 
 const fail = (code, detail, extra) => ({ status: STATUS[code] ?? 400, body: { error: code, ...(detail ? { detail } : {}), ...extra } })
@@ -112,6 +126,7 @@ export function createEgress({
     registration: path.join(installDir, KEYS_DIR, 'pending-registration.json'),
     approvals: path.join(installDir, KEYS_DIR, 'pending-approvals.json'),
     passwordLock: path.join(installDir, KEYS_DIR, 'password-lock.json'),
+    adoptions: path.join(installDir, KEYS_DIR, 'pending-adoptions.json'),
     stateLock: path.join(installDir, KEYS_DIR, 'state.lock'),
     code: path.join(installDir, CODE_FILE),
     override: path.join(installDir, EGRESS_FILE),
@@ -333,7 +348,8 @@ export function createEgress({
       try {
         const key = crypto.createPublicKey({ key: Buffer.from(publicKey, 'base64url'), format: 'der', type: 'spki' })
         if (key.asymmetricKeyType !== ALGS[String(alg)]) return null
-        out.push({ id, publicKey: key.export({ format: 'der', type: 'spki' }).toString('base64url'), alg })
+        const name = typeof e.name === 'string' && e.name.trim() ? e.name.trim().slice(0, 60) : null
+        out.push({ id, publicKey: key.export({ format: 'der', type: 'spki' }).toString('base64url'), alg, ...(name ? { name } : {}) })
       } catch {
         return null
       }
@@ -378,6 +394,7 @@ export function createEgress({
   }
 
   async function registerFinish(body) {
+    if (body?.token !== undefined) return adoptWithToken(body)
     const pending = pendingRegistration()
     if (!pending) return fail('NO_REGISTRATION')
     const name = typeof body?.name === 'string' ? body.name.trim() : ''
@@ -434,6 +451,61 @@ export function createEgress({
     return ok({ ok: true, approver: publicApprover(entry) })
   }
 
+  function readAdoptions() {
+    const t = now().getTime()
+    const list = readState(files.adoptions) ?? {}
+    for (const [id, a] of Object.entries(list)) if (!a || typeof a.expires !== 'number' || t >= a.expires) delete list[id]
+    return list
+  }
+
+  /**
+   * The second half of `add-approver`: the person's own sign-in key signs the challenge the approval
+   * returned (or their sign-in password, which the app has checked, is pinned). Single use. The one
+   * who approved it is in the log.
+   */
+  async function adoptWithToken(body) {
+    if (typeof body.token !== 'string') return fail('CHALLENGE_UNKNOWN')
+    const taken = await exclusive(() => {
+      const list = readAdoptions()
+      const a = Object.hasOwn(list, body.token) ? list[body.token] : undefined
+      if (!a) return null
+      delete list[body.token]
+      writeState(files.adoptions, list)
+      return a
+    })
+    if (!taken) return fail('CHALLENGE_UNKNOWN')
+    const at = now().toISOString()
+    let entry
+    let detail
+    if (taken.adopt) {
+      if (!body.assertion || 'password' in body) return fail('BAD_REGISTRATION')
+      const found = taken.adopt.find(a => a.id === credentialIdOf(body.assertion))
+      if (!found) return fail('NOT_FOUND')
+      const v = verifyAdoptedAssertion(body.assertion, { publicKey: found.publicKey, alg: found.alg, rpId: taken.rpId }, taken.challenge)
+      if (!v.ok) return fail(v.code)
+      entry = { id: found.id, kind: 'passkey', name: found.name ?? taken.userName, publicKey: found.publicKey, alg: found.alg, rpId: taken.rpId, origin: v.origin, createdAt: at, adopted: true, pinnedBy: 'approved' }
+      detail = entry.name
+    } else {
+      if (!taken.adoptPassword || body.assertion) return fail('BAD_REGISTRATION')
+      const pw = body.password
+      if (typeof pw !== 'string' || [...pw].length < MIN_PASSWORD || pw.length > 500) return fail('WEAK_PASSWORD')
+      const h = await hashPassword(pw)
+      entry = { id: b64u(crypto.randomBytes(12)), kind: 'password', name: taken.userName, ...h, createdAt: at, adopted: true, pinnedBy: 'approved' }
+      detail = entry.name
+    }
+    const replaced = await exclusive(() => {
+      const list = approvers()
+      // A passkey already there is replaced; a password always replaces the one before it (the sign-in password changed)
+      const old = list.findIndex(a => (entry.kind === 'password' ? a.kind === 'password' : a.id === entry.id))
+      if (old >= 0) list.splice(old, 1)
+      list.push(entry)
+      saveApprovers(list)
+      return old >= 0 && entry.kind === 'password'
+    })
+    log('add-approver', replaced ? `${detail} (password replaced)` : detail, taken.approver)
+    return ok({ ok: true, approver: publicApprover(entry) })
+  }
+
   // ---- approvals ---------------------------------------------------------------------------------
 
   /** { flowId: { challenge, change, rpId, expires } }, without what is long past */
@@ -470,6 +542,9 @@ export function createEgress({
       case 'remove-approver':
         if (typeof c.id !== 'string' || !approvers().some(a => a.id === c.id)) return fail('NOT_FOUND')
         return { change: { action: 'remove-approver', id: c.id } }
+      case 'add-approver':
+        // What is being added (the person's own sign-in key or password) travels beside the change, see approveBegin
+        return { change: { action: 'add-approver' } }
       case 'turn-off': {
         const { ctx, reason } = await config.context()
         if (!ctx) return fail('NOT_AVAILABLE', reason)
@@ -486,32 +561,55 @@ export function createEgress({
     }
   }
 
+  const cleanName = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 60) : 'Tazrim')
+
+  /** The assertion options a list of offered sign-in passkeys answers */
+  const adoptOptions = (challenge, rpId, adopt) => ({ challenge, rpId, allowCredentials: adopt.map(a => ({ type: 'public-key', id: a.id })), userVerification: 'required', timeout: 120000 })
+
   async function approveBegin(body) {
     if (!validRpId(body?.rpId)) return fail('BAD_RPID')
     if (await lock.isBusy()) return fail('BUSY')
     const v = await validateChange(body?.change)
     if (v.status) return v
     const all = approvers()
-    const passkeys = all.filter(a => isPasskey(a) && a.rpId === body.rpId)
-    const passwordAllowed = all.some(a => a.kind === 'password')
-    if (!passkeys.length && !passwordAllowed) return fail('NO_APPROVER')
     const flowId = b64u(crypto.randomBytes(16))
     const challenge = b64u(crypto.randomBytes(32))
+    const flow = { challenge, change: v.change, rpId: body.rpId, expires: now().getTime() + APPROVAL_TTL_MS }
+    let options
+    let passwordAllowed
+
+    if (all.length === 0 && v.change.action !== 'add-approver' && v.change.action !== 'update-compose') {
+      // Trust on first use (see the top of this file). The updater decides by its own file: the app
+      // cannot make this flow once an approver exists. An update with no approver needs no approval
+      // at all (hasApprovers), so it is left out: verifyApproval has no first-use path.
+      const adopt = body?.adopt === undefined ? null : cleanAdopt(body.adopt)
+      if (body?.adopt !== undefined && !adopt) return fail('BAD_ADOPT')
+      const adoptPassword = body?.adoptPassword === true
+      if (!adopt && !adoptPassword) return fail('NO_APPROVER')
+      Object.assign(flow, { bootstrap: true, adoptPassword, userName: cleanName(body?.userName), ...(adopt ? { adopt } : {}) })
+      options = adopt ? adoptOptions(challenge, body.rpId, adopt) : null
+      passwordAllowed = adoptPassword
+    } else {
+      const passkeys = all.filter(a => isPasskey(a) && a.rpId === body.rpId)
+      passwordAllowed = all.some(a => a.kind === 'password')
+      if (!passkeys.length && !passwordAllowed) return fail('NO_APPROVER')
+      if (v.change.action === 'add-approver') {
+        // Approved by an existing approver; what is added is the person's sign-in key OR password
+        const adopt = body?.adopt === undefined ? null : cleanAdopt(body.adopt)
+        const adoptPassword = body?.adoptPassword === true
+        if ((body?.adopt !== undefined && !adopt) || (adopt && adoptPassword) || (!adopt && !adoptPassword)) return fail('BAD_ADOPT')
+        const fresh = adopt ? adopt.filter(a => !all.some(p => isPasskey(p) && p.id === a.id && p.rpId === body.rpId)) : null
+        if (adopt && fresh.length === 0) return fail('ALREADY_PINNED')
+        Object.assign(flow, { adoptPassword, userName: cleanName(body?.userName), ...(fresh ? { adopt: fresh } : {}) })
+      }
+      options = passkeys.length ? { challenge, rpId: body.rpId, allowCredentials: passkeys.map(a => ({ type: 'public-key', id: a.id })), userVerification: 'required', timeout: 120000 } : null
+    }
     await exclusive(() => {
       const flows = readFlows()
-      flows[flowId] = { challenge, change: v.change, rpId: body.rpId, expires: now().getTime() + APPROVAL_TTL_MS }
+      flows[flowId] = flow
       writeState(files.approvals, flows)
     })
-    const options = passkeys.length
-      ? {
-          challenge,
-          rpId: body.rpId,
-          allowCredentials: passkeys.map(a => ({ type: 'public-key', id: a.id })),
-          userVerification: 'required',
-          timeout: 120000,
-        }
-      : null
-    return ok({ flowId, options, passwordAllowed, change: v.change })
+    return ok({ flowId, options, passwordAllowed, change: v.change, ...(flow.bootstrap ? { bootstrap: true } : {}) })
   }
 
   /** Takes the pending approval out (single use, even across job containers); { flow } or a refusal */
@@ -529,7 +627,7 @@ export function createEgress({
     })
 
   /** Checks a passkey answer or the approval password, once: { flow, approverName } or a refusal */
-  async function prove(body) {
+  async function prove(body, { allowBootstrap = false } = {}) {
     const usingPassword = typeof body?.password === 'string' && !body?.response
     let approverName
     let flow
@@ -560,6 +658,11 @@ export function createEgress({
         return taken
       }
       flow = taken.flow
+      if (flow.bootstrap) {
+        // Not a guess at a stored password: nothing is pinned yet, the app checked it is the sign-in password
+        await unreserve()
+        return allowBootstrap ? pinPassword(flow, body.password) : fail('CHALLENGE_UNKNOWN')
+      }
       const pw = approvers().find(a => a.kind === 'password')
       if (!pw) {
         await unreserve()
@@ -583,6 +686,7 @@ export function createEgress({
       const taken = await takeFlow({ challenge })
       if (!taken.flow) return taken
       flow = taken.flow
+      if (flow.bootstrap) return allowBootstrap ? pinPasskey(flow, response) : fail('CHALLENGE_UNKNOWN')
       const credId = credentialIdOf(response)
       const approver = approvers().find(a => isPasskey(a) && a.id === credId && a.rpId === flow.rpId)
       if (!approver) return fail('UNKNOWN_CREDENTIAL')
@@ -594,18 +698,50 @@ export function createEgress({
     return { flow, approverName }
   }
 
+  /**
+   * First use: pins `entry` as the only approver, unless someone pinned one while the person was
+   * answering (BOOTSTRAP_TAKEN: the app starts over, the normal way)
+   */
+  async function pinFirst(flow, entry) {
+    const pinned = await exclusive(() => {
+      if (approvers().length > 0) return false
+      saveApprovers([entry])
+      return true
+    })
+    if (!pinned) return fail('BOOTSTRAP_TAKEN')
+    return { flow, approverName: entry.kind === 'password' ? `${entry.name} (סיסמה)` : entry.name, firstUse: entry }
+  }
+
+  async function pinPasskey(flow, response) {
+    const found = flow.adopt?.find(a => a.id === credentialIdOf(response))
+    if (!found) return fail('UNKNOWN_CREDENTIAL')
+    const v = verifyAdoptedAssertion(response, { publicKey: found.publicKey, alg: found.alg, rpId: flow.rpId }, flow.challenge)
+    if (!v.ok) return fail(v.code)
+    const name = found.name ?? flow.userName
+    return pinFirst(flow, { id: found.id, kind: 'passkey', name, publicKey: found.publicKey, alg: found.alg, rpId: flow.rpId, origin: v.origin, createdAt: now().toISOString(), adopted: true, pinnedBy: 'first-use' })
+  }
+
+  async function pinPassword(flow, password) {
+    if (!flow.adoptPassword) return fail('NO_APPROVER')
+    if (typeof password !== 'string' || [...password].length < MIN_PASSWORD || password.length > 500) return fail('WEAK_PASSWORD')
+    const h = await hashPassword(password)
+    return pinFirst(flow, { id: b64u(crypto.randomBytes(12)), kind: 'password', name: flow.userName, ...h, createdAt: now().toISOString(), adopted: true, pinnedBy: 'first-use' })
+  }
+
   async function approveFinish(body) {
-    const proved = await prove(body)
+    const proved = await prove(body, { allowBootstrap: true })
     if (proved.status) return proved
     const { flow, approverName } = proved
+    // The first approval pinned its key: the log shows that before the change it opened
+    if (proved.firstUse) log('add-approver', `${proved.firstUse.name} (first use)`, approverName)
 
     // Things may have changed during the minutes the person took
     const again = await validateChange(flow.change)
     if (again.status) return again
-    return applyChange(again.change, approverName)
+    return applyChange(again.change, approverName, flow)
   }
 
-  async function applyChange(c, approverName) {
+  async function applyChange(c, approverName, flow) {
     switch (c.action) {
       case 'add-domain': {
         if (await lock.isBusy()) return fail('BUSY')
@@ -634,6 +770,18 @@ export function createEgress({
         saveApprovers(list.filter(a => a.id !== c.id))
         log('remove-approver', gone?.name ?? c.id, approverName)
         return ok({ ok: true, change: c })
+      }
+      case 'add-approver': {
+        // The approval itself adds nothing: the new key still has to prove it is the person's, once
+        const token = b64u(crypto.randomBytes(24))
+        const challenge = b64u(crypto.randomBytes(32))
+        const t = now().getTime()
+        await exclusive(() => {
+          const list = readAdoptions()
+          list[token] = { challenge, rpId: flow.rpId, adoptPassword: flow.adoptPassword === true, userName: flow.userName, approver: approverName, expires: t + APPROVAL_TTL_MS, ...(flow.adopt ? { adopt: flow.adopt } : {}) }
+          writeState(files.adoptions, list)
+        })
+        return ok({ ok: true, change: c, adoptToken: token, ...(flow.adopt ? { adoptOptions: adoptOptions(challenge, flow.rpId, flow.adopt) } : {}) })
       }
       case 'turn-off': {
         const r = await config.startEgress(false)
