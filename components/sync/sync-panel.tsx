@@ -492,10 +492,12 @@ function LinkAccounts({
 }
 
 /** Network isolation (ENG-133): the site a failed sync was refused, and where to approve it */
-function BlockedHint({ hosts }: { hosts?: string[] }) {
+function BlockedHint({ hosts, company }: { hosts?: string[]; company?: string }) {
   if (!hosts?.length) return null
   return (
     <p className="text-[0.8125rem] leading-relaxed text-muted-foreground text-pretty">
+      {/* Each company has its own list (ENG-142): in "sync all" the hint says whose sites they are */}
+      {company && <span className="font-medium text-foreground">{company}: </span>}
       {hosts.length === 1 ? 'האתר ' : 'האתרים '}
       {hosts.map((h, i) => (
         <span key={h}>
@@ -712,7 +714,9 @@ export function SyncPanel({ sync, onClose }: { sync: SyncApi; onClose: () => voi
         </div>
         <div className="flex flex-col gap-4 px-4">
           <QueueList queue={queue} companies={info.companies} />
-          <BlockedHint hosts={[...new Set(queue.items.flatMap(i => i.run?.blocked ?? []))]} />
+          {queue.items.map(i => (
+            <BlockedHint key={i.company} hosts={i.run?.blocked} company={info.companies.find(c => c.id === i.company)?.label} />
+          ))}
           <QueuePrompts queue={queue} companies={info.companies} sync={sync} />
           {going ? (
             <p className="text-xs text-muted-foreground">אפשר לסגור את החלון; הסנכרון ממשיך, והכפתור בכותרת יראה מתי הוא מסתיים.</p>

@@ -9,6 +9,7 @@ const view = (extra: Partial<EgressView> = {}): EgressView => ({
   on: false,
   overrideDiffers: false,
   extraDomains: [],
+  household: [],
   approvers: [],
   changes: [],
   blocked: null,
@@ -57,3 +58,46 @@ describe('EgressSettings and the updater', () => {
     expect(html).toContain('כיבוי דורש אישור עם מפתח הכניסה או סיסמת הכניסה')
   })
 })
+
+describe('EgressSettings per provider (ENG-142)', () => {
+  const html = (extra: Partial<EgressView>) => render(view({ household: ['leumi', 'max'], ...extra }))
+
+  it('lists the household\'s providers as active and every other as unused and blocked, both lists always there', () => {
+    const out = html({})
+    expect(out).toContain('בשימוש (2)')
+    expect(out).toContain('לא בשימוש: חסום (16)')
+    // each provider under its own heading, with its own domains
+    expect(out).toContain('בנק לאומי')
+    expect(out).toContain('.bankleumi.co.il')
+    expect(out).toContain('פעיל')
+    // the layout does not depend on the household: nobody uses anything yet
+    const none = html({ household: [] })
+    expect(none).toContain('בשימוש (0)')
+    expect(none).toContain('לא בשימוש: חסום (18)')
+    expect(none).toContain('עוד אין חשבונות שמסתנכרנים')
+  })
+
+  it('the add form has a provider select: all providers, then the household\'s by their Hebrew names (not the unused ones)', () => {
+    const out = html({})
+    const select = /<select id="egress-provider"[\s\S]*?<\/select>/.exec(out)?.[0] ?? ''
+    expect(select).toContain('כל הספקים')
+    expect(select).toContain('value="leumi"')
+    expect(select).toContain('מקס')
+    expect(select).not.toContain('value="hapoalim"')
+  })
+
+  it('an addition shows which provider it is for, or all of them; a refusal shows the provider whose port it was', () => {
+    const out = html({
+      on: true,
+      extraDomains: [
+        { domain: '.cdn-one.example', note: '', addedAt: '2030-01-01T00:00:00Z', approver: 'Dana', provider: 'leumi' },
+        { domain: '.cdn-two.example', note: '', addedAt: '2030-01-01T00:00:00Z', approver: 'Dana' },
+      ],
+      blocked: [{ at: Date.parse('2030-01-01T00:00:00Z'), who: 'app', host: 'captcha.example.test', port: 3207, provider: 'max' }],
+    })
+    expect(out).toMatch(/cdn-one\.example[\s\S]*?בנק לאומי/)
+    expect(out).toMatch(/cdn-two\.example[\s\S]*?כל הספקים/)
+    expect(out).toMatch(/captcha\.example\.test[\s\S]*?האפליקציה[\s\S]*?מקס/)
+  })
+})
+

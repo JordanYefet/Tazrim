@@ -172,7 +172,7 @@ function finish(run: Run, status: RunState) {
   // With isolation on, a failure may be the proxy refusing a host the site needs: remember which
   if (status.state === 'failed' && egressActive()) {
     try {
-      run.blocked = blockedDuring(run.startedAt.getTime(), Date.now())
+      run.blocked = blockedDuring(run.startedAt.getTime(), Date.now(), undefined, run.company.id)
     } catch {}
   }
   if (run.timer) clearTimeout(run.timer)

@@ -3,9 +3,13 @@
  *   time elapsed client code/status bytes method url ident hierarchy type
  *   1763700000.123 45 172.31.1.5 TCP_DENIED/403 3922 CONNECT example.com:443 - HIER_NONE/- text/html
  * A refusal is TCP_DENIED/403. Who: 172.31.1.0/24 is the app, 172.31.2.0/24 the updater.
+ * Since ENG-142 a line ends with an 11th field, the Squid port the client used (the log format
+ * "tazrim" in docker/squid/squid.conf): a provider's own port says which provider's sync it was.
+ * Lines from before have 10 fields and parse as before, with no port.
  */
 import fs from 'node:fs'
 import { squidLogPath } from './config'
+import { MAIN_PORT, providerOfPort } from './provider-ports'
 import type { Denied } from './types'
 
 /** Only the end of the log is read */
@@ -41,7 +45,9 @@ export function parseDenied(line: string): Denied | null {
   const time = Number(f[0])
   const host = hostOf(f[5], f[6])
   if (!Number.isFinite(time) || !host) return null
-  return { at: Math.round(time * 1000), who: whoIs(f[2]), host }
+  const port = /^\d{1,5}$/.test(f[10] ?? '') ? Number(f[10]) : undefined
+  const provider = port === undefined ? null : providerOfPort(port)
+  return { at: Math.round(time * 1000), who: whoIs(f[2]), host, ...(port !== undefined ? { port } : {}), ...(provider ? { provider } : {}) }
 }
 
 /** Every refusal in `text`, newest first, at most `limit` */
@@ -80,13 +86,19 @@ export function recentDenied(limit = DENIED_LIMIT, file = squidLogPath()): Denie
   return parseDeniedLines(readTail(file), limit)
 }
 
-/** The hosts the app was refused between two moments (a sync's start and failure), once each, in the order first refused */
-export function blockedDuring(startMs: number, endMs: number, file = squidLogPath()): string[] {
+/**
+ * The hosts the app was refused between two moments (a sync's start and failure), once each, in the
+ * order first refused. With `company` (ENG-142) only that company's: what came in on its own port, and
+ * lines that say no port (an older log). Several syncs side by side no longer mix their lists.
+ * The main port is the app's own Node calls, which only One Zero's scraper makes.
+ */
+export function blockedDuring(startMs: number, endMs: number, file = squidLogPath(), company?: string): string[] {
   const slack = 2000
   const hosts: string[] = []
   const lines = parseDeniedLines(readTail(file), Number.MAX_SAFE_INTEGER).reverse()
+  const mine = (d: Denied) => !company || d.port === undefined || d.provider === company || (d.port === MAIN_PORT && company === 'oneZero')
   for (const d of lines) {
-    if (d.who === 'app' && d.at >= startMs - slack && d.at <= endMs + slack && !hosts.includes(d.host)) hosts.push(d.host)
+    if (d.who === 'app' && mine(d) && d.at >= startMs - slack && d.at <= endMs + slack && !hosts.includes(d.host)) hosts.push(d.host)
   }
   return hosts
 }

@@ -16,16 +16,20 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AppDialog } from '@/components/ui/app-dialog'
 import { passkeyBlocker } from '@/components/auth/passkey-client'
+import { providerLabel } from '@/lib/egress/allowlist'
 import type { ChangeRequest } from '@/lib/egress/types'
 import { adoptPasskeyWithToken, adoptPasswordWithToken, call, finishApproval, proveWithPasskey, proveWithPassword, type Approved, type Begin, type Proof } from './api'
 import { Busy, Host, INPUT, PRIMARY, SECONDARY } from './ui'
 
+/** "של בנק לאומי" / "של כל הספקים": whose list a site is added to (ENG-142) */
+const forProvider = (id: string | undefined) => (id ? `של ${providerLabel(id) ?? id}` : 'של כל הספקים')
+
 export function describeChange(c: ChangeRequest): React.ReactNode {
   switch (c.action) {
     case 'add-domain':
-      return <>להוסיף את האתר <Host>{c.domain}</Host> לרשימה המותרת</>
+      return <>להוסיף את האתר <Host>{c.domain}</Host> לרשימה המותרת {forProvider(c.provider)}</>
     case 'remove-domain':
-      return <>להסיר את האתר <Host>{c.domain}</Host> מהרשימה המותרת</>
+      return <>להסיר את האתר <Host>{c.domain}</Host> מהרשימה המותרת {forProvider(c.provider)}</>
     case 'turn-off':
       return 'לכבות את בידוד הרשת'
     case 'remove-approver':

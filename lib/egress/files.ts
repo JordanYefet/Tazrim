@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs'
 import { egressFile } from './config'
+import { isProviderId } from './provider-ports'
 import type { Approver, ChangeAction, EgressChange, ExtraDomain } from './types'
 
 const str = (v: unknown, max = 300) => (typeof v === 'string' ? v.slice(0, max) : '')
@@ -20,7 +21,7 @@ export function cleanExtras(v: unknown): ExtraDomain[] {
   if (!Array.isArray(v)) return []
   return v
     .filter((d): d is Record<string, unknown> => !!d && typeof d === 'object' && typeof (d as { domain?: unknown }).domain === 'string')
-    .map(d => ({ domain: str(d.domain, 253), note: str(d.note), addedAt: str(d.addedAt, 40), approver: str(d.approver, 80) }))
+    .map(d => ({ domain: str(d.domain, 253), note: str(d.note), addedAt: str(d.addedAt, 40), approver: str(d.approver, 80), ...(isProviderId(d.provider) ? { provider: d.provider } : {}) }))
 }
 
 /** Never the key or the password hash: the browser needs only who is registered */

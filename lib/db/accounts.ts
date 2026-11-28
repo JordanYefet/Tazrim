@@ -4,6 +4,7 @@ import { prisma } from './client'
 import { CARD_NETWORKS, isCardNetwork, providerKey, type CardNetwork } from '@/lib/accounts/brands'
 import { SYNC_COMPANIES } from '@/lib/sync/providers'
 import { normalizeColorValue } from '@/lib/accounts/colors'
+import { householdChanged } from '@/lib/egress/household'
 
 export type { Account, AccountKind }
 
@@ -252,13 +253,17 @@ export async function createAccount(input: NewAccountInput): Promise<Account> {
   const data = validateNewAccount(input)
   const payerAccountId = (await normalizePayerAccountId(input.payerAccountId, data.kind)) ?? null
   const paidCardIds = await normalizePaidCardIds(input.paidCardIds, data.kind)
-  if (!paidCardIds.length) return prisma.account.create({ data: { ...data, payerAccountId } })
-  // The bank account and its cards' links land together
-  return prisma.$transaction(async tx => {
-    const account = await tx.account.create({ data })
-    await tx.account.updateMany({ where: { id: { in: paidCardIds } }, data: { payerAccountId: account.id } })
-    return account
-  })
+  const created = !paidCardIds.length
+    ? await prisma.account.create({ data: { ...data, payerAccountId } })
+    : // The bank account and its cards' links land together
+      await prisma.$transaction(async tx => {
+        const account = await tx.account.create({ data })
+        await tx.account.updateMany({ where: { id: { in: paidCardIds } }, data: { payerAccountId: account.id } })
+        return account
+      })
+  // Network isolation lets each provider's port reach only the household's providers (ENG-142)
+  householdChanged()
+  return created
 }
 
 /** Null when the account does not exist. Throws AccountValidationError for a bad name. */
@@ -286,6 +291,7 @@ export async function setCardNetwork(id: string, network: unknown): Promise<Acco
  */
 export async function setArchived(id: string, archived: boolean): Promise<Account | null> {
   const { count } = await prisma.account.updateMany({ where: { id }, data: { archived } })
+  if (count) householdChanged()
   return count ? getAccount(id) : null
 }
 
@@ -355,6 +361,7 @@ export async function updateAccount(id: string, input: AccountUpdateInput): Prom
   }
 
   const updated = await prisma.account.update({ where: { id }, data })
+  if (data.provider !== undefined || data.archived !== undefined) householdChanged()
   return { status: 'updated', account: updated }
 }
 
@@ -402,6 +409,12 @@ export type DeleteAccountResult =
  * getDefaultAccount can fall back to once restored; archive it instead.
  */
 export async function deleteAccount(id: string, opts: { confirmName?: unknown } = {}): Promise<DeleteAccountResult> {
+  const result = await deleteAccountInTransaction(id, opts)
+  if (result.status === 'deleted') householdChanged()
+  return result
+}
+
+async function deleteAccountInTransaction(id: string, opts: { confirmName?: unknown }): Promise<DeleteAccountResult> {
   return prisma.$transaction(async tx => {
     const account = await tx.account.findUnique({
       where: { id },

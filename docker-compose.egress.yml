@@ -49,7 +49,8 @@ services:
     environment:
       TAZRIM_EGRESS: "1"
       TAZRIM_SQUID_LOG: /squid-logs/access.log
-      # The browser's only way out (sync: lib/sync/scrape.ts)
+      # The browser's only way out (sync: lib/sync/scrape.ts). The browser of each provider uses that
+      # provider's own port on this host (docker/squid/allowlist.json); 3128 is for everything else
       TAZRIM_SYNC_PROXY: "http://squid:3128"
       # One bank (One Zero) is not scraped with a browser but with the app's own HTTP calls:
       # Node 22 sends those through the proxy too with these three. (Node prints an
@@ -91,14 +92,12 @@ services:
         target: /etc/squid/squid.conf
       - source: squid-banks
         target: /etc/squid/banks.txt
-    # ./egress holds the owner's additions (extra-domains.txt, written by the updater only). The
-    # wrapper creates the empty file when there is none yet, so a fresh install starts; "-k
-    # reconfigure" (run by the updater) picks up later changes without a restart
-    entrypoint:
-      - sh
-      - -c
-      - '[ -e /etc/squid/extra/extra-domains.txt ] || : > /etc/squid/extra/extra-domains.txt; exec entrypoint.sh "$$@"'
-      - squid
+      - source: squid-init
+        target: /squid-init.sh
+    # ./egress holds the lists the proxy reads (extra-domains.txt, providers/<id>.txt: written by the
+    # updater only, ENG-142). The wrapper (squid-init below) creates the files that are missing, so a
+    # fresh install starts; "-k reconfigure" (run by the updater) picks up later changes without a restart
+    entrypoint: ["sh", "/squid-init.sh"]
     command: ["-f", "/etc/squid/squid.conf", "-NYC"]
     volumes:
       - ./egress:/etc/squid/extra
@@ -164,7 +163,7 @@ volumes:
   squid-logs:
 
 configs:
-  # The two blocks below are COPIES of docker/squid/squid.conf and docker/squid/banks.txt (so
+  # The three blocks below are COPIES of docker/squid/squid.conf, banks.txt and init.sh (so
   # this one extra file is all a user downloads). Do not edit them here: edit those and run
   #   node scripts/egress-allowlist.mjs
   # A test fails when they differ.
@@ -178,10 +177,16 @@ configs:
       # The idea: the containers sit on internal-only Docker networks (no route to the internet).
       # Each can reach Squid and nothing else. Squid decides, per client and per destination name.
       #
-      #   tazrim  --(172.31.1.0/24)--> Squid --> bank and card provider domains only (banks.txt),
-      #                                          plus the owner's own additions (extra-domains.txt)
+      #   tazrim  --(172.31.1.0/24)--> Squid --> only the domains of the providers THIS household uses
+      #                                          (ENG-142), plus the owner's own additions
       #   updater --(172.31.2.0/24)--> Squid --> api.github.com only
       #   everyone else, everything else --> denied
+      #
+      # One port per provider (ENG-142): the sync browser of a bank talks to that bank's port, and the port
+      # reaches that bank's domains and nothing else. A provider the household has no account with has an
+      # empty list: its port refuses everything. Port 3128 is for the app's own Node calls (One Zero's HTTP
+      # scraper) and reaches the union of the household's providers. The lists are files the updater
+      # writes (/etc/squid/extra/providers/<id>.txt); this file only names them.
       #
       # STAGE: this file is shipped in ENFORCING mode. To learn what a real bank login needs, turn
       # on LEARNING MODE below, sync each account once, read the log, and add what you find to
@@ -190,7 +195,27 @@ configs:
       # --- Where we listen --------------------------------------------------------------
       # A plain forward proxy. For HTTPS the client sends "CONNECT host:443" and Squid tunnels the
       # bytes without opening them: there is no ssl_bump here on purpose, Squid never sees a login.
-      http_port 3128
+      # BEGIN generated: ports (scripts/egress-allowlist.mjs, from docker/squid/allowlist.json)
+      http_port 3128 name=p_main
+      http_port 3201 name=p_hapoalim
+      http_port 3202 name=p_beinleumi
+      http_port 3203 name=p_union
+      http_port 3204 name=p_amex
+      http_port 3205 name=p_isracard
+      http_port 3206 name=p_visaCal
+      http_port 3207 name=p_max
+      http_port 3208 name=p_otsarHahayal
+      http_port 3209 name=p_discount
+      http_port 3210 name=p_mercantile
+      http_port 3211 name=p_mizrahi
+      http_port 3212 name=p_leumi
+      http_port 3213 name=p_massad
+      http_port 3214 name=p_yahav
+      http_port 3215 name=p_behatsdaa
+      http_port 3216 name=p_beyahadBishvilha
+      http_port 3217 name=p_oneZero
+      http_port 3218 name=p_pagi
+      # END generated: ports
 
       # --- Access lists (acl NAME TYPE VALUES) ------------------------------------------
       # WHO is asking. Every client has its own network with a fixed subnet (set in
@@ -198,13 +223,69 @@ configs:
       acl from_app     src 172.31.1.0/24
       acl from_updater src 172.31.2.0/24
 
-      # WHERE to. A leading dot matches the domain and every subdomain. The bank list lives in its
-      # own file (generated from allowlist.json; one domain per line).
-      acl banks  dstdomain "/etc/squid/banks.txt"
+      # WHERE to. A leading dot matches the domain and every subdomain.
       acl github dstdomain api.github.com
-      # Sites the owner added from the app (ENG-133). The file is written ONLY by the updater, after a
-      # passkey approval; the app has it read-only. It may be empty (Squid is fine with that).
+      # Sites the owner added from the app for ALL providers (ENG-133). The file is written ONLY by the
+      # updater, after a passkey approval; the app has it read-only. It may be empty (Squid is fine with that).
       acl extra  dstdomain "/etc/squid/extra/extra-domains.txt"
+      # Per provider (generated): which port it is, its domains (dst_), what the owner added for it (extra_)
+      # BEGIN generated: acls
+      acl via_main myportname p_main
+      acl via_hapoalim myportname p_hapoalim
+      acl dst_hapoalim dstdomain "/etc/squid/extra/providers/hapoalim.txt"
+      acl extra_hapoalim dstdomain "/etc/squid/extra/providers/extra-hapoalim.txt"
+      acl via_beinleumi myportname p_beinleumi
+      acl dst_beinleumi dstdomain "/etc/squid/extra/providers/beinleumi.txt"
+      acl extra_beinleumi dstdomain "/etc/squid/extra/providers/extra-beinleumi.txt"
+      acl via_union myportname p_union
+      acl dst_union dstdomain "/etc/squid/extra/providers/union.txt"
+      acl extra_union dstdomain "/etc/squid/extra/providers/extra-union.txt"
+      acl via_amex myportname p_amex
+      acl dst_amex dstdomain "/etc/squid/extra/providers/amex.txt"
+      acl extra_amex dstdomain "/etc/squid/extra/providers/extra-amex.txt"
+      acl via_isracard myportname p_isracard
+      acl dst_isracard dstdomain "/etc/squid/extra/providers/isracard.txt"
+      acl extra_isracard dstdomain "/etc/squid/extra/providers/extra-isracard.txt"
+      acl via_visaCal myportname p_visaCal
+      acl dst_visaCal dstdomain "/etc/squid/extra/providers/visaCal.txt"
+      acl extra_visaCal dstdomain "/etc/squid/extra/providers/extra-visaCal.txt"
+      acl via_max myportname p_max
+      acl dst_max dstdomain "/etc/squid/extra/providers/max.txt"
+      acl extra_max dstdomain "/etc/squid/extra/providers/extra-max.txt"
+      acl via_otsarHahayal myportname p_otsarHahayal
+      acl dst_otsarHahayal dstdomain "/etc/squid/extra/providers/otsarHahayal.txt"
+      acl extra_otsarHahayal dstdomain "/etc/squid/extra/providers/extra-otsarHahayal.txt"
+      acl via_discount myportname p_discount
+      acl dst_discount dstdomain "/etc/squid/extra/providers/discount.txt"
+      acl extra_discount dstdomain "/etc/squid/extra/providers/extra-discount.txt"
+      acl via_mercantile myportname p_mercantile
+      acl dst_mercantile dstdomain "/etc/squid/extra/providers/mercantile.txt"
+      acl extra_mercantile dstdomain "/etc/squid/extra/providers/extra-mercantile.txt"
+      acl via_mizrahi myportname p_mizrahi
+      acl dst_mizrahi dstdomain "/etc/squid/extra/providers/mizrahi.txt"
+      acl extra_mizrahi dstdomain "/etc/squid/extra/providers/extra-mizrahi.txt"
+      acl via_leumi myportname p_leumi
+      acl dst_leumi dstdomain "/etc/squid/extra/providers/leumi.txt"
+      acl extra_leumi dstdomain "/etc/squid/extra/providers/extra-leumi.txt"
+      acl via_massad myportname p_massad
+      acl dst_massad dstdomain "/etc/squid/extra/providers/massad.txt"
+      acl extra_massad dstdomain "/etc/squid/extra/providers/extra-massad.txt"
+      acl via_yahav myportname p_yahav
+      acl dst_yahav dstdomain "/etc/squid/extra/providers/yahav.txt"
+      acl extra_yahav dstdomain "/etc/squid/extra/providers/extra-yahav.txt"
+      acl via_behatsdaa myportname p_behatsdaa
+      acl dst_behatsdaa dstdomain "/etc/squid/extra/providers/behatsdaa.txt"
+      acl extra_behatsdaa dstdomain "/etc/squid/extra/providers/extra-behatsdaa.txt"
+      acl via_beyahadBishvilha myportname p_beyahadBishvilha
+      acl dst_beyahadBishvilha dstdomain "/etc/squid/extra/providers/beyahadBishvilha.txt"
+      acl extra_beyahadBishvilha dstdomain "/etc/squid/extra/providers/extra-beyahadBishvilha.txt"
+      acl via_oneZero myportname p_oneZero
+      acl dst_oneZero dstdomain "/etc/squid/extra/providers/oneZero.txt"
+      acl extra_oneZero dstdomain "/etc/squid/extra/providers/extra-oneZero.txt"
+      acl via_pagi myportname p_pagi
+      acl dst_pagi dstdomain "/etc/squid/extra/providers/pagi.txt"
+      acl extra_pagi dstdomain "/etc/squid/extra/providers/extra-pagi.txt"
+      # END generated: acls
 
       # Never a bare IP address, and never an address inside this computer or its home network.
       # dstdomain looks IPs up in reverse DNS, which a name server can control; and a bank domain
@@ -232,9 +313,84 @@ configs:
       #http_access allow from_app
       # =====================================================================================
 
-      # Each client reaches only its own list
-      http_access allow from_app banks
+      # Each client reaches only its own list. The owner's additions for all providers work on every port
       http_access allow from_app extra
+      # Per provider (generated): its port reaches its own domains and its own additions, nothing else.
+      # The main port reaches the union of them (a provider with no account has an empty file)
+      # BEGIN generated: rules
+      http_access allow from_app via_hapoalim dst_hapoalim
+      http_access allow from_app via_hapoalim extra_hapoalim
+      http_access allow from_app via_beinleumi dst_beinleumi
+      http_access allow from_app via_beinleumi extra_beinleumi
+      http_access allow from_app via_union dst_union
+      http_access allow from_app via_union extra_union
+      http_access allow from_app via_amex dst_amex
+      http_access allow from_app via_amex extra_amex
+      http_access allow from_app via_isracard dst_isracard
+      http_access allow from_app via_isracard extra_isracard
+      http_access allow from_app via_visaCal dst_visaCal
+      http_access allow from_app via_visaCal extra_visaCal
+      http_access allow from_app via_max dst_max
+      http_access allow from_app via_max extra_max
+      http_access allow from_app via_otsarHahayal dst_otsarHahayal
+      http_access allow from_app via_otsarHahayal extra_otsarHahayal
+      http_access allow from_app via_discount dst_discount
+      http_access allow from_app via_discount extra_discount
+      http_access allow from_app via_mercantile dst_mercantile
+      http_access allow from_app via_mercantile extra_mercantile
+      http_access allow from_app via_mizrahi dst_mizrahi
+      http_access allow from_app via_mizrahi extra_mizrahi
+      http_access allow from_app via_leumi dst_leumi
+      http_access allow from_app via_leumi extra_leumi
+      http_access allow from_app via_massad dst_massad
+      http_access allow from_app via_massad extra_massad
+      http_access allow from_app via_yahav dst_yahav
+      http_access allow from_app via_yahav extra_yahav
+      http_access allow from_app via_behatsdaa dst_behatsdaa
+      http_access allow from_app via_behatsdaa extra_behatsdaa
+      http_access allow from_app via_beyahadBishvilha dst_beyahadBishvilha
+      http_access allow from_app via_beyahadBishvilha extra_beyahadBishvilha
+      http_access allow from_app via_oneZero dst_oneZero
+      http_access allow from_app via_oneZero extra_oneZero
+      http_access allow from_app via_pagi dst_pagi
+      http_access allow from_app via_pagi extra_pagi
+      http_access allow from_app via_main dst_hapoalim
+      http_access allow from_app via_main extra_hapoalim
+      http_access allow from_app via_main dst_beinleumi
+      http_access allow from_app via_main extra_beinleumi
+      http_access allow from_app via_main dst_union
+      http_access allow from_app via_main extra_union
+      http_access allow from_app via_main dst_amex
+      http_access allow from_app via_main extra_amex
+      http_access allow from_app via_main dst_isracard
+      http_access allow from_app via_main extra_isracard
+      http_access allow from_app via_main dst_visaCal
+      http_access allow from_app via_main extra_visaCal
+      http_access allow from_app via_main dst_max
+      http_access allow from_app via_main extra_max
+      http_access allow from_app via_main dst_otsarHahayal
+      http_access allow from_app via_main extra_otsarHahayal
+      http_access allow from_app via_main dst_discount
+      http_access allow from_app via_main extra_discount
+      http_access allow from_app via_main dst_mercantile
+      http_access allow from_app via_main extra_mercantile
+      http_access allow from_app via_main dst_mizrahi
+      http_access allow from_app via_main extra_mizrahi
+      http_access allow from_app via_main dst_leumi
+      http_access allow from_app via_main extra_leumi
+      http_access allow from_app via_main dst_massad
+      http_access allow from_app via_main extra_massad
+      http_access allow from_app via_main dst_yahav
+      http_access allow from_app via_main extra_yahav
+      http_access allow from_app via_main dst_behatsdaa
+      http_access allow from_app via_main extra_behatsdaa
+      http_access allow from_app via_main dst_beyahadBishvilha
+      http_access allow from_app via_main extra_beyahadBishvilha
+      http_access allow from_app via_main dst_oneZero
+      http_access allow from_app via_main extra_oneZero
+      http_access allow from_app via_main dst_pagi
+      http_access allow from_app via_main extra_pagi
+      # END generated: rules
       http_access allow from_updater github
       # Deny by default: nothing else may use this proxy
       http_access deny all
@@ -250,11 +406,13 @@ configs:
       # Squid starts as root and drops to the "proxy" user, which cannot write to the container's
       # stdout, so the access log is a file. The image's entrypoint also copies it to the container
       # log:  docker compose logs squid   (or:  docker compose exec squid tail -f /var/log/squid/access.log)
-      # Format: time  elapsed-ms  client  result/status  bytes  method  url  user  hierarchy/peer  type
+      # Format: time  elapsed-ms  client  result/status  bytes  method  url  user  hierarchy/peer  type  port
+      # (the last field, the port the client used, tells the app which provider's sync it was: ENG-142)
       # TCP_DENIED/403 = refused by the rules above; TCP_TUNNEL/200 = an HTTPS tunnel that was allowed.
       # Files Squid creates (the log) are readable by the app, which shows what was blocked (ENG-134)
       umask 022
-      access_log daemon:/var/log/squid/access.log squid
+      logformat tazrim %ts.%03tu %6tr %>a %Ss/%03>Hs %<st %rm %ru %[un %Sh/%<a %mt %lp
+      access_log daemon:/var/log/squid/access.log tazrim
       cache_store_log none
       # END squid.conf
 
@@ -262,7 +420,9 @@ configs:
     content: |
       # BEGIN banks.txt
       # GENERATED by scripts/egress-allowlist.mjs from docker/squid/allowlist.json: do not edit here.
-      # What the tazrim container may reach through Squid: one dstdomain per line.
+      # Every provider's domains, one dstdomain per line. Squid does NOT read this file: the Squid wrapper
+      # (docker/squid/init.sh) copies a provider's section to /etc/squid/extra/providers/<id>.txt when that file
+      # does not exist yet, and from then on the updater keeps those files (only the providers the household uses).
       # A leading dot matches the domain and every subdomain; no dot = that exact host only.
       # "third-party" = a host the provider's pages load that login needs (found by scripts/egress-survey.mjs).
 
@@ -294,7 +454,7 @@ configs:
       .telebank.co.il
 
       # --- mercantile: Mercantile Bank
-      # .telebank.co.il  (already covered by .telebank.co.il, listed under discount)
+      .telebank.co.il
 
       # --- mizrahi: Mizrahi-Tefahot
       .mizrahi-tefahot.co.il
@@ -302,8 +462,10 @@ configs:
       # --- leumi: Bank Leumi
       .bankleumi.co.il
       .leumi.co.il
-      .hcaptcha.com # third-party: the login page's captcha (survey 2026-11-21)
-      .perfdrive.com # third-party: Radware Bot Manager, the login page's bot check (survey 2026-11-21)
+      # third-party: the login page's captcha (survey 2026-11-21)
+      .hcaptcha.com
+      # third-party: Radware Bot Manager, the login page's bot check (survey 2026-11-21)
+      .perfdrive.com
 
       # --- massad: Bank Massad
       .bankmassad.co.il
@@ -323,6 +485,44 @@ configs:
       # --- pagi: Pagi
       .pagi.co.il
       # END banks.txt
+
+  squid-init:
+    content: |
+      # BEGIN init.sh
+      # Squid's wrapper (ENG-131, ENG-142): makes sure every file squid.conf names exists, then starts the
+      # image's own entrypoint. Runs as root in the squid container, with ./egress mounted at /etc/squid/extra.
+      #
+      #   extra-domains.txt            the owner's additions for all providers (empty)
+      #   providers/<id>.txt           what the provider's port may reach. The UPDATER keeps these: the
+      #                                household's providers get their domains, the others an empty list.
+      #   providers/extra-<id>.txt     the owner's additions for one provider (empty)
+      #
+      # A file that is missing is created here and never touched again. Until the app has told the updater
+      # which providers the household uses (POST /v1/egress/providers, right after the app starts), nobody
+      # knows, so a MISSING provider file starts FULL (that provider's domains, from banks.txt): the same
+      # reach as before per-provider lists. After that call every file exists and only the updater changes it.
+      set -e
+      E=/etc/squid/extra
+      P=$$E/providers
+      mkdir -p "$$P"
+      [ -e "$$E/extra-domains.txt" ] || : > "$$E/extra-domains.txt"
+      # banks.txt: "# --- <id>: <name>" starts a provider; its lines (without comments) are its domains
+      D=$$(mktemp -d)
+      awk -v dir="$$D" '
+        /^# --- / { id = $$3; sub(/:$$/, "", id); out = dir "/" id ".txt"; printf "" > out; next }
+        /^#/ || /^[ \t]*$$/ { next }
+        out != "" { print > out }
+      ' /etc/squid/banks.txt
+      for f in "$$D"/*.txt; do
+        id=$$(basename "$$f" .txt)
+        [ -e "$$P/$$id.txt" ] || cp "$$f" "$$P/$$id.txt"
+        [ -e "$$P/extra-$$id.txt" ] || : > "$$P/extra-$$id.txt"
+      done
+      rm -rf "$$D"
+      # Files made here belong to whoever owns the folder (not root), as the updater's do
+      chown -R "$$(stat -c %u:%g "$$E")" "$$P" "$$E/extra-domains.txt" 2>/dev/null || true
+      exec entrypoint.sh "$$@"
+      # END init.sh
 
   gateway-script:
     content: |
